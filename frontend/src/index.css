@@ -2806,6 +2806,23 @@ canvas#game {
 .gear-slot-legs    { top: 160px; left:  50%; transform: translateX(-50%); }
 .gear-slot-amulet  { top:  80px; right: 10px; }
 .gear-slot-boots   { top: 250px; left:  50%; transform: translateX(-50%); }
+
+/* Artifact slots — generic (not body-part typed), shown as a row of cards */
+.artifact-slots-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.artifact-slot {
+  width: 110px; min-height: 84px;
+  background: #0a0420; border: 2px solid var(--rc, #2a1a4e);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  cursor: pointer; transition: all 0.2s; padding: 8px;
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+}
+.artifact-slot.filled { background: #1a1006; box-shadow: 0 0 10px var(--rc); }
+.artifact-slot:hover { transform: scale(1.05); box-shadow: 0 0 14px var(--rc, #2a1a4e); }
+.artifact-slot-icon, .artifact-slot-empty-icon { font-size: 24px; }
+.artifact-slot-empty-icon { opacity: 0.22; }
+.artifact-slot-name { font-family: 'VT323', monospace; font-size: 10px; color: var(--rc); text-align: center; line-height: 1.15; }
+.artifact-slot-label { font-family: 'VT323', monospace; font-size: 8px; color: #5a4a6e; letter-spacing: 0.1em; }
+
 .gear-stats-summary { flex: 1; min-width: 200px; }
 .gear-stats-title { font-family:'VT323'; font-size:14px; color:#4a3a6e; letter-spacing:.2em; margin-bottom:10px; }
 .gear-stat-row { display:flex; gap:8px; align-items:center; font-family:'VT323'; font-size:12px; padding:4px 0; border-bottom:1px solid #120820; }

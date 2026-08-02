@@ -4,6 +4,7 @@ import { SKILL_INDEX, WEAPON_PARTS } from '../game/data_ext';
 import { STARTER_WEAPONS, PART_SLOT_INFO } from '../game/data_ext2';
 import { POE_INDEX, POE_ATTRS } from '../game/poe_tree';
 import { rollGearDrop } from '../game/gear';
+import { applyArtifactsToStats } from '../game/artifacts';
 import { Audio } from '../game/audio';
 import HUD from './HUD';
 import LevelUpModal from './LevelUpModal';
@@ -147,6 +148,7 @@ function buildMetaEffects(save) {
     else if (result[stat] !== undefined) result[stat] += val;
     else result[stat] = val;
   }
+  applyArtifactsToStats(save, result);
   const activePet = (save.pets || []).find(p => p.active);
   if (activePet) {
     const PET_STAT_MAP = {

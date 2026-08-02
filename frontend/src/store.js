@@ -31,6 +31,10 @@ export const DEFAULT_SAVE = {
   // equipment
   inventory: [], // [{id, slot, name, rarity, level, stats}]
   equipped: {}, // { head, chest, boots, trinket }
+  // artifacts (generic slots, not body-part typed — see game/artifacts.js)
+  artifactInventory: [],
+  artifactEquipped: {}, // { 0: artifactId, 1: artifactId, ... }
+  gachaTokens: 0,
   // daily
   daily: { lastClaim: 0, streak: 0 }, // unix day index
   quests: { day: 0, completed: {}, claimed: {} },
