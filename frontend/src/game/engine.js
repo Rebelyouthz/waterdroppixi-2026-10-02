@@ -2209,6 +2209,9 @@ export class Game {
         desc: this.describeWeaponUpgrade(def, upg) + (canEvo ? `\n✦ TRANSFORMS into ${evoDef.name}!` : (evoId && !r.stats.evoUnlocked ? '\n🔒 Evo locked (need Awakening Gate)' : '')),
         rarity: upg?.evolve ? 'epic' : (lvl >= 4 ? 'rare' : 'uncommon'),
         evoTarget: evoDef ? evoDef.name : null,
+        // For the level-up card UI: current/max tier so it can render level
+        // pips, and whether this pick is an evolution step (distinct badge).
+        lvl, maxLvl: def.levelUps.length, isEvolve: !!(upg && upg.evolve),
       });
     }
     // 2: new weapons

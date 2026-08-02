@@ -390,44 +390,99 @@ canvas#game {
   background-color: var(--rar-bg, transparent);
   border: 2px solid #000;
   border-left: 3px solid var(--rar, #333);
-  box-shadow: var(--pixel-edge), 0 12px 0 #000, 0 0 0 2px var(--rar);
+  --glow: 8px;
+  box-shadow: var(--pixel-edge), 0 12px 0 #000, 0 0 0 2px var(--rar), 0 0 var(--glow) var(--rar);
   padding: 18px 16px;
   cursor: pointer;
-  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
   transition: transform 120ms, box-shadow 120ms;
   position: relative;
   overflow: hidden;
   animation: cardIn 280ms cubic-bezier(.2,.9,.3,1.4) both;
+  /* Unique per-rarity silhouette, not just a plain rectangle — the shape
+     itself gets more elaborate as rarity climbs (see per-tier clip-path
+     overrides below). */
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
 }
 .card:hover {
   transform: translateY(-6px);
   box-shadow: var(--pixel-edge), 0 18px 0 #000, 0 0 40px var(--rar);
 }
-.card.r-common    { --rar: #9a8fa6; background: linear-gradient(180deg, #16121f 0%, #0a0612 100%); }
-.card.r-uncommon  { --rar: #4dff91; background: linear-gradient(180deg, #0d1f14 0%, #0a0612 100%); }
-.card.r-rare      { --rar: #4dc4ff; background: linear-gradient(180deg, #0d1820 0%, #0a0612 100%); }
-.card.r-epic      { --rar: #b362ff; background: linear-gradient(180deg, #180d20 0%, #0a0612 100%); }
-.card.r-legendary { --rar: #ff7a1a; background: linear-gradient(180deg, #200f07 0%, #0a0612 100%); box-shadow: var(--pixel-edge), 0 12px 0 #000, 0 0 0 2px var(--rar), 0 0 22px var(--rar); }
-.card.r-mythical  { --rar: #ff3146; background: linear-gradient(180deg, #200810 0%, #0a0612 100%); box-shadow: var(--pixel-edge), 0 12px 0 #000, 0 0 0 2px var(--rar), 0 0 28px var(--rar); animation: cardIn 280ms cubic-bezier(.2,.9,.3,1.4) both, mythCardPulse 700ms ease-in-out 280ms infinite alternate; }
-@keyframes mythCardPulse { from { box-shadow: var(--pixel-edge), 0 12px 0 #000, 0 0 0 2px #ff3146, 0 0 18px #ff3146; } to { box-shadow: var(--pixel-edge), 0 12px 0 #000, 0 0 0 2px #ff3146, 0 0 38px #ff3146, 0 0 60px rgba(255,49,70,0.35); } }
+.card.r-common    { --rar: #9a8fa6; --glow: 6px;  background: linear-gradient(180deg, #16121f 0%, #0a0612 100%); }
+.card.r-uncommon  { --rar: #4dff91; --glow: 12px; background: linear-gradient(180deg, #0d1f14 0%, #0a0612 100%); clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px); }
+.card.r-rare      { --rar: #4dc4ff; --glow: 18px; background: linear-gradient(180deg, #0d1820 0%, #0a0612 100%); clip-path: polygon(18px 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, calc(100% - 18px) 100%, 0 100%, 0 18px); }
+.card.r-epic      { --rar: #b362ff; --glow: 24px; background: linear-gradient(180deg, #180d20 0%, #0a0612 100%); clip-path: polygon(20px 0, calc(100% - 20px) 0, 100% 20px, 100% calc(100% - 20px), calc(100% - 20px) 100%, 20px 100%, 0 calc(100% - 20px), 0 20px); }
+.card.r-legendary { --rar: #ff7a1a; --glow: 30px; background: linear-gradient(180deg, #200f07 0%, #0a0612 100%); clip-path: polygon(24px 0, calc(100% - 24px) 0, 100% 24px, 100% calc(100% - 24px), calc(100% - 24px) 100%, 24px 100%, 0 calc(100% - 24px), 0 24px); }
+.card.r-mythical  { --rar: #ff3146; --glow: 34px; background: linear-gradient(180deg, #200810 0%, #0a0612 100%); clip-path: polygon(50% 0, 82% 10px, 100% 28px, 100% calc(100% - 28px), 82% calc(100% - 10px), 50% 100%, 18% calc(100% - 10px), 0 calc(100% - 28px), 0 28px, 18% 10px); animation: cardIn 280ms cubic-bezier(.2,.9,.3,1.4) both, mythCardPulse 700ms ease-in-out 280ms infinite alternate; }
+@keyframes mythCardPulse { from { box-shadow: var(--pixel-edge), 0 12px 0 #000, 0 0 0 2px #ff3146, 0 0 20px #ff3146; } to { box-shadow: var(--pixel-edge), 0 12px 0 #000, 0 0 0 2px #ff3146, 0 0 44px #ff3146, 0 0 64px rgba(255,49,70,0.35); } }
 .card-rarity {
   font-family: 'VT323', monospace;
   letter-spacing: 0.3em;
   font-size: 14px;
   color: var(--rar);
 }
+/* Icon "logo holder" — a faceted medallion frame behind the card's emoji
+   icon, tinted by rarity, instead of the icon floating bare on the card. */
+.card-portrait {
+  width: 76px; height: 76px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--rar) 35%, #0a0612) 0%, #0a0612 78%);
+  box-shadow: inset 0 0 0 2px var(--rar), inset 0 0 16px #000, 0 0 14px var(--rar);
+  position: relative;
+}
+.card-portrait::before {
+  content: '';
+  position: absolute; inset: -6px;
+  border-radius: 50%;
+  border: 1px dashed color-mix(in srgb, var(--rar) 55%, transparent);
+  animation: cardPortraitSpin 9s linear infinite;
+}
+@keyframes cardPortraitSpin { to { transform: rotate(360deg); } }
 .card-icon {
-  font-size: 48px;
-  filter: drop-shadow(0 0 12px var(--rar));
+  font-size: 40px;
+  filter: drop-shadow(0 0 10px var(--rar));
 }
 .card-name { font-family: 'Cinzel', serif; font-weight: 800; font-size: 18px; color: var(--ink); text-align: center; }
 .card-desc { font-family: 'VT323', monospace; font-size: 18px; color: var(--ink-dim); text-align: center; line-height: 1.2; }
+.card-desc b { color: var(--rar); font-weight: 700; }
 .card-tag {
   position: absolute; top: -1px; left: -1px;
   background: var(--rar); color: #000;
   font-family: 'VT323', monospace; font-size: 12px;
   padding: 2px 8px; letter-spacing: 0.2em;
 }
+/* Type badge (weapon-new / upgrade / evolve / passive / stat) — icon+label
+   pill instead of bare text, sits under the portrait. */
+.card-type-badge {
+  display: flex; align-items: center; gap: 5px;
+  font-family: 'VT323', monospace; font-size: 13px; letter-spacing: 0.18em;
+  color: var(--rar);
+  background: color-mix(in srgb, var(--rar) 14%, #000);
+  border: 1px solid color-mix(in srgb, var(--rar) 60%, #000);
+  padding: 2px 10px;
+  border-radius: 3px;
+}
+/* Evolution badge — distinct pulsing gold ribbon, only on evolve picks. */
+.card-evo-badge {
+  position: absolute; top: 8px; right: 8px;
+  font-family: 'VT323', monospace; font-size: 12px; letter-spacing: 0.15em;
+  color: #0a0612; background: linear-gradient(135deg, #ffe066, #ff9900);
+  padding: 2px 8px; border-radius: 2px;
+  box-shadow: 0 0 10px #ff9900cc;
+  animation: cardEvoPulse 900ms ease-in-out infinite alternate;
+}
+@keyframes cardEvoPulse { from { box-shadow: 0 0 8px #ff9900aa; } to { box-shadow: 0 0 18px #ffcc44ee; } }
+/* Level pips — filled dots for the weapon's current level, one hollow dot
+   glowing for the level this pick would reach. */
+.card-lvl-dots { display: flex; gap: 4px; align-items: center; }
+.card-lvl-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #221a2c; box-shadow: inset 0 0 0 1px #000;
+}
+.card-lvl-dot.filled { background: var(--rar); box-shadow: 0 0 5px var(--rar); }
+.card-lvl-dot.next { background: transparent; box-shadow: inset 0 0 0 2px var(--rar), 0 0 8px var(--rar); animation: cardEvoPulse 700ms ease-in-out infinite alternate; }
+.card-lvl-text { font-family: 'VT323', monospace; font-size: 12px; color: var(--ink-dim); letter-spacing: 0.1em; }
 
 /* GAME OVER */
 .gameover {

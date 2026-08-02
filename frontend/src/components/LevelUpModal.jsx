@@ -1,6 +1,26 @@
 import React, { useEffect } from 'react';
 import { RARITY } from '../game/data';
 
+const TYPE_BADGE = {
+  'weapon-new': { icon: '⚔️', label: 'NEW WEAPON' },
+  'weapon-upgrade': { icon: '⬆️', label: 'WEAPON UP' },
+  'flag': { icon: '🔮', label: 'PASSIVE' },
+  'stat': { icon: '📈', label: 'STAT BOOST' },
+};
+
+// Wrap numeric tokens (+25%, +3, etc.) in <b> so stat values pop in the
+// card's rarity color instead of blending into the description text.
+function highlightDesc(desc) {
+  return desc.split('\n').map((line, li) => (
+    <React.Fragment key={li}>
+      {li > 0 && <br />}
+      {line.split(/(\+?-?\d+(?:\.\d+)?%?)/g).map((part, i) => (
+        /\d/.test(part) ? <b key={i}>{part}</b> : part
+      ))}
+    </React.Fragment>
+  ));
+}
+
 // Dopamine-heavy level up modal: FORCE text, slot-machine card reveal, particles.
 export default function LevelUpModal({ choices, onPick, playerLevel }) {
   useEffect(() => {
@@ -32,6 +52,9 @@ export default function LevelUpModal({ choices, onPick, playerLevel }) {
         <div className="card-row">
           {choices.map((c, i) => {
             const r = RARITY[c.rarity] || RARITY.common;
+            const badge = TYPE_BADGE[c.kind] || TYPE_BADGE.stat;
+            const showLvlDots = c.kind === 'weapon-upgrade' && !c.isEvolve && Number.isFinite(c.lvl);
+            const dotCount = showLvlDots ? Math.min(8, Math.max(c.lvl + 1, c.maxLvl || 1)) : 0;
             return (
               <div
                 key={i}
@@ -41,11 +64,24 @@ export default function LevelUpModal({ choices, onPick, playerLevel }) {
                 style={{ animationDelay: (i * 90) + 'ms' }}
               >
                 <div className="card-tag">{r.name}</div>
+                {c.isEvolve && <div className="card-evo-badge">✦ EVOLUTION</div>}
                 <div className="card-shine" />
-                <div className="card-icon">{c.icon}</div>
-                <div className="card-rarity">{c.kind === 'weapon-new' ? 'NEW WEAPON' : c.kind === 'weapon-upgrade' ? 'WEAPON +' : c.kind === 'flag' ? 'PASSIVE' : 'STAT'}</div>
+                <div className="card-portrait">
+                  <div className="card-icon">{c.icon}</div>
+                </div>
+                <div className="card-type-badge">
+                  <span>{badge.icon}</span><span>{c.isEvolve ? 'EVOLVE' : badge.label}</span>
+                </div>
+                {showLvlDots && (
+                  <div className="card-lvl-dots">
+                    {Array.from({ length: dotCount }).map((_, di) => (
+                      <span key={di} className={`card-lvl-dot ${di < c.lvl ? 'filled' : di === c.lvl ? 'next' : ''}`} />
+                    ))}
+                    <span className="card-lvl-text">Lv {c.lvl + 1}</span>
+                  </div>
+                )}
                 <div className="card-name">{c.name}</div>
-                <div className="card-desc">{c.desc}</div>
+                <div className="card-desc">{highlightDesc(c.desc)}</div>
               </div>
             );
           })}
