@@ -1141,7 +1141,23 @@ void main() {
         }
 
         // Boss-specific extra passes
-        if (t.id === 'bossOcular') {
+        if (t.id === 'swipeWarden') {
+          // Armor plating normally; guard-down window telegraphs hard (bright
+          // pulsing red outline + exposed white-hot core) so a swipe attack
+          // during it reads as a deliberate, earned execute, not a fluke.
+          if (e._swipeVulnerable) {
+            const pulse = 0.5 + 0.5 * Math.sin(game.time * 10);
+            g.circle(e.x, e.y, s * 0.75 + pulse * 4).stroke({ width: 4, color: '#ff3146', alpha: 0.9 });
+            glow(g, e.x, e.y, s * 0.65, '#ff3146', 1.8);
+            g.circle(e.x, e.y, s * 0.22).fill({ color: '#fff2c8', alpha: 0.9 });
+          } else {
+            for (let pi = 0; pi < 4; pi++) {
+              const pa = (pi / 4) * TAU + Math.PI / 4;
+              g.circle(e.x + Math.cos(pa) * s * 0.42, e.y + Math.sin(pa) * s * 0.42, s * 0.16).fill('#8a6a3a');
+            }
+            g.circle(e.x, e.y, s * 0.2).stroke({ width: 2, color: '#5a4520', alpha: 0.8 });
+          }
+        } else if (t.id === 'bossOcular') {
           const pulse = 0.5 + 0.5 * Math.sin(game.time * 4);
           g.circle(e.x, e.y, s * 0.68 + pulse * 3).stroke({ width: 4, color: '#ffd166' });
           g.circle(e.x, e.y, s * 0.32).fill('#fff8d0');

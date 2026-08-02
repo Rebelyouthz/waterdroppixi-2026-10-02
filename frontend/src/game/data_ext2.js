@@ -388,6 +388,7 @@ export const KILL_FX = {
   beam:       'voidImplode',// pulled into a point
   orbit:      'ash',        // burnt to ash
   meteor:     'gibs',
+  swipeAttack: 'bisect',    // cut clean in half
 };
 
 // ---------- DAILY CHALLENGES ----------

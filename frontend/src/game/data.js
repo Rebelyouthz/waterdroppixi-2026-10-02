@@ -387,6 +387,14 @@ export const ENEMIES = {
     id: 'nanoswarm', name: 'Nano Swarm', size: 18, hp: 50, dmg: 46, speed: 115, color: '#00ff88',
     xp: 12, gold: 6, ai: 'chase',
   },
+  // Swipe-attack miniboss: very tanky and near-immune to normal fire while
+  // guarded, but its guard drops on a cycle (see engine.js updateEnemies) —
+  // during that window a swipe attack executes it instantly. Spawns
+  // periodically as a rare elite, not tied to the WAVE_TIMELINE boss slots.
+  swipeWarden: {
+    id: 'swipeWarden', name: 'Warden', size: 32, hp: 900, dmg: 42, speed: 40, color: '#ffb347',
+    xp: 60, gold: 40, ai: 'chase', armor: 6, noKnockback: true,
+  },
   // Bosses (HP doubled)
   bossOcular: {
     id: 'bossOcular', name: 'Eye of Horus', size: 90, hp: 2400, dmg: 26, speed: 165, color: '#ffd166',

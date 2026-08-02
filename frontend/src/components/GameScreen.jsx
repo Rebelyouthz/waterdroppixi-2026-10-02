@@ -44,7 +44,7 @@ function buildMetaEffects(save) {
     revive:   !!m.m_revive,
     startBoon:(m.m_start || 0),
     area: 0, proj: 0, pierce: 0,
-    headshot: 0, berserk: false, dash: false, dashcd: 0, blink: false, shield: false, bossDmg: 0, voidBurst: 0,
+    headshot: 0, berserk: false, dash: false, dashcd: 0, blink: false, shield: false, swipeAttack: false, bossDmg: 0, voidBurst: 0,
     flags: {},
     // Character system
     weaponSlots: slots,
@@ -67,7 +67,7 @@ function buildMetaEffects(save) {
   });
 
   // New POE tree nodes (poe_ prefix)
-  const BOOLEAN_STATS = new Set(['berserk','dash','blink','shield','revive','chestSense']);
+  const BOOLEAN_STATS = new Set(['berserk','dash','blink','shield','revive','chestSense','swipeAttack']);
   Object.entries(sk).forEach(([id, lvl]) => {
     const pn = POE_INDEX[id]; if (!pn || lvl < 1) return;
     const amt = pn.val * lvl;
@@ -275,13 +275,14 @@ export default function GameScreen({ save, setSave, onExit, onRunEnd, mission })
   }, []);
   const onMobileReload = () => gameRef.current && gameRef.current.tryReload();
   const onMobileDashDir = (nx, ny) => gameRef.current && gameRef.current.tryDash(nx, ny);
+  const onMobileSwipeAttack = (nx, ny) => gameRef.current && gameRef.current.trySwipeAttack(nx, ny);
   const onActiveSkill = (i) => gameRef.current && gameRef.current.tryActiveSkill(i);
 
   return (
     <div className="game-stage">
       <canvas ref={canvasRef} id="game" data-testid="game-canvas" />
       {!gameOverResult && <HUD snap={snap} onActiveSkill={onActiveSkill} isTutorial={!!(mission && mission.isTutorial)} />}
-      <MobileControls onUpdate={onMobileUpdate} onReload={onMobileReload} onDashDir={onMobileDashDir} dashCD={snap ? snap.dashCD : 0} dashReady={snap ? snap.dashReady : false} visible={!gameOverResult} activeSkills={snap ? snap.activeSkills : []} onActiveSkill={onActiveSkill} />
+      <MobileControls onUpdate={onMobileUpdate} onReload={onMobileReload} onDashDir={onMobileDashDir} onSwipeAttack={onMobileSwipeAttack} dashCD={snap ? snap.dashCD : 0} dashReady={snap ? snap.dashReady : false} swipeAttackUnlocked={snap ? snap.swipeAttackUnlocked : false} swipeAttackCD={snap ? snap.swipeAttackCD : 0} visible={!gameOverResult} activeSkills={snap ? snap.activeSkills : []} onActiveSkill={onActiveSkill} />
       {levelUpChoices && <LevelUpModal choices={levelUpChoices} onPick={pickCard} playerLevel={snap ? snap.level : 1} />}
       {paused && !gameOverResult && (
         <div className="pause-overlay">

@@ -20,7 +20,8 @@ const computeVec = (side, touchX, touchY) => {
 };
 
 export default function MobileControls({
-  onUpdate, onDashDir, dashCD = 0, dashReady = true, fireOnAim = true,
+  onUpdate, onDashDir, onSwipeAttack, dashCD = 0, dashReady = true, fireOnAim = true,
+  swipeAttackUnlocked = false, swipeAttackCD = 0,
   visible = true, activeSkills = [], onActiveSkill,
 }) {
   const [show, setShow] = useState(false);
@@ -32,8 +33,12 @@ export default function MobileControls({
   const tracking  = useRef({ left: null, right: null });
   const dashStart = useRef(null);
   const lastDash  = useRef(0);
-  const cbRef     = useRef({ onUpdate, onDashDir });
-  cbRef.current   = { onUpdate, onDashDir };
+  // Right stick (aim) gesture start — mirrors dashStart but fires a swipe
+  // attack instead of a dash when flicked fast.
+  const swipeStart = useRef(null);
+  const lastSwipe   = useRef(0);
+  const cbRef     = useRef({ onUpdate, onDashDir, onSwipeAttack });
+  cbRef.current   = { onUpdate, onDashDir, onSwipeAttack };
 
   useEffect(() => {
     const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
@@ -61,6 +66,7 @@ export default function MobileControls({
         if (tracking.current[side] != null) continue;
         tracking.current[side] = t.identifier;
         if (side === 'left') dashStart.current = { x: t.clientX, y: t.clientY, time: performance.now(), fired: false };
+        else swipeStart.current = { x: t.clientX, y: t.clientY, time: performance.now(), fired: false };
         const vec = computeVec(side, t.clientX, t.clientY);
         if (side === 'left') { leftVec.current = vec; setLeftVis({ active: true, ...vec }); }
         else                  { rightVec.current = vec; setRightVis({ active: true, ...vec }); }
@@ -92,6 +98,20 @@ export default function MobileControls({
             }
           }
         }
+        if (side === 'right' && swipeStart.current && !swipeStart.current.fired) {
+          const elapsed = performance.now() - swipeStart.current.time;
+          const sx = t.clientX - swipeStart.current.x;
+          const sy = t.clientY - swipeStart.current.y;
+          const sLen = Math.hypot(sx, sy);
+          if (elapsed < 200 && sLen > 30) {
+            swipeStart.current.fired = true;
+            const now = performance.now();
+            if (now - lastSwipe.current > 250) {
+              lastSwipe.current = now;
+              cbRef.current.onSwipeAttack && cbRef.current.onSwipeAttack(sx / sLen, sy / sLen);
+            }
+          }
+        }
       }
     };
 
@@ -108,6 +128,7 @@ export default function MobileControls({
         } else {
           rightVec.current = { vx: 0, vy: 0 };
           setRightVis({ active: false, vx: 0, vy: 0 });
+          swipeStart.current = null;
         }
         pushUpdate();
       }
@@ -129,6 +150,8 @@ export default function MobileControls({
 
   // Dash state classes for left ring
   const dashCls = dashReady ? ' dash-ready' : dashCD > 0 ? ' dash-cd' : '';
+  // Swipe-attack state classes for right ring — only shown once unlocked.
+  const swipeCls = !swipeAttackUnlocked ? '' : swipeAttackCD > 0 ? ' swipe-cd' : ' swipe-ready';
 
   const renderSkillBtn = (skillIdx, side) => {
     const sk = activeSkills[skillIdx];
@@ -152,9 +175,19 @@ export default function MobileControls({
 
   return (
     <>
+      {/* Faceted frame behind each ring — visually "holds" the ring + its
+          skill button as one themed unit instead of two floating circles. */}
+      <div className="joy-frame joy-frame-left" aria-hidden />
+      <div className="joy-frame joy-frame-right" aria-hidden />
+
       {/* Static ring — always visible, glow matches state */}
       <div className={`static-ring static-ring-left${leftVis.active ? ' active' : ''}${dashCls}`}  data-testid="joy-ring-left" />
-      <div className={`static-ring static-ring-right${rightVis.active ? ' active' : ''}`} data-testid="joy-ring-right" />
+      <div className={`static-ring static-ring-right${rightVis.active ? ' active' : ''}${swipeCls}`} data-testid="joy-ring-right" />
+
+      {/* Waterdrop logo mark, faint, centered — the game's own brand instead
+          of a generic bare ring. */}
+      <div className="joy-logo joy-logo-left" aria-hidden>💧</div>
+      <div className="joy-logo joy-logo-right" aria-hidden>💧</div>
 
       {/* Knobs */}
       <div className="static-knob static-knob-left"  data-testid="joy-knob-left"  style={{ transform: `translate(${leftVis.vx * MAX_D}px, ${leftVis.vy * MAX_D}px)` }} />
@@ -165,8 +198,8 @@ export default function MobileControls({
       {renderSkillBtn(1, 'right')}
 
       {/* Labels — minimal, no "SWIPE" text */}
-      <div className="joy-lbl joy-lbl-left">MOVE</div>
-      <div className="joy-lbl joy-lbl-right">AIM</div>
+      <div className="joy-lbl joy-lbl-left">MOVE ⇢ FLICK DASH</div>
+      <div className="joy-lbl joy-lbl-right">{swipeAttackUnlocked ? 'AIM ⇢ FLICK SWIPE' : 'AIM'}</div>
     </>
   );
 }

@@ -185,6 +185,11 @@ export class Game {
     this.dockStation = null;
     this._nextDockStationAt = rand(35, 60);
 
+    // Swipe-attack miniboss (swipeWarden): rare tanky elite, only killable
+    // via a swipe attack while its guard is down. Starts appearing mid-run,
+    // same beat as the first scripted boss.
+    this._nextWardenAt = rand(95, 140);
+
     this.bindInput();
     this.resize();
 
@@ -247,6 +252,7 @@ export class Game {
       this.input.keys[k] = true;
       if (k === 'r') this.tryReload();
       if (k === ' ' || k === 'shift') { e.preventDefault(); this.tryDash(); }
+      if (k === 'e') this.trySwipeAttack(this.player.aimX, this.player.aimY);
       if (k === '1') this.tryActiveSkill(0);
       if (k === '2') this.tryActiveSkill(1);
       if (k === '3') this.tryActiveSkill(2);
@@ -394,6 +400,8 @@ export class Game {
       bossName: this.bossActive ? this.bossActive.t.name : '',
       dashCD: this.player.dashCD,
       dashReady: this.run.stats.dash > 0,
+      swipeAttackUnlocked: !!this.run.stats.swipeAttack,
+      swipeAttackCD: this.player.swipeAttackCD || 0,
       shieldReady: this.run.stats.shield > 0 && this.player.shieldCharge > 0,
       activeSkills: this.activeSkills.map(id => ({
         id, icon: ACTIVE_SKILLS[id] ? ACTIVE_SKILLS[id].icon : '?',
@@ -462,6 +470,13 @@ export class Game {
     this.updateDmgNums(dt);
     this.spawnWave(dt);
     this.updateDockStation(dt);
+    this._nextWardenAt -= dt;
+    if (this._nextWardenAt <= 0) {
+      let hasWarden = false;
+      this.enemies.forEach(e => { if (e.alive && e.t && e.t.id === 'swipeWarden') hasWarden = true; });
+      if (!hasWarden) { this.spawnEnemy('swipeWarden'); this._nextWardenAt = rand(120, 180); }
+      else this._nextWardenAt = 8; // recheck soon rather than spawning a second one
+    }
     this.tickCardFlags(dt);
     if (this.pet) this.updatePet(dt);
 
@@ -734,6 +749,7 @@ export class Game {
       }
     }
     p.dashCD = Math.max(0, p.dashCD - dt);
+    p.swipeAttackCD = Math.max(0, (p.swipeAttackCD || 0) - dt);
     p.shieldCD = Math.max(0, p.shieldCD - dt);
     if (s.shield && p.shieldCharge === 0 && p.shieldCD <= 0) { p.shieldCharge = 1; }
 
@@ -802,6 +818,46 @@ export class Game {
     this.cam.shake = Math.max(this.cam.shake, 2);
     for (let i = 0; i < 12; i++) this.spawnSpark(p.x, p.y, '#4dffd4');
     Audio.dash();
+  }
+
+  // Melee instant-kill triggered by a fast swipe gesture (aim stick on
+  // mobile, 'E' in the current aim direction on desktop) — gated behind the
+  // swipeAttack skill-tree node. Finds the nearest enemy roughly in the
+  // swipe direction within melee range; normal enemies die instantly with a
+  // "cut in half" animation (reuses the existing 'bisect' KILL_FX). The
+  // swipeWarden miniboss only dies to this while its guard is down
+  // (e._swipeVulnerable, see updateEnemies) — landing it while guarded
+  // instead deals heavy chip damage so the input never feels wasted.
+  trySwipeAttack(dx, dy) {
+    const p = this.player; const s = this.run.stats;
+    if (!s.swipeAttack) return;
+    if ((p.swipeAttackCD || 0) > 0) return;
+    const l = Math.hypot(dx, dy) || 1;
+    const ndx = dx / l, ndy = dy / l;
+    const range = 78;
+    let target = null, bestDot = 0.35;
+    this.enemies.forEach(e => {
+      if (!e.alive || target === e) return;
+      const ex = e.x - p.x, ey = e.y - p.y;
+      const d = Math.hypot(ex, ey);
+      if (d > range + e.t.size * 0.5) return;
+      const dot = (ex / (d || 1)) * ndx + (ey / (d || 1)) * ndy;
+      if (dot > bestDot) { bestDot = dot; target = e; }
+    });
+    if (!target) return;
+    p.swipeAttackCD = 1.1;
+    this.cam.shake = Math.max(this.cam.shake, 5);
+    for (let i = 0; i < 8; i++) this.spawnSpark(target.x, target.y, '#ffffff');
+    if (target.t.id === 'swipeWarden' && !target._swipeVulnerable) {
+      this.dealDamage(target, target.maxHp * 0.22, false, 40, p.x, p.y);
+      this.spawnDamageNumber(target.x, target.y - target.t.size, 'GUARD UP', '#ff5566', 14);
+      return;
+    }
+    this.run.stats._lastHitWeapon = 'swipeAttack';
+    target.hp = 0;
+    this.spawnDamageNumber(target.x, target.y - target.t.size, target.t.id === 'swipeWarden' ? 'EXECUTED!' : 'SWIPE KILL', '#ffffff', 18);
+    this.killEnemy(target);
+    Audio.crit();
   }
 
   tryActiveSkill(idx) {
@@ -1290,6 +1346,12 @@ export class Game {
     this.enemies.forEach(e => {
       if (!e.alive) return;
       const t = e.t;
+      // Warden guard cycle: vulnerable (swipe-attack executable) for the
+      // last 2s of every 6s — telegraphed visually in pixiRenderer.
+      if (t.id === 'swipeWarden') {
+        e._vulnCycle = ((e._vulnCycle || 0) + dt) % 6;
+        e._swipeVulnerable = e._vulnCycle >= 4;
+      }
       if (t.ai === 'decoy' || e._decoy !== undefined) {
         // decoys absorb projectiles, drain timer
         e._decoy -= dt;
