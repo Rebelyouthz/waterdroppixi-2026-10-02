@@ -13,7 +13,7 @@ import PetPanel from './PetPanel';
 import GearPanel from './GearPanel';
 import { BattlePassPanel, CodexPanel, PatrolPanel, EyeBadge } from './MetaFeatures';
 import { ACHIEVEMENTS } from '../game/data_ext2';
-import { MissionsPanel, ChallengesPanel, AchievementsPanel, CardShopModal, ActiveLoadoutPanel, WeaponCrafting, SettingsPanel, PartsInventory, MapsPanel } from './CampPanels';
+import { MissionsPanel, ChallengesPanel, AchievementsPanel, CardShopModal, ActiveLoadoutPanel, SettingsPanel, MapsPanel } from './CampPanels';
 import { Audio } from '../game/audio';
 
 const openChest = (chestId) => {
@@ -29,15 +29,18 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStar
   const [forgeOpen, setForgeOpen] = useState(false);
   const [chestOpen, setChestOpen] = useState(false);
   const [loadoutOpen, setLoadoutOpen] = useState(false);
-  const [craftOpen, setCraftOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [partsOpen, setPartsOpen] = useState(false);
   const [popCard, setPopCard] = useState(null);
 
   const [characterOpen, setCharacterOpen] = useState(false);
   const [talentOpen, setTalentOpen] = useState(false);
   const [petOpen, setPetOpen] = useState(false);
   const [attrOpen, setAttrOpen] = useState(false);
+  // Sub-tabs for the consolidated Campaign hub (was 4 separate top-level
+  // tabs: Campaign/Maps/Missions/Challenges) and Codex hub (was Codex +
+  // Achievements + Milestones) — fewer top-level menus per feedback.
+  const [campaignSub, setCampaignSub] = useState('campaign');
+  const [codexSub, setCodexSub] = useState('codex');
 
   const popFeedback = (id) => { setPopCard(id); setTimeout(() => setPopCard(null), 550); };
 
@@ -190,11 +193,6 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStar
           <div className="camp-scroll-hint">↓ scroll for more ↓</div>
           <div className="camp-tabs-scroll">
             <button className={`camp-tab ${tab==='campaign'?'active':''}`} onClick={() => setTab('campaign')} data-testid="tab-campaign">📜 CAMPAIGN</button>
-            <button className={`camp-tab ${tab === 'maps' ? 'active' : ''}`} onClick={() => setTab('maps')} data-testid="tab-maps">🗺 MAPS</button>
-            <button className={`camp-tab ${tab === 'missions' ? 'active' : ''}`} onClick={() => setTab('missions')} data-testid="tab-missions">📋 MISSIONS</button>
-            <button className={`camp-tab ${tab === 'challenges' ? 'active' : ''}`} onClick={() => setTab('challenges')} data-testid="tab-challenges">🏆 CHALLENGES</button>
-            <button className={`camp-tab ${tab === 'achievements' ? 'active' : ''}`} onClick={() => setTab('achievements')} data-testid="tab-ach" style={{position:'relative'}}>🎖 ACHIEVEMENTS {achNew && <EyeBadge/>}</button>
-            <button className={`camp-tab ${tab === 'milestones' ? 'active' : ''}`} onClick={() => setTab('milestones')} data-testid="tab-milestones">⭐ MILESTONES</button>
             <button className={`camp-tab ${tab === 'stats' ? 'active' : ''}`} onClick={() => setTab('stats')} data-testid="tab-stats">📊 STATS</button>
             <button className={`camp-tab ${tab === 'starraid' ? 'active' : ''}`} onClick={() => setTab('starraid')} data-testid="tab-starraid">🚀 STAR RAID</button>
             <div className="camp-tab-divider" />
@@ -206,14 +204,12 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStar
             <button className={`camp-tab ${tab==='gear'?'active':''}`} onClick={() => setTab('gear')} data-testid="tab-gear">🪖 GEAR</button>
             <button className={`camp-tab ${tab==='pass'?'active':''}`} onClick={() => setTab('pass')} data-testid="tab-pass" style={{position:'relative'}}>🎖 SEASON PASS {passNew && <EyeBadge/>}</button>
             <button className={`camp-tab ${tab==='patrol'?'active':''}`} onClick={() => setTab('patrol')} data-testid="tab-patrol" style={{position:'relative'}}>🗺 PATROL {patrolNew && <EyeBadge/>}</button>
-            <button className={`camp-tab ${tab==='codex'?'active':''}`} onClick={() => setTab('codex')} data-testid="tab-codex" style={{position:'relative'}}>📚 CODEX {codexNew && <EyeBadge/>}</button>
+            <button className={`camp-tab ${tab==='codex'?'active':''}`} onClick={() => setTab('codex')} data-testid="tab-codex" style={{position:'relative'}}>📚 CODEX {(codexNew || achNew) && <EyeBadge/>}</button>
             <div className="camp-tab-divider" />
             <button className="camp-tab" onClick={() => setShopOpen(true)} data-testid="open-card-shop">🎰 CARD SHOP</button>
             <button className="camp-tab" onClick={() => setForgeOpen(true)} data-testid="open-forge">🔨 SMITH</button>
             <button className="camp-tab" onClick={() => setChestOpen(true)} data-testid="open-chest">📦 CHESTS</button>
             <button className="camp-tab" onClick={() => setLoadoutOpen(true)} data-testid="open-loadout">🎯 LOADOUT</button>
-            <button className="camp-tab" onClick={() => setPartsOpen(true)} data-testid="open-parts">🔧 PARTS</button>
-            <button className="camp-tab" onClick={() => setCraftOpen(true)} data-testid="open-craft">📐 BLUEPRINTS</button>
             <button className="camp-tab" onClick={() => setSettingsOpen(true)} data-testid="open-settings">⚙ SETTINGS</button>
           </div>
         </div>
@@ -269,37 +265,20 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStar
             </>
           )}
 
-          {tab === 'missions' && <MissionsPanel save={save} setSave={setSave} onStart={onMission} />}
-          {tab === 'maps' && <MapsPanel save={save} setSave={setSave} onStart={(cfg) => onMission(cfg)} />}
-          {tab === 'challenges' && <ChallengesPanel save={save} setSave={setSave} onStart={(c) => onMission({ ...c, isChallenge: true })} />}
-          {tab === 'achievements' && <AchievementsPanel save={save} setSave={setSave} />}
-
-          {tab === 'milestones' && (
+          {tab === 'campaign' && (
             <>
-              <div className="camp-header"><h1>Milestones</h1></div>
-              <div className="upgrade-grid">
-                {MILESTONES.map(m => {
-                  const val = save[m.metric] || 0;
-                  const pct = Math.min(100, (val / m.goal) * 100);
-                  const done = val >= m.goal;
-                  const claimed = save.milestones.claimed[m.id];
-                  return (
-                    <div className="upgrade-card" key={m.id} data-testid={`ms-${m.id}`}>
-                      <div className="name">🏆 {m.name}</div>
-                      <div className="desc">{m.desc}</div>
-                      <div className="hud-xpbar" style={{ width: '100%' }}><div className="hud-xpbar-fill" style={{ width: pct + '%' }} /></div>
-                      <div className="lvl">{Math.min(val, m.goal)} / {m.goal}</div>
-                      <div style={{ fontSize: 12, color: 'var(--accent-2)' }}>{m.reward.gold && `★ ${m.reward.gold}`} {m.reward.sp && `◆ ${m.reward.sp} SP`}</div>
-                      {claimed ? <div style={{ color: 'var(--rune)' }}>✓ CLAIMED</div> :
-                        <button onClick={() => claimMilestone(m)} disabled={!done}>{done ? '✓ CLAIM' : 'LOCKED'}</button>}
-                    </div>
-                  );
-                })}
+              <div className="gear-tabs" style={{ marginBottom: 12 }}>
+                <button className={`gear-tab ${campaignSub === 'campaign' ? 'active' : ''}`} onClick={() => setCampaignSub('campaign')} data-testid="tab-campaign-story">📜 STORY</button>
+                <button className={`gear-tab ${campaignSub === 'maps' ? 'active' : ''}`} onClick={() => setCampaignSub('maps')} data-testid="tab-maps">🗺 MAPS</button>
+                <button className={`gear-tab ${campaignSub === 'missions' ? 'active' : ''}`} onClick={() => setCampaignSub('missions')} data-testid="tab-missions">📋 MISSIONS</button>
+                <button className={`gear-tab ${campaignSub === 'challenges' ? 'active' : ''}`} onClick={() => setCampaignSub('challenges')} data-testid="tab-challenges">🏆 CHALLENGES</button>
               </div>
+              {campaignSub === 'campaign' && <CampaignPanel save={save} setSave={setSave} />}
+              {campaignSub === 'maps' && <MapsPanel save={save} setSave={setSave} onStart={(cfg) => onMission(cfg)} />}
+              {campaignSub === 'missions' && <MissionsPanel save={save} setSave={setSave} onStart={onMission} />}
+              {campaignSub === 'challenges' && <ChallengesPanel save={save} setSave={setSave} onStart={(c) => onMission({ ...c, isChallenge: true })} />}
             </>
           )}
-
-          {tab === 'campaign' && <CampaignPanel save={save} setSave={setSave} />}
 
           {tab === 'patrol' && (
             <>
@@ -337,8 +316,40 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStar
 
           {tab === 'codex' && (
             <>
-              <div className="camp-header"><h1>Codex</h1><div className="camp-header-sub">Discover enemies, weapons, and lore</div></div>
-              <CodexPanel save={save} setSave={setSave} />
+              <div className="gear-tabs" style={{ marginBottom: 12 }}>
+                <button className={`gear-tab ${codexSub === 'codex' ? 'active' : ''}`} onClick={() => setCodexSub('codex')} data-testid="tab-codex-sub">📚 CODEX</button>
+                <button className={`gear-tab ${codexSub === 'achievements' ? 'active' : ''}`} onClick={() => setCodexSub('achievements')} data-testid="tab-ach" style={{ position: 'relative' }}>🎖 ACHIEVEMENTS {achNew && <EyeBadge />}</button>
+                <button className={`gear-tab ${codexSub === 'milestones' ? 'active' : ''}`} onClick={() => setCodexSub('milestones')} data-testid="tab-milestones">⭐ MILESTONES</button>
+              </div>
+              {codexSub === 'codex' && (<>
+                <div className="camp-header"><h1>Codex</h1><div className="camp-header-sub">Discover enemies, weapons, and lore</div></div>
+                <CodexPanel save={save} setSave={setSave} />
+              </>)}
+              {codexSub === 'achievements' && <AchievementsPanel save={save} setSave={setSave} />}
+              {codexSub === 'milestones' && (
+                <>
+                  <div className="camp-header"><h1>Milestones</h1></div>
+                  <div className="upgrade-grid">
+                    {MILESTONES.map(m => {
+                      const val = save[m.metric] || 0;
+                      const pct = Math.min(100, (val / m.goal) * 100);
+                      const done = val >= m.goal;
+                      const claimed = save.milestones.claimed[m.id];
+                      return (
+                        <div className="upgrade-card" key={m.id} data-testid={`ms-${m.id}`}>
+                          <div className="name">🏆 {m.name}</div>
+                          <div className="desc">{m.desc}</div>
+                          <div className="hud-xpbar" style={{ width: '100%' }}><div className="hud-xpbar-fill" style={{ width: pct + '%' }} /></div>
+                          <div className="lvl">{Math.min(val, m.goal)} / {m.goal}</div>
+                          <div style={{ fontSize: 12, color: 'var(--accent-2)' }}>{m.reward.gold && `★ ${m.reward.gold}`} {m.reward.sp && `◆ ${m.reward.sp} SP`}</div>
+                          {claimed ? <div style={{ color: 'var(--rune)' }}>✓ CLAIMED</div> :
+                            <button onClick={() => claimMilestone(m)} disabled={!done}>{done ? '✓ CLAIM' : 'LOCKED'}</button>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </>
           )}
 
@@ -385,12 +396,10 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStar
       {forgeOpen && <Weaponsmith save={save} setSave={setSave} onClose={() => setForgeOpen(false)} />}
       {chestOpen && <Shop save={save} setSave={setSave} onClose={() => setChestOpen(false)} />}
       {loadoutOpen && <ActiveLoadoutPanel save={save} setSave={setSave} onClose={() => setLoadoutOpen(false)} />}
-      {craftOpen && <WeaponCrafting save={save} setSave={setSave} onClose={() => setCraftOpen(false)} />}
       {settingsOpen && <SettingsPanel save={save} setSave={setSave} onClose={() => setSettingsOpen(false)} onReset={handleReset} />}
       {characterOpen && <CharacterPanel save={save} setSave={setSave} onClose={() => setCharacterOpen(false)} />}
       {talentOpen && <TalentTree save={save} setSave={setSave} onClose={() => setTalentOpen(false)} />}
       {petOpen && <PetPanel save={save} setSave={setSave} onClose={() => setPetOpen(false)} />}
-      {partsOpen && <PartsInventory save={save} setSave={setSave} onClose={() => setPartsOpen(false)} />}
       {save.pendingLevelUp && (
         <LevelUpOverlay save={save} onCollect={() => {
           const r = save.pendingLevelUp;
