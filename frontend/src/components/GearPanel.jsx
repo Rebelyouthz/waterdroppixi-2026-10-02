@@ -34,6 +34,7 @@ export default function GearPanel({ save, setSave }) {
   const [selectedArt, setSelectedArt] = useState(null);
   const [popoverSlot, setPopoverSlot] = useState(null);      // gear slot name, e.g. 'helmet'
   const [popoverArtSlot, setPopoverArtSlot] = useState(null); // artifact slot index
+  const [gachaReveal, setGachaReveal] = useState(null);
 
   const inv = save.gearInventory || [];
   const eq  = save.gearEquipped  || {};
@@ -91,11 +92,21 @@ export default function GearPanel({ save, setSave }) {
     setSave({ ...save, artifactInventory: artInv.filter(x => x.id !== id), artifactEquipped: newEq });
     setSelectedArt(null);
   };
-  // DEBUG: grant a random artifact (real acquisition is the Patrol gacha machine)
+  // DEBUG: grant a random artifact directly (bypasses tokens, for testing)
   const debugGrantArtifact = () => {
     const item = rollArtifact(save.attrs?.luck || 0);
     setSave({ ...save, artifactInventory: [...artInv, item] });
     showToast(`Found: ${item.name}`);
+  };
+
+  // Real acquisition path: spend a Gacha Token (earned by clearing Star
+  // Raid's final stage) to pull one artifact.
+  const gachaTokens = save.gachaTokens || 0;
+  const pullGacha = () => {
+    if (gachaTokens <= 0) return;
+    const item = rollArtifact(save.attrs?.luck || 0);
+    setSave({ ...save, gachaTokens: gachaTokens - 1, artifactInventory: [...artInv, item] });
+    setGachaReveal(item);
   };
 
   return (
@@ -327,6 +338,36 @@ export default function GearPanel({ save, setSave }) {
       {/* ── ARTIFACTS TAB ── */}
       {tab === 'artifacts' && (
         <div className="gear-inventory">
+          {/* Gacha Machine — spend tokens earned from Star Raid to pull artifacts */}
+          <div className="gacha-machine" data-testid="gacha-machine">
+            <div className="gacha-machine-icon">🎰</div>
+            <div className="gacha-machine-info">
+              <div className="gacha-machine-title">ARTIFACT GACHA MACHINE</div>
+              <div className="gacha-machine-sub">Clear Star Raid's final stage to earn tokens.</div>
+            </div>
+            <div className="gacha-machine-tokens">🎫 ×{gachaTokens}</div>
+            <button className="gear-btn equip" disabled={gachaTokens <= 0}
+              style={{ opacity: gachaTokens > 0 ? 1 : 0.4 }}
+              onClick={pullGacha} data-testid="gacha-pull-btn">PULL</button>
+          </div>
+
+          {gachaReveal && (
+            <div className="modal-overlay" onClick={() => setGachaReveal(null)}>
+              <div className="gacha-reveal" style={{ '--rc': ARTIFACT_RARITY_COLORS[gachaReveal.rarity] }}
+                onClick={(e) => e.stopPropagation()}>
+                <div className="gacha-reveal-icon">🔶</div>
+                <div className="gacha-reveal-rarity">{gachaReveal.rarity.toUpperCase()}</div>
+                <div className="gacha-reveal-name">{gachaReveal.name}</div>
+                {gachaReveal.stats.map((s, si) => (
+                  <div key={si} className="gear-detail-stat" style={{ color: s.val >= 0 ? '#4dff91' : '#ff5566' }}>
+                    {fmtSigned(s.stat, s.val)} {STAT_LABELS[s.stat] || s.stat}
+                  </div>
+                ))}
+                <button className="gear-btn equip" style={{ marginTop: 12 }} onClick={() => setGachaReveal(null)}>NICE</button>
+              </div>
+            </div>
+          )}
+
           <div className="artifact-slots-row">
             {Array.from({ length: ARTIFACT_SLOT_COUNT }).map((_, slotIdx) => {
               const item = artInv.find(x => x.id === artEq[slotIdx]);
