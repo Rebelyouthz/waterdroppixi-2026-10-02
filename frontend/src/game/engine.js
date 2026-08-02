@@ -15,6 +15,14 @@ const dist2 = (ax, ay, bx, by) => { const dx = ax - bx, dy = ay - by; return dx 
 // Points to fully buy back the Agility/Aim attributes' -33%..+33% curve —
 // matches the 20-point scale other attributes already use.
 const ATTR_CURVE_MAX = 20;
+// Local hex->rgb01 helper (pixiRenderer.js has its own copy for its own
+// purposes — this one is only used for the coarse element-color read in
+// spawnHitSparks/_elementHintFor below).
+function hexToRgb01Local(hex) {
+  const h = (hex || '#ffffff').replace('#', '');
+  const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16) || 0xffffff;
+  return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+}
 const len = (x, y) => Math.hypot(x, y);
 
 class Pool {
@@ -1785,9 +1793,17 @@ export class Game {
       }
     }
     if (Math.random() < 0.55) this.spawnBlood(e.x, e.y, bloodColor);
+    // Puncture hole + a short pumping spurt right at the exact impact point
+    // (ox,oy — the projectile's own position at collision, not the enemy
+    // center), so hits visibly "punch in" somewhere specific on the body
+    // rather than just tinting the whole silhouette.
+    this.spawnPunctureHit(ox, oy, bloodColor);
     // Hit sparks use the impact accent (weapon/muzzle light color) — small,
     // transient, additive-looking flash particles are the right place for
     // "what hit me" color feedback; the blood itself stays enemy-colored.
+    // Elemental flavor (embers/ice/etc) is inferred from that same accent
+    // color so it reads correctly per-weapon without needing every weapon
+    // tagged yet (see the Elemental system backlog item).
     if (!silent) this.spawnHitSparks(e.x, e.y, impactAccent, dmg, crit);
     if (e.hp <= 0) this.killEnemy(e);
   }
@@ -1900,7 +1916,7 @@ export class Game {
         const a = Math.random() * TAU; const r = size * 1.4;
         pp.x = x + Math.cos(a) * r; pp.y = y + Math.sin(a) * r;
         pp.vx = -Math.cos(a) * 240; pp.vy = -Math.sin(a) * 240;
-        pp.life = rand(0.3,0.5); pp.max = pp.life; pp.color = '#b362ff'; pp.size = 3; pp.type = 'spark';
+        pp.life = rand(0.3,0.5); pp.max = pp.life; pp.color = '#b362ff'; pp.size = 1.8; pp.type = 'spark';
       }
       this.spawnRing(x, y, size * 1.8, '#b362ff', 0.4);
       this.spawnRing(x, y, size * 0.8, '#ffffff', 0.25);
@@ -1909,7 +1925,7 @@ export class Game {
         const pp = this.parts.acquire();
         pp.x = x + rand(-size*0.5,size*0.5); pp.y = y + rand(-size*0.5,size*0.5);
         pp.vx = rand(-50, 50); pp.vy = -rand(80, 180);
-        pp.life = rand(0.7, 1.4); pp.max = pp.life; pp.color = i%3===0?'#ff7a1a':'#888'; pp.size = rand(2, 5); pp.type = 'spark';
+        pp.life = rand(0.7, 1.4); pp.max = pp.life; pp.color = i%3===0?'#ff7a1a':'#888'; pp.size = rand(1.2, 3); pp.type = 'spark';
       }
       this.spawnRing(x, y, size * 1.2, '#ff7a1a', 0.25);
     } else if (fx === 'bisect') {
@@ -1918,14 +1934,14 @@ export class Game {
         pp.x = x + rand(-4,4); pp.y = y + rand(-4,4);
         const a = Math.random() * TAU; const sp = rand(160, 440);
         pp.vx = Math.cos(a)*sp; pp.vy = Math.sin(a)*sp - rand(30, 120);
-        pp.life = rand(0.5,1.0); pp.max = pp.life; pp.color = i%4===0?'#b51d28':color; pp.size = rand(3,6); pp.type = 'blood';
+        pp.life = rand(0.5,1.0); pp.max = pp.life; pp.color = i%4===0?'#b51d28':color; pp.size = rand(1.6,3.4); pp.type = 'blood';
       }
       for (let i = 0; i < 3; i++) {
         const pp = this.parts.acquire();
         pp.x = x; pp.y = y;
         const a = (i / 3) * TAU - 0.4;
         pp.vx = Math.cos(a) * 300; pp.vy = Math.sin(a) * 300 - 180;
-        pp.life = 0.9; pp.max = 0.9; pp.color = color; pp.size = size * 0.3; pp.type = 'chunk';
+        pp.life = 0.9; pp.max = 0.9; pp.color = color; pp.size = size * 0.22; pp.type = 'chunk';
       }
     } else {
       // Enhanced standard death: blood spray + body chunks + spark ring
@@ -1937,7 +1953,7 @@ export class Game {
         pp.vx = Math.cos(a)*sp; pp.vy = Math.sin(a)*sp - rand(40,160);
         pp.life = rand(0.4, 1.0); pp.max = pp.life;
         pp.color = i % 4 === 0 ? '#b51d28' : color;
-        pp.size = rand(2, 5); pp.type = 'blood';
+        pp.size = rand(1.2, 3); pp.type = 'blood';
       }
       // Body chunks
       const chunks = 3 + Math.floor(Math.random() * 4);
@@ -1947,7 +1963,7 @@ export class Game {
         const a = Math.random() * TAU; const sp = rand(200, 420);
         pp.vx = Math.cos(a)*sp; pp.vy = Math.sin(a)*sp - rand(100, 280);
         pp.life = rand(0.6, 1.1); pp.max = pp.life;
-        pp.color = color; pp.size = size * (0.2 + Math.random() * 0.18); pp.type = 'chunk';
+        pp.color = color; pp.size = size * (0.14 + Math.random() * 0.13); pp.type = 'chunk';
       }
       // Spark burst (small combo of colored sparks)
       if (qualHi) {
@@ -1956,7 +1972,7 @@ export class Game {
           pp.x = x; pp.y = y;
           const a = (i / 8) * TAU;
           pp.vx = Math.cos(a)*180; pp.vy = Math.sin(a)*180;
-          pp.life = 0.22; pp.max = pp.life; pp.color = '#ffcc44'; pp.size = 2; pp.type = 'spark';
+          pp.life = 0.22; pp.max = pp.life; pp.color = '#ffcc44'; pp.size = 1.3; pp.type = 'spark';
         }
       }
     }
@@ -1972,19 +1988,59 @@ export class Game {
   }
 
   // Enhanced hit sparks (called when projectile hits enemy)
+  // Coarse color->element read used purely for hit-spark FLAVOR right now
+  // (fire embers drift up, ice shards fall+sparkle, electric already gets
+  // real jagged bolts via weaponChain elsewhere) — will become the real
+  // elemental-damage-type lookup once the Elemental system is wired in.
+  _elementHintFor(hexColor) {
+    if (!hexColor) return null;
+    const [r, g, b] = hexToRgb01Local(hexColor);
+    if (r > 0.75 && g < 0.55 && b < 0.35) return 'fire';
+    if (b > 0.75 && g > 0.6 && r < 0.7) return 'ice';
+    if (g > 0.7 && r < 0.5 && b < 0.55) return 'poison';
+    return null;
+  }
+
   spawnHitSparks(x, y, color, dmg, isCrit) {
     const qualHi = this._qualityHigh !== false;
     const cnt = qualHi ? 1 : 0.4;
     const sparkColor = isCrit ? '#ffffff' : color;
     const num = Math.round((isCrit ? 8 : 4) * cnt);
+    const elem = this._elementHintFor(color);
     for (let i = 0; i < num; i++) {
       const pp = this.parts.acquire();
       pp.x = x; pp.y = y;
-      const a = Math.random() * TAU; const sp = rand(80, 200);
-      pp.vx = Math.cos(a)*sp; pp.vy = Math.sin(a)*sp;
-      pp.life = rand(0.08, 0.18); pp.max = pp.life; pp.color = sparkColor; pp.size = rand(1, isCrit?4:2); pp.type = 'spark';
+      const a = Math.random() * TAU; const sp = rand(70, 170);
+      pp.vx = Math.cos(a) * sp;
+      // Fire embers drift/flick upward against gravity; ice shards fall
+      // faster and settle; everything else is a neutral flat spark.
+      pp.vy = elem === 'fire' ? Math.sin(a) * sp - rand(30, 70) : Math.sin(a) * sp;
+      pp.life = elem === 'ice' ? rand(0.14, 0.26) : rand(0.07, 0.15);
+      pp.max = pp.life; pp.color = sparkColor;
+      pp.size = rand(0.8, isCrit ? 2.6 : 1.6); pp.type = 'spark';
     }
     if (isCrit && qualHi) this.spawnRing(x, y, 22, '#ffffff', 0.15);
+  }
+
+  // Tiny dark puncture mark exactly where a projectile/hit landed, plus a
+  // few staggered droplets that "pump" outward over the next moment instead
+  // of all popping at once — reads as a real spurting wound, not a single
+  // static splash. Distinct from (and much smaller than) the 10%-HP wound
+  // patches in spawnWoundBurst, which track cumulative damage rather than
+  // this-exact-shot feedback.
+  spawnPunctureHit(x, y, color) {
+    this.pushBloodDecal({ x, y, r: rand(1.2, 2.2), a: 0.75, bornAt: this.time, color });
+    const n = 2 + randi(0, 2);
+    for (let i = 0; i < n; i++) {
+      const p = this.parts.acquire();
+      p.x = x; p.y = y;
+      const a = Math.random() * TAU; const sp = rand(30, 90);
+      p.vx = Math.cos(a) * sp; p.vy = Math.sin(a) * sp - rand(10, 40);
+      // Staggered life so droplets visibly separate in time (the "pump")
+      // instead of one simultaneous burst.
+      p.life = rand(0.15, 0.5) + i * 0.06; p.max = p.life;
+      p.color = color; p.size = rand(0.8, 1.8); p.type = 'blood';
+    }
   }
 
   addXp(amount) {
@@ -2108,7 +2164,7 @@ export class Game {
       const sp = rand(80, 260);
       p.vx = Math.cos(a) * sp; p.vy = Math.sin(a) * sp - rand(30, 120);
       p.life = rand(0.4, 0.9); p.max = p.life;
-      p.color = color; p.size = rand(2, 4);
+      p.color = color; p.size = rand(1.2, 2.6);
       p.type = 'blood';
     }
   }
@@ -2136,7 +2192,7 @@ export class Game {
       p.vx = Math.cos(a) * sp; p.vy = Math.sin(a) * sp - rand(20, 100);
       p.life = rand(0.4, 0.85); p.max = p.life;
       p.color = i % 4 === 0 ? (impactAccent || bc) : bc;
-      p.size = rand(2, 4); p.type = 'chunk';
+      p.size = rand(1.2, 2.6); p.type = 'chunk';
     }
     this.spawnBlood(wx, wy, bc);
     const localAng = Math.atan2(ny, nx) + rand(-0.35, 0.35);
