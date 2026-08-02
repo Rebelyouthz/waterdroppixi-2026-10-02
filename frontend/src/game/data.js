@@ -165,6 +165,19 @@ export const WEAPONS = {
       { stat: 'damage', mult: 1.55, evolve: true },
     ],
   },
+  stormLance: {
+    id: 'stormLance',
+    name: 'Storm Lance',
+    icon: '🌩️',
+    type: 'manual',
+    behaviour: 'projectile',
+    desc: 'A precision bolt that strikes down like real lightning on impact.',
+    base: { damage: 26, fireRate: 1.4, projSpeed: 900, projSize: 7, projectiles: 1, pierce: 1, spread: 0.03, crit: 0.10, color: '#fff44d', magazine: 8, reloadTime: 0.9 },
+    levelUps: [
+      { stat: 'damage', mult: 1.2 }, { stat: 'pierce', add: 1 }, { stat: 'fireRate', mult: 1.15 },
+      { stat: 'damage', mult: 1.3 }, { stat: 'crit', add: 0.08 }, { stat: 'damage', mult: 1.55, evolve: true },
+    ],
+  },
   // ===== NEW WEAPONS (unlock via Card Shop) =====
   chainlightning: {
     id: 'chainlightning', name: 'Chain Lightning', icon: '⚡', type: 'auto', behaviour: 'beam', requireUnlock: true,
@@ -218,6 +231,15 @@ export const WEAPONS = {
     levelUps: [
       { stat: 'damage', mult: 1.3 }, { stat: 'pierce', add: 1 }, { stat: 'slowOnHit', add: 0.10 },
       { stat: 'damage', mult: 1.3 }, { stat: 'fireRate', mult: 1.2 }, { stat: 'damage', mult: 1.6, evolve: true },
+    ],
+  },
+  staticField: {
+    id: 'staticField', name: 'Static Field', icon: '🔌', type: 'auto', behaviour: 'chain', requireUnlock: true,
+    desc: 'Discharges through the air, arcing between many foes at once — weaker per hit but chains far further than Arc Tesla.',
+    base: { damage: 16, fireRate: 1.6, range: 260, chainCount: 5, chainRange: 260, color: '#c8f8ff' },
+    levelUps: [
+      { stat: 'chainCount', add: 1 }, { stat: 'damage', mult: 1.18 }, { stat: 'chainRange', mult: 1.15 },
+      { stat: 'fireRate', mult: 1.15 }, { stat: 'chainCount', add: 1 }, { stat: 'damage', mult: 1.5, evolve: true },
     ],
   },
   // ===== ADDITIONAL WEAPONS =====

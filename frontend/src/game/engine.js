@@ -1531,12 +1531,52 @@ export class Game {
         if (dist2(pr.x, pr.y, e.x, e.y) <= sumR * sumR) {
           this.dealDamage(e, pr.dmg, pr.crit, pr.knockback, pr.x, pr.y, false, pr.color);
           this.spawnHitBurst(pr.x, pr.y, pr.color || e.t.color, 8);
+          if (pr._wid === 'stormLance') {
+            // Storm Lance: a real bolt visibly strikes down from the sky
+            // onto the target on impact, not just a hit-spark.
+            const lp = this.parts.acquire();
+            lp.x = e.x; lp.y = e.y - 220; lp.vx = e.x; lp.vy = e.y;
+            lp.life = 0.18; lp.max = 0.18; lp.color = pr.color || '#fff44d'; lp.size = 4; lp.type = 'lightning';
+            this.cam.shake = Math.max(this.cam.shake, 3);
+          }
           pr.hit.add(e);
+          // Conductive Rounds passive: plain bullet-type hits (not
+          // orbit/aoe/beam/chain weapons, which already have their own
+          // multi-target mechanics) can arc to nearby enemies.
+          const bounces = Math.floor(this.run.stats.conductiveBounces || 0);
+          if (bounces > 0 && pr._weaponBehaviour === 'projectile') {
+            this.applyConductiveBounce(e.x, e.y, pr.dmg, bounces, new Set([e]));
+          }
           if (pr.pierce <= 0) { this.projs.release(pr); return; }
           pr.pierce -= 1;
         }
       });
     });
+  }
+
+  // Conductive Rounds: chases up to `bouncesLeft` additional enemies from
+  // (x,y), each one closer-range and 25%+ of the original hit's damage
+  // (ratio climbs slightly with more stacked picks). Reuses the exact same
+  // jagged 'lightning' particle + falloff pattern as the Arc Tesla/Chain
+  // Lightning weapons' weaponChain() for a consistent "real electricity"
+  // look (see waterdrop-lighting skill).
+  applyConductiveBounce(x, y, baseDmg, bouncesLeft, hitSet) {
+    if (bouncesLeft <= 0) return;
+    let next = null, bestD = 170;
+    this.enemies.forEach(en => {
+      if (!en.alive || hitSet.has(en)) return;
+      const d = Math.hypot(en.x - x, en.y - y);
+      if (d < bestD) { bestD = d; next = en; }
+    });
+    if (!next) return;
+    const ratio = Math.min(0.6, 0.25 + (Math.floor(this.run.stats.conductiveBounces || 1) - 1) * 0.05);
+    const bounceDmg = Math.max(1, Math.round(baseDmg * ratio));
+    hitSet.add(next);
+    this.dealDamage(next, bounceDmg, false, 15, x, y, true);
+    const lp = this.parts.acquire();
+    lp.x = x; lp.y = y; lp.vx = next.x; lp.vy = next.y;
+    lp.life = 0.16; lp.max = 0.16; lp.color = '#a0e4ff'; lp.size = 3; lp.type = 'lightning';
+    this.applyConductiveBounce(next.x, next.y, baseDmg, bouncesLeft - 1, hitSet);
   }
 
   updateEProjs(dt) {

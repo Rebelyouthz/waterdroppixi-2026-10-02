@@ -271,6 +271,9 @@ export const ADVANCED_CARDS = [
   { id: 'c_overcharge',  icon: '⚡', name: 'Overcharge',        desc: 'Every 6th shot is double damage',               flag: 'overcharge' },
   { id: 'c_railgun',     icon: '🎯', name: 'Railgun Stance',    desc: 'Standing still 1s+ = +60% damage',              flag: 'railStance' },
   { id: 'c_juggernaut',  icon: '💪', name: 'Juggernaut',        desc: '+1 HP regen per 5 enemies in 200u',             flag: 'juggernaut' },
+  // Stat-type (not flag) so re-picking it stacks: +1 bounce AND slightly
+  // more damage per bounce each time, per level-up.
+  { id: 'c_conductive',  icon: '🔌', name: 'Conductive Rounds', desc: 'Bullet hits arc lightning to a nearby foe (stacks: +1 bounce, +bounce damage)', stat: 'conductiveBounces', amount: 1 },
   // ─── New passives ───────────────────────────────────────────
   { id: 'c_ironHide',   icon: '⚙️', name: 'Iron Hide',          desc: '+4 flat armor permanently this run',            stat: 'armor', amount: 4 },
   { id: 'c_soulHarvest',icon: '💀', name: 'Soul Harvest',       desc: 'Every 25 kills restore +1 HP',                  flag: 'soulHarvest' },
@@ -304,6 +307,7 @@ export const SHOP_CARD_POOL = [
   { id: 'sh_skill_vortex',    icon: '🌀', name: 'Unlock: Void Vortex', category:'active', effect: { unlockSkill: 'vortex' } },
   // ── Auto weapon unlocks ──
   { id: 'sh_wep_chainlightning', icon: '⚡', name: 'Unlock: Chain Lightning', category:'auto', effect: { unlockWeapon: 'chainlightning' } },
+  { id: 'sh_wep_staticField',    icon: '🔌', name: 'Unlock: Static Field',    category:'auto', effect: { unlockWeapon: 'staticField' } },
   { id: 'sh_wep_whirlwind',      icon: '🌪️', name: 'Unlock: Whirlwind',       category:'auto', effect: { unlockWeapon: 'whirlwind' } },
   { id: 'sh_wep_boneshards',     icon: '💀', name: 'Unlock: Bone Shards',     category:'auto', effect: { unlockWeapon: 'boneshards' } },
   // ── Manual weapon unlocks ──
