@@ -13,6 +13,7 @@ export const DEFAULT_SAVE = {
   runsCompleted: 0,
   bestRunTime: 0,
   bestKills: 0,
+  bestScore: 0,
   totalKills: 0,
   introSeen: false,
   // NEW currencies

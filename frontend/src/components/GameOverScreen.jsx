@@ -15,6 +15,7 @@ export default function GameOver({ result, extras, onCamp, onRetry, onMenu }) {
   const badges = [];
   if (ex.isBestTime)   badges.push({ icon: '🏆', label: 'NEW BEST TIME' });
   if (ex.isBestKills)  badges.push({ icon: '⚡', label: 'NEW LEVEL RECORD' });
+  if (ex.isBestScore)  badges.push({ icon: '🥇', label: 'NEW BEST SCORE' });
   if (ex.noHit)        badges.push({ icon: '💎', label: 'FLAWLESS RUN' });
   if (result.victory || result.aidaKilled) badges.push({ icon: '👑', label: 'A.I.D.A. SLAIN' });
   if (result.endless)  badges.push({ icon: '∞', label: 'ENDLESS SURVIVOR' });
@@ -33,6 +34,7 @@ export default function GameOver({ result, extras, onCamp, onRetry, onMenu }) {
           <div className="go-stat"><span>LEVEL</span><b>{result.level}</b></div>
           <div className="go-stat"><span>KILLS</span><b>{result.kills}</b></div>
           <div className="go-stat"><span>WAVE</span><b>{Math.max(1, Math.ceil((result.time||0)/30))}</b></div>
+          <div className="go-stat"><span>SCORE</span><b>{(result.score || 0).toLocaleString()}</b></div>
         </div>
 
         <div className="go-section-title">REWARDS COLLECTED</div>

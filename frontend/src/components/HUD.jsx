@@ -47,7 +47,13 @@ export default function HUD({ snap, onActiveSkill, isTutorial }) {
         </div>
       </div>
 
-      {/* Combo meter */}
+      {/* Pinball-style score readout — always visible, ticks up on every kill */}
+      <div className="hud-score" data-testid="hud-score">
+        <span className="hud-score-label">SCORE</span>
+        <span className="hud-score-value">{(snap.score || 0).toLocaleString()}</span>
+      </div>
+
+      {/* Combo meter + multiplier ladder */}
       {snap.combo > 1 && (
         <div className="combo-display" style={{ opacity: Math.min(1, snap.comboTimer) }}>
           <div className="combo-count" style={{ fontSize: snap.combo >= 20 ? 32 : snap.combo >= 10 ? 26 : 22 }}>×{snap.combo}</div>
@@ -55,6 +61,9 @@ export default function HUD({ snap, onActiveSkill, isTutorial }) {
           <div className="combo-bar">
             <div className="combo-fill" style={{ width: (snap.comboTimer / 1.8 * 100).toFixed(1) + '%' }} />
           </div>
+          {snap.multiplier > 1 && (
+            <div className="combo-multiplier" data-testid="hud-multiplier">{snap.multiplier.toFixed(1)}x SCORE</div>
+          )}
         </div>
       )}
 

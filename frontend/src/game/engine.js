@@ -86,6 +86,7 @@ export class Game {
     this.run = {
       time: 0, kills: 0, level: 1, xp: 0, xpToNext: 16, gold: 0,
       comboCount: 0, comboTimer: 0, maxCombo: 0,
+      score: 0, multiplier: 1, maxMultiplier: 1,
       ownedWeapons: opts.startWeapons || ['hydropistol'],
       weaponLvls: {},
       noHit: true,
@@ -413,6 +414,9 @@ export class Game {
       combo: this.run.comboCount,
       comboTimer: this.run.comboTimer,
       maxCombo: this.run.maxCombo,
+      score: this.run.score || 0,
+      multiplier: this.run.multiplier || 1,
+      maxMultiplier: this.run.maxMultiplier || 1,
     };
   }
 
@@ -428,7 +432,15 @@ export class Game {
     // Combo decay
     if (this.run.comboTimer > 0) {
       this.run.comboTimer -= dt;
-      if (this.run.comboTimer <= 0) { this.run.comboTimer = 0; this.run.comboCount = 0; }
+      if (this.run.comboTimer <= 0) {
+        this.run.comboTimer = 0; this.run.comboCount = 0;
+        // Pinball-style multiplier drop: losing the combo resets it to 1x —
+        // the risk/reward tension of climbing it back up is the whole point.
+        if (this.run.multiplier > 1) {
+          this.run.multiplier = 1;
+          this.spawnDamageNumber(this.player.x, this.player.y - 70, 'MULTIPLIER LOST', '#ff5566', 14);
+        }
+      }
     }
     this.time += dt;
     this.cam.shake = Math.max(0, this.cam.shake - dt * 30);
@@ -1644,6 +1656,21 @@ export class Game {
     this.run.comboCount += 1;
     this.run.comboTimer = 1.8;
     if (this.run.comboCount > this.run.maxCombo) this.run.maxCombo = this.run.comboCount;
+
+    // ---- Pinball-style score + multiplier ----
+    // Multiplier is a step function of the current combo (every 8 kills in
+    // a row = +0.5x, capped at 6x) — climbing it is the "risk/reward" hook:
+    // letting the combo timer expire (see update(dt)) drops it straight
+    // back to 1x, same tension as a pinball multiplier ladder.
+    const newMult = Math.min(6, 1 + Math.floor(this.run.comboCount / 8) * 0.5);
+    if (newMult > this.run.multiplier) {
+      this.run.multiplier = newMult;
+      this.run.maxMultiplier = Math.max(this.run.maxMultiplier, newMult);
+      this.spawnDamageNumber(this.player.x, this.player.y - 90, this.run.multiplier.toFixed(1) + 'x MULTIPLIER!', '#ffd166', 18);
+      this.cam.shake = Math.max(this.cam.shake, 4);
+    }
+    const scoreGain = Math.round((10 + t.size * 1.5) * this.run.multiplier * (t.boss ? 12 : 1));
+    this.run.score = (this.run.score || 0) + scoreGain;
 
     // ---- Boss-specific kill tracking ----
     if (t.id === 'bossNecromancer') this._necroKilled = true;

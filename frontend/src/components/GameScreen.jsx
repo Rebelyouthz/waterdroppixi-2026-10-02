@@ -222,11 +222,12 @@ export default function GameScreen({ save, setSave, onExit, onRunEnd, mission })
             spGained,
             isBestTime: isBest,
             isBestKills: r.kills > (save.bestKills || 0),
+            isBestScore: (r.score || 0) > (save.bestScore || 0),
             noHit: !!r.noHit,
             challengeBonus: mission && mission.isChallenge && r.victory ? (mission.mod ? { gold: 500, sp: 5 } : null) : null,
           });
           const baseSave = initialSaveRef.current;
-          const newSave = { ...baseSave, gold: baseSave.gold + r.gold, lifetimeGold: (baseSave.lifetimeGold || 0) + r.gold, runsCompleted: baseSave.runsCompleted + 1, bestRunTime: Math.max(baseSave.bestRunTime, r.time), bestKills: Math.max(baseSave.bestKills, r.level), totalKills: baseSave.totalKills + r.kills };
+          const newSave = { ...baseSave, gold: baseSave.gold + r.gold, lifetimeGold: (baseSave.lifetimeGold || 0) + r.gold, runsCompleted: baseSave.runsCompleted + 1, bestRunTime: Math.max(baseSave.bestRunTime, r.time), bestKills: Math.max(baseSave.bestKills, r.level), bestScore: Math.max(baseSave.bestScore || 0, r.score || 0), totalKills: baseSave.totalKills + r.kills };
           if (r.noHit) newSave.noHitRuns = (newSave.noHitRuns || 0) + 1;
           setSave(newSave);
           onRunEnd && onRunEnd(r, newSave, mission);
