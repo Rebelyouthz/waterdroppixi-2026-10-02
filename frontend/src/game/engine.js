@@ -179,6 +179,11 @@ export class Game {
     // periodic ticks for card flags
     this._auraTick = 0; this._knockTick = 0; this._mirrorTick = 0;
 
+    // Dock Station: a structure that spawns randomly on the map; standing
+    // inside it fills a ring over time, then grants a random bonus.
+    this.dockStation = null;
+    this._nextDockStationAt = rand(35, 60);
+
     this.bindInput();
     this.resize();
 
@@ -444,6 +449,7 @@ export class Game {
     this.updateGems(dt);
     this.updateDmgNums(dt);
     this.spawnWave(dt);
+    this.updateDockStation(dt);
     this.tickCardFlags(dt);
     if (this.pet) this.updatePet(dt);
 
@@ -1167,6 +1173,79 @@ export class Game {
     e.hit = 0; e.cd = 0; e.dz = 0;
     e.kbX = 0; e.kbY = 0;
     e._woundStage = 0; e._wounds.length = 0;
+  }
+
+  // ====== DOCK STATION ======
+  // A structure that spawns randomly on the map. Standing inside its radius
+  // fills a ring over ~4.5s; leaving early lets it drain back down (roughly
+  // twice as fast as it fills) rather than resetting instantly, so a brief
+  // step-out to dodge a hit doesn't waste the whole attempt. Completing it
+  // grants one random bonus, then a new station appears elsewhere after a
+  // cooldown — a recurring map objective to route toward between wave chaos,
+  // per the genre's "constant small reward" cadence (see
+  // survivor-bullethell-design skill).
+  updateDockStation(dt) {
+    if (!this.dockStation) {
+      this._nextDockStationAt -= dt;
+      if (this._nextDockStationAt <= 0) this.spawnDockStation();
+      return;
+    }
+    const st = this.dockStation;
+    const p = this.player;
+    const inRange = dist2(p.x, p.y, st.x, st.y) <= st.r * st.r;
+    if (inRange) {
+      st.progress = Math.min(1, st.progress + dt / 4.5);
+      st.charging = true;
+    } else {
+      st.progress = Math.max(0, st.progress - dt / 2.2);
+      st.charging = false;
+    }
+    if (st.progress >= 1) this.completeDockStation();
+  }
+
+  spawnDockStation() {
+    const p = this.player;
+    const ang = Math.random() * TAU;
+    // Far enough to require real travel, not so far it's never reachable
+    // relative to the current view.
+    const dist = Math.max(this.W, this.H) * (0.55 + Math.random() * 0.5);
+    const x = clamp(p.x + Math.cos(ang) * dist, 80, this.world.w - 80);
+    const y = clamp(p.y + Math.sin(ang) * dist, 80, this.world.h - 80);
+    this.dockStation = { x, y, r: 46, progress: 0, charging: false };
+  }
+
+  completeDockStation() {
+    const st = this.dockStation;
+    if (!st) return;
+    const p = this.player;
+    const roll = Math.random();
+    let label = '';
+    if (roll < 0.35) {
+      // Random in-run stat buff, same code path as a level-up stat card —
+      // stays balanced against the exact same pool the player already knows.
+      const s = STAT_CARDS[randi(0, STAT_CARDS.length)];
+      const rar = rollRarity(this.run.stats.luck);
+      this.applyCardChoice({ kind: 'stat', statId: s.id, statRef: s, multiplier: RARITY[rar].mult });
+      label = '+' + RARITY[rar].name + ' ' + this.statName(s.stat).toUpperCase();
+    } else if (roll < 0.62) {
+      const heal = Math.floor(p.maxHp * 0.5);
+      p.hp = Math.min(p.maxHp, p.hp + heal);
+      label = '+' + heal + ' HP';
+    } else if (roll < 0.90) {
+      for (const k of Object.keys(this.skillCD)) this.skillCD[k] = 0;
+      label = 'SKILLS RESET';
+    } else {
+      // Rare: an extra guaranteed card pick, uncapped by the normal luck roll.
+      this.levelUpQueue += 1;
+      label = 'BONUS CARD';
+    }
+    Audio.levelUp();
+    this.cam.shake = Math.max(this.cam.shake, 6);
+    this.spawnRing(st.x, st.y, 70, '#4dffe0', 0.5);
+    this.spawnRing(st.x, st.y, 40, '#ffffff', 0.35);
+    this.spawnDamageNumber(st.x, st.y - 30, label, '#4dffe0', 15);
+    this.dockStation = null;
+    this._nextDockStationAt = rand(55, 95);
   }
 
   spawnBoss(typeId) {

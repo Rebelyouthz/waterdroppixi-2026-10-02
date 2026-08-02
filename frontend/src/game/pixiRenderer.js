@@ -159,6 +159,15 @@ export class PixiRenderer {
     for (const { sprite } of this._groundLitPool) this.gLight.addChild(sprite);
     for (const { sprite } of this._xpOrbLitPool) this.gLight.addChild(sprite);
     this.gDecals = new Graphics(); this.world.addChild(this.gDecals);
+    // Dock Station — sits with decals (ground-level, under enemies/player)
+    // so its progress ring reads clearly even while the player stands on it.
+    this.gDockStation = new Graphics(); this.world.addChild(this.gDockStation);
+    this.dockStationLight = new Sprite(this.lightTex);
+    this.dockStationLight.anchor.set(0.5); this.dockStationLight.blendMode = 'add'; this.dockStationLight.visible = false;
+    this.gLight.addChild(this.dockStationLight);
+    this.dockStationText = new Text({ text: 'DOCK', style: this._textStyle(9, '#4dffe0', '#06121e', 3) });
+    this.dockStationText.anchor.set(0.5); this.dockStationText.visible = false;
+    this.world.addChild(this.dockStationText);
     this.gGems = new Graphics(); this.world.addChild(this.gGems);
     this.gEnemies = new Graphics(); this.world.addChild(this.gEnemies);
     this.gPlayer = new Graphics(); this.world.addChild(this.gPlayer);
@@ -459,6 +468,7 @@ void main() {
     this._drawLights(game);
     this._drawGroundIllum(game);
     this._drawDecals(game);
+    this._drawDockStation(game);
     this._drawGems(game);
     this._drawEnemies(game);
     this._drawPlayer(game);
@@ -971,6 +981,54 @@ void main() {
       g.circle(d.x, d.y, r).fill({ color: bc, alpha: d.a });
       if (grow > 0.5) g.circle(d.x, d.y, r * 0.5).fill({ color: '#000000', alpha: d.a * 0.45 });
     }
+  }
+
+  // --------------------------- DOCK STATION --------------------------------
+  // Random map objective: stand inside the ring to charge it, get a bonus on
+  // completion. Its light goes through the same pooled-additive-sprite
+  // technique as every other light source (see waterdrop-lighting skill) —
+  // no ad-hoc glow filter.
+  _drawDockStation(game) {
+    const g = this.gDockStation; g.clear();
+    const st = game.dockStation;
+    if (!st) {
+      this.dockStationLight.visible = false;
+      this.dockStationText.visible = false;
+      return;
+    }
+    const t = game.time;
+    const pulse = 0.5 + 0.5 * Math.sin(t * 3);
+    const activeColor = st.charging ? '#ffffff' : '#4dffe0';
+
+    g.circle(st.x, st.y, st.r * 1.15).fill({ color: '#0a1a22', alpha: 0.55 });
+    g.circle(st.x, st.y, st.r).stroke({ width: 3, color: '#2a6a72', alpha: 0.8 });
+    g.circle(st.x, st.y, st.r * 0.7).stroke({ width: 1.5, color: '#3a8a92', alpha: 0.5 });
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * TAU + t * 0.15;
+      g.moveTo(st.x + Math.cos(a) * st.r * 0.3, st.y + Math.sin(a) * st.r * 0.3)
+        .lineTo(st.x + Math.cos(a) * st.r * 0.95, st.y + Math.sin(a) * st.r * 0.95)
+        .stroke({ width: 1, color: '#4dffe0', alpha: 0.25 + 0.15 * pulse });
+    }
+    g.circle(st.x, st.y, 8 + pulse * 2).fill({ color: activeColor, alpha: 0.75 });
+
+    if (st.progress > 0.001) {
+      const a0 = -Math.PI / 2, a1 = a0 + TAU * st.progress;
+      g.moveTo(st.x + Math.cos(a0) * (st.r + 10), st.y + Math.sin(a0) * (st.r + 10))
+        .arc(st.x, st.y, st.r + 10, a0, a1)
+        .stroke({ width: 5, color: activeColor, alpha: 0.9 });
+    }
+
+    this.dockStationText.visible = true;
+    this.dockStationText.position.set(st.x, st.y - st.r - 20);
+    this.dockStationText.text = st.progress > 0.001 ? `DOCK ${Math.round(st.progress * 100)}%` : 'DOCK';
+    this.dockStationText.style.fill = activeColor;
+
+    this.dockStationLight.visible = true;
+    this.dockStationLight.position.set(st.x, st.y);
+    const glowSize = 90 + pulse * 20 + st.progress * 40;
+    this.dockStationLight.width = glowSize; this.dockStationLight.height = glowSize;
+    this.dockStationLight.tint = activeColor;
+    this.dockStationLight.alpha = 0.35 + st.progress * 0.35 + pulse * 0.05;
   }
 
   // ------------------------------- GEMS -----------------------------------
