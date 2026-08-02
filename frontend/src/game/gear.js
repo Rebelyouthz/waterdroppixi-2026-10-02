@@ -22,22 +22,29 @@ export const GEAR_RARITY_MULT = {
   common: 1.0, magic: 1.6, rare: 2.5, epic: 3.8, legendary: 6.0
 };
 
-// Primary stat by slot
+// Primary stat by slot — expanded pool per slot for more build variety
+// (was 2 possible rolls/slot, now 3-4).
 const SLOT_STATS = {
-  helmet:  ['maxHp', 'armor'],
-  chest:   ['maxHp', 'armor'],
-  arms:    ['dmg',   'atks'],
-  legs:    ['mspd',  'dodge'],
-  boots:   ['mspd',  'pickup'],
-  ring:    ['crit',  'critd'],
-  amulet:  ['xp',    'gold'],
+  helmet:  ['maxHp', 'armor', 'crit', 'headshot'],
+  chest:   ['maxHp', 'armor', 'regen'],
+  arms:    ['dmg',   'atks',  'pierce'],
+  legs:    ['mspd',  'dodge', 'armor'],
+  boots:   ['mspd',  'pickup', 'dodge'],
+  ring:    ['crit',  'critd', 'proj'],
+  amulet:  ['xp',    'gold',  'area'],
 };
 
 // Base stat value (before rarity mult)
 const BASE_VALS = {
   maxHp: 6, armor: 0.8, dmg: 0.008, atks: 0.008, mspd: 0.008,
   dodge: 0.015, pickup: 0.04, crit: 0.008, critd: 0.04, xp: 0.015, gold: 0.015,
+  headshot: 0.004, regen: 0.006, pierce: 0.15, proj: 0.08, area: 0.006,
 };
+// Almost every piece also carries a small flat armor roll on top of its
+// primary stat, per spec ("most pieces should have at least a little
+// armor") — small enough it never outshines the primary roll.
+const SECONDARY_ARMOR_CHANCE = 0.8;
+const SECONDARY_ARMOR_BASE = 0.35;
 
 const NAME_PREFIX = {
   common:    ['Cracked','Worn','Crude'],
@@ -60,12 +67,19 @@ export function generateGearItem(slot, rarity) {
   const prefixes = NAME_PREFIX[rarity];
   const pre = prefixes[Math.floor(Math.random() * prefixes.length)];
   const suf = SLOT_NAME_SUFFIX[slot];
+  // Small secondary armor roll on most pieces (skip if armor IS the primary
+  // stat already, to avoid double-rolling the same stat on one item).
+  let secondary = null;
+  if (stat !== 'armor' && Math.random() < SECONDARY_ARMOR_CHANCE) {
+    secondary = { stat: 'armor', val: parseFloat((SECONDARY_ARMOR_BASE * mult).toFixed(3)) };
+  }
   return {
     id:     `g_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,6)}`,
     slot,
     rarity,
     stat,
     val,
+    secondary,
     name:   `${pre} ${suf}`,
   };
 }
@@ -99,6 +113,7 @@ export function applyGearToStats(save, result) {
     if (stat === 'maxHp') result.maxHp = (result.maxHp || 0) + val;
     else if (result[stat] !== undefined) result[stat] += val;
     else result[stat] = val;
+    if (item.secondary) result.armor = (result.armor || 0) + item.secondary.val;
   }
   return result;
 }

@@ -10,11 +10,12 @@ import {
 const STAT_LABELS = {
   maxHp:'Max HP', armor:'Armor', dmg:'ATK %', atks:'Atk Spd', mspd:'Move Spd',
   dodge:'Dodge', pickup:'Pickup', crit:'Crit%', critd:'Crit DMG', xp:'XP Gain', gold:'Gold Find',
-  area:'Area', pierce:'Pierce', proj:'+Projectiles', regen:'HP Regen',
+  area:'Area', pierce:'Pierce', proj:'+Projectiles', regen:'HP Regen', headshot:'Headshot %',
 };
+const ART_RARITY_ORDER = ['common','magic','rare','epic','legendary','mythical'];
 
 function fmtVal(stat, val) {
-  const pct = ['dmg','atks','mspd','dodge','pickup','crit','critd','xp','gold'].includes(stat);
+  const pct = ['dmg','atks','mspd','dodge','pickup','crit','critd','xp','gold','headshot','area'].includes(stat);
   return pct ? `+${(val * 100).toFixed(1)}%` : `+${val}`;
 }
 
@@ -31,6 +32,8 @@ export default function GearPanel({ save, setSave }) {
   const [tab, setTab] = useState('equip'); // 'equip' | 'inventory' | 'merge' | 'artifacts'
   const [toast, setToast] = useState('');
   const [selectedArt, setSelectedArt] = useState(null);
+  const [popoverSlot, setPopoverSlot] = useState(null);      // gear slot name, e.g. 'helmet'
+  const [popoverArtSlot, setPopoverArtSlot] = useState(null); // artifact slot index
 
   const inv = save.gearInventory || [];
   const eq  = save.gearEquipped  || {};
@@ -43,6 +46,7 @@ export default function GearPanel({ save, setSave }) {
     setSave({ ...save, gearEquipped: { ...eq, [item.slot]: item.id } });
     showToast(`Equipped: ${item.name}`);
     setSelected(null);
+    setPopoverSlot(null);
   };
 
   const unequipSlot = (slot) => {
@@ -115,7 +119,17 @@ export default function GearPanel({ save, setSave }) {
       {tab === 'equip' && (
         <div className="gear-paperdoll">
           <div className="gear-doll-bg">
-            <div className="gear-doll-char">💧</div>
+            {/* Procedural character silhouette matching the in-game water-drop
+                body (teal-glow torso + head), not a bare floating emoji. */}
+            <div className="gear-doll-char" aria-hidden>
+              <div className="doll-head" />
+              <div className="doll-torso" />
+              <div className="doll-arm doll-arm-l" />
+              <div className="doll-arm doll-arm-r" />
+              <div className="doll-leg doll-leg-l" />
+              <div className="doll-leg doll-leg-r" />
+              <div className="doll-glow" />
+            </div>
             {GEAR_SLOTS.map(slot => {
               const itemId = eq[slot];
               const item = inv.find(x => x.id === itemId);
@@ -124,7 +138,7 @@ export default function GearPanel({ save, setSave }) {
                   key={slot}
                   className={`gear-slot gear-slot-${slot} ${item ? 'filled' : 'empty'}`}
                   style={{ '--rc': item ? GEAR_RARITY_COLORS[item.rarity] : '#2a1a4e' }}
-                  onClick={() => item ? (setSelected(item), setTab('inventory')) : null}
+                  onClick={() => setPopoverSlot(popoverSlot === slot ? null : slot)}
                   data-testid={`gear-slot-${slot}`}
                 >
                   {item ? (
@@ -144,6 +158,39 @@ export default function GearPanel({ save, setSave }) {
               );
             })}
           </div>
+
+          {/* Quick equip popover — click any slot to see only items that fit
+              it, best rarity first, equip inline without leaving the tab. */}
+          {popoverSlot && (
+            <div className="gear-popover" data-testid="gear-popover">
+              <div className="gear-popover-head">
+                <span>{GEAR_SLOT_ICONS[popoverSlot]} {GEAR_SLOT_NAMES[popoverSlot].toUpperCase()}</span>
+                <button className="gear-popover-close" onClick={() => setPopoverSlot(null)}>✕</button>
+              </div>
+              <div className="gear-popover-list">
+                {inv.filter(x => x.slot === popoverSlot).length === 0 && (
+                  <div className="gear-popover-empty">No {GEAR_SLOT_NAMES[popoverSlot].toLowerCase()} found yet.</div>
+                )}
+                {inv.filter(x => x.slot === popoverSlot)
+                  .sort((a, b) => GEAR_RARITIES.indexOf(b.rarity) - GEAR_RARITIES.indexOf(a.rarity)
+                    || (b.secondary?.val || 0) - (a.secondary?.val || 0))
+                  .map(item => (
+                    <div key={item.id} className={`gear-popover-row ${eq[popoverSlot] === item.id ? 'eq' : ''}`}
+                      style={{ '--rc': GEAR_RARITY_COLORS[item.rarity] }}
+                      onClick={() => equipItem(item)}>
+                      <span className="gear-popover-name">{item.name}</span>
+                      <span className="gear-popover-stat">{fmtVal(item.stat, item.val)} {STAT_LABELS[item.stat]}</span>
+                      {item.secondary && <span className="gear-popover-armor">+{item.secondary.val} armor</span>}
+                      {eq[popoverSlot] === item.id && <span className="gear-popover-badge">EQ</span>}
+                    </div>
+                  ))}
+              </div>
+              {eq[popoverSlot] && (
+                <button className="gear-btn unequip" style={{ width: '100%', marginTop: 8 }}
+                  onClick={() => { unequipSlot(popoverSlot); }}>UNEQUIP</button>
+              )}
+            </div>
+          )}
 
           {/* Stats summary */}
           <div className="gear-stats-summary">
@@ -288,7 +335,7 @@ export default function GearPanel({ save, setSave }) {
                   key={slotIdx}
                   className={`artifact-slot ${item ? 'filled' : 'empty'}`}
                   style={{ '--rc': item ? ARTIFACT_RARITY_COLORS[item.rarity] : '#2a1a4e' }}
-                  onClick={() => item && (setSelectedArt(item), setTab('artifacts'))}
+                  onClick={() => setPopoverArtSlot(popoverArtSlot === slotIdx ? null : slotIdx)}
                   data-testid={`artifact-slot-${slotIdx}`}
                 >
                   {item ? (
@@ -304,6 +351,43 @@ export default function GearPanel({ save, setSave }) {
               );
             })}
           </div>
+
+          {/* Quick equip popover — same pattern as gear slots. */}
+          {popoverArtSlot !== null && (
+            <div className="gear-popover" data-testid="artifact-popover">
+              <div className="gear-popover-head">
+                <span>🔶 ARTIFACT SLOT {popoverArtSlot + 1}</span>
+                <button className="gear-popover-close" onClick={() => setPopoverArtSlot(null)}>✕</button>
+              </div>
+              <div className="gear-popover-list">
+                {artInv.length === 0 && <div className="gear-popover-empty">No artifacts found yet.</div>}
+                {[...artInv]
+                  .sort((a, b) => ART_RARITY_ORDER.indexOf(b.rarity) - ART_RARITY_ORDER.indexOf(a.rarity))
+                  .map(item => {
+                    const equippedHere = artEq[popoverArtSlot] === item.id;
+                    const equippedElsewhere = !equippedHere && Object.values(artEq).includes(item.id);
+                    return (
+                      <div key={item.id} className={`gear-popover-row ${equippedHere ? 'eq' : ''} ${equippedElsewhere ? 'disabled' : ''}`}
+                        style={{ '--rc': ARTIFACT_RARITY_COLORS[item.rarity] }}
+                        onClick={() => !equippedElsewhere && (equipArtifact(item, popoverArtSlot), setPopoverArtSlot(null))}>
+                        <span className="gear-popover-name">{item.name}</span>
+                        {item.stats.map((s, si) => (
+                          <span key={si} className="gear-popover-stat" style={{ color: s.val >= 0 ? '#4dff91' : '#ff5566' }}>
+                            {fmtSigned(s.stat, s.val)} {STAT_LABELS[s.stat] || s.stat}
+                          </span>
+                        ))}
+                        {equippedHere && <span className="gear-popover-badge">EQ</span>}
+                        {equippedElsewhere && <span className="gear-popover-badge" style={{ background:'#4a3a6e' }}>IN USE</span>}
+                      </div>
+                    );
+                  })}
+              </div>
+              {artEq[popoverArtSlot] && (
+                <button className="gear-btn unequip" style={{ width: '100%', marginTop: 8 }}
+                  onClick={() => { unequipArtifactSlot(popoverArtSlot); }}>UNEQUIP</button>
+              )}
+            </div>
+          )}
 
           {artInv.length === 0 && (
             <div className="gear-empty">

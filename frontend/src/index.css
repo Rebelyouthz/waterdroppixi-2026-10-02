@@ -2781,9 +2781,81 @@ canvas#game {
   background: radial-gradient(ellipse at 50% 40%, #12083a 0%, #060110 100%);
   border: 1px solid #1a0a3e; flex-shrink: 0;
 }
+/* Procedural character silhouette — matches the in-game player's teal
+   water-drop body instead of a single bare floating emoji ("ugly, doesn't
+   fit the character" per feedback). Plain CSS shapes, no art asset needed,
+   consistent with the rest of the game's fully-procedural visual identity. */
 .gear-doll-char {
-  position: absolute; top: 50%; left: 50%; transform: translate(-50%,-60%);
-  font-size: 72px; filter: drop-shadow(0 0 20px #4dffd455);
+  position: absolute; top: 40px; left: 50%; transform: translateX(-50%);
+  width: 140px; height: 300px;
+  pointer-events: none;
+}
+.doll-glow {
+  position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+  width: 100px; height: 100px; border-radius: 50%;
+  background: radial-gradient(circle, #4dffd455 0%, transparent 70%);
+  filter: blur(4px);
+}
+.doll-head {
+  position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+  width: 46px; height: 46px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #baffef, #1a8a7a 75%);
+  box-shadow: 0 0 16px #4dffd466;
+}
+.doll-torso {
+  position: absolute; top: 54px; left: 50%; transform: translateX(-50%);
+  width: 64px; height: 90px; border-radius: 32px 32px 24px 24px;
+  background: linear-gradient(180deg, #2fd9c4 0%, #146a5e 100%);
+  box-shadow: 0 0 14px #4dffd444;
+}
+.doll-arm {
+  position: absolute; top: 60px; width: 16px; height: 76px; border-radius: 10px;
+  background: linear-gradient(180deg, #2fd9c4 0%, #146a5e 100%);
+}
+.doll-arm-l { left: 22px; transform: rotate(8deg); }
+.doll-arm-r { right: 22px; transform: rotate(-8deg); }
+.doll-leg {
+  position: absolute; top: 142px; width: 20px; height: 96px; border-radius: 10px;
+  background: linear-gradient(180deg, #1e8a78 0%, #0c3a32 100%);
+}
+.doll-leg-l { left: 50%; margin-left: -30px; }
+.doll-leg-r { left: 50%; margin-left: 10px; }
+
+/* Quick equip popover — appears next to the paperdoll/artifact slots */
+.gear-popover {
+  position: relative; width: 260px; max-height: 320px;
+  background: #0a0420ee; border: 2px solid #2a1a4e;
+  box-shadow: 0 0 20px #000a, 0 0 0 1px #4dffd422;
+  padding: 10px; display: flex; flex-direction: column; gap: 6px;
+  z-index: 5;
+}
+.gear-popover-head {
+  display: flex; align-items: center; justify-content: space-between;
+  font-family: 'VT323', monospace; font-size: 13px; letter-spacing: 0.15em; color: #4dffd4;
+  border-bottom: 1px solid #2a1a4e; padding-bottom: 6px;
+}
+.gear-popover-close {
+  background: none; border: none; color: #8a7aae; cursor: pointer; font-size: 14px; padding: 0 4px;
+}
+.gear-popover-close:hover { color: #ff5566; }
+.gear-popover-list { overflow-y: auto; max-height: 240px; display: flex; flex-direction: column; gap: 4px; }
+.gear-popover-empty { font-family: 'VT323'; font-size: 12px; color: #4a3a6e; padding: 10px 0; text-align: center; }
+.gear-popover-row {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  background: #12062a; border-left: 3px solid var(--rc, #2a1a4e);
+  padding: 6px 8px; cursor: pointer; position: relative;
+  transition: background 0.15s;
+}
+.gear-popover-row:hover { background: #1a0a3a; }
+.gear-popover-row.eq { background: #0f2a1a; }
+.gear-popover-row.disabled { opacity: 0.4; cursor: not-allowed; }
+.gear-popover-name { font-family: 'VT323'; font-size: 12px; color: var(--rc); flex: 1 1 100%; }
+.gear-popover-stat { font-family: 'VT323'; font-size: 10px; color: #9a8fbe; }
+.gear-popover-armor { font-family: 'VT323'; font-size: 10px; color: #ffd166; }
+.gear-popover-badge {
+  position: absolute; top: 4px; right: 6px;
+  font-family: 'VT323'; font-size: 9px; background: #4dff91; color: #05130c;
+  padding: 1px 5px; letter-spacing: 0.1em;
 }
 .gear-slot {
   position: absolute; width: 48px; height: 48px;

@@ -147,6 +147,7 @@ function buildMetaEffects(save) {
     if (stat === 'maxHp') result.maxHp += val;
     else if (result[stat] !== undefined) result[stat] += val;
     else result[stat] = val;
+    if (item.secondary) result.armor += item.secondary.val;
   }
   applyArtifactsToStats(save, result);
   const activePet = (save.pets || []).find(p => p.active);
