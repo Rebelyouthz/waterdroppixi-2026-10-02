@@ -203,13 +203,22 @@ export const POE_RADIAL_NODES = POE_TREE_NODES.map(n => {
 
 // ── Attribute system ────────────────────────────
 // Each profile level grants 1 attribute point.
-// Stored in save.attrs: { atk, dex, vit, mob, int, ele, mag }
+// Stored in save.attrs: { atk, dex, vit, mob, int, ele, mag, aim, luck }
+// mob (Agility) and aim (Aim) are special: instead of the generic flat
+// perPoint bonus every other attribute uses, they drive a non-linear
+// -33%..+33% curve computed directly in engine.js (agilityMult/
+// aimSpreadMult) — see GameScreen.jsx's buildMetaEffects, which explicitly
+// skips them in the generic attribute-bonus loop to avoid double-applying.
 export const POE_ATTRS = [
-  { id:'atk', name:'Attack',       icon:'⚔',  color:'#ff3146', stat:'dmg',   perPoint:0.01,  desc:'+1% damage per attribute point' },
-  { id:'dex', name:'Dexterity',    icon:'🎯',  color:'#4dffd4', stat:'crit',  perPoint:0.005, desc:'+0.5% crit chance per point' },
-  { id:'vit', name:'Vitality',     icon:'❤',  color:'#ffd166', stat:'maxHp', perPoint:2,     desc:'+2 max HP per point' },
-  { id:'mob', name:'Mobility',     icon:'💨',  color:'#4dffd4', stat:'mspd',  perPoint:0.005, desc:'+0.5% move speed per point' },
-  { id:'int', name:'Intelligence', icon:'📖',  color:'#b362ff', stat:'xp',    perPoint:0.005, desc:'+0.5% XP per point' },
-  { id:'ele', name:'Elemental',    icon:'🌀',  color:'#4dc4ff', stat:'area',  perPoint:0.01,  desc:'+1% area per point' },
-  { id:'mag', name:'Magic',        icon:'🔮',  color:'#b362ff', stat:'atks',  perPoint:0.005, desc:'+0.5% attack speed per point' },
+  { id:'atk',  name:'Attack',       icon:'⚔',  color:'#ff3146', stat:'dmg',   perPoint:0.01,  desc:'+1% damage per attribute point' },
+  { id:'dex',  name:'Dexterity',    icon:'🎯',  color:'#4dffd4', stat:'crit',  perPoint:0.005, desc:'+0.5% crit chance per point' },
+  { id:'vit',  name:'Vitality',     icon:'❤',  color:'#ffd166', stat:'maxHp', perPoint:2,     desc:'+2 max HP per point' },
+  { id:'mob',  name:'Agility',      icon:'💨',  color:'#4dffd4', stat:null,   perPoint:0,     curve:true, max:20,
+    desc:'Moving, turning, dashing feels sluggish at 0 — 20 points makes you noticeably snappier than the game’s default feel.' },
+  { id:'aim',  name:'Aim',          icon:'✛',  color:'#ffffff', stat:null,   perPoint:0,     curve:true, max:20,
+    desc:'Shots land a little wide of dead-center at 0 — 20 points buys back tight, reliable accuracy.' },
+  { id:'int',  name:'Intelligence', icon:'📖',  color:'#b362ff', stat:'xp',    perPoint:0.005, desc:'+0.5% XP per point' },
+  { id:'ele',  name:'Elemental',    icon:'🌀',  color:'#4dc4ff', stat:'elementalDmg', perPoint:0.008, desc:'+0.8% elemental damage per point' },
+  { id:'mag',  name:'Magic',        icon:'🔮',  color:'#b362ff', stat:'atks',  perPoint:0.005, desc:'+0.5% attack speed per point' },
+  { id:'luck', name:'Luck',         icon:'🍀',  color:'#4dff91', stat:'luck',  perPoint:0.15,  desc:'+0.15 luck per point (better card/loot rarity rolls)' },
 ];

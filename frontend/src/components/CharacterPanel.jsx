@@ -1,19 +1,10 @@
 import React, { useState } from 'react';
 import { CHAR_RARITIES, CHAR_RARITY_COLORS, CHAR_RARITY_NAMES, CHAR_SLOTS_BY_RARITY, CHAR_LEVEL_COST, CHAR_EVOLVE_COST, CHAR_MAX_LEVELS, charLevelStat } from '../game/data_ext2';
-import { POE_ATTRS } from '../game/poe_tree';
 import { Audio } from '../game/audio';
-
-function availableAttrPoints(save) {
-  const earned = Math.max(0, (save.profile?.level || 1) - 1);
-  const spent = Object.values(save.attrs || {}).reduce((a, b) => a + b, 0);
-  return earned - spent;
-}
 
 export default function CharacterPanel({ save, setSave, onClose }) {
   const [popAnim, setPopAnim] = useState(false);
   const char = save.character || { rarity: 'common', level: 0, pieces: 0, shards: 0 };
-  const attrs = save.attrs || {};
-  const freeAttr = availableAttrPoints(save);
   const rarIdx = CHAR_RARITIES.indexOf(char.rarity);
   const rarColor = CHAR_RARITY_COLORS[char.rarity];
   const slots = CHAR_SLOTS_BY_RARITY[char.rarity];
@@ -50,14 +41,6 @@ export default function CharacterPanel({ save, setSave, onClose }) {
     const newRar = CHAR_RARITIES[rarIdx + 1];
     setSave({ ...save, character: { ...char, rarity: newRar, level: 0, shards: char.shards - evolveReq.shards } });
     Audio.levelUp(); Audio.claimPing(); pop();
-  };
-
-  // ── Attributes ──────────────────────────────────
-  const buyAttr = (attrId) => {
-    if (freeAttr <= 0) return;
-    const cur = attrs[attrId] || 0;
-    setSave({ ...save, attrs: { ...save.attrs, [attrId]: cur + 1 } });
-    Audio?.click?.();
   };
 
   // Collect all bonuses gained so far
@@ -141,38 +124,6 @@ export default function CharacterPanel({ save, setSave, onClose }) {
           </div>
         )}
 
-        {/* Attributes — moved here from the Skill Tree per player feedback */}
-        <div className="char-attr-section" data-testid="char-attr-section">
-          <div className="char-attr-header">
-            <span>⚡ ATTRIBUTES</span>
-            <span className={`char-attr-free ${freeAttr > 0 ? 'has' : ''}`}>{freeAttr} point{freeAttr === 1 ? '' : 's'} free</span>
-          </div>
-          <div className="char-attr-desc">Earned 1 per profile level (RANK). Permanent bonuses.</div>
-          <div className="poe-attr-grid">
-            {POE_ATTRS.map(a => {
-              const cur = attrs[a.id] || 0;
-              const canAdd = freeAttr > 0;
-              return (
-                <div key={a.id} className="poe-attr-row" data-testid={`attr-${a.id}`}>
-                  <span className="poe-attr-icon" style={{ color: a.color }}>{a.icon}</span>
-                  <div className="poe-attr-info">
-                    <span className="poe-attr-name">{a.name}</span>
-                    <span className="poe-attr-desc2">{a.desc}</span>
-                  </div>
-                  <div className="poe-attr-ctl">
-                    <span className="poe-attr-val">{cur}</span>
-                    <button
-                      className={`poe-attr-add ${canAdd ? '' : 'disabled'}`}
-                      onClick={() => buyAttr(a.id)}
-                      disabled={!canAdd}
-                      data-testid={`attr-add-${a.id}`}
-                    >+</button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
 
         {/* Rarity comparison */}
         <div className="char-rar-table" style={{ marginTop: 16 }}>

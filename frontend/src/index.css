@@ -2375,6 +2375,17 @@ canvas#game {
 .camp-attr-pulse { animation: attrPulse 1.4s ease-in-out infinite; }
 .char-bonuses { background: #0a0612; border: 1px solid #ffffff11; padding: 10px; margin-top: 12px; border-radius: 2px; }
 .char-attr-section { background: #0a0612; border: 1px solid #b362ff22; padding: 12px; margin-top: 12px; border-radius: 2px; }
+/* Attribute rolldown in the Camp sidebar's currency column (moved out of
+   Character panel, which had grown too tall and pushed its level-up
+   button/display out of view). */
+.camp-attr-dropdown {
+  position: absolute; top: 100%; right: 0; z-index: 50;
+  width: 280px; max-height: 60vh; overflow-y: auto;
+  background: #0a0612; border: 2px solid #c890ff55;
+  box-shadow: 0 10px 30px #000c, 0 0 20px #c890ff33;
+  padding: 12px; text-align: left; margin-top: 6px;
+  animation: cardIn 180ms ease-out both;
+}
 .char-attr-header { display: flex; justify-content: space-between; align-items: center; font-family: 'VT323'; font-size: 16px; color: #c890ff; letter-spacing: 0.15em; margin-bottom: 4px; }
 .char-attr-free { font-size: 11px; color: #4a3a6e; letter-spacing: 0.1em; }
 .char-attr-free.has { color: #ffd700; animation: attrPulse 1.4s ease-in-out infinite; }

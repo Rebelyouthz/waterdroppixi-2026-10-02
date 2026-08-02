@@ -12,6 +12,9 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const randi = (a, b) => Math.floor(rand(a, b));
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const dist2 = (ax, ay, bx, by) => { const dx = ax - bx, dy = ay - by; return dx * dx + dy * dy; };
+// Points to fully buy back the Agility/Aim attributes' -33%..+33% curve —
+// matches the 20-point scale other attributes already use.
+const ATTR_CURVE_MAX = 20;
 const len = (x, y) => Math.hypot(x, y);
 
 class Pool {
@@ -49,6 +52,9 @@ export class Game {
     this.canvas = canvas;
     this.renderer = new PixiRenderer(canvas);
     this.meta = opts.meta || {}; // permanent upgrades effects
+    this.attrs = opts.attrs || {}; // raw POE_ATTRS points (save.attrs) — Agility/Aim use a
+    // non-linear -33%/+33% curve that can't be expressed through the generic
+    // linear meta-effects pipeline, so they read straight from here.
     this.callbacks = opts.callbacks || {};
     // Active pet in-game
     this.activePet = opts.activePet || null;
@@ -690,6 +696,27 @@ export class Game {
     if (f.holyWater) { /* handled above, no change */ }
   }
 
+  // Agility attribute (save.attrs.mob): 0 points = 33% slower/sluggier than
+  // today's baseline, ATTR_MAX points = 33% faster/snappier than today's
+  // baseline — i.e. a curve centered on "how the game already felt",
+  // not centered on 0. Drives move speed, turn/accel responsiveness, and
+  // dash speed/cooldown.
+  agilityMult() {
+    const pts = Math.min(ATTR_CURVE_MAX, this.attrs.mob || 0);
+    return 0.67 + (pts / ATTR_CURVE_MAX) * 0.66;
+  }
+
+  // Aim attribute (save.attrs.aim): inverse curve — 0 points = 33% MORE
+  // base shot imprecision than baseline, max points = 33% LESS. This is a
+  // small imprecision applied on top of each weapon's own spread stat, so
+  // even a "0 spread" weapon can clip a miss at 0 points (see
+  // weaponManualPistol/weaponShotgun) — investing buys back a genuinely
+  // tighter, more reliable shot.
+  aimSpreadMult() {
+    const pts = Math.min(ATTR_CURVE_MAX, this.attrs.aim || 0);
+    return 1.33 - (pts / ATTR_CURVE_MAX) * 0.66;
+  }
+
   updatePlayer(dt) {
     const p = this.player, s = this.run.stats, k = this.input.keys;
     let dx = 0, dy = 0;
@@ -702,13 +729,15 @@ export class Game {
       dx = this.input.joyMove.x; dy = this.input.joyMove.y;
     }
     const l = Math.hypot(dx, dy) || 1;
-    const baseSpd = 200 * s.moveMult;
+    const agi = this.agilityMult();
+    const baseSpd = 200 * s.moveMult * agi;
     // Target velocity (normalized) + accel/decel smoothing for that nice "weight" feel
     const moving = !!(dx || dy);
     const targetX = moving ? (dx / l) : 0;
     const targetY = moving ? (dy / l) : 0;
-    // accelerate toward target dir
-    const accel = moving ? 9.0 : 12.0;
+    // accelerate toward target dir — Agility attribute scales how snappy
+    // (vs sluggish) both accelerating into and out of a turn feels.
+    const accel = (moving ? 9.0 : 12.0) * agi;
     p.dirX += (targetX - p.dirX) * Math.min(1, accel * dt);
     p.dirY += (targetY - p.dirY) * Math.min(1, accel * dt);
     p.vx = p.dirX * baseSpd;
@@ -809,11 +838,12 @@ export class Game {
       if (!vx && !vy) { vx = dx; vy = dy; }
     }
     const l = Math.hypot(vx, vy) || 1;
-    const speed = 1100;
+    const agi = this.agilityMult();
+    const speed = 1100 * agi;
     p.dashVX = (vx / l) * speed;
     p.dashVY = (vy / l) * speed;
     p.dashing = 0.16;
-    p.dashCD = 2.4 * (s.dashCDMult || 1);
+    p.dashCD = (2.4 * (s.dashCDMult || 1)) / agi;
     p.iframes = 0.22;
     this.cam.shake = Math.max(this.cam.shake, 2);
     for (let i = 0; i < 12; i++) this.spawnSpark(p.x, p.y, '#4dffd4');
@@ -981,7 +1011,10 @@ export class Game {
     if (this.input.shooting && p.shootCD <= 0) {
       const fr = s.fireRate * rs.fireRateMult;
       p.shootCD = 1 / fr;
-      const spread = s.spread || 0;
+      // Base aim imprecision (Aim attribute) stacks on top of the weapon's
+      // own spread — even a "0 spread" precision weapon can clip a miss at
+      // low Aim investment, per spec ("siktar rakt men missar ändå").
+      const spread = (s.spread || 0) + 0.035 * this.aimSpreadMult();
       const ang = Math.atan2(p.aimY, p.aimX) + (Math.random() - 0.5) * spread;
       this.fireProjectile(p.x + p.aimX * 14, p.y + p.aimY * 14, ang, s, true);
       p.mag -= 1;
@@ -1146,7 +1179,7 @@ export class Game {
       p.shootCD = 1 / fr;
       const baseAng = Math.atan2(p.aimY, p.aimX);
       const pellets = s.pellets || 5;
-      const spread = s.spread || 0.4;
+      const spread = (s.spread || 0.4) + 0.035 * this.aimSpreadMult();
       for (let i = 0; i < pellets; i++) {
         const off = (Math.random() - 0.5) * spread;
         this.fireProjectile(p.x + p.aimX * 14, p.y + p.aimY * 14, baseAng + off, s, true);

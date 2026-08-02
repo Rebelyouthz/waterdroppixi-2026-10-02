@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { META_UPGRADES, metaCost } from '../game/data';
 import { MILESTONES, AVATARS, CHESTS, rollChest } from '../game/data_ext';
-import { META_UNLOCK_REQS, POE_INDEX } from '../game/poe_tree';
+import { META_UNLOCK_REQS, POE_INDEX, POE_ATTRS } from '../game/poe_tree';
 import { applyReward, DEFAULT_SAVE, saveLocal } from '../store';
 import SkillTree from './SkillTree';
 import Weaponsmith from './Weaponsmith';
@@ -37,8 +37,17 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStar
   const [characterOpen, setCharacterOpen] = useState(false);
   const [talentOpen, setTalentOpen] = useState(false);
   const [petOpen, setPetOpen] = useState(false);
+  const [attrOpen, setAttrOpen] = useState(false);
 
   const popFeedback = (id) => { setPopCard(id); setTimeout(() => setPopCard(null), 550); };
+
+  const buyAttr = (attrId) => {
+    const freeAttr = Math.max(0, (save.profile?.level || 1) - 1 - Object.values(save.attrs || {}).reduce((a, b) => a + b, 0));
+    if (freeAttr <= 0) return;
+    const cur = (save.attrs || {})[attrId] || 0;
+    setSave({ ...save, attrs: { ...(save.attrs || {}), [attrId]: cur + 1 } });
+    Audio.click();
+  };
 
   const buy = (upg) => {
     const cur = save.meta[upg.id] || 0;
@@ -113,13 +122,46 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStar
                 <span className="camp-rank-bar-label">{(save.profile?.xp || 0) % 200}/200</span>
               </div>
             </div>
-            <div style={{ marginLeft: 'auto', fontFamily: 'VT323', color: 'var(--ink-dim)', fontSize: 13, lineHeight: 1.5, textAlign: 'right' }}>
+            <div style={{ marginLeft: 'auto', fontFamily: 'VT323', color: 'var(--ink-dim)', fontSize: 13, lineHeight: 1.5, textAlign: 'right', position: 'relative' }}>
               <div>★ {save.gold}</div>
               <div style={{ color: '#4dffd4' }}>💎 {save.gems || 0}</div>
               <div style={{ color: '#ffcc00' }}>🎰 {save.slotCoins || 0}</div>
               <div style={{ color: '#4dff91' }}>🌿 {save.talentPoints || 0} TP</div>
               <div>◆ {save.sp} SP</div>
-              <div className={attrFreePts > 0 ? 'camp-attr-pulse' : ''} style={{ color: '#c890ff', cursor: 'pointer' }} data-testid="camp-attr-points" onClick={() => setCharacterOpen(true)}>⚡ {attrFreePts} ATTR</div>
+              <div style={{ color: '#ff9900' }}>🎫 {save.gachaTokens || 0} TOK</div>
+              <div className={attrFreePts > 0 ? 'camp-attr-pulse' : ''} style={{ color: '#c890ff', cursor: 'pointer' }}
+                data-testid="camp-attr-points" onClick={() => setAttrOpen(o => !o)}>⚡ {attrFreePts} ATTR {attrOpen ? '▲' : '▼'}</div>
+
+              {attrOpen && (<>
+                <div style={{ position: 'fixed', inset: 0, zIndex: 49 }} onClick={() => setAttrOpen(false)} />
+                <div className="camp-attr-dropdown" data-testid="camp-attr-dropdown" onClick={(e) => e.stopPropagation()}>
+                  <div className="char-attr-header">
+                    <span>⚡ ATTRIBUTES</span>
+                    <span className={`char-attr-free ${attrFreePts > 0 ? 'has' : ''}`}>{attrFreePts} pt{attrFreePts === 1 ? '' : 's'} free</span>
+                  </div>
+                  <div className="char-attr-desc">Earned 1 per profile level (RANK). Permanent bonuses.</div>
+                  <div className="poe-attr-grid">
+                    {POE_ATTRS.map(a => {
+                      const cur = (save.attrs || {})[a.id] || 0;
+                      const canAdd = attrFreePts > 0;
+                      return (
+                        <div key={a.id} className="poe-attr-row" data-testid={`attr-${a.id}`}>
+                          <span className="poe-attr-icon" style={{ color: a.color }}>{a.icon}</span>
+                          <div className="poe-attr-info">
+                            <span className="poe-attr-name">{a.name}{a.curve ? ` (${cur}/${a.max})` : ''}</span>
+                            <span className="poe-attr-desc2">{a.desc}</span>
+                          </div>
+                          <div className="poe-attr-ctl">
+                            <span className="poe-attr-val">{cur}</span>
+                            <button className={`poe-attr-add ${canAdd ? '' : 'disabled'}`} onClick={() => buyAttr(a.id)}
+                              disabled={!canAdd} data-testid={`attr-add-${a.id}`}>+</button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>)}
             </div>
           </div>
           <div className="camp-scroll-hint">↓ scroll for more ↓</div>

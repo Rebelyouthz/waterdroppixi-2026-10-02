@@ -80,14 +80,19 @@ function buildMetaEffects(save) {
     else result[st] = amt;
   });
 
-  // Attribute point bonuses (save.attrs)
+  // Attribute point bonuses (save.attrs). mob (Agility) and aim (Aim) are
+  // curve-based and applied directly in engine.js instead (see
+  // agilityMult/aimSpreadMult) — skip them here so they don't also get a
+  // flat bonus on top of the curve.
   const attrs = save.attrs || {};
   for (const a of POE_ATTRS) {
+    if (a.curve) continue;
     const pts = attrs[a.id] || 0;
     if (pts <= 0) continue;
     const bonus = a.perPoint * pts;
     if (a.stat === 'maxHp') result.maxHp += bonus;
     else if (result[a.stat] !== undefined) result[a.stat] += bonus;
+    else result[a.stat] = bonus;
   }
 
   for (const eq of eqList) {
@@ -192,6 +197,7 @@ export default function GameScreen({ save, setSave, onExit, onRunEnd, mission })
     }
     const opts = {
       meta,
+      attrs: save.attrs || {},
       activePet: (save.pets || []).find(p => p.active) || null,
       unlockedEvos: save.unlockedEvos || [],
       skills: save.skills || {},
