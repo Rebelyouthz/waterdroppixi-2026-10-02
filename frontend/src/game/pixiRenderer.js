@@ -1209,6 +1209,19 @@ void main() {
       case 'bossVoidTitan': { const pts = [x + s * 0.6, y]; for (let i = 1; i <= 6; i++) { const a = (i / 6) * TAU; pts.push(x + Math.cos(a) * s * 0.6, y + Math.sin(a) * s * 0.6); } return { poly: pts }; }
       case 'bossAida': { const pts = []; for (let i = 0; i < 6; i++) { const a = (i / 6) * TAU; const r = s * 0.55; pts.push(x + Math.cos(a) * r, y + Math.sin(a) * r); } return { poly: pts }; }
       case 'slime': return { ellipse: [x, y, s * 0.55, s * 0.45] };
+      // ---- Distinct silhouettes for enemy types that previously all fell
+      // through to the same plain default circle (no bitmap sprite
+      // pipeline exists in this project — see waterdrop-lighting skill's
+      // "no hand-authored art" note — so this is procedural geometry, the
+      // same technique already used for every other enemy above). ----
+      case 'crystalite': { const pts = []; for (let i = 0; i < 6; i++) { const a = (i / 6) * TAU - Math.PI / 2; const r = i % 2 ? s * 0.42 : s * 0.62; pts.push(x + Math.cos(a) * r, y + Math.sin(a) * r * 1.3); } return { poly: pts }; }
+      case 'soulshard': return { poly: [x, y - s * 0.6, x + s * 0.38, y + s * 0.1, x, y + s * 0.55, x - s * 0.38, y + s * 0.1] };
+      case 'bonewalker': { const pts = []; for (let i = 0; i < 7; i++) { const a = (i / 7) * TAU; const r = s * (i % 2 ? 0.68 : 0.4); pts.push(x + Math.cos(a) * r, y + Math.sin(a) * r); } return { poly: pts }; }
+      case 'voidspawn': { const pts = []; for (let i = 0; i < 10; i++) { const a = (i / 10) * TAU - Math.PI / 2; const r = s * (i % 2 ? 0.66 : 0.26); pts.push(x + Math.cos(a) * r, y + Math.sin(a) * r); } return { poly: pts }; }
+      case 'steelbrute': { const pts = []; for (let i = 0; i < 6; i++) { const a = (i / 6) * TAU; pts.push(x + Math.cos(a) * s * 0.58, y + Math.sin(a) * s * 0.5); } return { poly: pts }; }
+      case 'lightningbug': { const pts = []; for (let i = 0; i < 8; i++) { const a = (i / 8) * TAU; const r = s * (i % 2 ? 0.62 : 0.22); pts.push(x + Math.cos(a) * r, y + Math.sin(a) * r); } return { poly: pts }; }
+      case 'techsoldier': return { poly: [x - s * 0.42, y - s * 0.5, x + s * 0.42, y - s * 0.5, x + s * 0.5, y, x + s * 0.3, y + s * 0.5, x - s * 0.3, y + s * 0.5, x - s * 0.5, y] };
+      case 'nanoswarm': { const pts = []; for (let i = 0; i < 12; i++) { const a = (i / 12) * TAU; const r = s * (0.35 + (i % 3) * 0.12); pts.push(x + Math.cos(a) * r, y + Math.sin(a) * r); } return { poly: pts }; }
       default: return { circle: [x, y, s * 0.5] };
     }
   }
