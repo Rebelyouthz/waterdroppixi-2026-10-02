@@ -486,6 +486,16 @@ export class Game {
     this.tickCardFlags(dt);
     if (this.pet) this.updatePet(dt);
 
+    // Reveal the level-up card modal after the explosion has had a moment
+    // to actually play out (see _maybeLevelUp).
+    if ((this._pendingLevelUps || 0) > 0) {
+      this._levelUpRevealT -= dt;
+      if (this._levelUpRevealT <= 0) {
+        this.levelUpQueue += this._pendingLevelUps;
+        this._pendingLevelUps = 0;
+      }
+    }
+
     // Canvas effects decay
     this._bossDeathFlash = Math.max(0, this._bossDeathFlash - dt * 2.5);
     this._critPunch      = Math.max(0, this._critPunch - dt * 5);
@@ -1985,15 +1995,23 @@ export class Game {
 
   _maybeLevelUp() {
     const r = this.run;
-    // Only level up if there's no pending card to pick. This prevents the
-    // modal from looping the "same" level-up screen (it was actually multiple
-    // levels stacking in one frame from a single big gem).
-    if (this.levelUpQueue > 0) return;
+    // Only level up if there's no pending card to pick (or one already
+    // queued-but-not-yet-revealed). This prevents the modal from looping
+    // the "same" level-up screen (it was actually multiple levels stacking
+    // in one frame from a single big gem).
+    if (this.levelUpQueue > 0 || (this._pendingLevelUps || 0) > 0) return;
     if (r.xp < r.xpToNext) return;
     r.xp -= r.xpToNext;
     r.level += 1;
     r.xpToNext = Math.floor(r.xpToNext * 1.25 + 6);
-    this.levelUpQueue += 1;
+    // Reveal the card modal (and pause the sim, per frame()'s
+    // levelUpQueue===0 gate) half a second AFTER the explosion below, so
+    // the player actually sees and feels the blast play out in real,
+    // still-running gameplay before everything freezes for the card choice
+    // — previously levelUpQueue was set instantly, freezing the sim the
+    // same frame the explosion spawned, so it never visibly animated.
+    this._pendingLevelUps = (this._pendingLevelUps || 0) + 1;
+    this._levelUpRevealT = 0.6;
     this.cam.slowmo = 0.3;
     this.cam.shake = 10;
     this._levelUpFlash = 1.0;
@@ -2002,6 +2020,11 @@ export class Game {
     // BIG level-up blast — visual + KNOCKBACK + small damage
     const p = this.player;
     this._levelUpTextPos = { x: p.x, y: p.y - 40 };
+    // Small floating orange "LEVEL UP!" text above the head, same lightweight
+    // pooled-text system as hit/dodge feedback (spawnDamageNumber) — distinct
+    // from the big centered banner (_drawLevelUpText), reads as an instant
+    // "got it" ping the same instant the blast lands.
+    this.spawnDamageNumber(p.x, p.y - 60, 'LEVEL UP!', '#ffb347', 20);
     const blastR = 180 * (r.stats.areaMult || 1);
     const blastR2 = blastR * blastR;
     const blastKB  = r.stats.levelUpKB  || 150;

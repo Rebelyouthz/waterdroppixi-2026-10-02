@@ -41,6 +41,25 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStar
 
   const popFeedback = (id) => { setPopCard(id); setTimeout(() => setPopCard(null), 550); };
 
+  // Position-anchored "cha-ching" burst for meta upgrade purchases — appears
+  // right above the button that was clicked instead of a generic top-of-
+  // screen banner, with a brief whole-panel shake for impact.
+  const [metaBurst, setMetaBurst] = useState(null);
+  const [campShake, setCampShake] = useState(false);
+  const PCT_STATS = new Set(['dmg','atks','mspd','crit','critd','superCrit','megaCrit','pickup','xp','gold','luck']);
+  const fmtMetaGain = (upg) => {
+    const v = upg.amount;
+    return PCT_STATS.has(upg.stat) ? `+${(v * 100).toFixed(2)}% ${upg.stat}` : `+${v} ${upg.stat}`;
+  };
+  const burstMeta = (upg, e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const id = Math.random().toString(36).slice(2);
+    setMetaBurst({ id, x: rect.left + rect.width / 2, y: rect.top, icon: upg.icon, gain: fmtMetaGain(upg) });
+    setTimeout(() => setMetaBurst(cur => (cur && cur.id === id ? null : cur)), 1100);
+    setCampShake(true); setTimeout(() => setCampShake(false), 260);
+    Audio.claimPing();
+  };
+
   const buyAttr = (attrId) => {
     const freeAttr = Math.max(0, (save.profile?.level || 1) - 1 - Object.values(save.attrs || {}).reduce((a, b) => a + b, 0));
     if (freeAttr <= 0) return;
@@ -49,7 +68,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStar
     Audio.click();
   };
 
-  const buy = (upg) => {
+  const buy = (upg, e) => {
     const cur = save.meta[upg.id] || 0;
     if (cur >= upg.max) return;
     // Meta lock gate: check if required POE node is unlocked
@@ -63,10 +82,8 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStar
     const cost = metaCost(upg, cur);
     if (save.gold < cost) { setToast('NOT ENOUGH GOLD'); setTimeout(() => setToast(''), 1200); return; }
     setSave({ ...save, gold: save.gold - cost, meta: { ...save.meta, [upg.id]: cur + 1 } });
-    Audio.click();
     popFeedback(upg.id);
-    setToast(`Acquired: ${upg.name} Lv.${cur + 1}`);
-    setTimeout(() => setToast(''), 1400);
+    if (e) burstMeta(upg, e); else Audio.click();
   };
 
   const claimMilestone = (m) => {
@@ -110,7 +127,13 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStar
 
   return (
     <div className="app-shell">
-      <div className="camp" data-testid="camp-screen">
+      <div className={`camp ${campShake ? 'camp-shake' : ''}`} data-testid="camp-screen">
+        {metaBurst && (
+          <div className="meta-burst" style={{ left: metaBurst.x, top: metaBurst.y }} data-testid="meta-burst">
+            <div className="meta-burst-icon">{metaBurst.icon}</div>
+            <div className="meta-burst-gain">▲ {metaBurst.gain}</div>
+          </div>
+        )}
         <div className="camp-sidebar">
           <div className="camp-profile-bar">
             <span style={{ fontSize: 28 }}>{avatar.icon}</span>
@@ -237,7 +260,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStar
                       ) : maxed ? (
                         <div style={{ color: 'var(--accent-2)', fontFamily: 'VT323', letterSpacing: '0.2em' }}>MAX</div>
                       ) : (
-                        <button onClick={() => buy(upg)} disabled={!canAfford} data-testid={`buy-${upg.id}`}>★ {cost}</button>
+                        <button onClick={(e) => buy(upg, e)} disabled={!canAfford} data-testid={`buy-${upg.id}`}>★ {cost}</button>
                       )}
                     </div>
                   );
