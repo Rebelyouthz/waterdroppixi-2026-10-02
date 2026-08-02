@@ -1,0 +1,237 @@
+import React, { useState } from 'react';
+import { AVATARS, DAILY_REWARDS, accountXpToNext, dailyQuests, CHESTS, rollChest } from '../game/data_ext';
+import { todayIdx, applyReward } from '../store';
+import { useAuth } from '../auth';
+import LeaderboardPanel from './LeaderboardPanel';
+
+const openChest = (chestId) => {
+  const chest = CHESTS.find(c => c.id === chestId);
+  return chest ? rollChest(chest, 0.5) : [];
+};
+
+function AccountWidget({ openLb }) {
+  const { user, paid, login, logout, loading } = useAuth();
+  if (loading) return null;
+  return (
+    <div className="account-widget" data-testid="account-widget">
+      {user ? (
+        <>
+          {user.picture
+            ? <img src={user.picture} alt="" className="acc-pic" />
+            : <div className="acc-pic acc-pic-fb">💧</div>}
+          <div className="acc-meta">
+            <div className="acc-name">{user.name || user.email}</div>
+            <div className="acc-sub">
+              {paid
+                ? <span className="acc-paid">✓ UNLOCKED</span>
+                : <span className="acc-trial">DEMO MODE</span>}
+            </div>
+          </div>
+          <button onClick={openLb} className="acc-btn" data-testid="open-leaderboard">🏆</button>
+          <button onClick={logout} className="acc-btn acc-btn-ghost" data-testid="account-logout">↩</button>
+        </>
+      ) : (
+        <>
+          <button onClick={openLb} className="acc-btn" data-testid="open-leaderboard">🏆 Leaderboard</button>
+          <button onClick={login} className="acc-btn acc-btn-google" data-testid="account-login">
+            <span style={{ fontSize: 14, fontWeight: 800 }}>G</span> Sign in
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+export default function Welcome({ save, setSave, onContinue, onCamp }) {
+  const [step, setStep] = useState(save.profile.name ? 'home' : 'create');
+  const [name, setName] = useState(save.profile.name || '');
+  const [avatar, setAvatar] = useState(save.profile.avatar || 'drop');
+  const [claimedRewards, setClaimedRewards] = useState([]);
+  const [showLb, setShowLb] = useState(false);
+
+  const today = todayIdx();
+  const canClaim = save.daily.lastClaim !== today;
+  const streakDay = (canClaim ? (save.daily.streak || 0) % 7 : ((save.daily.streak || 1) - 1) % 7) + 1;
+  const claimableReward = DAILY_REWARDS[(streakDay - 1) % 7];
+
+  const create = () => {
+    if (!name.trim()) return;
+    const ns = { ...save, profile: { ...save.profile, name: name.trim(), avatar } };
+    setSave(ns);
+    setStep('home');
+  };
+
+  const claimDaily = () => {
+    if (!canClaim) return;
+    const ns = {
+      ...save,
+      daily: { ...save.daily, lastClaim: today, streak: (save.daily.streak || 0) + 1 },
+    };
+    applyReward(ns, claimableReward, openChest);
+    setSave(ns);
+    setClaimedRewards(prev => [...prev, claimableReward.label]);
+  };
+
+  if (step === 'create') {
+    return (
+      <div className="app-shell">
+        <div className="menu" data-testid="welcome-create" style={{ width: 'min(720px, 92vw)' }}>
+          <div className="title">CHOOSE YOUR FORM</div>
+          <div className="subtitle">A.I.D.A. AWAKENS</div>
+          <div className="avatar-grid">
+            {AVATARS.map(a => (
+              <div
+                key={a.id}
+                className={`avatar-card ${avatar === a.id ? 'sel' : ''}`}
+                onClick={() => setAvatar(a.id)}
+                data-testid={`avatar-${a.id}`}
+              >
+                <div className="avatar-icon">{a.icon}</div>
+                <div className="avatar-name">{a.name}</div>
+                <div className="avatar-desc">{a.desc}</div>
+              </div>
+            ))}
+          </div>
+          <input
+            className="name-input"
+            placeholder="Enter your name…"
+            value={name}
+            maxLength={16}
+            onChange={(e) => setName(e.target.value)}
+            data-testid="name-input"
+          />
+          <button onClick={create} disabled={!name.trim()} data-testid="create-confirm" style={{ marginTop: 14 }}>
+            ▸ Begin Journey
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // home/welcome screen with profile, daily, quests
+  const xpNext = accountXpToNext(save.profile.level);
+  const xpPct = (save.profile.xp / xpNext) * 100;
+  const quests = dailyQuests(today);
+
+  return (
+    <div className="app-shell" style={{ alignItems: 'flex-start' }}>
+      <AccountWidget openLb={() => setShowLb(true)} />
+      <div className="welcome" data-testid="welcome-home">
+        <div className="welcome-header">
+          <div className="profile-card" data-testid="profile-card">
+            <div className="profile-avatar">{AVATARS.find(a => a.id === save.profile.avatar)?.icon || '💧'}</div>
+            <div style={{ flex: 1 }}>
+              <div className="profile-name">{save.profile.name || 'Wanderer'}</div>
+              <div className="profile-level">RANK {save.profile.level}</div>
+              <div className="profile-xp">
+                <div className="profile-xp-fill" style={{ width: xpPct + '%' }} />
+              </div>
+              <div className="profile-xp-text">{save.profile.xp} / {xpNext} XP</div>
+            </div>
+            <div className="profile-curr">
+              <div><span style={{ color: 'var(--accent-2)' }}>★</span> {save.gold}</div>
+              <div><span style={{ color: 'var(--rune)' }}>◆</span> {save.sp} SP</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="welcome-grid">
+          {/* Daily Reward */}
+          <div className="panel">
+            <div className="panel-title">DAILY REWARD</div>
+            <div className="daily-row">
+              {DAILY_REWARDS.map((r, i) => {
+                const claimed = i + 1 < streakDay;
+                const current = i + 1 === streakDay && canClaim;
+                return (
+                  <div key={r.day} className={`daily-cell ${claimed ? 'claimed' : ''} ${current ? 'current' : ''}`}>
+                    <div className="daily-day">D{r.day}</div>
+                    <div className="daily-icon">{r.icon}</div>
+                    <div className="daily-label">{r.label}</div>
+                  </div>
+                );
+              })}
+            </div>
+            <button
+              onClick={claimDaily}
+              disabled={!canClaim}
+              data-testid="claim-daily"
+              style={{ marginTop: 12, width: '100%' }}
+            >
+              {canClaim ? `▸ CLAIM DAY ${streakDay}` : '✓ Already Claimed'}
+            </button>
+          </div>
+
+          {/* Daily Quests */}
+          <div className="panel">
+            <div className="panel-title">DAILY QUESTS</div>
+            <div className="quest-list">
+              {quests.map(q => {
+                const prog = save.quests.completed[q.id] || 0;
+                const claimed = save.quests.claimed[q.id];
+                const done = prog >= q.goal;
+                return (
+                  <div key={q.id} className={`quest-row ${done ? 'done' : ''}`} data-testid={`quest-${q.id}`}>
+                    <div className="quest-icon">{q.icon}</div>
+                    <div className="quest-body">
+                      <div className="quest-name">{q.name}</div>
+                      <div className="quest-desc">{q.desc}</div>
+                      <div className="quest-bar">
+                        <div className="quest-bar-fill" style={{ width: Math.min(100, (prog / q.goal) * 100) + '%' }} />
+                      </div>
+                      <div className="quest-prog">{Math.min(prog, q.goal)} / {q.goal}</div>
+                    </div>
+                    <div className="quest-reward">
+                      {q.reward.gold && <div>★ {q.reward.gold}</div>}
+                      {q.reward.sp && <div>◆ {q.reward.sp} SP</div>}
+                      {q.reward.gems && <div>💎 {q.reward.gems}</div>}
+                      {q.reward.slotCoins && <div>🎰 {q.reward.slotCoins}</div>}
+                      {q.reward.petFood && <div>🍖 {q.reward.petFood}</div>}
+                      {done && !claimed && (
+            <button
+              onClick={() => {
+                const ns = {
+                  ...save,
+                  quests: {
+                    ...save.quests,
+                    claimed: { ...save.quests.claimed, [q.id]: true },
+                  },
+                };
+                applyReward(ns, q.reward, openChest);
+                setSave(ns);
+              }}
+              data-testid={`claim-${q.id}`}
+              className="claim-burst"
+              style={{ padding: '4px 10px', fontSize: 11, marginTop: 4, background: 'linear-gradient(180deg,#1a2b1a,#0e1a0e)', borderColor: '#4dffd4', color: '#4dffd4' }}
+            >
+              ★ CLAIM
+            </button>
+                      )}
+                      {claimed && <div style={{ color: 'var(--accent-2)' }}>✓</div>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        <div className="welcome-actions">
+          <button onClick={onCamp} data-testid="welcome-camp">⛺ The Camp</button>
+          <button onClick={onContinue} data-testid="welcome-fight"
+            style={{ borderColor: '#ff7a1a', boxShadow: 'var(--pixel-edge), 0 6px 0 #000, 0 0 28px #ff7a1a66' }}>
+            ▸ ENTER THE LAKE
+          </button>
+        </div>
+      </div>
+      {showLb && (
+        <div className="modal-overlay" onClick={() => setShowLb(false)} data-testid="lb-overlay">
+          <div className="lb-modal" onClick={(e) => e.stopPropagation()}>
+            <button className="lb-close" onClick={() => setShowLb(false)} data-testid="lb-close">✕</button>
+            <LeaderboardPanel />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

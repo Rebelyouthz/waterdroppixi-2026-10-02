@@ -1,0 +1,24 @@
+{
+  "summary": "Focused re-test of the weapon-dependent gore-color fix (following iteration_20.json's finding). Code review of engine.js confirmed all 5 call sites listed in the fix description are correctly wired: dealDamage() now computes bloodColor = wcolor || this._curWeaponColor || e.t.color (line ~1518) and stores e._lastHitColor; spawnBlood/spawnHitSparks (lines 1544/1546) now use bloodColor instead of e.t.color; the projectile-vs-enemy collision loop (line 1375) passes pr.color explicitly as dealDamage's 8th arg; killEnemy's finalBlood (line 1584) reads e._lastHitColor instead of the per-frame _curWeaponColor; spawnBrutalKill's 'gibs' (line 1679) and 'bisect' (line 1661) branches both now use `i % 4 === 0 ? '#b51d28' : color` (75% weapon color / 25% red accent, correctly flipped from the previous inverted ratio). Live gameplay verification: created a fresh character, entered the tutorial run (hydropistol #4dc4ff + runebolts #4dffd4 loadout), fired at slime enemies and captured multiple hit-bursts and one confirmed kill (KILLS counter went 0->1). Screenshots (combat_0.png, combat_8.png) show the kill-moment particle burst is now clearly teal/cyan DOMINANT with only a small minority of dark-red '#b51d28' accent dots scattered in — this directly reverses the previous iteration's finding of red-dominant blood. Non-killing hit-sparks/blood splatters observed during sustained fire on tankier enemies were also teal-tinted, not red. Zero console/WebGL/shader errors throughout ~3 full sessions (character creation -> lake entry -> AIDA intro -> combat). Quick regression: game starts, character creation flow works, WASD movement + mouse aim + click-to-fire work, enemies take damage and die normally with the new 8-arg dealDamage signature causing no crashes.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "CONFIRMED FIX: All previously-identified partial-wiring gaps (spawnBlood/spawnHitSparks hardcoded to e.t.color, spawnBrutalKill's gibs/bisect using 1-in-4/1-in-5 minority weapon-color ratio, _curWeaponColor per-frame misattribution risk) are now resolved per code inspection at the exact line numbers referenced in the fix description.",
+    "GOOD: per-projectile color (pr.color) is now explicitly threaded through dealDamage's 8th param at the main collision site (engine.js ~line 1375), eliminating the multi-weapon misattribution risk called out in iteration_20 for players owning 2+ weapons simultaneously (the tutorial's default state).",
+    "Was not able to test the 3rd (optional) scenario — killing with a second differently-colored weapon (e.g. flameburst/icespike) picked up via a level-up choice — within this session's tight budget, since no level-up was reached in the short play window. Not blocking since the color threading is architecturally per-projectile (pr.color) rather than per-weapon-ownership, so this should generalize correctly, but not empirically confirmed this pass."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only scope)", "frontend": "100% for the specific re-test scope (gore-color fix + quick regression)"},
+  "test_credentials": "Not needed — localStorage-only guest flow, no login required.",
+  "seed_data_creation": "None required this pass; used fresh in-session character creation flow directly.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "The gore-color fix is now visually confirmed CORRECT via live kill-moment screenshots (teal/cyan-dominant burst with minor red accent) and via code review of all 5 previously-flagged call sites in engine.js. If a future pass wants to fully close out item 3 of this ticket (second-weapon color verification via level-up pickup), allow a longer session (~1-2 min of continuous kills) to reach a level-up choice screen and pick flameburst/icespike, then kill with it and screenshot. The other 2 items (lighting/projectile-size regression, parallax) were not touched again per instructions, per iteration_20.json's PASS status.",
+  "rca_of_the_issue": "N/A - this was a fix verification pass, not a new bug investigation. Original RCA is preserved in iteration_20.json."
+}

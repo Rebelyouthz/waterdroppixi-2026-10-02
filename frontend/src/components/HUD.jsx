@@ -1,0 +1,144 @@
+import React from 'react';
+
+const fmt = (t) => { const m = Math.floor(t / 60); const s = Math.floor(t % 60); return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; };
+
+// Tutorial text that appears at specific time milestones
+const TUTORIAL_TIPS = [
+  { at: 3,  text: 'Welcome! Move with WASD, aim with the mouse, and click to fire!' },
+  { at: 18, text: 'Collect XP orbs to level up and choose new cards. Passive cards boost your stats!' },
+  { at: 40, text: 'Pick up gold coins to spend at the CAMP. Rare heart drops heal you!' },
+  { at: 70, text: 'Watch your combo meter — build it up for bonus damage!' },
+  { at: 110, text: 'After this run, visit CAMP to upgrade your Meta, Talents, and unlock new gear!' },
+  { at: 160, text: 'The boss is impossible this time — use this run to learn the mechanics. Good luck!' },
+];
+
+export default function HUD({ snap, onActiveSkill, isTutorial }) {
+  if (!snap) return null;
+  const xpPct = (snap.xp / snap.xpToNext) * 100;
+  const hpPct = (snap.hp / snap.maxHp) * 100;
+  const missionTimeLeft = snap.targetDuration && snap.targetDuration < 999 ? Math.max(0, snap.targetDuration - snap.time) : null;
+
+  const skills = snap.activeSkills || [];
+
+  // Tutorial tip to show
+  const tutTip = isTutorial ? [...TUTORIAL_TIPS].reverse().find(t => snap.time >= t.at) : null;
+
+  return (
+    <>
+      {/* Boss bar ABOVE the main hud — fixed, full width centered at very top */}
+      {snap.bossActive && (
+        <div className="hud-boss-bar" data-testid="hud-boss-bar">
+          <div className="hud-boss-name">⚠ {snap.bossName} ⚠</div>
+          <div className="hud-boss-bar-track">
+            <div className="hud-boss-bar-fill" style={{ width: ((snap.bossHp / snap.bossMaxHp) * 100) + '%' }} />
+          </div>
+        </div>
+      )}
+
+      <div className={`hud-top${snap.bossActive ? ' boss-active' : ''}`}>
+        <div className="hud-timer" data-testid="hud-timer">{missionTimeLeft != null ? fmt(missionTimeLeft) : fmt(snap.time)}</div>
+        <div className="hud-wave">
+          {snap.killGoal > 0 ? `KILLS ${snap.kills} / ${snap.killGoal}` : `WAVE ${Math.ceil(snap.time / 30)}`} · KILLS {snap.kills} · ★ {snap.gold}
+          {snap.challenge && <span style={{ color: 'var(--accent)', marginLeft: 10 }}>· {snap.challenge.name}</span>}
+        </div>
+        <div className="hud-xpbar">
+          <div className="hud-xpbar-fill" style={{ width: xpPct + '%' }} />
+          <div className="hud-level">LV {snap.level}</div>
+        </div>
+      </div>
+
+      {/* Combo meter */}
+      {snap.combo > 1 && (
+        <div className="combo-display" style={{ opacity: Math.min(1, snap.comboTimer) }}>
+          <div className="combo-count" style={{ fontSize: snap.combo >= 20 ? 32 : snap.combo >= 10 ? 26 : 22 }}>×{snap.combo}</div>
+          <div className="combo-label">COMBO</div>
+          <div className="combo-bar">
+            <div className="combo-fill" style={{ width: (snap.comboTimer / 1.8 * 100).toFixed(1) + '%' }} />
+          </div>
+        </div>
+      )}
+
+      <div className="weapon-strip">
+        <div style={{ display: 'flex', gap: 8 }}>
+          {snap.weapons.map(w => (
+            <div className="weapon-chip" key={w.id} title={w.name}>{w.icon}<span className="lv">Lv{w.lvl}</span></div>
+          ))}
+        </div>
+        {snap.passiveIcons && snap.passiveIcons.length > 0 && (
+          <div className="passive-strip">
+            {snap.passiveIcons.map((p, i) => (
+              <div key={i} className="passive-chip" title={p.name}>{p.icon}</div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Active skills — right column */}
+      {skills.length > 0 && (
+        <div className="active-bar active-bar-overflow" data-testid="active-bar-overflow">
+          {skills.map((s, idx) => {
+            const ready = s.cd <= 0;
+            const pct = s.maxCd > 0 ? Math.max(0, Math.min(100, 100 - (s.cd / s.maxCd) * 100)) : 100;
+            return (
+              <button key={idx} className={`skill-btn ${ready ? 'ready' : ''}`} onClick={() => onActiveSkill && onActiveSkill(idx)} data-testid={`skill-${idx}`} aria-label={s.name}>
+                <div className="skill-icon">{s.icon}</div>
+                <div className="skill-key">{idx + 1}</div>
+                <div className="skill-cd" style={{ height: `${100 - pct}%` }} />
+                {!ready && <div className="skill-cd-num">{Math.ceil(s.cd)}</div>}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Bottom area: MAG text + HP bar (NO center active skill button) */}
+      <div className="hud-bottom-stack">
+        <div className="hud-mag-text">
+          {snap.reloading ? <span style={{ color: 'var(--accent-2)' }}>↻ RELOADING…</span> : `MAG ${snap.mag}`}
+          {snap.noHit && <span style={{ marginLeft: 12, color: 'var(--rune)' }}>👻 NO-HIT</span>}
+        </div>
+        <div className="hud-hp">
+          <div className="hud-hp-bar">
+            <div className={`hud-hp-fill${hpPct < 30 ? ' low' : ''}`} style={{ width: hpPct + '%' }} />
+            <div className="hud-hp-text">{Math.max(0, Math.floor(snap.hp))} / {Math.floor(snap.maxHp)}</div>
+          </div>
+        </div>
+        <div className="hud-stats">
+          <div className="hud-stat" data-testid="fps-counter"><span className="lbl">FPS</span><span className="val">{Math.round(snap.fps)}</span></div>
+        </div>
+      </div>
+
+      <div className="help">
+        <b>WASD</b> move · <b>MOUSE</b> aim · <b>CLICK</b> fire<br />
+        <b>R</b> reload · <b>SPACE</b> dash · <b>1-4</b> skills · <b>ESC</b> pause
+      </div>
+
+      {/* Tutorial bubble */}
+      {tutTip && (
+        <div style={{
+          position:'fixed', bottom:120, left:'50%', transform:'translateX(-50%)',
+          background:'#060410ee', border:'2px solid #4dffd4', borderRadius:8,
+          padding:'10px 18px', maxWidth:420, textAlign:'center',
+          fontFamily:'VT323', fontSize:16, color:'#4dffd4', letterSpacing:'0.08em',
+          boxShadow:'0 0 20px #4dffd444', zIndex:2000, pointerEvents:'none',
+          animation:'tutBubble 0.3s ease',
+        }}>
+          <div style={{ fontSize:13, color:'#4dffd488', marginBottom:2 }}>TUTORIAL</div>
+          {tutTip.text}
+        </div>
+      )}
+
+      {/* Tutorial banner */}
+      {isTutorial && (
+        <div style={{
+          position:'fixed', top:8, left:'50%', transform:'translateX(-50%)',
+          background:'#4dffd411', border:'1px solid #4dffd444', borderRadius:4,
+          padding:'2px 14px', fontFamily:'VT323', fontSize:13, color:'#4dffd4',
+          letterSpacing:'0.15em', zIndex:1500, pointerEvents:'none',
+        }}>
+          ✦ TUTORIAL RUN ✦
+        </div>
+      )}
+    </>
+  );
+}

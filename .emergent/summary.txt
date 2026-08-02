@@ -1,0 +1,132 @@
+<analysis>**original_problem_statement**: 
+Continue developing the Waterdrop Survivor React+Canvas game.
+PRODUCT REQUIREMENTS:
+- Implement massive progression and meta-gameplay features: Character Rarity system, Path of Exile 2-styled branching Skill Tree, and Pet System.
+- Rebalance the entire game to require extreme grinding. Make meta upgrades give tiny increments.
+- Expand Daily Missions, Dynamic Backgrounds.
+- Implement Weapon Evolutions (Skill Tree -> Slot Machine -> In-Game).
+- Add in-game Pet functionality (attacking, healing).
+- Strict game balancing to prevent the player from becoming unkillable in the early-mid game.
+
+**User's preferred language**: **SWEDISH** (You MUST automatically detect the user's primary language from their messages inside the <trajectory> tag and INSTRUCT next agent to respond in the user's preferred language only). 
+
+**what currently exists?** 
+A highly complex React + HTML5 Canvas 2D twin-stick survivor game. The game now features a fully functional POE2-styled Skill Tree (with an Awakening branch for evolutions), Weapon Evolution system via a Slot Machine tab, UI polish with dopamine claim animations, a dynamic starfield background, expanded Daily Missions, and fully integrated in-game Pets that orbit and attack/heal. A massive overhaul of enemy scaling and HP/Vampirism nerfs was just implemented.
+
+**Last working item**:
+- Last item agent was working: **Urgent Enemy Balance & Wave Smoothing.** The user explicitly stated they only have 5 credits left and need an immediate balance fix. The issue is that the game is fine up to the 1st boss, but after that, the player becomes too OP. The user requested that enemies deal 3x damage after the 1st boss, square enemies (brute/charger/necron/steelbrute) deal 2.5x more damage, and the spawn rates are smoothed out.
+- Status: IN PROGRESS
+- Agent Testing Done: N
+- Which testing method agent to use? manual testing by curl/ python -c / screenshot tool. (AVOID testing agent unless strictly necessary, as the user is extremely low on credits).
+- User Testing Done: N
+
+**All Pending/In progress Issue list**:
+  Issue 1: Urgent Game Balance (Post-Boss 1 Enemy Damage & Spawns) (P0)
+     - Attempted fixes: The agent just successfully executed a  in  to modify  and  logic, but the context cut off before finishing the square enemies' base damage in  and concluding the task.
+     - Next debug checklist: Check  to ensure the spawn smoothing and boss scaling was applied correctly. Check  to multiply the damage of brute, charger, necron, and steelbrute by 2.5. 
+     - Why fix this issue and what will be achieved with the fix?: Fulfills the user's final, credit-constrained request to make the mid-game appropriately difficult so the player doesn't become invincible.
+     - Status: IN PROGRESS
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix?: Frontend (Screenshot tool / quick visual check).
+     - Blocked on other issue: None.
+
+**In progress Task List**:
+None. (Only Issue 1 is in progress).
+
+**Upcoming and Future Tasks**:
+*(Note: Do NOT proactively start these unless requested, due to the user's credit limits).*
+  Upcoming Tasks:
+  - Task 1: Pet System Stat Upgrades in Camp UI (apply atk/dex/vit to pets) (P1)
+  - Task 2: Mini-map animation for Patrol missions (small eye moving) (P2)
+  - Task 3: Better boss fight UI (HP bar, special warnings) (P2)
+  - Task 4: Achievement rewards in Codex (remaining unclaimed) (P3)
+
+**Completed work in this session**
+- Dynamic Background (DONE)
+- Daily Missions Expansion (gems, slotCoins, petFood) (DONE)
+- In-Game Pets (orbit, attack, heal mechanics) (DONE)
+- 4 New Weapons & 6 New Passives (DONE)
+- UI Polish (dopamine animations, pulsing low-HP bar) (DONE)
+- Weapon Evolution System (Skill Tree Awakening Branch -> Card Shop EVO Tab -> In-Game Upgrades) (DONE)
+- Level Up Explosion & AoE Crit Bug Fixes (DONE)
+- Hotfixes: Skill Tree Crash, Duplicate Level-up CSS, Eye of Horus Badge alignment (DONE)
+
+**Earlier issues found/mentioned but not fixed**
+None.
+
+**Known issue recurrence from previous fork**
+  - Issue recurrence in previous fork: None
+  - Recurrence count: 0
+  - Status: RESOLVED
+
+**Code Architecture**
+
+
+**Key Technical Concepts**
+- Frontend: React (Menus/UI) + HTML5 Canvas 2D ().
+- State Management: React state mixed with highly mutable Canvas engine state. Save data relies on localStorage .
+
+**key DB schema**
+  - : 
+  - : 
+
+**changes in tech stack**
+  - None
+
+**All files of reference**
+- : Primary file for game loop, enemy spawning, and damage calculation.
+- : Holds enemy base stats (needs edit for square enemies).
+- , , : Passing test reports for features/bugs.
+- : Feature tracker.
+
+**Areas that need refactoring**: 
+-  has grown to over 3,100 lines. Extreme caution required when replacing text.
+
+**key api endpoints**
+- 
+- 
+-  & 
+
+**Critical Info for New Agent**
+- **CRITICAL - LOW CREDITS**: The user stated: *vänta med det har bara 5 krediter kvar så gör endast detta.* (Wait with [the other tasks], I only have 5 credits left so only do this). **DO NOT waste tokens on redundant planning, ask_human confirmations, or expensive subagent testing unless absolutely strictly required.** Immediately implement the requested balance tweak, verify the build, and finish the task cleanly in as few steps as possible.
+- **COMMUNICATION**: You MUST reply in **SWEDISH**.
+- **DEPLOYMENT NOTIFICATION**: The user has deployed to production (). Do NOT interact with production. Make your changes in the Preview environment.
+
+**documents and test reports created in this job**
+- 
+- 
+- 
+- 
+
+**Last 10 User Messages and any pending HUMAN messages** 
+1. *Assistant*: Completes Daily Missions & Dynamic Background. Tests. Finishes.
+2. *User*: Requests game balance post-1st boss. Wants pets to follow/attack in-game. Wants UI polish, dopamine claims, more weapons/passives, and further HP nerfs.
+3. *Assistant*: Implements Pets in-game, massive UI polish, new weapons, heavy HP nerfs. Tests 100%. Finishes.
+4. *User*: Requests Swedish->English translation for the UI. Requests Weapon Evolution system (Skill Tree -> Slot machine -> In-game). Requests Level Up explosion rework and Crit bug fix.
+5. *Assistant*: Implements Weapon Evolutions, Awakening Skill Tree branch, Card Shop Evo Tab, Bug fixes. Tests 100%. Finishes.
+6. *User*: Reports 3 bugs: Character menu missing level-up text, Eye of Horus badge out of frame, Skill Tree crashing ().
+7. *Assistant*: Fixes all 3 bugs. Tests 100%. Finishes.
+8. *User*: vänta med det har bara 5 krediter kvar så gör endast detta. fram tills precis innan 1 bosses så är de bra flow , sen måste fienderna slå högre skada... 3 dubbla skadan dom ger spelaren... när dom 4 kantiga fienderna kommer där måste de bli att dom tar säg 2.5 ggr mer i skada... å minska ner gör de shysst så´vågorna känns mer som i början... (PENDING)
+
+**Project Health Check:**
+- Broken: None
+- Mocked: Stripe (Test Mode)
+
+**3rd Party Integrations**
+- Google OAuth (Login) — uses Emergent LLM Key
+- Stripe (Payments) — requires User API Key
+
+**Testing status**
+- Testing agent used after significant changes: YES (Iterations 9, 10, 11 passed successfully).
+- Troubleshoot agent used after agent stuck in loop: NO
+- Test files created: None
+- Known regressions: None
+
+**Credentials to test flow:**
+Check 
+
+**What agent forgot to execute**
+The agent applied the  wave spawn and dmg multiplier logic just before context cut off, but did not adjust the base damage of the square enemies (brute, charger, necron, steelbrute) in  to 2.5x as explicitly requested by the user. Ensure this is completed.
+
+Hi this is Timmy the user you are gonna work with. Use sonnet 5 use e1 . Make things as detailed it can when comes to visual stuff . Why am i forking ? Well cuz i want to change to sonnet 5 from 4.6 and i want to change from current to pixi.js that Will improve our effects and graphics and have higher performance and better look , the feel and the behaivor the mechanics are gonna stay as they are gameplay feels awsome now only thing is that it dont look so awsome and effects are not so great on things like particles , light, shadow , flash , blood , debre, limbs , chunk flesh , well it are going to be better as for menus and effects on them. Background and enviroment needs a better realism i want it to be  good real good . Start a project with this game i want to upload assets and i want to be able to give you Sprite sheets that animates for things and so on build the game even better and more good looking.
+I need you to take this seriously the game should have none fast cheep mechanics that could have been both made and created and coded or could got better .. no if it can be better then it has been a misstake it should always be af the best possible way you create no things in this game where you skip or cheat or fast things up skipping some details for its easier and still work no you detail every thing and run it so smooth and so highly detailed it possible can be and hardcoded visuals are your speciality and survivor rougelike arpg bullethell bulletheaven games are your top 1 skill you also know all things about pooling and know how you should code things to get game running at top performance 60-120fps never under 60 that is not alowed to happen ! And you need to learn and save skills for yourselfe so you know these things and use them always so pixi.js both skills and their knowlagebase and how to and for Claude code all this things must be installed and saved so you really know your stuff. Polish skills hardcode skills menu skills and if we still use some other language or engine like canvas maybe or react it can use combo if that is the best way to do it but game Will be converted into pixi.js to highten the effects particles , lights, shadow, blood , debre, and Sprite sheet and pixel perfect and how to animate realistic things in hardcode and use of images to make animations from text and image to real Living animations and to use that in the game we are gonna keep the games feel and mechanics but visually improve it like hell. Also implement more things and improve physics and overall improve the game to reach a level that is better than all these games combined. That is why i fork and what i want you to know </analysis>

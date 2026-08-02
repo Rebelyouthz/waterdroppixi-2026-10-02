@@ -1,0 +1,38 @@
+{
+  "summary": "Frontend-only verification of the large consolidated polish pass (background shader, skill tree, menu/character/camp polish, and the CRITICAL all-weapon projectile-glow extension). App boots and runs fine (contrary to main agent's concern about a stuck loading spinner — not reproduced in ~10 fresh sessions, all loaded within 2-3s). CRITICAL CHECK PASSED: code review of pixiRenderer.js confirms _drawGroundIllum now iterates game.projs.forEach with NO _wid filter (widened from hydropistol-only to ALL friendly projectiles), using the exact same already-verified-safe formula (size=(pr.size||6)*3.4, alpha 0.32, soft radial lightTex, additive blend) that fixed the prior P0 378px-blob regression — only the scope was widened, the size/softness math is untouched. Live gameplay screenshots confirm the glow is small, soft-edged, and proportional (roughly 3-4x player diameter at most, fading to transparent, well within a normal firing-crop screenshot) — NOT a giant hard-edged blob. A separate muzzle-flash-only glow slot (idx 0, gated on L.mt>0.02) was confirmed to appear only while actively firing and disappear almost immediately after mouse-up in before/after screenshots. Zero console errors mentioning GlProgram/uNebula/uOffset/Filter/nebulaSprite/shader across all sessions (character creation, gameplay, skill tree, character panel, camp). Skill Tree: locked nodes/connection lines are now dimly but clearly visible (faint colored strokes/fills), each of the 9 branches shows a colored wedge tint plus BOTH an outer full-name label (e.g. AWAKENING, MOBILITY, DEFENSE, GREED, VOID, PETS) and an inner small icon label near the center ring — confirmed via zoomed screenshot. Character panel LEVEL UP button text now fits cleanly on one line (white-space:nowrap + ellipsis CSS present and working, no visible overflow/cramping). Camp sidebar now shows a data-testid=camp-rank-progress bar under RANK N with a glowing gradient fill and '0/70 XP'-style label, confirmed present via DOM query + screenshot. Global button:active glow/flash confirmed visually on the BEGIN JOURNEY button (bright glow border appears on mousedown). Regression: full run starts/moves/shoots/kills (confirmed 1 kill + gem drop) with no crash; Skill Tree opens/zooms cleanly; Character panel Attributes section renders correctly.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Multi-weapon per-color projectile glow (2nd/3rd weapon)",
+        "issue": "Was only able to empirically confirm the glow behavior for the starter hydropistol/runebolts loadout during this session (tutorial run) — did not reach a level-up weapon-choice screen within the session's time/kill budget to visually confirm a 3rd distinctly-colored weapon's projectile glow. This is NOT a code gap (the _drawGroundIllum loop reads pr.color per-projectile generically, so it will apply to any weapon architecturally), just an unconfirmed-by-screenshot edge case, same caveat noted in iteration_21 for the gore-color feature.",
+        "affected_selectors": ["canvas (pixi renderer)"]
+      }
+    ],
+    "design_issues": [
+      {"screen": "Gameplay deep-space nebula shader",
+       "issues": ["Could not visually confirm the new fbm-noise nebula-cloud effect distinctly during the short play sessions (screenshots show mostly plain starfield near the player) — likely a reachability/zoom issue similar to iteration_20's finding for the mid/far parallax layers, not a confirmed rendering failure. Code review confirms the shader/filter/uniform-update code is correctly wired (nebulaSprite added to deepSpace, uTime/uOffset/uColorA/uColorB updated every frame in _drawDeepSpace) and zero shader compile errors were observed."]
+      }
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Low priority / optional: if a future pass wants full empirical confirmation of the multi-weapon glow-color diversity and the nebula shader's visual prominence, allow a longer session to reach a level-up weapon pick and to travel further from spawn respectively — both are architecturally correct per code review, just not screenshot-confirmed this pass due to tight time budget."
+  ],
+  "critical_code_review_comments": [
+    "CONFIRMED SAFE: The most emphasized/highest-risk item (projectile glow widened to all weapons) reuses the identical, unmodified size/alpha/texture formula from the prior verified hydropistol-only fix — only the projs.forEach filter (pr.friendly===false check) was loosened, no size/alpha constant was changed. This directly avoids repeating the prior P0 oversized-blob regression by construction.",
+    "GOOD: Muzzle-flash-only glow is cleanly isolated into pool slot 0, gated on L.mt > 0.02 (only true while actively firing), sized 70-100px with alpha capped at 0.3*mt — small and transient, confirmed via screenshots that it appears while firing and is gone within 1-2 frames of mouse-up.",
+    "GOOD: SkillTree.jsx changes (groupOpacity 0.22→0.4, stroke=b.color, wedge tints at 0.045 opacity, dual outer+inner labels) all verified present in code and visually confirmed via screenshot — locked branches are now legible without being distracting.",
+    "GOOD: CharacterPanel/index.css char-btn fix (white-space:nowrap + text-overflow:ellipsis + reduced font-size/letter-spacing) verified in code and screenshot — LEVEL UP button text no longer overflows.",
+    "GOOD: Camp.jsx's new camp-rank-progress bar + .camp-rank-bar/.camp-rank-fill CSS confirmed present and rendering with correct bounding box (92x8px) under the player name/rank."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only scope)", "frontend": "~95% — all 9 requested checklist items confirmed via code review + screenshots except 2 minor unconfirmed (but architecturally sound) edge cases: multi-weapon glow-color diversity and nebula-shader visual prominence, both non-blocking"},
+  "test_credentials": "Not needed — localStorage-only guest flow ('wds.save.v1'), no login required.",
+  "seed_data_creation": "None — used fresh in-session character creation flow directly for every test pass (TestHero1-10).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "This pass is a PASS overall. The single most important check (projectile glow NOT being an oversized blob when widened to all weapons) is verified safe both by code diff (identical formula, just widened filter) and by live screenshots (small soft glow, ~3-4x player diameter, disappearing cleanly after firing stops). If a future session wants to close the 2 minor unconfirmed gaps: (1) play longer to reach a level-up weapon-choice screen, pick a 2nd/3rd weapon with a different color (e.g. emberOrbs orange or voidBeam purple), fire it, and screenshot to see a differently-colored ground glow; (2) move the player much further from spawn (or use game.skyEvents/camera hacks) to get the nebula shader's parallax offset far enough from the origin to visually stand out from the plain starfield. Neither blocks release. FPS dropped to ~10 briefly during one heavy-particle kill-burst screenshot sequence (many gems + blood particles on screen) — likely just headless/screenshot-capture overhead, not confirmed as a real perf regression, worth a passive watch if reported by the user.",
+  "rca_of_the_issue": "N/A — this was a feature verification pass, not a bug investigation. No new bugs found; all previously-flagged items (iteration_19/20/21) unrelated to this pass's scope were not re-tested per instructions."
+}

@@ -1,0 +1,34 @@
+{
+  "summary": "Third retest of the normal-lit-filter shader feature (_makeLitFilter in pixiRenderer.js). VERDICT: PASS on the critical ask. Crash #2 ('Cannot read properties of undefined (reading match)' from UniformGroup construction) is CONFIRMED FIXED. Ran boot -> character-creation -> intro-dialogue -> welcome-fight -> gameplay canvas flow across 8+ separate fresh sessions (RetestHero3 through RetestHero12); zero 'Uncaught runtime errors' overlays and zero console/page errors in every single run. Gameplay canvas loads, HUD ticks, movement (WASD), shooting (click+hold), pause (ESC) all work with no crashes. Visually confirmed the player body sprite is a round, shaded sphere (not flat fill) with a visible bright highlight patch and darker shadow side, matching the intended normal-mapped lit look. Bullets in flight are round teal/blue orbs with visible shading gradient (not flat teardrop shapes). No regressions found: no ambient glow circle, no cone-shaped flashlight overlay, no starburst muzzle sprite, no colored tint bleed on enemies (enemies render as plain flat green circles, confirming old lighting was removed elsewhere as intended).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Mouse-aim rotation of player body (visual verification item: 'screenshots from a few different aim angles should show highlight moving to the side facing the gun')",
+        "issue": "NOT related to the shader fix and NOT a crash, but noting for completeness: in automated Playwright testing, moving the mouse to clearly different screen positions (up/down/left/right, 250-400px offsets, with intermediate steps) did not change `window.__game.player.aimX/aimY` meaningfully, and `window.__game.input.mx/my` stayed frozen at an initial value even after multiple mouse.move() calls. As a result the gun sprite and its highlight orientation looked the same across all 4 tested angles in this pass, so I could not visually confirm the highlight rotates correctly with aim direction via automation. This looks like a pre-existing mouse-input-sampling quirk in the input/game-loop code (unrelated to _makeLitFilter/pixiRenderer.js, which was the only file changed) rather than a shader bug -- the lit shader itself clearly works (visible round-shaded body + specular highlight present in every screenshot). Recommend a quick manual/human mouse test to confirm aim-follow lighting works in a real browser session; this could not be conclusively verified via automation this pass.",
+        "affected_selectors": ["canvas"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "No action required for the lighting/shader crash -- confirmed fixed across 8+ sessions, 0 errors.",
+    "Optional/low-priority: investigate why window.__game.input.mx/my don't appear to update from repeated Playwright mouse.move() events (possibly pointer/mousemove listener scope or throttling) -- only relevant if precise mouse-follow lighting needs pixel-perfect verification; did not block core pass/fail verdict since the highlight/shading effect itself is visibly working.",
+      "Recommend still adding a try/catch fallback around _buildNormalLitSystem()/_makeLitFilter() (raised in iteration_16/17 too) as defensive coding for any future PixiJS-version shader changes, though not required now since this pass is clean."
+  ],
+  "critical_code_review_comments": [
+    "Fix verified in pixiRenderer.js line ~339-340: `uNormalTexture: this.normalTex.source` is now a top-level resources key (not nested under an 'extraTextures' wrapper), while the plain-object uniform descriptors remain nested under 'uLight' -- this matches PixiJS v8's Filter.from() convention (texture-source resources auto-detected via .source at top level; everything else auto-wrapped into a UniformGroup) and resolved the crash as intended.",
+    "_updateLitUniforms (line 357-364) reading `filter.resources.uLight.uniforms` is consistent with this fix and works correctly at runtime (no errors observed).",
+    "Still no try/catch around _buildNormalLitSystem()/Filter.from() call -- low risk now since fixed, but worth adding defensively per iteration_16/17 recommendation."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "N/A (frontend-only scope)", "frontend": "100% for the requested critical scope (zero-crash gameplay + visual lighting present + regression checks); aim-angle-follow could not be conclusively automated-tested (see integration_issues note, non-blocking)." },
+  "test_credentials": "Not needed -- guest/name-based character creation only, no login required.",
+  "seed_data_creation": "None -- ephemeral guest sessions only (RetestHero3-12).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "The crash chain from iteration_16 (missing vertex shader) and iteration_17 (nested resources/extraTextures wrapper) is now fully resolved. 8+ fresh sessions this pass, zero console errors, zero error overlays. Player body and hydropistol bullets show clear round/lit shading with a bright highlight + darker shadow side, not flat fills -- old lighting artifacts (ambient glow circle, cone flashlight, starburst muzzle, enemy tint bleed) are absent as expected. The only open question is whether the highlight visually rotates in lockstep with live mouse aim in a real user session -- automated mouse.move() in Playwright did not budge window.__game.player.aimX/aimY or window.__game.input.mx/my across 3 separate attempts with increasing move distance/steps, which prevented pixel-perfect confirmation of that specific sub-requirement. This is very likely an automation/input-timing artifact rather than a real bug, since the underlying shader effect (highlight/shadow rendering) is unambiguously present and correct in every screenshot. If the user wants 100% certainty on aim-follow, a quick manual browser check moving the mouse in a real (non-automated) session would settle it in seconds.",
+  "rca of the issue": "N/A this pass -- previously-reported crash is fixed. See critical_code_review_comments for confirmation of the exact fix mechanism (top-level texture-source key vs nested plain-object uniform group, matching PixiJS v8 Shader.mjs/Filter.from conventions)."
+}

@@ -1,0 +1,384 @@
+import React, { useState } from 'react';
+import { META_UPGRADES, metaCost } from '../game/data';
+import { MILESTONES, AVATARS, CHESTS, rollChest } from '../game/data_ext';
+import { META_UNLOCK_REQS, POE_INDEX } from '../game/poe_tree';
+import { applyReward, DEFAULT_SAVE, saveLocal } from '../store';
+import SkillTree from './SkillTree';
+import Weaponsmith from './Weaponsmith';
+import Shop from './Shop';
+import CharacterPanel from './CharacterPanel';
+import TalentTree from './TalentTree';
+import CampaignPanel from './CampaignPanel';
+import PetPanel from './PetPanel';
+import GearPanel from './GearPanel';
+import { BattlePassPanel, CodexPanel, PatrolPanel, EyeBadge } from './MetaFeatures';
+import { ACHIEVEMENTS } from '../game/data_ext2';
+import { MissionsPanel, ChallengesPanel, AchievementsPanel, CardShopModal, ActiveLoadoutPanel, WeaponCrafting, SettingsPanel, PartsInventory, MapsPanel } from './CampPanels';
+import { Audio } from '../game/audio';
+
+const openChest = (chestId) => {
+  const c = CHESTS.find(x => x.id === chestId);
+  return c ? rollChest(c, 0.5) : [];
+};
+
+export default function Camp({ save, setSave, onBack, onStart, onMission }) {
+  const [toast, setToast] = useState('');
+  const [tab, setTab] = useState('cards');
+  const [shopOpen, setShopOpen] = useState(false);
+  const [skillOpen, setSkillOpen] = useState(false);
+  const [forgeOpen, setForgeOpen] = useState(false);
+  const [chestOpen, setChestOpen] = useState(false);
+  const [loadoutOpen, setLoadoutOpen] = useState(false);
+  const [craftOpen, setCraftOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [partsOpen, setPartsOpen] = useState(false);
+  const [popCard, setPopCard] = useState(null);
+
+  const [characterOpen, setCharacterOpen] = useState(false);
+  const [talentOpen, setTalentOpen] = useState(false);
+  const [petOpen, setPetOpen] = useState(false);
+
+  const popFeedback = (id) => { setPopCard(id); setTimeout(() => setPopCard(null), 550); };
+
+  const buy = (upg) => {
+    const cur = save.meta[upg.id] || 0;
+    if (cur >= upg.max) return;
+    // Meta lock gate: check if required POE node is unlocked
+    const reqNodeId = META_UNLOCK_REQS[upg.id];
+    if (reqNodeId && !(save.skills[reqNodeId] >= 1)) {
+      const reqNode = POE_INDEX[reqNodeId];
+      setToast(`🔒 Requires Skill Tree: ${reqNode?.name || reqNodeId}`);
+      setTimeout(() => setToast(''), 2000);
+      return;
+    }
+    const cost = metaCost(upg, cur);
+    if (save.gold < cost) { setToast('NOT ENOUGH GOLD'); setTimeout(() => setToast(''), 1200); return; }
+    setSave({ ...save, gold: save.gold - cost, meta: { ...save.meta, [upg.id]: cur + 1 } });
+    Audio.click();
+    popFeedback(upg.id);
+    setToast(`Acquired: ${upg.name} Lv.${cur + 1}`);
+    setTimeout(() => setToast(''), 1400);
+  };
+
+  const claimMilestone = (m) => {
+    if (save.milestones.claimed[m.id]) return;
+    const val = save[m.metric] || 0;
+    if (val < m.goal) return;
+    const ns = { ...save, milestones: { ...save.milestones, claimed: { ...save.milestones.claimed, [m.id]: true } } };
+    applyReward(ns, m.reward, openChest);
+    setSave(ns); Audio.levelUp(); Audio.waterDrop();
+  };
+
+  const handleReset = () => {
+    const fresh = { ...DEFAULT_SAVE };
+    setSave(fresh);
+    saveLocal(fresh);
+    onBack();
+  };
+
+  const avatar = AVATARS.find(a => a.id === save.profile.avatar) || AVATARS[0];
+  const attrFreePts = Math.max(0, (save.profile?.level || 1) - 1 - Object.values(save.attrs || {}).reduce((a, b) => a + b, 0));
+
+  // ── Notification computations ────────────────
+  const _now = Date.now();
+  const _discovered = Object.keys(save.codex?.enemies||{}).length + Object.keys(save.codex?.weapons||{}).length;
+  const _claimed    = (save.codex?.claimedDiscoveries||[]).length;
+  const codexNew    = _discovered > _claimed;
+
+  const _reached    = Math.floor((save.profile?.xp||0) / 200);
+  const _passClaim  = (save.battlePass?.claimed||[]).length;
+  const passNew     = _reached > _passClaim;
+
+  const _pMissions  = save.patrol?.missions || [];
+  const patrolNew   = _pMissions.some(m => m.status === 'complete' || (m.status === 'active' && _now - m.startMs >= m.durationMs));
+
+  const _achDone    = ACHIEVEMENTS.filter(a => {
+    if (a.metric === 'skillsLearned') return Object.values(save.skills||{}).reduce((x,y)=>x+y,0) >= a.goal;
+    return (save[a.metric]||0) >= a.goal;
+  }).length;
+  const _achClaim   = Object.keys(save.achClaimed||{}).length;
+  const achNew      = _achDone > _achClaim;
+
+  return (
+    <div className="app-shell">
+      <div className="camp" data-testid="camp-screen">
+        <div className="camp-sidebar">
+          <div className="camp-profile-bar">
+            <span style={{ fontSize: 28 }}>{avatar.icon}</span>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--ink)' }}>{save.profile.name || 'Wanderer'}</div>
+              <div style={{ fontSize: 11, color: 'var(--rune)', letterSpacing: '0.2em' }}>RANK {save.profile.level}</div>
+              <div className="camp-rank-bar" data-testid="camp-rank-progress">
+                <div className="camp-rank-fill" style={{ width: `${((save.profile?.xp || 0) % 200) / 200 * 100}%` }} />
+                <span className="camp-rank-bar-label">{(save.profile?.xp || 0) % 200}/200</span>
+              </div>
+            </div>
+            <div style={{ marginLeft: 'auto', fontFamily: 'VT323', color: 'var(--ink-dim)', fontSize: 13, lineHeight: 1.5, textAlign: 'right' }}>
+              <div>★ {save.gold}</div>
+              <div style={{ color: '#4dffd4' }}>💎 {save.gems || 0}</div>
+              <div style={{ color: '#ffcc00' }}>🎰 {save.slotCoins || 0}</div>
+              <div style={{ color: '#4dff91' }}>🌿 {save.talentPoints || 0} TP</div>
+              <div>◆ {save.sp} SP</div>
+              <div className={attrFreePts > 0 ? 'camp-attr-pulse' : ''} style={{ color: '#c890ff', cursor: 'pointer' }} data-testid="camp-attr-points" onClick={() => setCharacterOpen(true)}>⚡ {attrFreePts} ATTR</div>
+            </div>
+          </div>
+          <div className="camp-scroll-hint">↓ scroll for more ↓</div>
+          <div className="camp-tabs-scroll">
+            <button className={`camp-tab ${tab==='campaign'?'active':''}`} onClick={() => setTab('campaign')} data-testid="tab-campaign">📜 CAMPAIGN</button>
+            <button className={`camp-tab ${tab === 'maps' ? 'active' : ''}`} onClick={() => setTab('maps')} data-testid="tab-maps">🗺 MAPS</button>
+            <button className={`camp-tab ${tab === 'missions' ? 'active' : ''}`} onClick={() => setTab('missions')} data-testid="tab-missions">📋 MISSIONS</button>
+            <button className={`camp-tab ${tab === 'challenges' ? 'active' : ''}`} onClick={() => setTab('challenges')} data-testid="tab-challenges">🏆 CHALLENGES</button>
+            <button className={`camp-tab ${tab === 'achievements' ? 'active' : ''}`} onClick={() => setTab('achievements')} data-testid="tab-ach" style={{position:'relative'}}>🎖 ACHIEVEMENTS {achNew && <EyeBadge/>}</button>
+            <button className={`camp-tab ${tab === 'milestones' ? 'active' : ''}`} onClick={() => setTab('milestones')} data-testid="tab-milestones">⭐ MILESTONES</button>
+            <button className={`camp-tab ${tab === 'stats' ? 'active' : ''}`} onClick={() => setTab('stats')} data-testid="tab-stats">📊 STATS</button>
+            <div className="camp-tab-divider" />
+            <button className="camp-tab" onClick={() => setCharacterOpen(true)} data-testid="tab-character">👤 CHARACTER</button>
+            <button className="camp-tab" onClick={() => setPetOpen(true)} data-testid="tab-pets">🐾 PETS</button>
+            <button className="camp-tab" onClick={() => setTalentOpen(true)} data-testid="tab-talent">🌿 TALENTS</button>
+            <button className="camp-tab" onClick={() => setSkillOpen(true)} data-testid="open-skills">🧠 SKILLS</button>
+            <button className={`camp-tab ${tab==='cards'?'active':''}`} onClick={() => setTab('cards')} data-testid="tab-cards">💠 META</button>
+            <button className={`camp-tab ${tab==='gear'?'active':''}`} onClick={() => setTab('gear')} data-testid="tab-gear">🪖 GEAR</button>
+            <button className={`camp-tab ${tab==='pass'?'active':''}`} onClick={() => setTab('pass')} data-testid="tab-pass" style={{position:'relative'}}>🎖 SEASON PASS {passNew && <EyeBadge/>}</button>
+            <button className={`camp-tab ${tab==='patrol'?'active':''}`} onClick={() => setTab('patrol')} data-testid="tab-patrol" style={{position:'relative'}}>🗺 PATROL {patrolNew && <EyeBadge/>}</button>
+            <button className={`camp-tab ${tab==='codex'?'active':''}`} onClick={() => setTab('codex')} data-testid="tab-codex" style={{position:'relative'}}>📚 CODEX {codexNew && <EyeBadge/>}</button>
+            <div className="camp-tab-divider" />
+            <button className="camp-tab" onClick={() => setShopOpen(true)} data-testid="open-card-shop">🎰 CARD SHOP</button>
+            <button className="camp-tab" onClick={() => setForgeOpen(true)} data-testid="open-forge">🔨 SMITH</button>
+            <button className="camp-tab" onClick={() => setChestOpen(true)} data-testid="open-chest">📦 CHESTS</button>
+            <button className="camp-tab" onClick={() => setLoadoutOpen(true)} data-testid="open-loadout">🎯 LOADOUT</button>
+            <button className="camp-tab" onClick={() => setPartsOpen(true)} data-testid="open-parts">🔧 PARTS</button>
+            <button className="camp-tab" onClick={() => setCraftOpen(true)} data-testid="open-craft">📐 BLUEPRINTS</button>
+            <button className="camp-tab" onClick={() => setSettingsOpen(true)} data-testid="open-settings">⚙ SETTINGS</button>
+          </div>
+        </div>
+
+        <div className="camp-main">
+          {tab === 'cards' && (
+            <>
+              <div className="camp-header">
+                <h1>Forge Your Edge</h1>
+                <div className="camp-currency">
+                  <span className="gold" data-testid="camp-gold">★ {save.gold}</span>
+                  <span className="essence">◆ {save.sp} SP</span>
+                </div>
+              </div>
+              <div className="upgrade-grid">
+                {META_UPGRADES.map(upg => {
+                  const lvl = save.meta[upg.id] || 0;
+                  const maxed = lvl >= upg.max;
+                  const cost = maxed ? null : metaCost(upg, lvl);
+                  const canAfford = !maxed && save.gold >= cost;
+                  const reqNodeId = META_UNLOCK_REQS[upg.id];
+                  const isLocked = reqNodeId && !(save.skills?.[reqNodeId] >= 1);
+                  const reqNodeName = isLocked ? (POE_INDEX[reqNodeId]?.name || reqNodeId) : null;
+                  return (
+                    <div className={`upgrade-card ${maxed ? 'maxed' : ''} ${isLocked ? 'meta-locked' : ''} ${popCard === upg.id ? 'card-pop' : ''}`} key={upg.id} data-testid={`meta-${upg.id}`}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div className="name">{upg.icon} {upg.name}</div>
+                        <div className="lvl">{lvl}/{upg.max}</div>
+                      </div>
+                      {upg.max > 20 ? (
+                        <div style={{ height:5, background:'#1a0a2e', borderRadius:3, overflow:'hidden', margin:'4px 0' }}>
+                          <div style={{ width:`${(lvl/upg.max)*100}%`, height:'100%', background: maxed ? '#ffd700' : isLocked ? '#3a2a5e' : 'var(--rune)', transition:'width 0.3s' }} />
+                        </div>
+                      ) : (
+                        <div className="pips">
+                          {Array.from({ length: upg.max }, (_, i) => <span key={i} className={'pip ' + (i < lvl ? 'on' : '')} />)}
+                        </div>
+                      )}
+                      <div className="desc">{upg.desc}</div>
+                      {isLocked ? (
+                        <div className="meta-lock-msg" data-testid={`meta-lock-${upg.id}`}>
+                          🔒 Unlock in Skill Tree: <em>{reqNodeName}</em>
+                        </div>
+                      ) : maxed ? (
+                        <div style={{ color: 'var(--accent-2)', fontFamily: 'VT323', letterSpacing: '0.2em' }}>MAX</div>
+                      ) : (
+                        <button onClick={() => buy(upg)} disabled={!canAfford} data-testid={`buy-${upg.id}`}>★ {cost}</button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {tab === 'missions' && <MissionsPanel save={save} setSave={setSave} onStart={onMission} />}
+          {tab === 'maps' && <MapsPanel save={save} setSave={setSave} onStart={(cfg) => onMission(cfg)} />}
+          {tab === 'challenges' && <ChallengesPanel save={save} setSave={setSave} onStart={(c) => onMission({ ...c, isChallenge: true })} />}
+          {tab === 'achievements' && <AchievementsPanel save={save} setSave={setSave} />}
+
+          {tab === 'milestones' && (
+            <>
+              <div className="camp-header"><h1>Milestones</h1></div>
+              <div className="upgrade-grid">
+                {MILESTONES.map(m => {
+                  const val = save[m.metric] || 0;
+                  const pct = Math.min(100, (val / m.goal) * 100);
+                  const done = val >= m.goal;
+                  const claimed = save.milestones.claimed[m.id];
+                  return (
+                    <div className="upgrade-card" key={m.id} data-testid={`ms-${m.id}`}>
+                      <div className="name">🏆 {m.name}</div>
+                      <div className="desc">{m.desc}</div>
+                      <div className="hud-xpbar" style={{ width: '100%' }}><div className="hud-xpbar-fill" style={{ width: pct + '%' }} /></div>
+                      <div className="lvl">{Math.min(val, m.goal)} / {m.goal}</div>
+                      <div style={{ fontSize: 12, color: 'var(--accent-2)' }}>{m.reward.gold && `★ ${m.reward.gold}`} {m.reward.sp && `◆ ${m.reward.sp} SP`}</div>
+                      {claimed ? <div style={{ color: 'var(--rune)' }}>✓ CLAIMED</div> :
+                        <button onClick={() => claimMilestone(m)} disabled={!done}>{done ? '✓ CLAIM' : 'LOCKED'}</button>}
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {tab === 'campaign' && <CampaignPanel save={save} setSave={setSave} />}
+
+          {tab === 'patrol' && (
+            <>
+              <div className="camp-header"><h1>Patrol</h1><div className="camp-header-sub">Send on missions while you're away · Active pet gives +20% reward</div></div>
+              <PatrolPanel save={save} setSave={setSave} />
+            </>
+          )}
+
+          {tab === 'gear' && (
+            <>
+              <div className="camp-header"><h1>Equipment</h1><div className="camp-header-sub">Find gear in runs · Forge 3 of same into higher rarity</div></div>
+              <GearPanel save={save} setSave={setSave} />
+            </>
+          )}
+
+          {tab === 'pass' && (
+            <>
+              <div className="camp-header"><h1>Season Pass</h1><div className="camp-header-sub">Earn XP from runs · Claim rewards as you level</div></div>
+              <BattlePassPanel save={save} setSave={setSave} />
+            </>
+          )}
+
+          {tab === 'codex' && (
+            <>
+              <div className="camp-header"><h1>Codex</h1><div className="camp-header-sub">Discover enemies, weapons, and lore</div></div>
+              <CodexPanel save={save} setSave={setSave} />
+            </>
+          )}
+
+          {tab === 'stats' && (
+            <>
+              <div className="camp-header"><h1>Deep Statistics</h1></div>
+              <div className="stats-grid">
+                <Stat label="Runs Completed" val={save.runsCompleted} />
+                <Stat label="Total Kills" val={save.totalKills} />
+                <Stat label="Best Run Time" val={fmtTime(save.bestRunTime)} />
+                <Stat label="Best Run Level" val={save.bestKills} />
+                <Stat label="A.I.D.A. Slain" val={save.aidaSlain} />
+                <Stat label="Necromancer Slain" val={save.necroSlain || 0} />
+                <Stat label="Void Titan Slain" val={save.voidSlain || 0} />
+                <Stat label="Eye of Horus Slain" val={save.horusSlain || 0} />
+                <Stat label="Endless Mode Reached" val={save.endlessReached || 0} />
+                <Stat label="Account Rank" val={save.profile.level} />
+                <Stat label="Skill Points" val={save.sp} />
+                <Stat label="Gold Hoarded" val={save.gold} />
+                <Stat label="Equipment" val={(save.inventory || []).length} />
+                <Stat label="Parts" val={(save.parts || []).length} />
+                <Stat label="Weapons Crafted" val={Object.keys(save.craftedWeapons || {}).length} />
+                <Stat label="Skills Learned" val={Object.values(save.skills || {}).reduce((a, b) => a + b, 0)} />
+                <Stat label="Meta Cards" val={Object.values(save.meta || {}).reduce((a, b) => a + b, 0)} />
+                <Stat label="Daily Streak" val={(save.daily.streak || 0) + ' days'} />
+                <Stat label="Shop Pulls" val={save.shopPulls || 0} />
+                <Stat label="Chests Opened" val={save.chestsOpened || 0} />
+                <Stat label="No-Hit Runs" val={save.noHitRuns || 0} />
+                <Stat label="Legendary Parts" val={save.legendaryPartsFound || 0} />
+              </div>
+            </>
+          )}
+
+          <div className="camp-actions">
+            <button onClick={onBack} data-testid="camp-back">◂ Back</button>
+            <button onClick={onStart} data-testid="camp-fight"
+              style={{ borderColor: '#ff7a1a', boxShadow: 'var(--pixel-edge), 0 6px 0 #000, 0 0 28px #ff7a1a66' }}>▸ FIGHT</button>
+          </div>
+        </div>
+      </div>
+      {toast && <div className="toast">{toast}</div>}
+      {shopOpen && <CardShopModal save={save} setSave={setSave} onClose={() => setShopOpen(false)} />}
+      {skillOpen && <SkillTree save={save} setSave={setSave} onClose={() => setSkillOpen(false)} />}
+      {forgeOpen && <Weaponsmith save={save} setSave={setSave} onClose={() => setForgeOpen(false)} />}
+      {chestOpen && <Shop save={save} setSave={setSave} onClose={() => setChestOpen(false)} />}
+      {loadoutOpen && <ActiveLoadoutPanel save={save} setSave={setSave} onClose={() => setLoadoutOpen(false)} />}
+      {craftOpen && <WeaponCrafting save={save} setSave={setSave} onClose={() => setCraftOpen(false)} />}
+      {settingsOpen && <SettingsPanel save={save} setSave={setSave} onClose={() => setSettingsOpen(false)} onReset={handleReset} />}
+      {characterOpen && <CharacterPanel save={save} setSave={setSave} onClose={() => setCharacterOpen(false)} />}
+      {talentOpen && <TalentTree save={save} setSave={setSave} onClose={() => setTalentOpen(false)} />}
+      {petOpen && <PetPanel save={save} setSave={setSave} onClose={() => setPetOpen(false)} />}
+      {partsOpen && <PartsInventory save={save} setSave={setSave} onClose={() => setPartsOpen(false)} />}
+      {save.pendingLevelUp && (
+        <LevelUpOverlay save={save} onCollect={() => {
+          const r = save.pendingLevelUp;
+          const char = save.character || DEFAULT_SAVE.character;
+          setSave({
+            ...save,
+            pendingLevelUp: null,
+            gold: (save.gold || 0) + r.gold,
+            sp:   (save.sp   || 0) + r.sp,
+            gems: (save.gems || 0) + (r.gems || 0),
+            slotCoins: (save.slotCoins || 0) + (r.slotCoins || 0),
+            talentPoints: (save.talentPoints || 0) + (r.talentPoints || 0),
+            freeShopSpins: (save.freeShopSpins || 0) + (r.freeSpin ? 1 : 0),
+            character: { ...char, pieces: (char.pieces || 0) + (r.pieces || 0), shards: (char.shards || 0) + (r.shards || 0) },
+          });
+          Audio.claimPing();
+        }} />
+      )}
+    </div>
+  );
+}
+
+function Stat({ label, val }) {
+  return (<div className="stat-cell"><div className="stat-lbl">{label}</div><div className="stat-val">{val}</div></div>);
+}
+function fmtTime(t) { if (!t) return '00:00'; const m = Math.floor(t / 60); const s = Math.floor(t % 60); return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; }
+
+const _CF = [
+  {l:6,d:0,c:'#ff3146'},{l:14,d:.4,c:'#ffd166'},{l:23,d:.8,c:'#4dffd4'},
+  {l:33,d:.2,c:'#b362ff'},{l:44,d:1.1,c:'#ff8c00'},{l:55,d:.6,c:'#4dc4ff'},
+  {l:66,d:1.5,c:'#ffd700'},{l:76,d:.3,c:'#ff3146'},{l:85,d:.9,c:'#4dffd4'},
+  {l:93,d:.1,c:'#b362ff'},{l:10,d:1.8,c:'#ffd166'},{l:29,d:1.3,c:'#ff8c00'},
+  {l:50,d:1.0,c:'#4dc4ff'},{l:70,d:1.7,c:'#ff3146'},{l:88,d:.5,c:'#ffd700'},
+  {l:19,d:1.4,c:'#4dffd4'},
+];
+const _LASERS = [0,45,90,135,180,225,270,315];
+
+function LevelUpOverlay({ save, onCollect }) {
+  const r = save.pendingLevelUp;
+  const av = AVATARS[save.profile.avatar] || AVATARS[0];
+  return (
+    <div className="lu-overlay" data-testid="levelup-overlay">
+      {_CF.map((c,i) => <div key={i} className="lu-confetti" style={{left:`${c.l}%`,animationDelay:`${c.d}s`,background:c.c}} />)}
+      {_LASERS.map(a => <div key={a} className="lu-laser" style={{transform:`translate(-50%,-50%) rotate(${a}deg)`}} />)}
+      <div className="lu-card">
+        <div className="lu-avatar">{av.icon}</div>
+        <div className="lu-title">RANK UP!</div>
+        <div className="lu-rank">★ RANK {r.level} ★</div>
+        <div className="lu-xp"><div className="lu-xp-fill" /></div>
+          <div className="lu-rewards">
+          <div className="lu-rwd">★ +{r.gold} Gold</div>
+          <div className="lu-rwd">◆ +{r.sp} SP</div>
+          {r.talentPoints > 0 && <div className="lu-rwd" style={{color:'#4dff91'}}>🌿 +{r.talentPoints} TP</div>}
+          {r.gems > 0 && <div className="lu-rwd" style={{color:'#4dffd4'}}>💎 +{r.gems} Gems</div>}
+          {r.slotCoins > 0 && <div className="lu-rwd" style={{color:'#ffcc00'}}>🎰 +{r.slotCoins} Slot Coin{r.slotCoins > 1 ? 's' : ''}!</div>}
+          {r.freeSpin && <div className="lu-rwd" style={{color:'#4dffd4',textShadow:'0 0 10px #4dffd4'}}>🎰 Free Shop Spin!</div>}
+          {r.pieces > 0 && <div className="lu-rwd" style={{color:'#b362ff',textShadow:'0 0 10px #b362ff88'}}>🔷 +{r.pieces} Char. Pieces</div>}
+          {r.shards > 0 && <div className="lu-rwd" style={{color:'#ff7a1a',textShadow:'0 0 10px #ff7a1a88'}}>💎 +{r.shards} Evo. Shards</div>}
+          {r.streakBonus && (
+            <div className="lu-rwd" style={{color:'#ffd700',textShadow:'0 0 16px #ffd700aa',fontSize:15,letterSpacing:'0.15em',marginTop:6,border:'1px solid #ffd70066',padding:'4px 10px',background:'#1a1200'}}>
+              ★ 2× STREAK BONUS! ★
+              <div style={{fontSize:11,opacity:0.7,letterSpacing:'0.1em'}}>3 rank-ups today</div>
+            </div>
+          )}
+        </div>
+        <button className="lu-collect" onClick={onCollect} data-testid="levelup-collect">COLLECT ▸</button>
+      </div>
+    </div>
+  );
+}
