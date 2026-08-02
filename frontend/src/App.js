@@ -5,6 +5,7 @@ import Welcome from './components/Welcome';
 import IntroDialogue from './components/IntroDialogue';
 import Camp from './components/Camp';
 import GameScreen from './components/GameScreen';
+import StarRaidScreen from './components/StarRaidScreen';
 import MissionReveal from './components/MissionReveal';
 import PaywallModal from './components/PaywallModal';
 import { loadSave, saveLocal, syncSave, postRunResult, DEFAULT_SAVE, getPlayerId, addAccountXp } from './store';
@@ -223,9 +224,13 @@ function AppInner() {
       <Camp save={save} setSave={setSave}
         onBack={() => setView('welcome')}
         onStart={() => startTutorialIfNeeded()}
-        onMission={(m) => tryStartGame(() => onMission(m), m)} />
+        onMission={(m) => tryStartGame(() => onMission(m), m)}
+        onStarRaid={() => setView('starraid')} />
       {showPaywall && <PaywallModal onClose={() => setShowPaywall(false)} />}
     </>);
+  }
+  if (view === 'starraid') {
+    return (<StarRaidScreen save={save} setSave={setSave} onExit={() => setView('camp')} />);
   }
   if (view === 'game') {
     return (<>

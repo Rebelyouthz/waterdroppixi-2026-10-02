@@ -21,7 +21,7 @@ const openChest = (chestId) => {
   return c ? rollChest(c, 0.5) : [];
 };
 
-export default function Camp({ save, setSave, onBack, onStart, onMission }) {
+export default function Camp({ save, setSave, onBack, onStart, onMission, onStarRaid }) {
   const [toast, setToast] = useState('');
   const [tab, setTab] = useState('cards');
   const [shopOpen, setShopOpen] = useState(false);
@@ -131,6 +131,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission }) {
             <button className={`camp-tab ${tab === 'achievements' ? 'active' : ''}`} onClick={() => setTab('achievements')} data-testid="tab-ach" style={{position:'relative'}}>🎖 ACHIEVEMENTS {achNew && <EyeBadge/>}</button>
             <button className={`camp-tab ${tab === 'milestones' ? 'active' : ''}`} onClick={() => setTab('milestones')} data-testid="tab-milestones">⭐ MILESTONES</button>
             <button className={`camp-tab ${tab === 'stats' ? 'active' : ''}`} onClick={() => setTab('stats')} data-testid="tab-stats">📊 STATS</button>
+            <button className={`camp-tab ${tab === 'starraid' ? 'active' : ''}`} onClick={() => setTab('starraid')} data-testid="tab-starraid">🚀 STAR RAID</button>
             <div className="camp-tab-divider" />
             <button className="camp-tab" onClick={() => setCharacterOpen(true)} data-testid="tab-character">👤 CHARACTER</button>
             <button className="camp-tab" onClick={() => setPetOpen(true)} data-testid="tab-pets">🐾 PETS</button>
@@ -239,6 +240,19 @@ export default function Camp({ save, setSave, onBack, onStart, onMission }) {
             <>
               <div className="camp-header"><h1>Patrol</h1><div className="camp-header-sub">Send on missions while you're away · Active pet gives +20% reward</div></div>
               <PatrolPanel save={save} setSave={setSave} />
+            </>
+          )}
+
+          {tab === 'starraid' && (
+            <>
+              <div className="camp-header"><h1>Star Raid</h1><div className="camp-header-sub">One-thumb space raid — earn Scrap for ship upgrades and Gacha Tokens for artifacts</div></div>
+              <div style={{ padding: 20, textAlign: 'center' }}>
+                <div style={{ fontSize: 48, marginBottom: 10 }}>🚀</div>
+                <div style={{ fontFamily: 'VT323', color: 'var(--ink-dim)', marginBottom: 16 }}>
+                  Fly, autofire, and dodge through 3 stages. Clear the final stage for a Gacha Token.
+                </div>
+                <button className="go-btn go-btn-retry" onClick={onStarRaid} data-testid="starraid-launch-camp">🚀 LAUNCH STAR RAID</button>
+              </div>
             </>
           )}
 

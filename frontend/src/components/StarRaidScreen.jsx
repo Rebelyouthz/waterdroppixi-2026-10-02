@@ -1,0 +1,244 @@
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { StarRaidGame, STAGES, SHIP_UPGRADES, upgradeCost } from '../game/starRaidEngine';
+import { StarRaidRenderer } from '../game/starRaidRenderer';
+
+// ═══════════════════════════════════════════════════════════════════════
+// STAR RAID — "Patrol minigame" from spec (named to avoid colliding with
+// the existing idle-mission PATROL tab). Deliberately scoped v1:
+//   BUILT now: fly + autofire + dodge, orb pickup -> Scrap, permanent ship
+//   upgrades (6 stats, leveled), 3 stages within one map/theme, a boss per
+//   stage, clearing the final stage awards a Gacha Token for the Artifact
+//   Gacha Machine, procedural ship/enemy rendering with real engine-glow
+//   lighting (waterdrop-lighting skill's pooled-sprite technique).
+//   DEFERRED to a later pass (explicitly, not silently dropped): a
+//   dedicated radial skill-tree UI for the upgrades above (the progression
+//   itself is fully live, just via a plain upgrade list for now), the 3
+//   distinct equippable ship-mod slots (homing missiles/mega bomb/
+//   minigun), the companion-ship system, expansion from 3 stages to 5,
+//   and raster ship/enemy sprite art (no image-generation tool available
+//   in this environment — see waterdrop-lighting skill's "no hand-authored
+//   art" note; ship banking left/right is delivered via rotation instead
+//   of frame-swapped images, same felt effect).
+// ═══════════════════════════════════════════════════════════════════════
+
+export default function StarRaidScreen({ save, setSave, onExit }) {
+  const [screen, setScreen] = useState('menu'); // 'menu' | 'shop' | 'playing' | 'result'
+  const [stageIdx, setStageIdx] = useState(save.starRaid?.stageUnlocked || 0);
+  const [result, setResult] = useState(null);
+  const canvasRef = useRef(null);
+  const gameRef = useRef(null);
+  const rendererRef = useRef(null);
+  const [snap, setSnap] = useState(null);
+  const inputRef = useRef({ x: 0, y: 0 });
+  const dragAnchor = useRef(null);
+
+  const sr = save.starRaid || { levels: {}, scrap: 0, stageUnlocked: 0 };
+
+  const startRun = useCallback(() => {
+    setScreen('playing');
+  }, []);
+
+  useEffect(() => {
+    if (screen !== 'playing') return;
+    const canvas = canvasRef.current;
+    const game = new StarRaidGame(canvas, {
+      shipLevels: sr.levels,
+      stageIdx,
+      callbacks: {
+        onTick: (s) => setSnap(s),
+        onGameOver: (s) => {
+          const scrapEarned = s.scrap;
+          const newSr = { ...sr, scrap: (sr.scrap || 0) + scrapEarned };
+          let gotToken = false;
+          if (s.cleared) {
+            const nextUnlocked = Math.max(newSr.stageUnlocked || 0, stageIdx + 1);
+            newSr.stageUnlocked = Math.min(STAGES.length - 1, nextUnlocked);
+            if (stageIdx === STAGES.length - 1) {
+              gotToken = true;
+            }
+          }
+          const newSave = { ...save, starRaid: newSr, gachaTokens: (save.gachaTokens || 0) + (gotToken ? 1 : 0) };
+          setSave(newSave);
+          setResult({ ...s, scrapEarned, gotToken });
+          setScreen('result');
+        },
+      },
+    });
+    const renderer = new StarRaidRenderer(canvas);
+    game.renderer = renderer;
+    gameRef.current = game;
+    rendererRef.current = renderer;
+
+    const onResize = () => {
+      game.W = canvas.clientWidth; game.H = canvas.clientHeight;
+      renderer.resize(canvas.clientWidth, canvas.clientHeight);
+    };
+    window.addEventListener('resize', onResize);
+    onResize();
+
+    // Input: drag-anywhere joystick (touch) + WASD/arrows (desktop) — a
+    // single control scheme, per spec "styr med 1 tumme".
+    const keys = {};
+    const onKeyDown = (e) => { keys[e.key.toLowerCase()] = true; };
+    const onKeyUp = (e) => { keys[e.key.toLowerCase()] = false; };
+    const kbLoop = setInterval(() => {
+      if (dragAnchor.current) return;
+      let x = 0, y = 0;
+      if (keys['a'] || keys['arrowleft']) x -= 1;
+      if (keys['d'] || keys['arrowright']) x += 1;
+      if (keys['w'] || keys['arrowup']) y -= 1;
+      if (keys['s'] || keys['arrowdown']) y += 1;
+      inputRef.current = { x, y };
+      game.setInput(x, y);
+    }, 16);
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+
+    const toLocal = (clientX, clientY) => {
+      const rect = canvas.getBoundingClientRect();
+      return { x: clientX - rect.left, y: clientY - rect.top };
+    };
+    const onPointerDown = (e) => {
+      const pt = e.touches ? e.touches[0] : e;
+      dragAnchor.current = toLocal(pt.clientX, pt.clientY);
+    };
+    const onPointerMove = (e) => {
+      if (!dragAnchor.current) return;
+      const pt = e.touches ? e.touches[0] : e;
+      const cur = toLocal(pt.clientX, pt.clientY);
+      const dx = cur.x - dragAnchor.current.x, dy = cur.y - dragAnchor.current.y;
+      const d = Math.hypot(dx, dy) || 1;
+      const cl = Math.min(d, 50);
+      game.setInput((dx / d) * (cl / 50), (dy / d) * (cl / 50));
+    };
+    const onPointerUp = () => { dragAnchor.current = null; game.setInput(0, 0); };
+    canvas.addEventListener('touchstart', onPointerDown, { passive: true });
+    canvas.addEventListener('touchmove', onPointerMove, { passive: true });
+    canvas.addEventListener('touchend', onPointerUp);
+    canvas.addEventListener('mousedown', onPointerDown);
+    window.addEventListener('mousemove', onPointerMove);
+    window.addEventListener('mouseup', onPointerUp);
+
+    return () => {
+      clearInterval(kbLoop);
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      canvas.removeEventListener('touchstart', onPointerDown);
+      canvas.removeEventListener('touchmove', onPointerMove);
+      canvas.removeEventListener('touchend', onPointerUp);
+      canvas.removeEventListener('mousedown', onPointerDown);
+      window.removeEventListener('mousemove', onPointerMove);
+      window.removeEventListener('mouseup', onPointerUp);
+      game.destroy();
+      renderer.destroy();
+    };
+  }, [screen, stageIdx]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const buyUpgrade = (id) => {
+    const lvl = sr.levels[id] || 0;
+    const u = SHIP_UPGRADES[id];
+    if (lvl >= u.max) return;
+    const cost = upgradeCost(id, lvl);
+    if ((sr.scrap || 0) < cost) return;
+    setSave({ ...save, starRaid: { ...sr, scrap: sr.scrap - cost, levels: { ...sr.levels, [id]: lvl + 1 } } });
+  };
+
+  if (screen === 'menu') {
+    return (
+      <div className="modal-overlay">
+        <div className="menu" style={{ maxWidth: 480, width: '92vw', padding: 24 }} data-testid="starraid-menu">
+          <div className="title">🚀 STAR RAID</div>
+          <div style={{ fontFamily: 'VT323', fontSize: 15, color: 'var(--ink-dim)', margin: '8px 0 16px' }}>
+            One-thumb space raid. Autofire, dodge, collect Scrap, clear all 3 stages for a Gacha Token.
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+            {STAGES.map((s, i) => {
+              const locked = i > (sr.stageUnlocked || 0);
+              return (
+                <button key={s.id} disabled={locked}
+                  className={`go-btn ${stageIdx === i ? 'go-btn-retry' : 'go-btn-ghost'}`}
+                  style={{ opacity: locked ? 0.35 : 1, flex: '1 1 30%' }}
+                  onClick={() => !locked && setStageIdx(i)}>
+                  {locked ? '🔒' : '▶'} {s.name}
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button className="go-btn go-btn-ghost" onClick={onExit} data-testid="starraid-exit">↩ Camp</button>
+            <button className="go-btn go-btn-camp" onClick={() => setScreen('shop')} data-testid="starraid-shop">🔧 Upgrade Ship</button>
+            <button className="go-btn go-btn-retry" onClick={startRun} data-testid="starraid-launch">🚀 LAUNCH</button>
+          </div>
+          <div style={{ marginTop: 12, fontFamily: 'VT323', color: '#ffd166' }}>⚙ Scrap: {sr.scrap || 0}</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (screen === 'shop') {
+    return (
+      <div className="modal-overlay">
+        <div className="menu" style={{ maxWidth: 520, width: '92vw', padding: 24 }} data-testid="starraid-shop-panel">
+          <div className="title">🔧 SHIP UPGRADES</div>
+          <div style={{ fontFamily: 'VT323', color: '#ffd166', margin: '6px 0 14px' }}>⚙ Scrap: {sr.scrap || 0}</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: '50vh', overflowY: 'auto' }}>
+            {Object.entries(SHIP_UPGRADES).map(([id, u]) => {
+              const lvl = sr.levels[id] || 0;
+              const maxed = lvl >= u.max;
+              const cost = upgradeCost(id, lvl);
+              const canAfford = (sr.scrap || 0) >= cost;
+              return (
+                <div key={id} className="gear-popover-row" style={{ '--rc': '#4dffd4', cursor: maxed ? 'default' : 'pointer' }}>
+                  <span className="gear-popover-name">{u.icon} {u.name} — Lv {lvl}/{u.max}</span>
+                  {!maxed ? (
+                    <button className="gear-btn equip" disabled={!canAfford} style={{ opacity: canAfford ? 1 : 0.4 }}
+                      onClick={() => buyUpgrade(id)}>UPGRADE ({cost} ⚙)</button>
+                  ) : (
+                    <span style={{ color: '#4dff91', fontFamily: 'VT323' }}>MAX</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <button className="go-btn go-btn-ghost" style={{ marginTop: 16, width: '100%' }} onClick={() => setScreen('menu')}>↩ Back</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (screen === 'result') {
+    return (
+      <div className="modal-overlay">
+        <div className="gameover go-modern" data-testid="starraid-result">
+          <div className="go-title">{result?.cleared ? 'STAGE CLEARED' : 'SHIP LOST'}</div>
+          <div className="go-sub">{result?.cleared ? 'The Hull Breaker is down.' : 'Ejected. Scrap recovered from the wreck.'}</div>
+          <div className="go-stats-grid">
+            <div className="go-stat"><span>SCRAP</span><b>+{result?.scrapEarned || 0}</b></div>
+            <div className="go-stat"><span>STAGE</span><b>{STAGES[stageIdx].name}</b></div>
+          </div>
+          {result?.gotToken && (
+            <div className="go-badges"><div className="go-badge"><span>🎰</span><b>GACHA TOKEN EARNED</b></div></div>
+          )}
+          <div className="go-actions">
+            <button className="go-btn go-btn-ghost" onClick={onExit}>↩ Camp</button>
+            <button className="go-btn go-btn-camp" onClick={() => setScreen('shop')}>🔧 Upgrade</button>
+            <button className="go-btn go-btn-retry" onClick={() => setScreen('playing')}>↻ RETRY</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 'playing'
+  return (
+    <div className="app-shell" style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block', touchAction: 'none' }} />
+      <div style={{ position: 'absolute', top: 40, left: 14, fontFamily: 'VT323', color: '#ffd166', fontSize: 16, pointerEvents: 'none' }}>
+        ⚙ {snap?.scrap || 0}
+      </div>
+      <button className="go-btn go-btn-ghost" style={{ position: 'absolute', top: 10, right: 10, padding: '4px 10px' }}
+        onClick={() => { gameRef.current && gameRef.current.destroy(); setScreen('menu'); }}>✕</button>
+    </div>
+  );
+}

@@ -35,6 +35,8 @@ export const DEFAULT_SAVE = {
   artifactInventory: [],
   artifactEquipped: {}, // { 0: artifactId, 1: artifactId, ... }
   gachaTokens: 0,
+  // Star Raid minigame (permanent ship progression) — see game/starRaidEngine.js
+  starRaid: { levels: {}, scrap: 0, stageUnlocked: 0 },
   // daily
   daily: { lastClaim: 0, streak: 0 }, // unix day index
   quests: { day: 0, completed: {}, claimed: {} },
