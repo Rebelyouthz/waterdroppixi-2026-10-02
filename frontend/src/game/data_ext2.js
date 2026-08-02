@@ -384,6 +384,20 @@ export const MILESTONE_BAR = [
   { atLevel: 100,rwd: { gold: 50000, sp: 100, chest: 'annunaki' } },
 ];
 
+// ---------- ELEMENTAL ROUNDS (Weaponsmith) ----------
+// Assignable to manual/auto weapons' bullets (see engine.js fireProjectile/
+// applyElementalEffect). Each element reuses an existing combat mechanic
+// where one already existed (burn DoT, chain lightning) instead of
+// building a parallel system, and adds the two that had no owner yet
+// (slow, poison stacks, armor shred).
+export const ELEMENTS = [
+  { id: 'fire',     name: 'Fire',     icon: '🔥', color: '#ff6a1a', desc: 'Ignites — burns for damage over time.' },
+  { id: 'ice',      name: 'Ice',      icon: '🧊', color: '#a0e8ff', desc: 'Chills — slows movement on hit.' },
+  { id: 'electric', name: 'Electric', icon: '⚡', color: '#a0e4ff', desc: 'Arcs to a second nearby enemy on hit.' },
+  { id: 'poison',   name: 'Poison',   icon: '☠️', color: '#7ad96b', desc: 'Stacking poison — more stacks, more DoT damage.' },
+  { id: 'void',     name: 'Void',     icon: '🔮', color: '#b362ff', desc: 'Shreds armor briefly, exposing the target.' },
+];
+
 // ---------- BRUTAL KILL ANIMATIONS by weapon behaviour ----------
 export const KILL_FX = {
   projectile: 'gibs',       // pellets/bullets cause chunks

@@ -109,6 +109,13 @@ export const WEAPON_PARTS = {
     { name: 'Epic',      mult: 1.55, cost: 1200 },
     { name: 'Legendary', mult: 1.85, cost: 3000 },
   ], stat: 'rarity' },
+  // Unlocks slots to assign Elements (see data_ext2.js ELEMENTS) to this
+  // weapon's bullets — Weaponsmith.jsx shows an element picker once slots > 0.
+  element: { name: 'Elemental Rounds', icon: '🔮', tiers: [
+    { name: 'None',          slots: 0, cost: 0 },
+    { name: 'Single Element',slots: 1, cost: 250 },
+    { name: 'Dual Cycling',  slots: 2, cost: 700 },
+  ], stat: 'element' },
 };
 
 // ---------- PER-WEAPON PART LABEL OVERRIDES ----------

@@ -198,6 +198,7 @@ export default function GameScreen({ save, setSave, onExit, onRunEnd, mission })
     const opts = {
       meta,
       attrs: save.attrs || {},
+      weaponElements: save.weaponElements || {},
       activePet: (save.pets || []).find(p => p.active) || null,
       unlockedEvos: save.unlockedEvos || [],
       skills: save.skills || {},

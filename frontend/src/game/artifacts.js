@@ -46,6 +46,7 @@ const POSITIVE_POOL = [
   { stat: 'pickup', base: 0.01,  name: 'Gravity' },
   { stat: 'pierce', base: 0.2,   name: 'Piercing' },
   { stat: 'proj',   base: 0.12,  name: 'Barrage' },
+  { stat: 'elementalDmg', base: 0.02, name: 'Elemental Attunement' },
 ];
 // Drawbacks skew toward the OPPOSITE axis of common positives so a roll
 // feels like a real tradeoff (e.g. hits harder but frailer), not just a

@@ -37,6 +37,9 @@ export const DEFAULT_SAVE = {
   gachaTokens: 0,
   // Star Raid minigame (permanent ship progression) — see game/starRaidEngine.js
   starRaid: { levels: {}, scrap: 0, stageUnlocked: 0 },
+  // Elemental Rounds (Weaponsmith): { weaponId: [elementId, ...] }, cycles
+  // shot-by-shot within the same magazine — see game/data_ext2.js ELEMENTS.
+  weaponElements: {},
   // daily
   daily: { lastClaim: 0, streak: 0 }, // unix day index
   quests: { day: 0, completed: {}, claimed: {} },

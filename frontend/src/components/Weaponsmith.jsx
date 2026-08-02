@@ -1,12 +1,22 @@
 import React, { useState } from 'react';
 import { WEAPONS } from '../game/data';
 import { WEAPON_PARTS, WEAPON_PART_OVERRIDES } from '../game/data_ext';
+import { ELEMENTS } from '../game/data_ext2';
 
 export default function Weaponsmith({ save, setSave, onClose }) {
   const [wid, setWid] = useState('hydropistol');
   const w = WEAPONS[wid];
   const parts = save.weaponParts[wid] || {};
   const overrides = WEAPON_PART_OVERRIDES[wid] || {};
+  const elementSlots = WEAPON_PARTS.element.tiers[parts.element || 0].slots;
+  const equippedElems = (save.weaponElements || {})[wid] || [];
+
+  const toggleElement = (elId) => {
+    const cur = equippedElems;
+    const next = cur.includes(elId) ? cur.filter(x => x !== elId)
+      : cur.length < elementSlots ? [...cur, elId] : cur;
+    setSave({ ...save, weaponElements: { ...(save.weaponElements || {}), [wid]: next } });
+  };
 
   const buyTier = (partKey, tierIdx) => {
     const tier = WEAPON_PARTS[partKey].tiers[tierIdx];
@@ -86,6 +96,37 @@ export default function Weaponsmith({ save, setSave, onClose }) {
             );
           })}
         </div>
+
+        {elementSlots > 0 && (
+          <div className="forge-part" data-testid="forge-elements">
+            <div className="forge-part-h">
+              🔮 Elemental Rounds — <span style={{ color: 'var(--accent-2)' }}>{equippedElems.length}/{elementSlots} assigned</span>
+            </div>
+            <div className="forge-desc" style={{ marginBottom: 6 }}>
+              Bullets cycle through assigned elements shot-by-shot within the same magazine.
+            </div>
+            <div className="forge-tiers">
+              {ELEMENTS.map(el => {
+                const on = equippedElems.includes(el.id);
+                const full = !on && equippedElems.length >= elementSlots;
+                return (
+                  <button
+                    key={el.id}
+                    className={`forge-tier ${on ? 'owned' : ''}`}
+                    onClick={() => toggleElement(el.id)}
+                    disabled={full}
+                    data-testid={`element-${el.id}`}
+                    style={{ fontSize: 11, padding: '6px 8px', borderColor: on ? el.color : undefined, opacity: full ? 0.4 : 1 }}
+                    title={el.desc}
+                  >
+                    <div style={{ color: el.color }}>{el.icon} {el.name}</div>
+                    {on && <div style={{ fontSize: 10, color: 'var(--rune)' }}>✓ active</div>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

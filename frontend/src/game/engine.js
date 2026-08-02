@@ -1,6 +1,6 @@
 // Waterdrop Survivor — Canvas 2D engine with pooling, twin-stick combat, juicy effects.
 import { WEAPONS, ENEMIES, STAT_CARDS, RARITY, rollRarity, waveAt, nextBossEvent, WEAPON_EVO_MAP, metaCost } from './data';
-import { ACTIVE_SKILLS, KILL_FX, ADVANCED_CARDS } from './data_ext2';
+import { ACTIVE_SKILLS, KILL_FX, ADVANCED_CARDS, ELEMENTS } from './data_ext2';
 import { Audio } from './audio';
 import { PixiRenderer } from './pixiRenderer';
 
@@ -63,6 +63,7 @@ export class Game {
     this.attrs = opts.attrs || {}; // raw POE_ATTRS points (save.attrs) — Agility/Aim use a
     // non-linear -33%/+33% curve that can't be expressed through the generic
     // linear meta-effects pipeline, so they read straight from here.
+    this.weaponElements = opts.weaponElements || {}; // { weaponId: [elementId, ...] } — Weaponsmith
     this.callbacks = opts.callbacks || {};
     // Active pet in-game
     this.activePet = opts.activePet || null;
@@ -133,6 +134,8 @@ export class Game {
         dashCDMult: 1.0 - (this.meta.dashcd || 0),
         blink: this.meta.blink ? 1 : 0,
         shield: this.meta.shield ? 1 : 0,
+        swipeAttack: !!this.meta.swipeAttack,
+        elementalDmg: (this.meta.elementalDmg || 0),
         bossDmg: 1.0 + (this.meta.bossDmg || 0),
         voidBurst: (this.meta.voidBurst || 0),
         heartHeal: (this.meta.heartHeal || 0),
@@ -1230,6 +1233,50 @@ export class Game {
     pr._ang = ang;                     // facing for sprite orientation
     pr.hit.clear();
     pr.friendly = friendly;
+
+    // Elemental Rounds (Weaponsmith): cycle through this weapon's assigned
+    // elements shot-by-shot within the same magazine, tinting the bolt to
+    // match whichever element this particular shot carries.
+    pr._element = null;
+    if (friendly && pr._wid && this.weaponElements[pr._wid] && this.weaponElements[pr._wid].length) {
+      const elems = this.weaponElements[pr._wid];
+      this._elemCycleIdx = this._elemCycleIdx || {};
+      const idx = (this._elemCycleIdx[pr._wid] || 0) % elems.length;
+      this._elemCycleIdx[pr._wid] = idx + 1;
+      pr._element = elems[idx];
+      const edef = ELEMENTS.find(el => el.id === pr._element);
+      if (edef) pr.color = edef.color;
+    }
+  }
+
+  // Applies an element's on-hit effect to a struck enemy. Each element
+  // reuses an existing combat mechanic where one already existed (fire =
+  // the same _burn DoT tick as the Burn card, electric = the same
+  // applyConductiveBounce chain as Conductive Rounds/Arc Tesla) rather than
+  // building parallel systems.
+  applyElementalEffect(e, elementId, dmg) {
+    if (!e.alive) return;
+    if (elementId === 'fire') {
+      e._burn = Math.max(e._burn || 0, 3);
+    } else if (elementId === 'ice') {
+      e._slowT = Math.max(e._slowT || 0, 1.5);
+      e._slowMult = 0.5;
+    } else if (elementId === 'electric') {
+      this.applyConductiveBounce(e.x, e.y, dmg, 1, new Set([e]));
+    } else if (elementId === 'poison') {
+      e._poisonStacks = Math.min(8, (e._poisonStacks || 0) + 1);
+      e._poisonT = 4;
+      if (Math.random() < 0.3) this.spawnSpark(e.x, e.y, '#7ad96b');
+    } else if (elementId === 'void') {
+      // No enemy "armor" defense stat currently reduces incoming damage
+      // anywhere in dealDamage (checked — it's an unused ENEMIES field), so
+      // "shred armor" would be a no-op; instead Void directly marks the
+      // target more vulnerable for a moment, consumed in dealDamage's own
+      // damage-multiplier step below.
+      e._voidVulnT = 2;
+      e._voidVulnMult = 1.3;
+      this.spawnRing(e.x, e.y, e.t.size * 0.7, '#b362ff', 0.3);
+    }
   }
 
   rollDamage(base, baseCrit) {
@@ -1403,6 +1450,21 @@ export class Game {
         e._vulnCycle = ((e._vulnCycle || 0) + dt) % 6;
         e._swipeVulnerable = e._vulnCycle >= 4;
       }
+      // Elemental status ticks (Ice/Poison/Void from Weaponsmith Elemental
+      // Rounds and elemental artifacts — see applyElementalEffect).
+      if (e._slowT > 0) { e._slowT -= dt; if (e._slowT <= 0) e._slowMult = 1; }
+      if (e._voidVulnT > 0) e._voidVulnT -= dt;
+      if (e._poisonT > 0) {
+        e._poisonT -= dt;
+        e._poisonAcc = (e._poisonAcc || 0) + dt;
+        if (e._poisonAcc >= 0.5) {
+          e._poisonAcc = 0;
+          const stacks = e._poisonStacks || 1;
+          this.dealDamage(e, 3 * stacks * this.run.stats.damageMult, false, 0, e.x, e.y, true);
+          if (Math.random() < 0.4) this.spawnSpark(e.x, e.y, '#7ad96b');
+        }
+        if (e._poisonT <= 0) e._poisonStacks = 0;
+      }
       if (t.ai === 'decoy' || e._decoy !== undefined) {
         // decoys absorb projectiles, drain timer
         e._decoy -= dt;
@@ -1412,7 +1474,7 @@ export class Game {
       const dx = p.x - e.x, dy = p.y - e.y;
       const d = Math.hypot(dx, dy) || 1;
       const nx = dx / d, ny = dy / d;
-      let spd = t.speed * slowMul;
+      let spd = t.speed * slowMul * (e._slowT > 0 ? (e._slowMult || 1) : 1);
       if (t.ai === 'ranged') {
         if (d < (t.shootRange || 320) - 50) spd = -spd * 0.6;
         else if (d < (t.shootRange || 320) + 20) spd = 0;
@@ -1582,6 +1644,10 @@ export class Game {
         if (dist2(pr.x, pr.y, e.x, e.y) <= sumR * sumR) {
           this.dealDamage(e, pr.dmg, pr.crit, pr.knockback, pr.x, pr.y, false, pr.color);
           this.spawnHitBurst(pr.x, pr.y, pr.color || e.t.color, 8);
+          if (pr._element) {
+            const bonus = 1 + (this.run.stats.elementalDmg || 0);
+            this.applyElementalEffect(e, pr._element, pr.dmg * bonus);
+          }
           if (pr._wid === 'stormLance') {
             // Storm Lance: a real bolt visibly strikes down from the sky
             // onto the target on impact, not just a hit-spark.
@@ -1746,6 +1812,7 @@ export class Game {
     const s = this.run.stats;
     if (e._decoy !== undefined) { e._decoy -= 0.5; if (e._decoy <= 0) this.killEnemy(e); return; }
     if (e.t.boss && s.bossDmg > 1) dmg *= s.bossDmg;
+    if (e._voidVulnT > 0) dmg *= e._voidVulnMult || 1;
     let head = false;
     if (!e.t.boss && s.headshot > 0 && Math.random() < s.headshot) { dmg = e.hp + 1; head = true; }
     s._lastHitDmg = dmg; s._lastHitWeapon = s._behaviour || 'projectile';
