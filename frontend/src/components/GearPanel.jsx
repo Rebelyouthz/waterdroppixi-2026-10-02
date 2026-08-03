@@ -326,7 +326,7 @@ export default function GearPanel({ save, setSave }) {
                         FORGE → {nextRar.toUpperCase()}
                       </button>
                     )}
-                    {!nextRar && <span style={{ color:'#ffd700', fontFamily:'VT323' }}>LEGENDARY MAX</span>}
+                    {!nextRar && <span style={{ color:'#ff3146', fontFamily:'VT323' }}>MYTHICAL MAX</span>}
                   </div>
                 );
               })}

@@ -59,9 +59,15 @@ for (const k of Object.keys(STARTER_WEAPONS)) {
 
 // ---------- WEAPON PARTS (AK47 style attachment system) ----------
 export const PART_SLOTS = ['barrel', 'magazine', 'sight', 'muzzle', 'stock', 'bullets', 'grip'];
-export const PART_RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythical'];
-export const PART_RARITY_COLORS = { common: '#9a8fa6', magic: '#4dc4ff', rare: '#ffd166', epic: '#b362ff', legendary: '#ff7a1a' };
-export const PART_RARITY_MULT  = { common: 1.0, magic: 1.5, rare: 2.1, epic: 2.9, legendary: 4.0 };
+// NOTE: 'magic' (not 'uncommon') is the real 2nd-tier key here — it must
+// match rollPartRarity()'s weight keys and PART_RARITY_COLORS/MULT below,
+// which all already used 'magic'. This array previously said 'uncommon',
+// which silently broke PART_RARITIES.indexOf(rarity) for every magic-tier
+// part (returned -1, undercounting its secondary-stat count) — fixed here
+// while adding the missing mythical tier.
+export const PART_RARITIES = ['common', 'magic', 'rare', 'epic', 'legendary', 'mythical'];
+export const PART_RARITY_COLORS = { common: '#9a8fa6', magic: '#4dc4ff', rare: '#ffd166', epic: '#b362ff', legendary: '#ff7a1a', mythical: '#ff3146' };
+export const PART_RARITY_MULT  = { common: 1.0, magic: 1.5, rare: 2.1, epic: 2.9, legendary: 4.0, mythical: 6.0 };
 export const PART_SLOT_INFO = {
   barrel:   { icon: '🔫', primary: 'damage', secondary: ['range', 'projSpeed'] },
   magazine: { icon: '📦', primary: 'magBonus', secondary: ['reloadMult', 'magBonus'] },
@@ -72,13 +78,13 @@ export const PART_SLOT_INFO = {
   grip:     { icon: '🪢', primary: 'mspd', secondary: ['atks', 'reloadMult'] },
 };
 const PART_NAME_BASE = {
-  barrel: ['Stub', 'Heavy', 'Annunaki', 'Voidsteel', 'Eldritch'],
-  magazine: ['Standard', 'Extended', 'Drum', 'Cosmic', 'Infinite'],
-  sight: ['Iron', 'Red Dot', 'Tactical', 'Eye of Horus', 'A.I.D.A. Vision'],
-  muzzle: ['Plain', 'Compensator', 'Suppressor', 'Echo', 'Voidlash'],
-  stock: ['Wooden', 'Carbon', 'Tactical', 'Stabilized', 'Aida-Tech'],
-  bullets: ['FMJ', 'AP', 'Incendiary', 'Shock', 'Voidshard'],
-  grip: ['Rubber', 'Carbon', 'Bone', 'Voidweave', 'Aida-Grip'],
+  barrel: ['Stub', 'Heavy', 'Annunaki', 'Voidsteel', 'Eldritch', 'Genesis'],
+  magazine: ['Standard', 'Extended', 'Drum', 'Cosmic', 'Infinite', 'Primordial'],
+  sight: ['Iron', 'Red Dot', 'Tactical', 'Eye of Horus', 'A.I.D.A. Vision', 'Waterborn Eye'],
+  muzzle: ['Plain', 'Compensator', 'Suppressor', 'Echo', 'Voidlash', 'Genesis Flare'],
+  stock: ['Wooden', 'Carbon', 'Tactical', 'Stabilized', 'Aida-Tech', 'Primordial Grip'],
+  bullets: ['FMJ', 'AP', 'Incendiary', 'Shock', 'Voidshard', 'Waterborn Round'],
+  grip: ['Rubber', 'Carbon', 'Bone', 'Voidweave', 'Aida-Grip', 'Genesis Weave'],
 };
 export function partName(slot, rarity) {
   const rIdx = PART_RARITIES.indexOf(rarity);
@@ -109,7 +115,7 @@ export function rollPart(slot, forcedRarity = null) {
   };
 }
 function rollPartRarity() {
-  const weights = { common: 60, magic: 28, rare: 9, epic: 2.5, legendary: 0.5 };
+  const weights = { common: 60, magic: 28, rare: 9, epic: 2.5, legendary: 0.42, mythical: 0.08 };
   const tot = Object.values(weights).reduce((a, b) => a + b, 0);
   let r = Math.random() * tot;
   for (const [k, v] of Object.entries(weights)) { r -= v; if (r <= 0) return k; }

@@ -4,7 +4,7 @@ import { MISSION_DEFS, MISSION_DAILY_LIMIT, MISSION_REGEN_MS, rollMissionRewards
 import { Audio } from '../game/audio';
 import { accountXpToNext } from '../game/data_ext';
 
-const PART_RAR_CLS = { common: 'r-common', uncommon: 'r-uncommon', rare: 'r-rare', epic: 'r-epic', legendary: 'r-legendary', mythical: 'r-mythical' };
+const PART_RAR_CLS = { common: 'r-common', magic: 'r-magic', rare: 'r-rare', epic: 'r-epic', legendary: 'r-legendary', mythical: 'r-mythical' };
 
 // ---------- Missions ----------
 export function MissionsPanel({ save, setSave, onStart }) {

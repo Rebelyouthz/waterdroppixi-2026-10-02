@@ -10,16 +10,17 @@ export const GEAR_SLOT_NAMES = {
   helmet:'Helmet', chest:'Chest', arms:'Gloves', legs:'Legs', boots:'Boots', ring:'Ring', amulet:'Amulet'
 };
 
-export const GEAR_RARITIES = ['common','magic','rare','epic','legendary'];
+export const GEAR_RARITIES = ['common','magic','rare','epic','legendary','mythical'];
 export const GEAR_RARITY_COLORS = {
   common:    '#9a8fa6',
   magic:     '#4dc4ff',
   rare:      '#ffd166',
   epic:      '#b362ff',
   legendary: '#ff7a1a',
+  mythical:  '#ff3146',
 };
 export const GEAR_RARITY_MULT = {
-  common: 1.0, magic: 1.6, rare: 2.5, epic: 3.8, legendary: 6.0
+  common: 1.0, magic: 1.6, rare: 2.5, epic: 3.8, legendary: 6.0, mythical: 9.5,
 };
 
 // Primary stat by slot — expanded pool per slot for more build variety
@@ -52,6 +53,7 @@ const NAME_PREFIX = {
   rare:      ['Enchanted','Pulsing','Etched'],
   epic:      ['Voidforged','Ancient','Resonant'],
   legendary: ['Annunaki','Celestial','Eternal'],
+  mythical:  ['Waterborn','Genesis','Primordial'],
 };
 const SLOT_NAME_SUFFIX = {
   helmet:'Helm', chest:'Plate', arms:'Grips', legs:'Greaves',
@@ -90,8 +92,10 @@ export function rollGearDrop(timeInRun = 0) {
   // Later in run → higher rarity chance
   const bonusEpic = Math.min(0.04, timeInRun / 2000);
   const bonusRare = Math.min(0.12, timeInRun / 800);
+  const bonusMythical = Math.min(0.01, timeInRun / 6000);
   let rarity;
-  if (r < 0.01 + bonusEpic) rarity = 'legendary';
+  if (r < 0.002 + bonusMythical) rarity = 'mythical';
+  else if (r < 0.012 + bonusEpic) rarity = 'legendary';
   else if (r < 0.05 + bonusEpic) rarity = 'epic';
   else if (r < 0.20 + bonusRare) rarity = 'rare';
   else if (r < 0.45) rarity = 'magic';
@@ -134,7 +138,7 @@ export function mergeItems(inventory, ids) {
   const items = ids.map(id => inventory.find(x => x.id === id)).filter(Boolean);
   if (items.length < 3) return { inventory, newItem: null };
   const base = items[0];
-  const nextRarity = GEAR_RARITIES[GEAR_RARITIES.indexOf(base.rarity) + 1] || 'legendary';
+  const nextRarity = GEAR_RARITIES[GEAR_RARITIES.indexOf(base.rarity) + 1] || base.rarity;
   const newItem = generateGearItem(base.slot, nextRarity);
   const newIds = new Set(ids.slice(0, 3));
   return {

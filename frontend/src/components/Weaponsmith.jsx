@@ -4,7 +4,7 @@ import { WEAPON_PARTS, WEAPON_PART_OVERRIDES } from '../game/data_ext';
 import { ELEMENTS, STARTER_WEAPONS, PART_SLOTS, PART_SLOT_INFO, STAT_DISPLAY } from '../game/data_ext2';
 import { Audio } from '../game/audio';
 
-const PART_RAR_CLS = { common: 'r-common', uncommon: 'r-uncommon', rare: 'r-rare', epic: 'r-epic', legendary: 'r-legendary', mythical: 'r-mythical' };
+const PART_RAR_CLS = { common: 'r-common', magic: 'r-magic', rare: 'r-rare', epic: 'r-epic', legendary: 'r-legendary', mythical: 'r-mythical' };
 
 // Consolidated weapon hub: upgrade parts + elemental rounds + blueprints +
 // the loose-parts inventory/equip system used to all live in 3 separate

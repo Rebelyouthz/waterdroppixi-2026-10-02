@@ -1259,6 +1259,7 @@ canvas#game {
 .part-chip.r-epic { --rar: #b362ff; }
 .part-chip.r-common   { --rar: #9a8fa6; }
 .part-chip.r-uncommon { --rar: #4dff91; box-shadow: var(--pixel-edge), 0 0 0 1px var(--rar); }
+.part-chip.r-magic    { --rar: #4dc4ff; box-shadow: var(--pixel-edge), 0 0 0 1px var(--rar); }
 .part-chip.r-rare     { --rar: #4dc4ff; box-shadow: var(--pixel-edge), 0 0 0 2px var(--rar), 0 0 10px var(--rar); }
 .part-chip.r-epic     { --rar: #b362ff; box-shadow: var(--pixel-edge), 0 0 0 2px var(--rar), 0 0 14px var(--rar); }
 .part-chip.r-legendary { --rar: #ff7a1a; box-shadow: var(--pixel-edge), 0 0 0 2px var(--rar), 0 0 16px var(--rar); }
