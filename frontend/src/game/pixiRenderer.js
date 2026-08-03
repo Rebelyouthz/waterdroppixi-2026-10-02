@@ -136,11 +136,15 @@ export class PixiRenderer {
     // it's fine to use a built-in filter here rather than the custom GLSL
     // lit-shader pipeline that's reserved for actual light sources.
     // NOTE: ColorMatrixFilter.contrast()'s range is 0..1 where 0.5 = neutral
-    // (NOT 0 = neutral) — 0.56 is a small ~6% contrast boost above neutral.
+    // (NOT 0 = neutral). Dialed the overall scene darker (brightness < 1)
+    // with more contrast than before, per feedback that the world read too
+    // bright/flat for muzzle-flash and projectile light to visibly "pop"
+    // when it lands on something — a darker, higher-contrast base gives
+    // the dynamic point lights (see WORLD_LIGHT below) more room to read.
     this._gradeFilter = new ColorMatrixFilter();
-    this._gradeFilter.brightness(1.06, true);
-    this._gradeFilter.contrast(0.56, true);
-    this._gradeFilter.saturate(0.10, true);
+    this._gradeFilter.brightness(0.90, true);
+    this._gradeFilter.contrast(0.60, true);
+    this._gradeFilter.saturate(0.06, true);
     this.world.filters = [
       new AdvancedBloomFilter({ threshold: 0.6, bloomScale: 0.75, brightness: 1.0, blur: 3, quality: 2 }),
       this._gradeFilter,
@@ -235,16 +239,25 @@ export class PixiRenderer {
     this._lightTexSize = size;
     tg.destroy();
 
-    // Starburst muzzle-flash: baked once, symmetric around its own origin so
-    // a plain anchor(0.5) centers it perfectly on the muzzle tip every shot.
+    // Muzzle-flash: baked once, forward-facing (angle 0 = "out the barrel")
+    // since this sprite gets rotated to the current aim angle every shot —
+    // a full 8-point symmetric starburst read as too wide/round (rays
+    // sticking out sideways and even backward off the gun). Real muzzle
+    // flashes are a narrow forward cone, so this is one long central spike
+    // plus 2 shorter spikes close on either side (±16°/±34°) and nothing
+    // past ~40° off-axis.
     const fg = new Graphics();
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * TAU;
-      const len = i % 2 === 0 ? 58 : 30;
-      const w = i % 2 === 0 ? 7 : 3.5;
-      fg.moveTo(0, 0).lineTo(Math.cos(a) * len, Math.sin(a) * len).stroke({ width: w, color: '#ffffff', alpha: 1 });
+    const flashRays = [
+      { a: 0,     len: 60, w: 6.5 },
+      { a: 0.28,  len: 34, w: 3.5 },
+      { a: -0.28, len: 34, w: 3.5 },
+      { a: 0.60,  len: 18, w: 2.5 },
+      { a: -0.60, len: 18, w: 2.5 },
+    ];
+    for (const r of flashRays) {
+      fg.moveTo(0, 0).lineTo(Math.cos(r.a) * r.len, Math.sin(r.a) * r.len).stroke({ width: r.w, color: '#ffffff', alpha: 1 });
     }
-    fg.circle(0, 0, 15).fill('#ffffff');
+    fg.circle(0, 0, 11).fill('#ffffff');
     this.flashTex = this.app.renderer.generateTexture({ target: fg, antialias: true });
     fg.destroy();
 
