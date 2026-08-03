@@ -595,6 +595,8 @@ export const STAT_CARDS = [
   { id: 'dodge',     icon: '👻', name: 'Phasing',         desc: '+{v}% dodge',           stat: 'dodge',         mult: false, amount: 0.03 },
   { id: 'reload',    icon: '🔄', name: 'Fast Reload',     desc: '-{v}% reload time',     stat: 'reloadMult',    mult: true,  amount: -0.08 },
   { id: 'mag',       icon: '📦', name: 'Bigger Mag',      desc: '+{v} magazine size',    stat: 'magBonus',      mult: false, amount: 2 },
+  { id: 'luck',      icon: '🍀', name: 'Fortune\'s Favor', desc: '+{v} luck (better card/loot rarity)', stat: 'luck', mult: false, amount: 0.3 },
+  { id: 'skillcd',   icon: '🔷', name: 'Overclock',       desc: '-{v}% active skill cooldown', stat: 'skillCdMult', mult: true, amount: -0.06 },
 ];
 
 // ---------- META UPGRADES (permanent — tiny increments, long grind) ----------

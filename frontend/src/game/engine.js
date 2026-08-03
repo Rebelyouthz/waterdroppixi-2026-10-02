@@ -153,6 +153,7 @@ export class Game {
         unlockedEvos: opts.unlockedEvos || [],
         // Tempest skill tree (poe_tmp5/6/7) — see buildLevelUpChoices/
         // tryDash/castSkill('riptide') for where these are consumed.
+        skillCdMult: 1.0, // Overclock stat card — see tryActiveSkill
         forksUnlocked: !!this.meta.forksUnlocked,
         undertowDash: !!this.meta.undertowDash,
         riptideMastery: !!this.meta.riptideMastery,
@@ -1061,7 +1062,7 @@ export class Game {
     const id = this.activeSkills[idx]; if (!id) return;
     const sk = ACTIVE_SKILLS[id]; if (!sk) return;
     if ((this.skillCD[id] || 0) > 0) return;
-    this.skillCD[id] = sk.cd;
+    this.skillCD[id] = sk.cd * Math.max(0.2, this.run.stats.skillCdMult || 1);
     this.run.activeSkillUses++;
     Audio.active(id);
     this.castSkill(id);
