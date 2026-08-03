@@ -22,7 +22,7 @@ export const DEFAULT_SAVE = {
   talentPoints: 0, // 🌿 for talent tree
   petFood: 0,     // 🍖 feed pets
   // profile
-  profile: { name: '', avatar: 'drop', level: 1, xp: 0 },
+  profile: { name: '', avatar: 'drop', level: 1, xp: 0, frame: 'none', headband: 'none', nameColor: 'white', shipColor: 'teal', cigarOn: false },
   // skills
   sp: 0,
   skills: {}, // { skillId: level }

@@ -11,6 +11,61 @@ export const AVATARS = [
   { id: 'spectre', icon: '💀', name: 'Spectre',      desc: 'Already dead.' },
 ];
 
+// ---------- RANK / PROFILE COSMETICS ----------
+// Rank is derived from account level (save.profile.level), NOT stored —
+// it's always max(0, floor(level/4)), capped at 25, so level 100 lands
+// exactly on rank 25 (the explicit calibration point). That reads as
+// "roughly every 4-5 levels", close enough to the "every 5th level" ask
+// while still hitting the level-100-=-rank-25 anchor exactly.
+export const MAX_RANK = 25;
+export function getRank(level) {
+  return Math.max(0, Math.min(MAX_RANK, Math.floor((level || 1) / 4)));
+}
+export const RANK_TITLES = [
+  'NewDroplet', 'Trickle', 'Puddle', 'Splash', 'Ripple',
+  'Stream', 'Brook', 'Creek', 'Rivulet', 'Current',
+  'Cascade', 'Rapids', 'Torrent', 'Tempest', 'Maelstrom',
+  'Tsunami', 'Deluge', 'Monsoon', 'Typhoon', 'Hurricane',
+  'Vortex Bound', 'Leviathan', 'Tidal Master', 'Ocean Sovereign', 'Aqua Ascendant',
+  'H2O — ELITE OF WATERDROP SURVIVOR',
+];
+
+// Every rank-up grants something for the profile — a frame, a headband, a
+// name color, or (once, at a fun milestone) the idle cigar cosmetic. Ship
+// colors unlock for Star Raid on the same ladder.
+export const PROFILE_FRAMES = [
+  { id: 'none',    rank: 0,  name: 'Plain',        css: 'none' },
+  { id: 'bronze',  rank: 5,  name: 'Bronze Ring',  css: '3px solid #a5673f' },
+  { id: 'silver',  rank: 10, name: 'Silver Ring',  css: '3px solid #c8ccd4' },
+  { id: 'gold',    rank: 15, name: 'Gold Ring',    css: '3px solid #ffd166' },
+  { id: 'mist',    rank: 20, name: 'Mist Frame',   css: '3px solid #4dffe0', glow: '0 0 14px #4dffe099' },
+  { id: 'elite',   rank: 25, name: 'Elite Frame',  css: '3px solid #ff3146', glow: '0 0 20px #ff3146cc' },
+];
+export const HEADBANDS = [
+  { id: 'none',   rank: 0,  name: 'None',           color: null },
+  { id: 'red',    rank: 3,  name: 'Red Bandana',    color: '#ff3146' },
+  { id: 'blue',   rank: 8,  name: 'Blue Bandana',   color: '#4dc4ff' },
+  { id: 'gold',   rank: 13, name: 'Gold Headband',  color: '#ffd166' },
+  { id: 'void',   rank: 18, name: 'Void Wrap',      color: '#b362ff' },
+  { id: 'elite',  rank: 25, name: 'Elite Crown',    color: '#ff3146' },
+];
+export const NAME_COLORS = [
+  { id: 'white',  rank: 0,  name: 'White',   color: '#f0f0f5' },
+  { id: 'teal',   rank: 4,  name: 'Teal',    color: '#4dffd4' },
+  { id: 'gold',   rank: 9,  name: 'Gold',    color: '#ffd166' },
+  { id: 'purple', rank: 14, name: 'Purple',  color: '#b362ff' },
+  { id: 'red',    rank: 19, name: 'Crimson', color: '#ff3146' },
+  { id: 'rainbow',rank: 25, name: 'Prismatic', color: 'rainbow' },
+];
+export const SHIP_COLORS = [
+  { id: 'teal',   rank: 0,  name: 'Teal',    color: '#5fd6ff' },
+  { id: 'orange', rank: 6,  name: 'Ember',   color: '#ff9033' },
+  { id: 'green',  rank: 11, name: 'Toxic',   color: '#7ad96b' },
+  { id: 'purple', rank: 16, name: 'Void',    color: '#b362ff' },
+  { id: 'gold',   rank: 21, name: 'Royal',   color: '#ffd166' },
+];
+export const CIGAR_UNLOCK_RANK = 7; // idle cigar cosmetic (see task: character polish)
+
 // ---------- SKILL TREE ----------
 // Branches: Combat, Mobility, Defense, Greed, Arcane
 // Each skill has cost (SP), max level, prerequisite, and effect (applied as run modifiers).

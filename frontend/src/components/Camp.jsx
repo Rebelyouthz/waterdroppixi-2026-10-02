@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { META_UPGRADES, metaCost } from '../game/data';
-import { MILESTONES, AVATARS, CHESTS, rollChest } from '../game/data_ext';
+import { MILESTONES, AVATARS, CHESTS, rollChest, getRank, RANK_TITLES, PROFILE_FRAMES, NAME_COLORS } from '../game/data_ext';
+import ProfilePanel from './ProfilePanel';
 import { META_UNLOCK_REQS, POE_INDEX, POE_ATTRS } from '../game/poe_tree';
 import { applyReward, DEFAULT_SAVE, saveLocal } from '../store';
 import SkillTree from './SkillTree';
@@ -35,6 +36,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStar
   const [characterOpen, setCharacterOpen] = useState(false);
   const [talentOpen, setTalentOpen] = useState(false);
   const [petOpen, setPetOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [attrOpen, setAttrOpen] = useState(false);
   // Sub-tabs for the consolidated Campaign hub (was 4 separate top-level
   // tabs: Campaign/Maps/Missions/Challenges) and Codex hub (was Codex +
@@ -139,13 +141,23 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStar
         )}
         <div className="camp-sidebar">
           <div className="camp-profile-bar">
-            <span style={{ fontSize: 28 }}>{avatar.icon}</span>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--ink)' }}>{save.profile.name || 'Wanderer'}</div>
-              <div style={{ fontSize: 11, color: 'var(--rune)', letterSpacing: '0.2em' }}>RANK {save.profile.level}</div>
-              <div className="camp-rank-bar" data-testid="camp-rank-progress">
-                <div className="camp-rank-fill" style={{ width: `${((save.profile?.xp || 0) % 200) / 200 * 100}%` }} />
-                <span className="camp-rank-bar-label">{(save.profile?.xp || 0) % 200}/200</span>
+            <div onClick={() => setProfileOpen(true)} data-testid="camp-profile-open" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{
+                fontSize: 28, borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                width: 40, height: 40,
+                border: PROFILE_FRAMES.find(f => f.id === save.profile.frame)?.css || 'none',
+                boxShadow: PROFILE_FRAMES.find(f => f.id === save.profile.frame)?.glow || 'none',
+              }}>{avatar.icon}</span>
+              <div>
+                <div style={{
+                  fontSize: 14, fontWeight: 800,
+                  color: (() => { const nc = NAME_COLORS.find(c => c.id === save.profile.nameColor); return nc && nc.color !== 'rainbow' ? nc.color : 'var(--ink)'; })(),
+                }}>{save.profile.name || 'Wanderer'}</div>
+                <div style={{ fontSize: 11, color: 'var(--rune)', letterSpacing: '0.15em' }}>{RANK_TITLES[getRank(save.profile.level)]} · Lv {save.profile.level}</div>
+                <div className="camp-rank-bar" data-testid="camp-rank-progress">
+                  <div className="camp-rank-fill" style={{ width: `${((save.profile?.xp || 0) % 200) / 200 * 100}%` }} />
+                  <span className="camp-rank-bar-label">{(save.profile?.xp || 0) % 200}/200</span>
+                </div>
               </div>
             </div>
             <div style={{ marginLeft: 'auto', fontFamily: 'VT323', color: 'var(--ink-dim)', fontSize: 13, lineHeight: 1.5, textAlign: 'right', position: 'relative' }}>
@@ -400,6 +412,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStar
       {characterOpen && <CharacterPanel save={save} setSave={setSave} onClose={() => setCharacterOpen(false)} />}
       {talentOpen && <TalentTree save={save} setSave={setSave} onClose={() => setTalentOpen(false)} />}
       {petOpen && <PetPanel save={save} setSave={setSave} onClose={() => setPetOpen(false)} />}
+      {profileOpen && <ProfilePanel save={save} setSave={setSave} onClose={() => setProfileOpen(false)} />}
       {save.pendingLevelUp && (
         <LevelUpOverlay save={save} onCollect={() => {
           const r = save.pendingLevelUp;
