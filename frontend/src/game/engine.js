@@ -29,6 +29,54 @@ function hexToRgb01Local(hex) {
 }
 const len = (x, y) => Math.hypot(x, y);
 
+// Uniform spatial hash over enemies, rebuilt once per frame.
+//
+// Every "what's near this point" question in the engine used to be a linear
+// scan of the whole enemy pool — nearestEnemy() alone is called from ten
+// sites, and projectile collision ran enemies x projectiles every frame. At
+// 60+ enemies and 40+ projectiles that quadratic term is exactly where the
+// frame time went during heavy waves. Bucket arrays are reused between
+// frames (clear() only resets the buckets actually touched) so a steady
+// fight allocates nothing.
+class SpatialGrid {
+  constructor(cell) {
+    this.cell = cell;
+    this.buckets = new Map();
+    this._used = [];
+  }
+  // Math.floor, not |0 — truncation toward zero collapses the cells either
+  // side of the origin into one, and world coordinates go negative.
+  _key(cx, cy) { return (cx + 8192) * 16384 + (cy + 8192); }
+  clear() {
+    for (let i = 0; i < this._used.length; i++) {
+      const arr = this.buckets.get(this._used[i]);
+      if (arr) arr.length = 0;
+    }
+    this._used.length = 0;
+  }
+  insert(o) {
+    const k = this._key(Math.floor(o.x / this.cell), Math.floor(o.y / this.cell));
+    let arr = this.buckets.get(k);
+    if (arr === undefined) { arr = []; this.buckets.set(k, arr); }
+    if (arr.length === 0) this._used.push(k);
+    arr.push(o);
+  }
+  // Visits every object in the cells overlapping the circle (x, y, r). Cell
+  // granularity means callers still need their own exact distance test.
+  query(x, y, r, fn) {
+    const c = this.cell;
+    const x0 = Math.floor((x - r) / c), x1 = Math.floor((x + r) / c);
+    const y0 = Math.floor((y - r) / c), y1 = Math.floor((y + r) / c);
+    for (let cx = x0; cx <= x1; cx++) {
+      for (let cy = y0; cy <= y1; cy++) {
+        const arr = this.buckets.get(this._key(cx, cy));
+        if (arr === undefined) continue;
+        for (let i = 0; i < arr.length; i++) fn(arr[i]);
+      }
+    }
+  }
+}
+
 class Pool {
   constructor(factory, size) {
     this.factory = factory;
@@ -89,6 +137,16 @@ export class Game {
 
     // Pools
     this.enemies = new Pool(() => ({ alive: false, x: 0, y: 0, vx: 0, vy: 0, hp: 0, maxHp: 0, t: null, hit: 0, cd: 0, dz: 0, kbX: 0, kbY: 0, _woundStage: 0, _wounds: [] }), 600);
+    // Broadphase over the enemy pool. Cell ~96px: comfortably wider than a
+    // normal enemy body, narrow enough that a 320px homing search still only
+    // walks a handful of cells.
+    this.enemyGrid = new SpatialGrid(96);
+    this._maxEnemyR = 0;
+    // Second broadphase over friendly projectiles. The renderer needs it to
+    // answer "which projectile is lighting this enemy" without scanning every
+    // projectile for every enemy (see pixiRenderer._drawEnemies).
+    this.projGrid = new SpatialGrid(96);
+    this.maxProjSize = 0;
     this.projs = new Pool(() => ({ alive: false, x: 0, y: 0, vx: 0, vy: 0, dmg: 0, pierce: 0, life: 0, hit: new Set(), color: '', size: 4, homing: 0, friendly: true, crit: false }), 400);
     this.eprojs = new Pool(() => ({ alive: false, x: 0, y: 0, vx: 0, vy: 0, dmg: 0, life: 0, color: '#ff3146', size: 5 }), 200);
     this.parts = new Pool(() => ({ alive: false, x: 0, y: 0, vx: 0, vy: 0, life: 0, max: 0, color: '', size: 1, type: 'blood' }), 1200);
@@ -509,6 +567,13 @@ export class Game {
     // Timewarp + Vortex timers
     this._timewarpT = Math.max(0, (this._timewarpT || 0) - dt);
     this._vortexT = Math.max(0, (this._vortexT || 0) - dt);
+
+    this._updateFxBudget();
+
+    // Rebuild the enemy broadphase before anything queries it this frame.
+    // Enemies spawned later in the frame (spawnWave) land in it next frame —
+    // they enter off-screen, so nothing can miss them meanwhile.
+    this._rebuildEnemyGrid();
 
     this.updatePlayer(dt);
     this.updateBossArrow(dt);
@@ -2170,9 +2235,9 @@ export class Game {
       pr.life -= dt;
       if (pr.life <= 0) { this.projs.release(pr); return; }
 
-      // collision with enemies
-      this.enemies.forEach(e => {
-        if (!pr.alive) return;
+      // collision with enemies — broadphase first, exact circle test after
+      this.enemyGrid.query(pr.x, pr.y, this._maxEnemyR + pr.size, e => {
+        if (!pr.alive || !e.alive) return;
         if (pr.hit.has(e)) return;
         const sumR = e.t.size / 2 + pr.size;
         if (dist2(pr.x, pr.y, e.x, e.y) <= sumR * sumR) {
@@ -2576,7 +2641,10 @@ export class Game {
 
   spawnBrutalKill(x, y, color, size, fx) {
     const qualHi = this._qualityHigh !== false;
-    const cnt = qualHi ? 1 : 0.5;
+    // Kills spend against the same budget as everything else but with a much
+    // higher floor than routine hits — the death burst is the payoff moment,
+    // so it degrades gently rather than being the first thing sacrificed.
+    const cnt = 0.55 + 0.45 * (this._fxScale ?? 1);
     if (fx === 'voidImplode') {
       for (let i = 0; i < Math.round(18 * cnt); i++) {
         const pp = this.parts.acquire();
@@ -2720,9 +2788,8 @@ export class Game {
 
   spawnHitSparks(x, y, color, dmg, isCrit) {
     const qualHi = this._qualityHigh !== false;
-    const cnt = qualHi ? 1 : 0.4;
     const sparkColor = isCrit ? '#ffffff' : color;
-    const num = Math.round((isCrit ? 8 : 4) * cnt);
+    const num = this.fxCount(isCrit ? 8 : 4);
     const elem = this._elementHintFor(color);
     for (let i = 0; i < num; i++) {
       const pp = this.parts.acquire();
@@ -2847,9 +2914,37 @@ export class Game {
     p.iframes = Math.max(p.iframes, 0.6);
   }
 
+  // Refills the enemy broadphase and tracks the largest enemy radius on
+  // screen, which collision queries need in order to size their search
+  // circle (a boss's body reaches much further out of its own cell than a
+  // slime's does).
+  _rebuildEnemyGrid() {
+    const grid = this.enemyGrid;
+    grid.clear();
+    let maxR = 0;
+    this.enemies.forEach(e => {
+      grid.insert(e);
+      const r = e.t ? e.t.size / 2 : 0;
+      if (r > maxR) maxR = r;
+    });
+    this._maxEnemyR = maxR;
+
+    const pg = this.projGrid;
+    pg.clear();
+    let maxS = 0;
+    this.projs.forEach(pr => {
+      if (pr.friendly === false) return;
+      pg.insert(pr);
+      const s = pr.size || 6;
+      if (s > maxS) maxS = s;
+    });
+    this.maxProjSize = maxS;
+  }
+
   nearestEnemy(x, y, maxR) {
     let best = null, bd = maxR * maxR;
-    this.enemies.forEach(e => {
+    this.enemyGrid.query(x, y, maxR + this._maxEnemyR, e => {
+      if (!e.alive) return;
       const d = dist2(e.x, e.y, x, y);
       if (d < bd) { bd = d; best = e; }
     });
@@ -2873,7 +2968,7 @@ export class Game {
   }
 
   spawnBlood(x, y, color) {
-    const n = 3 + randi(0, 4);
+    const n = this.fxCount(3 + randi(0, 4));
     for (let i = 0; i < n; i++) {
       const p = this.parts.acquire();
       p.x = x; p.y = y;
@@ -2898,7 +2993,7 @@ export class Game {
     const d = Math.hypot(dx, dy) || 1;
     const nx = dx / d, ny = dy / d;
     const wx = e.x - nx * t.size * 0.22, wy = e.y - ny * t.size * 0.22;
-    const n = 3 + Math.floor(stage * 0.45);
+    const n = this.fxCount(3 + Math.floor(stage * 0.45));
     // Chunks are mostly enemy-colored flesh; one in four flashes the weapon's
     // impact-accent color instead of duplicating the enemy color, so the
     // gore still reads as "this weapon just hit" without turning blue/etc.
@@ -2922,8 +3017,36 @@ export class Game {
     this.pushBloodDecal({ x: wx, y: wy, r: 3 + stage * 0.55, a: 0.5, bornAt: this.time, color: bc });
   }
 
+  // ---- Particle budget --------------------------------------------------
+  // The old control was a single binary "_qualityHigh = fps > 55" flag wired
+  // into two spawn helpers. That reacts only after the frame rate has already
+  // dropped, and it does nothing about the actual cause: a wall of enemies is
+  // about to produce a wall of simultaneous hit bursts. So the budget now
+  // combines two pressures — measured FPS (reactive) and live enemy count
+  // (predictive) — and every gore/spark helper spends against it.
+  _updateFxBudget() {
+    const fpsP = this.fps >= 58 ? 1
+      : this.fps <= 30 ? 0.35
+      : 0.35 + ((this.fps - 30) / 28) * 0.65;
+    const n = this.enemies.active.length;
+    const crowdP = n <= 35 ? 1
+      : n >= 110 ? 0.4
+      : 1 - ((n - 35) / 75) * 0.6;
+    this._fxScale = Math.min(fpsP, crowdP);
+    this._qualityHigh = this.fps > 55;
+  }
+
+  // Scales a particle count against the budget. Never returns 0 for a
+  // non-zero request — feedback thins out, it never disappears, or hits stop
+  // reading as hits exactly when the screen is busiest.
+  fxCount(n) {
+    if (n <= 0) return 0;
+    return Math.max(1, Math.round(n * (this._fxScale ?? 1)));
+  }
+
   spawnHitBurst(x, y, color, count) {
-    for (let i = 0; i < count; i++) {
+    const num = this.fxCount(count);
+    for (let i = 0; i < num; i++) {
       const p = this.parts.acquire();
       p.x = x; p.y = y;
       const a = Math.random() * TAU;

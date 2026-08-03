@@ -3,7 +3,7 @@
 // All GAME LOGIC/STATE lives in engine.js (untouched) — this file is PURE
 // drawing: it reads the Game instance's pooled state every frame and paints
 // it using PixiJS Graphics/Text, layered to match the original z-order.
-import { Application, Container, Graphics, Text, TextStyle, FillGradient, Sprite, Filter, Texture, defaultFilterVert, ColorMatrixFilter } from 'pixi.js';
+import { Application, Container, Graphics, Text, TextStyle, FillGradient, Sprite, Filter, Texture, defaultFilterVert, ColorMatrixFilter, ParticleContainer, Particle, Rectangle } from 'pixi.js';
 import { AdvancedBloomFilter } from 'pixi-filters';
 import { WEAPONS } from './data';
 
@@ -165,7 +165,6 @@ export class PixiRenderer {
     // before decals/gems/enemies — so muzzle-flash/projectile light washes
     // over the ground and bleeds around enemy silhouettes.
     for (const { sprite } of this._groundLitPool) this.gLight.addChild(sprite);
-    for (const { sprite } of this._xpOrbLitPool) this.gLight.addChild(sprite);
     this.gDecals = new Graphics(); this.world.addChild(this.gDecals);
     // Dock Station — sits with decals (ground-level, under enemies/player)
     // so its progress ring reads clearly even while the player stands on it.
@@ -205,7 +204,12 @@ export class PixiRenderer {
     for (const { sprite } of this._litProjPool) this.gLitProjectiles.addChild(sprite);
     this.world.addChild(this.gLitProjectiles);
     this.gBeam = new Graphics(); this.world.addChild(this.gBeam);
+    // Gore (blood droplets, torn-off chunks) renders under sparks so hot
+    // embers always read on top of the wet stuff.
+    this._buildParticleSystem();
+    this.world.addChild(this._goreLayer.pc);
     this.gParticles = new Graphics(); this.world.addChild(this.gParticles);
+    this.world.addChild(this._sparkLayer.pc);
 
     this.dmgTextContainer = new Container(); this.world.addChild(this.dmgTextContainer);
     this._dmgTextPool = [];
@@ -226,6 +230,62 @@ export class PixiRenderer {
     // Cached highlight glow color used for player hit-flash
     this.playerBodyColor = '#5fd6ff';
     this.playerBodyFlash = '#ffffff';
+  }
+
+  // ---------------------------------------------------------------------
+  // Bulk particle field — sparks and gore go through ParticleContainer
+  // instead of the shared Graphics.
+  //
+  // Why: the Graphics path re-tessellates its whole geometry every frame
+  // (clear() + N fill() calls), and sparks/blood are by far the highest-count
+  // types, so a heavy fight was rebuilding hundreds of tiny meshes per frame
+  // on the CPU. Particles are a flat struct upload — the entire field lands
+  // in one draw call. Complex one-off shapes (lightning arcs, meteor
+  // telegraphs, shockwave rings, sweep arcs, shell casings) stay on Graphics
+  // where their vector detail is the point and their counts are low.
+  // ---------------------------------------------------------------------
+  _buildParticleSystem() {
+    // One shared baked dot: solid core with a soft rim, so it reads as a wet
+    // droplet in normal blend AND as a hot ember under additive + bloom.
+    const S = 48;
+    const tg = new Graphics();
+    tg.rect(0, 0, S, S).fill(new FillGradient({
+      type: 'radial', center: { x: 0.5, y: 0.5 }, innerRadius: 0,
+      outerCenter: { x: 0.5, y: 0.5 }, outerRadius: 0.5,
+      colorStops: [
+        { offset: 0,    color: 'rgba(255,255,255,1)' },
+        { offset: 0.55, color: 'rgba(255,255,255,1)' },
+        { offset: 0.80, color: 'rgba(255,255,255,0.55)' },
+        { offset: 1,    color: 'rgba(255,255,255,0)' },
+      ],
+    }));
+    this.partTex = this.app.renderer.generateTexture({ target: tg, antialias: true });
+    tg.destroy();
+    this._partTexR = S / 2;   // texture radius in px at scale 1
+
+    // Pool caps are a deliberate perf ceiling (same contract as the light
+    // pools): past the cap a particle silently isn't drawn rather than
+    // growing the buffer without bound. Engine's parts pool is 1200 total.
+    this._sparkLayer = this._makeParticleLayer(800, true);
+    this._goreLayer  = this._makeParticleLayer(700, false);
+  }
+
+  _makeParticleLayer(count, additive) {
+    const pc = new ParticleContainer({
+      texture: this.partTex,
+      // Position/scale/rotation/colour all animate per frame; uvs never do
+      // (single texture), so that stays static.
+      dynamicProperties: { position: true, scale: true, rotation: true, color: true, uvs: false },
+      // ParticleContainer reports empty bounds by default and would be culled
+      // as invisible — this is the world-space region particles can occupy.
+      boundsArea: new Rectangle(-20000, -20000, 40000, 40000),
+    });
+    if (additive) pc.blendMode = 'add';
+    const pool = [];
+    for (let i = 0; i < count; i++) {
+      pool.push(new Particle({ texture: this.partTex, anchorX: 0.5, anchorY: 0.5 }));
+    }
+    return { pc, pool };
   }
 
   // Builds the entire lighting system ONCE: a shared soft-radial texture used
@@ -427,18 +487,9 @@ void main() {
       sprite.filters = [filter];
       this._groundLitPool.push({ sprite, filter });
     }
-
-    // XP orbs get the SAME custom lit-shader glow (flat-normal + GlProgram),
-    // replacing the old plain vector glow() approximation — per spec, no
-    // non-custom light anywhere.
-    this._xpOrbLitPool = [];
-    for (let i = 0; i < 10; i++) {
-      const sprite = new Sprite(this.lightTex);
-      sprite.anchor.set(0.5); sprite.visible = false; sprite.blendMode = 'add';
-      const filter = this._makeLitFilter(this.flatNormalTex);
-      sprite.filters = [filter];
-      this._xpOrbLitPool.push({ sprite, filter });
-    }
+    // (XP orbs used to own a lit-sprite pool here. They're faceted crystals
+    // now — they catch light rather than emit it — so the pool is gone and
+    // those 10 filter instances with it. See _drawGems.)
   }
 
   _makeLitFilter(normalTex) {
@@ -1142,27 +1193,37 @@ void main() {
   // ------------------------------- GEMS -----------------------------------
   _drawGems(game) {
     const g = this.gGems; g.clear();
-    let xpLitIdx = 0;
     game.gems.forEach(gm => {
       const wobble = Math.sin(gm.t * 6) * 2;
       if (gm.xp > 0) {
         const s = gm.xp <= 2 ? 3 : gm.xp <= 6 ? 5 : gm.xp <= 15 ? 7.5 : 11;
-        const glowC = gm.xp > 15 ? '#ffffff' : '#a0c8ff';
-        // Custom lit-shader glow (same GlProgram pipeline as everything
-        // else) instead of the old plain vector glow() approximation.
-        if (gm.xp > 2 && xpLitIdx < this._xpOrbLitPool.length) {
-          const { sprite, filter } = this._xpOrbLitPool[xpLitIdx++];
-          const light = { x: gm.x, y: gm.y + wobble, rgb: hexToRgb01(glowC), radius: s * 2.2, ambient: 0.5 };
-          sprite.visible = true;
-          sprite.position.set(gm.x, gm.y + wobble);
-          const size = s * 4.2;
-          sprite.width = size; sprite.height = size;
-          sprite.tint = glowC;
-          sprite.alpha = 0.4;
-          this._updateLitUniforms(filter, sprite, light);
+        // XP orbs are cut crystal, not lamps. They used to burn a slot from
+        // the lit-sprite pool each and cast light onto nearby enemies, which
+        // washed enemy colours out whenever loot piled up. Same silhouette as
+        // before — now it just catches the light instead of making it: a dark
+        // facet down one side, a bright facet down the other, a hard specular
+        // chip, and a slow travelling glint across the face.
+        const cy = gm.y + wobble;
+        const hw = s * 0.68;
+        g.poly([gm.x, cy - s, gm.x + hw, cy, gm.x, cy + s, gm.x - hw, cy]).fill('#3f7fd4');
+        // left/right facets split down the vertical axis
+        g.poly([gm.x, cy - s, gm.x, cy + s, gm.x - hw, cy]).fill({ color: '#2b5da8', alpha: 0.95 });
+        g.poly([gm.x, cy - s, gm.x + hw, cy, gm.x, cy + s]).fill({ color: '#7cc4ff', alpha: 0.95 });
+        // crisp specular chip on the upper-left edge
+        g.poly([gm.x, cy - s, gm.x - hw * 0.44, cy - s * 0.34, gm.x - hw * 0.16, cy - s * 0.16])
+          .fill({ color: '#ffffff', alpha: 0.9 });
+        // glint sweeps across the face on its own slow cycle
+        const gl = (Math.sin(gm.t * 2.1 + gm.x * 0.05) + 1) * 0.5;
+        if (gl > 0.72) {
+          const a = (gl - 0.72) / 0.28;
+          g.poly([gm.x - hw * 0.5, cy + s * 0.1, gm.x + hw * 0.2, cy - s * 0.55, gm.x + hw * 0.42, cy - s * 0.3, gm.x - hw * 0.28, cy + s * 0.34])
+            .fill({ color: '#ffffff', alpha: a * 0.55 });
         }
-        g.poly([gm.x, gm.y - s + wobble, gm.x + s * 0.68, gm.y + wobble, gm.x, gm.y + s + wobble, gm.x - s * 0.68, gm.y + wobble]).fill('#5ba3ff');
-        if (gm.xp > 6) g.circle(gm.x, gm.y + wobble, s * 0.28).fill({ color: '#dcf0ff', alpha: 0.85 });
+        if (gm.xp > 15) {
+          // big orbs get a rim so they still read at a glance in a crowd
+          g.poly([gm.x, cy - s, gm.x + hw, cy, gm.x, cy + s, gm.x - hw, cy])
+            .stroke({ width: 1.4, color: '#dcf0ff', alpha: 0.8 });
+        }
       } else if (gm.heart > 0) {
         const hs = 6 + Math.sin(gm.t * 8) * 1.2;
         glow(g, gm.x, gm.y + wobble, hs, '#ff3146', 0.8);
@@ -1179,7 +1240,6 @@ void main() {
         if (gm.gold >= 6) g.circle(gm.x - s * 0.25, gm.y - s * 0.25 + wobble, s * 0.3).fill({ color: '#ffffdc', alpha: 0.7 });
       }
     });
-    for (let i = xpLitIdx; i < this._xpOrbLitPool.length; i++) this._xpOrbLitPool[i].sprite.visible = false;
   }
 
   // ------------------------------ ENEMIES ---------------------------------
@@ -1228,36 +1288,29 @@ void main() {
         // amount of ITS color into the enemy's own fill color — a genuine
         // "projectile casts light on what it flies near" effect while the
         // enemy's own identity color always stays dominant (max 45% mix).
-        let bestStrength = 0, bestHex = null;
+        let bestStrength = 0, bestHex = null, bestIsProj = false;
         if (L) {
           const ld = Math.hypot(e.x - L.x, e.y - L.y);
           const str = Math.max(0, 1 - ld / L.radius) * (0.35 + L.mt * 0.5);
           if (str > bestStrength) { bestStrength = str; bestHex = L.hex; }
         }
-        game.projs.forEach(pr => {
-          if (pr.friendly === false) return;
-          // Pulled the reach in (was *9) but hit harder (was *0.55) — a
-          // blue bolt should visibly light an enemy up blue right where it
-          // passes, not faintly tint everything in a wide radius.
-          const rad = (pr.size || 6) * 6;
+        // Broadphase instead of scanning every projectile per enemy — see
+        // engine.js's projGrid. Reach and strength are both up: a bolt should
+        // wash its own colour over whatever it passes, clearly, right where
+        // it passes.
+        game.projGrid.query(e.x, e.y, game.maxProjSize * 8 + s, pr => {
+          if (!pr.alive || pr.friendly === false) return;
+          const rad = (pr.size || 6) * 8 + s * 0.35;
           const pd = Math.hypot(e.x - pr.x, e.y - pr.y);
           if (pd >= rad) return;
-          const str = (1 - pd / rad) * 0.8;
-          if (str > bestStrength) { bestStrength = str; bestHex = pr.color || '#5fd6ff'; }
+          const str = (1 - pd / rad) * 1.15;
+          if (str > bestStrength) { bestStrength = str; bestHex = pr.color || '#5fd6ff'; bestIsProj = true; }
         });
-        // XP orbs / gold also cast a little light on nearby enemies — much
-        // weaker than a muzzle flash or bullet, just enough to read as a
-        // faint pickup glow touching whatever's standing next to it.
-        game.gems.forEach(gm => {
-          if (gm.xp <= 2 && gm.gold <= 2) return; // tiny orbs don't glow at all
-          const rad = 46;
-          const gd = Math.hypot(e.x - gm.x, e.y - gm.y);
-          if (gd >= rad) return;
-          const str = (1 - gd / rad) * 0.22;
-          const hex = gm.xp > 15 ? '#ffffff' : gm.xp > 0 ? '#a0c8ff' : gm.gold >= 13 ? '#fff7a0' : '#ffd166';
-          if (str > bestStrength) { bestStrength = str; bestHex = hex; }
-        });
-        const litColor = (bestHex && bestStrength > 0.03) ? mixHex(t.color, bestHex, Math.min(0.45, bestStrength)) : t.color;
+        // Gems no longer light anything — XP/gold orbs read as faceted
+        // crystals now (see _drawGems), and the old wide pickup glow was
+        // washing enemy colours out in loot-heavy moments.
+        const mixCap = bestIsProj ? 0.68 : 0.45;  // a bullet's own colour is allowed to dominate harder than ambient
+        const litColor = (bestHex && bestStrength > 0.03) ? mixHex(t.color, bestHex, Math.min(mixCap, bestStrength)) : t.color;
         const bodyColor = e.hit > 0 ? '#ffffff' : litColor;
         const shape = this._enemyShapeFor(e, t, s);
         this._paintShape(g, shape, bodyColor, { width: 2, color: '#000000' });
@@ -1847,9 +1900,50 @@ void main() {
   // ------------------------------ PARTICLES ---------------------------------
   _drawParticles(game) {
     const g = this.gParticles; g.clear();
+
+    // Rebuild both particle layers from scratch each frame by refilling
+    // particleChildren directly and issuing ONE update() per layer — the
+    // documented batch path; addParticle/removeParticle would trigger a view
+    // update per call.
+    const sparkArr = this._sparkLayer.pc.particleChildren; sparkArr.length = 0;
+    const goreArr  = this._goreLayer.pc.particleChildren;  goreArr.length = 0;
+    const sparkPool = this._sparkLayer.pool, gorePool = this._goreLayer.pool;
+    const TR = this._partTexR;
+    let si = 0, gi = 0;
+
     game.parts.forEach(p => {
       const a = p.life / p.max;
-      if (p.type === 'meteorMark') {
+      if (p.type === 'spark') {
+        // Motion-stretched ember: a spark flying at 400px/s reads as a line,
+        // not a dot, so the quad is stretched along the velocity vector and
+        // collapses back to round as it slows — slow embers still look like
+        // embers. Additive + bloom is what makes it glow.
+        if (si >= sparkPool.length) return;
+        const q = sparkPool[si++];
+        const spd = Math.hypot(p.vx, p.vy);
+        const stretch = spd > 60 ? Math.min(17, spd * 0.026) : 0;
+        q.x = p.x; q.y = p.y;
+        q.rotation = spd > 1 ? Math.atan2(p.vy, p.vx) : 0;
+        q.scaleX = (p.size * 1.2 + stretch) / TR;
+        q.scaleY = (p.size * 0.85) / TR;
+        q.tint = p.color;
+        q.alpha = Math.min(1, a * 1.2);
+        sparkArr.push(q);
+      } else if (p.type === 'chunk' || p.type === 'blood' || !p.type) {
+        // Wet gore — droplets and torn-off pieces. Slightly elongated along
+        // travel so a fast spray looks flung rather than sprinkled.
+        if (gi >= gorePool.length) return;
+        const q = gorePool[gi++];
+        const spd = Math.hypot(p.vx, p.vy);
+        const stretch = spd > 90 ? Math.min(6, spd * 0.010) : 0;
+        q.x = p.x; q.y = p.y;
+        q.rotation = spd > 1 ? Math.atan2(p.vy, p.vx) : 0;
+        q.scaleX = (p.size + stretch) / TR;
+        q.scaleY = p.size / TR;
+        q.tint = p.color;
+        q.alpha = Math.min(1, a + 0.2);
+        goreArr.push(q);
+      } else if (p.type === 'meteorMark') {
         const t01 = 1 - (p.life / p.max);
         const shR = 10 + t01 * (p._radius * 0.35);
         g.ellipse(p.x, p.y, shR, shR * 0.32).fill({ color: '#000000', alpha: 0.45 });
@@ -1903,9 +1997,6 @@ void main() {
         const col = heat > 0.55 ? '#ffcf6b' : '#8a5a2a';
         g.poly([p.x - hx - wx, p.y - hy - wy, p.x + hx - wx, p.y + hy - wy, p.x + hx + wx, p.y + hy + wy, p.x - hx + wx, p.y - hy + wy])
           .fill({ color: col, alpha: Math.min(1, a + 0.15) });
-      } else if (p.type === 'chunk') {
-        g.circle(p.x, p.y, p.size).fill({ color: p.color, alpha: Math.min(1, a + 0.2) });
-        if (Math.random() < 0.35) g.circle(p.x - p.vx * 0.02, p.y - p.vy * 0.02, p.size * 0.6).fill({ color: '#780a12', alpha: 0.6 });
       } else if (p.type === 'ring') {
         const r = p.size * (1 - a);
         g.circle(p.x, p.y, r).stroke({ width: 4, color: p.color, alpha: a });
@@ -1921,30 +2012,6 @@ void main() {
           g.moveTo(p.x + Math.cos(tipAng - 0.18) * rad, p.y + Math.sin(tipAng - 0.18) * rad)
             .arc(p.x, p.y, rad, tipAng - 0.18, tipAng + 0.04).stroke({ width: 10 * a, color: '#ffffff', alpha: a * 0.7 });
         }
-      } else if (p.type === 'spark') {
-        // Motion-stretched streak instead of a flat dot — a spark flying at
-        // 400px/s reads as a line, not a circle. Length scales with actual
-        // speed and collapses back to a round dot as it slows/dies, so slow
-        // embers still look like embers.
-        const spd = Math.hypot(p.vx, p.vy);
-        if (spd > 60) {
-          const stretch = Math.min(14, spd * 0.022);
-          const inv = 1 / spd;
-          const dx = p.vx * inv, dy = p.vy * inv;
-          const w = p.size * 0.85;
-          // Quad from the trailing tail to the leading head, widest at head.
-          g.poly([
-            p.x - dx * stretch - dy * w * 0.35, p.y - dy * stretch + dx * w * 0.35,
-            p.x + dx * p.size + -dy * w, p.y + dy * p.size + dx * w,
-            p.x + dx * (p.size + 1.5), p.y + dy * (p.size + 1.5),
-            p.x + dx * p.size + dy * w, p.y + dy * p.size - dx * w,
-            p.x - dx * stretch + dy * w * 0.35, p.y - dy * stretch - dx * w * 0.35,
-          ]).fill({ color: p.color, alpha: a * 0.9 });
-          // White-hot core on the leading edge while still bright/fast.
-          if (a > 0.5) g.circle(p.x + dx * p.size * 0.4, p.y + dy * p.size * 0.4, p.size * 0.45).fill({ color: '#ffffff', alpha: (a - 0.5) * 1.4 });
-        } else {
-          g.circle(p.x, p.y, p.size).fill({ color: p.color, alpha: a });
-        }
       } else if (p.type === 'ash') {
         // Level-up "water-to-ash": droplets cool from icy blue into grey
         // ash flecks as they drift up and burn out.
@@ -1955,6 +2022,9 @@ void main() {
         g.circle(p.x, p.y, p.size).fill({ color: p.color, alpha: Math.min(1, a + 0.2) });
       }
     });
+
+    this._sparkLayer.pc.update();
+    this._goreLayer.pc.update();
   }
 
   // ---------------------------- DAMAGE NUMBERS ------------------------------
