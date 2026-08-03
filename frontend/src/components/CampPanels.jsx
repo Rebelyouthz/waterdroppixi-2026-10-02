@@ -419,12 +419,25 @@ export function CardShopModal({ save, setSave, onClose }) {
 }
 
 // ---------- Active Skill Loadout ----------
+// Two slots, one per joystick dial — the pad seats exactly one skill pod in
+// each bezel, so anything beyond two would be equipped but unreachable.
+const ACTIVE_SLOTS = 2;
+
 export function ActiveLoadoutPanel({ save, setSave, onClose }) {
-  const unlocked = Object.keys(save.unlockedActives || {});
-  const equipped = save.equippedActives || [null, null, null, null];
+  // Guard against ids the build no longer knows (a save that still lists a
+  // retired skill would otherwise crash on ACTIVE_SKILLS[id].icon).
+  const unlocked = Object.keys(save.unlockedActives || {}).filter(id => ACTIVE_SKILLS[id]);
+  const equipped = Array.from({ length: ACTIVE_SLOTS }, (_, i) => {
+    const id = (save.equippedActives || [])[i];
+    return id && ACTIVE_SKILLS[id] ? id : null;
+  });
 
   const equipAt = (slot, id) => {
-    const eq = [...equipped]; eq[slot] = eq[slot] === id ? null : id;
+    const eq = [...equipped];
+    // A skill can only sit in one slot — moving it into a second one should
+    // vacate the first rather than duplicating it.
+    for (let i = 0; i < eq.length; i++) if (eq[i] === id) eq[i] = null;
+    eq[slot] = equipped[slot] === id ? null : id;
     setSave({ ...save, equippedActives: eq });
   };
 
@@ -435,11 +448,13 @@ export function ActiveLoadoutPanel({ save, setSave, onClose }) {
           <div className="forge-title">🎯 ACTIVE SKILL LOADOUT</div>
           <button onClick={onClose} style={{ padding: '6px 12px', fontSize: 12 }}>✕</button>
         </div>
-        <div style={{ color: 'var(--ink-dim)', fontFamily: 'VT323', marginBottom: 14, fontSize: 15 }}>Equip up to 4 active skills. Use keys 1-4 or touch buttons in-game.</div>
+        <div style={{ color: 'var(--ink-dim)', fontFamily: 'VT323', marginBottom: 14, fontSize: 15 }}>
+          Equip 2 active skills — one seated in each joystick dial. Keys 1-2 on desktop.
+        </div>
         <div className="loadout-row">
           {equipped.map((id, i) => (
             <div key={i} className={`loadout-slot ${id ? 'eq' : ''}`}>
-              <div className="ls-key">{i + 1}</div>
+              <div className="ls-key">{i === 0 ? 'L' : 'R'}</div>
               {id ? <>
                 <div className="ls-icon">{ACTIVE_SKILLS[id].icon}</div>
                 <div className="ls-name">{ACTIVE_SKILLS[id].name}</div>
@@ -459,13 +474,13 @@ export function ActiveLoadoutPanel({ save, setSave, onClose }) {
                 <div className="desc">{sk.desc}</div>
                 <div className="lvl">CD {sk.cd}s</div>
                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                  {[0, 1, 2, 3].map(i => (
+                  {Array.from({ length: ACTIVE_SLOTS }, (_, i) => (
                     <button key={i} onClick={() => equipAt(i, id)} style={{ padding: '4px 8px', fontSize: 11, borderColor: equipped[i] === id ? 'var(--accent)' : undefined }} data-testid={`equip-${id}-${i}`}>
-                      {equipped[i] === id ? `✓ Slot ${i + 1}` : `Slot ${i + 1}`}
+                      {equipped[i] === id ? `✓ ${i === 0 ? 'Left' : 'Right'}` : `${i === 0 ? 'Left' : 'Right'} dial`}
                     </button>
                   ))}
                 </div>
-                {eqSlot >= 0 && <div style={{ color: 'var(--rune)', fontSize: 11, letterSpacing: '0.2em' }}>EQUIPPED #{eqSlot + 1}</div>}
+                {eqSlot >= 0 && <div style={{ color: 'var(--rune)', fontSize: 11, letterSpacing: '0.2em' }}>{eqSlot === 0 ? 'LEFT DIAL' : 'RIGHT DIAL'}</div>}
               </div>
             );
           })}

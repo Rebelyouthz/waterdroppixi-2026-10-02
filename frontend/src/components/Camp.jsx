@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { META_UPGRADES, metaCost } from '../game/data';
 import { MILESTONES, AVATARS, CHESTS, rollChest, getRank, RANK_TITLES, PROFILE_FRAMES, NAME_COLORS } from '../game/data_ext';
 import ProfilePanel from './ProfilePanel';
@@ -38,6 +38,36 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStar
   const [petOpen, setPetOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [attrOpen, setAttrOpen] = useState(false);
+  // The attribute panel escapes the sidebar entirely. Both an absolutely
+  // positioned dropdown AND an in-flow expanding block get clipped here —
+  // .camp-sidebar sets overflow:hidden and the framed profile plaque is a
+  // hard edge inside it — so the panel is position:fixed and measured off
+  // the profile bar, letting it roll out IN FRONT of the frame.
+  const profileBarRef = useRef(null);
+  const [attrPanelStyle, setAttrPanelStyle] = useState(null);
+  useEffect(() => {
+    if (!attrOpen) return;
+    const place = () => {
+      const el = profileBarRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const width = Math.min(340, window.innerWidth - 16);
+      setAttrPanelStyle({
+        position: 'fixed',
+        left: Math.max(8, Math.min(r.left, window.innerWidth - width - 8)),
+        top: r.bottom - 2,
+        width,
+        maxHeight: Math.max(180, window.innerHeight - r.bottom - 20),
+      });
+    };
+    place();
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => {
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
+  }, [attrOpen]);
   // Sub-tabs for the consolidated Campaign hub (was 4 separate top-level
   // tabs: Campaign/Maps/Missions/Challenges) and Codex hub (was Codex +
   // Achievements + Milestones) — fewer top-level menus per feedback.
@@ -140,7 +170,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStar
           </div>
         )}
         <div className="camp-sidebar">
-          <div className="camp-profile-bar camp-profile-bar-framed">
+          <div className="camp-profile-bar camp-profile-bar-framed" ref={profileBarRef}>
             <div className="camp-profile-id" onClick={() => setProfileOpen(true)} data-testid="camp-profile-open">
               <span className="camp-avatar-frame" style={{
                 '--frame-css': PROFILE_FRAMES.find(f => f.id === save.profile.frame)?.css || 'none',
@@ -179,7 +209,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStar
                 by .camp-sidebar's overflow:hidden, which is why only the top
                 sliver of it was ever visible. */}
             {attrOpen && (
-              <div className="camp-attr-panel" data-testid="camp-attr-dropdown">
+              <div className="camp-attr-panel" data-testid="camp-attr-dropdown" style={attrPanelStyle}>
                 <div className="char-attr-header">
                   <span>⚡ ATTRIBUTES</span>
                   <span className={`char-attr-free ${attrFreePts > 0 ? 'has' : ''}`}>{attrFreePts} pt{attrFreePts === 1 ? '' : 's'} free</span>

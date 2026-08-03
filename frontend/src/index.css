@@ -773,17 +773,17 @@ canvas#game, canvas.starraid-canvas {
 .camp-attr-toggle.open { background: #c890ff22; border-color: #c890ffaa; }
 .camp-attr-caret { font-size: 10px; opacity: 0.8; }
 
-/* In-flow expanding panel. This used to be position:absolute, which
-   .camp-sidebar's overflow:hidden clipped down to a sliver — the reported
-   "only about 1cm shows" bug. In flow it simply makes the banner taller. */
+/* Rolls out IN FRONT of the profile frame. It was tried as an absolutely
+   positioned dropdown and then as an in-flow block; both get clipped, because
+   .camp-sidebar sets overflow:hidden and the framed plaque is a hard edge
+   inside it — hence the "only about 1cm shows" report. position:fixed with a
+   measured offset (see Camp.jsx) escapes every ancestor. */
 .camp-attr-panel {
-  flex-basis: 100%;
-  margin-top: 6px;
-  max-height: min(52vh, 420px);
+  z-index: 60;
   overflow-y: auto;
-  background: #0a0612;
-  border: 1px solid #c890ff55;
-  box-shadow: inset 0 0 18px rgba(200,144,255,0.07);
+  background: linear-gradient(180deg, #140c22 0%, #0a0612 100%);
+  border: 1px solid #c890ff66;
+  box-shadow: 0 14px 34px rgba(0,0,0,0.75), 0 0 24px rgba(200,144,255,0.18), inset 0 0 18px rgba(200,144,255,0.07);
   padding: 10px;
   text-align: left;
   animation: attrPanelIn 180ms ease-out both;
@@ -2400,19 +2400,18 @@ canvas#game, canvas.starraid-canvas {
    176x176 viewBox, centred on the ring centre: left/right 90-88=2px,
    bottom 133-88=45px. Purely decorative — every touch goes through it
    to the document-level listeners. */
+/* Position comes from JS — the dials are dynamic and relocate to wherever
+   the thumb lands, easing back to their resting spot on release. */
 .joy-dial {
   position: fixed;
   width: 176px; height: 176px;
-  bottom: 45px;
   pointer-events: none;
   z-index: 8999;
   --joy-charge: 1;
-  transition: opacity 0.18s ease;
+  transition: opacity 0.18s ease, left 0.16s ease-out, top 0.16s ease-out;
   opacity: 0.86;
 }
-.joy-dial-left  { left: 2px; }
-.joy-dial-right { right: 2px; }
-.joy-dial.is-active  { opacity: 1; }
+.joy-dial.is-active  { opacity: 1; transition: opacity 0.18s ease; }
 .joy-dial.is-charging { opacity: 0.72; }   /* dial visibly darkens while recharging */
 .joy-dial.is-ready    { opacity: 1; }
 
@@ -2445,15 +2444,15 @@ canvas#game, canvas.starraid-canvas {
 }
 .joy-mark-sub { font-size: 23px; }
 
-/* Knobs — water-bead caps. CSS centres them at the ring centre; the JS
-   transform offsets them. Center: x=90, y=vh-133 → left/right 90-26=64,
-   bottom 133-26=107. */
+/* Knobs — water-bead caps. JS places them at their dial's centre and the
+   transform offsets them by the stick vector. */
 .static-knob {
   position: fixed;
   width: 52px; height: 52px;
   border-radius: 50%;
   pointer-events: none;
   z-index: 9001;
+  transition: left 0.16s ease-out, top 0.16s ease-out;
   border: 1.5px solid rgba(0, 0, 0, 0.5);
   box-shadow:
     0 5px 14px rgba(0,0,0,0.7),
@@ -2471,18 +2470,17 @@ canvas#game, canvas.starraid-canvas {
   filter: blur(0.4px);
 }
 .static-knob-left {
-  left: 64px; bottom: 107px;
   background: radial-gradient(circle at 34% 28%, #d6ffff 0%, #5fe6d2 32%, #14708f 78%, #06304a 100%);
 }
 .static-knob-right {
-  right: 64px; bottom: 107px;
   background: radial-gradient(circle at 34% 28%, #fff0d0 0%, #ffb865 32%, #b04f08 78%, #431c02 100%);
 }
 
-/* Labels under rings */
+/* Labels under each dial — JS positions them relative to their dial. */
 .joy-lbl {
   position: fixed;
-  bottom: 46px;
+  width: 180px;
+  text-align: center;
   font-family: 'VT323', monospace;
   font-size: 10px;
   letter-spacing: 0.18em;
@@ -2490,19 +2488,20 @@ canvas#game, canvas.starraid-canvas {
   pointer-events: none;
   z-index: 9000;
   white-space: nowrap;
+  transition: left 0.16s ease-out, top 0.16s ease-out;
 }
-.joy-lbl-left  { left: 30px; }
-.joy-lbl-right { right: 30px; }
 
 /* ── Active-skill pods, seated INTO each bezel ─────────────────────
    Not floating buttons and not up in the HUD — they sit on the dial's
    rim at 12 o'clock, chamfered to match the bezel facets. Ring centre
    is at bottom:133, bezel radius 62 → pod centre bottom:195, and the
    pod is 44px so bottom:173 / inset 68px. */
+/* Seated at 12 o'clock on the bezel, in a housing moulded into the plate —
+   the way a dashboard binnacle holds a gauge. JS positions it from its
+   dial's origin, so it travels with a relocated stick. */
 .joy-pod {
   position: fixed;
   width: 44px; height: 44px;
-  bottom: 173px;
   z-index: 9002;
   padding: 0;
   border: 0;
@@ -2513,14 +2512,21 @@ canvas#game, canvas.starraid-canvas {
   --pod-charge: 360deg;
   --pod-accent: #4dffd4;
   filter: saturate(0.35) brightness(0.72);
-  transition: filter 0.18s ease, transform 0.09s ease;
+  transition: filter 0.18s ease, transform 0.09s ease, left 0.16s ease-out, top 0.16s ease-out;
 }
-/* Rim seats: (a) 12 o'clock, (b) the inward diagonal at -40deg on the
-   bezel (r=62) → offset (+47.5, -39.9) from the ring centre. */
-.joy-pod-left-a  { left: 68px;   bottom: 173px; --pod-accent: #4dffd4; }
-.joy-pod-left-b  { left: 115px;  bottom: 151px; --pod-accent: #4dffd4; }
-.joy-pod-right-a { right: 68px;  bottom: 173px; --pod-accent: #ff9632; }
-.joy-pod-right-b { right: 115px; bottom: 151px; --pod-accent: #ff9632; }
+.joy-pod-left  { --pod-accent: #4dffd4; }
+.joy-pod-right { --pod-accent: #ff9632; }
+
+/* The collar that ties the pod into the bezel instead of leaving it a
+   button floating above a ring. */
+.joy-pod-housing {
+  position: absolute;
+  left: -7px; right: -7px; top: -5px; bottom: -11px;
+  clip-path: polygon(50% 0, 88% 12%, 100% 42%, 88% 74%, 62% 100%, 38% 100%, 12% 74%, 0 42%, 12% 12%);
+  background: linear-gradient(180deg, rgba(30,52,74,0.92) 0%, rgba(8,16,28,0.86) 62%, rgba(8,16,28,0) 100%);
+  border-top: 1px solid rgba(255,255,255,0.10);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.55);
+}
 .joy-pod.ready { filter: none; }
 .joy-pod:active { transform: scale(0.9); }
 

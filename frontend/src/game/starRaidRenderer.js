@@ -151,19 +151,14 @@ export class StarRaidRenderer {
       this._starLayers.push({ arr, speed: sp.speed });
     }
 
-    // Distant bodies — a planet, a moon and a ringed giant drifting down at
-    // barely-there speed so the field has real depth behind the stars.
-    const palette = [['#3a5a8a', '#6f9ede'], ['#7a3a5a', '#d47aa4'], ['#5a7a3a', '#9cd46a'], ['#8a5a3a', '#e0a06a']];
-    this._bodies = [];
-    for (let i = 0; i < 3; i++) {
-      const [base, hi] = palette[(Math.random() * palette.length) | 0];
-      this._bodies.push({
-        x: rnd(W * 0.1, W * 0.9), y: rnd(-H * 0.6, H * 0.9),
-        r: rnd(38, 92), base, hi,
-        ring: Math.random() < 0.45, speed: rnd(4, 9),
-        spin: rnd(-0.05, 0.05),
-      });
-    }
+    // Planets are deliberately absent — they are coming in as authored
+    // sprite art, and procedural ones would fight with them. Depth behind
+    // the stars comes from a slow-drifting galaxy instead, which is diffuse
+    // enough to sit under a sprite without competing.
+    this._galaxy = {
+      x: rnd(W * 0.2, W * 0.8), y: rnd(-H * 0.4, H * 0.5),
+      r: rnd(H * 0.16, H * 0.24), speed: rnd(3, 6), tilt: rnd(-0.5, 0.5),
+    };
 
     // Asteroid belt — closest background layer, tumbling.
     this._belt = [];
@@ -198,24 +193,35 @@ export class StarRaidRenderer {
       }
     }
 
-    // Distant bodies
+    // Distant galaxy — slow, diffuse, no hard silhouette to clash with the
+    // planet sprites that will sit on this layer later.
     const gf = this.gFar; gf.clear();
-    for (const b of this._bodies) {
-      b.y += b.speed * dt;
-      b.rot = (b.rot || 0) + b.spin * dt;
-      if (b.y - b.r * 2.4 > H) { b.y = -b.r * 2.4; b.x = Math.random() * W; }
-      gf.circle(b.x, b.y, b.r * 1.5).fill({ color: b.hi, alpha: 0.05 });
-      if (b.ring) gf.ellipse(b.x, b.y, b.r * 1.9, b.r * 0.5).stroke({ width: 4, color: b.hi, alpha: 0.35 });
-      gf.circle(b.x, b.y, b.r).fill(b.base);
-      // banded surface + terminator
-      for (let bi = -2; bi <= 2; bi++) {
-        const off = bi * b.r * 0.22;
-        const bw = Math.sqrt(Math.max(0, b.r * b.r - off * off));
-        gf.ellipse(b.x, b.y + off, bw, b.r * 0.09).fill({ color: b.hi, alpha: 0.16 });
-      }
-      gf.circle(b.x - b.r * 0.3, b.y - b.r * 0.3, b.r * 0.5).fill({ color: '#ffffff', alpha: 0.08 });
-      gf.circle(b.x + b.r * 0.34, b.y + b.r * 0.28, b.r * 0.66).fill({ color: '#000000', alpha: 0.38 });
+    const gx = this._galaxy;
+    gx.y += gx.speed * dt;
+    if (gx.y - gx.r * 2 > H) { gx.y = -gx.r * 2; gx.x = Math.random() * W; }
+    for (let i = 6; i >= 1; i--) {
+      gf.ellipse(gx.x, gx.y, gx.r * (i / 6) * 1.15, gx.r * (i / 6) * 0.6)
+        .fill({ color: '#6a4fd0', alpha: 0.030 });
     }
+    for (let arm = 0; arm < 2; arm++) {
+      const base = arm * Math.PI + gx.tilt;
+      for (let pass = 0; pass < 3; pass++) {
+        gf.moveTo(gx.x, gx.y);
+        for (let s = 1; s <= 22; s++) {
+          const f = s / 22;
+          const rr = gx.r * 0.08 + f * gx.r;
+          const aa = base + f * 3.1;
+          gf.lineTo(gx.x + Math.cos(aa) * rr, gx.y + Math.sin(aa) * rr * 0.54);
+        }
+        gf.stroke({
+          width: [14, 8, 3][pass],
+          color: ['#4a3aa0', '#7a6ae0', '#cfc4ff'][pass],
+          alpha: [0.13, 0.17, 0.22][pass],
+        });
+      }
+    }
+    gf.ellipse(gx.x, gx.y, gx.r * 0.3, gx.r * 0.16).fill({ color: '#e6c8ff', alpha: 0.26 });
+    gf.ellipse(gx.x, gx.y, gx.r * 0.14, gx.r * 0.075).fill({ color: '#fff4ff', alpha: 0.6 });
 
     // Starfield — collected into tiers first, because Graphics fills every
     // shape accumulated since the last fill() in one go.

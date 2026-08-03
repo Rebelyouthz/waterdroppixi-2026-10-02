@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Game } from '../game/engine';
 import { SKILL_INDEX, WEAPON_PARTS } from '../game/data_ext';
-import { STARTER_WEAPONS, PART_SLOT_INFO } from '../game/data_ext2';
+import { ACTIVE_SKILLS } from '../game/data_ext2';
 import { HEADBANDS } from '../game/data_ext';
 import { POE_INDEX, POE_ATTRS } from '../game/poe_tree';
 import { rollGearDrop } from '../game/gear';
@@ -209,7 +209,9 @@ export default function GameScreen({ save, setSave, onExit, onRunEnd, mission })
       activePet: (save.pets || []).find(p => p.active) || null,
       unlockedEvos: save.unlockedEvos || [],
       skills: save.skills || {},
-      activeSkills: (save.equippedActives || []).filter(Boolean),
+      // Two only — one pod per joystick dial. Unknown ids (a save carrying a
+      // retired skill) are dropped rather than reaching the engine.
+      activeSkills: (save.equippedActives || []).filter(id => id && ACTIVE_SKILLS[id]).slice(0, 2),
       startWeapons: (isTutorial && mission.startWeapons) ? mission.startWeapons : ['hydropistol'],
       missionDuration: mission ? mission.duration : null,
       spawnMult: mission ? (mission.spawnMult || 1.0) : 1.0,

@@ -24,15 +24,25 @@ import React, { useEffect, useRef, useState } from 'react';
 // =============================================================
 
 const MAX_D = 44;
+const DIAL = 176;         // SVG viewBox size, so half of it is the layout radius
 const BEZEL_R = 62;       // SVG radius the charge arc is stroked on (also the pod seat radius)
 const BEZEL_C = 2 * Math.PI * BEZEL_R;
+const KNOB_R = 26;
+const POD_R = 22;
 
-const ringCenter = (side) => ({
-  x: side === 'left' ? 90 : window.innerWidth - 90,
-  y: window.innerHeight - 133,
+// Resting position each dial returns to when untouched. The dials are
+// dynamic — they relocate to wherever the thumb lands — but they still need
+// a home so the pad is visible and readable before you touch anything.
+const homeOrigin = () => ({
+  left:  { x: 90, y: window.innerHeight - 133 },
+  right: { x: window.innerWidth - 90, y: window.innerHeight - 133 },
 });
-const computeVec = (side, touchX, touchY) => {
-  const c = ringCenter(side);
+// Keep a relocated dial fully on screen.
+const clampOrigin = (x, y) => ({
+  x: Math.max(DIAL / 2 + 4, Math.min(window.innerWidth - DIAL / 2 - 4, x)),
+  y: Math.max(DIAL / 2 + 4, Math.min(window.innerHeight - DIAL / 2 - 4, y)),
+});
+const computeVec = (c, touchX, touchY) => {
   const dx = touchX - c.x;
   const dy = touchY - c.y;
   const dist = Math.hypot(dx, dy) || 1;
@@ -77,7 +87,7 @@ const TICKS = Array.from({ length: 24 }, (_, i) => {
  * the ability the dial reports actually exists — when false the dial stays
  * inert and shows no charge arc.
  */
-function JoyDial({ side, accent, charge, armed, active }) {
+function JoyDial({ side, accent, charge, armed, active, origin }) {
   const cls = [
     'joy-dial', `joy-dial-${side}`,
     active ? 'is-active' : '',
@@ -90,7 +100,10 @@ function JoyDial({ side, accent, charge, armed, active }) {
 
   return (
     <svg className={cls} viewBox="0 0 176 176" aria-hidden
-         style={{ '--joy-accent': accent, '--joy-charge': charge }}>
+         style={{
+           '--joy-accent': accent, '--joy-charge': charge,
+           left: `${origin.x - DIAL / 2}px`, top: `${origin.y - DIAL / 2}px`,
+         }}>
       <defs>
         <radialGradient id={`joyWell-${side}`} cx="50%" cy="42%" r="62%">
           <stop offset="0%"   stopColor="#0d1a2a" stopOpacity="0.62" />
@@ -160,6 +173,12 @@ export default function MobileControls({
   const [show, setShow] = useState(false);
   const [leftVis,  setLeftVis]  = useState({ active: false, vx: 0, vy: 0 });
   const [rightVis, setRightVis] = useState({ active: false, vx: 0, vy: 0 });
+  // Dials relocate to wherever the thumb lands and return home on release.
+  // originRef is what the touch maths reads (synchronous, no render needed);
+  // origin state exists only so the DOM follows.
+  const [origin, setOrigin] = useState(homeOrigin);
+  const originRef = useRef(origin);
+  originRef.current = origin;
 
   const leftVec   = useRef({ vx: 0, vy: 0 });
   const rightVec  = useRef({ vx: 0, vy: 0 });
@@ -176,6 +195,18 @@ export default function MobileControls({
   useEffect(() => {
     const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     setShow(isTouch || window.innerWidth <= 900);
+  }, []);
+
+  // Home positions are viewport-relative, so they have to be recomputed on
+  // rotate/resize or the right-hand dial ends up off screen.
+  useEffect(() => {
+    const onResize = () => setOrigin(homeOrigin());
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onResize);
+    };
   }, []);
 
   useEffect(() => {
@@ -198,9 +229,14 @@ export default function MobileControls({
         const side = sideOf(t.clientX);
         if (tracking.current[side] != null) continue;
         tracking.current[side] = t.identifier;
+        // The dial jumps to the thumb, so the stick always starts centred
+        // under the finger no matter where on its half you grabbed.
+        const c = clampOrigin(t.clientX, t.clientY);
+        originRef.current = { ...originRef.current, [side]: c };
+        setOrigin(originRef.current);
         if (side === 'left') dashStart.current = { x: t.clientX, y: t.clientY, time: performance.now(), fired: false };
         else swipeStart.current = { x: t.clientX, y: t.clientY, time: performance.now(), fired: false };
-        const vec = computeVec(side, t.clientX, t.clientY);
+        const vec = computeVec(c, t.clientX, t.clientY);
         if (side === 'left') { leftVec.current = vec; setLeftVis({ active: true, ...vec }); }
         else                  { rightVec.current = vec; setRightVis({ active: true, ...vec }); }
         pushUpdate();
@@ -213,7 +249,7 @@ export default function MobileControls({
         const side = tracking.current.left === t.identifier ? 'left'
                    : tracking.current.right === t.identifier ? 'right' : null;
         if (!side) continue;
-        const vec = computeVec(side, t.clientX, t.clientY);
+        const vec = computeVec(originRef.current[side], t.clientX, t.clientY);
         if (side === 'left') { leftVec.current = vec; setLeftVis({ active: true, ...vec }); }
         else                  { rightVec.current = vec; setRightVis({ active: true, ...vec }); }
         pushUpdate();
@@ -254,6 +290,10 @@ export default function MobileControls({
                    : tracking.current.right === t.identifier ? 'right' : null;
         if (!side) continue;
         tracking.current[side] = null;
+        // Drift back to the resting position so the pad stays legible while
+        // idle (the CSS transition does the easing).
+        originRef.current = { ...originRef.current, [side]: homeOrigin()[side] };
+        setOrigin(originRef.current);
         if (side === 'left') {
           leftVec.current = { vx: 0, vy: 0 };
           setLeftVis({ active: false, vx: 0, vy: 0 });
@@ -290,30 +330,34 @@ export default function MobileControls({
     : swipeAttackCD <= 0 ? 1
     : Math.max(0, Math.min(1, 1 - swipeAttackCD / (swipeAttackMaxCD || 1.1)));
 
-  // Skill pods seated into the bezels. Their arcs fill the same way the
-  // dial's does, so "light building up" means the same thing everywhere on
-  // the pad. Four equippable actives → two pods per dial, at 12 o'clock and
-  // on the inward-facing diagonal (both inside thumb reach).
-  //   slot 0,1 → left dial   slot 2,3 → right dial
-  const POD_SLOTS = ['left-a', 'left-b', 'right-a', 'right-b'];
+  // Exactly one skill per dial, seated in a housing moulded into the top of
+  // the bezel — the way a dashboard binnacle holds a gauge. Two actives is
+  // the cap: a third would be equipped but out of thumb reach.
+  //   slot 0 → left dial   slot 1 → right dial
   const renderSkillPod = (skillIdx) => {
     const sk = activeSkills[skillIdx];
-    if (!sk || !onActiveSkill) return null;
-    const slot = POD_SLOTS[skillIdx];
-    if (!slot) return null;
+    if (!sk || !onActiveSkill || skillIdx > 1) return null;
+    const side = skillIdx === 0 ? 'left' : 'right';
     const ready = sk.cd <= 0;
     const charge = ready ? 1 : Math.max(0, Math.min(1, 1 - sk.cd / (sk.maxCd || 1)));
+    const c = origin[side];
     return (
       <button
-        key={slot}
-        className={`joy-pod joy-pod-${slot}${ready ? ' ready' : ''}`}
+        key={side}
+        className={`joy-pod joy-pod-${side}${ready ? ' ready' : ''}`}
         data-joy-skill={skillIdx}
         data-testid={`joy-skill-${skillIdx}`}
         title={sk.name}
-        style={{ '--pod-charge': `${charge * 360}deg` }}
+        style={{
+          '--pod-charge': `${charge * 360}deg`,
+          left: `${c.x - POD_R}px`,
+          top: `${c.y - BEZEL_R - POD_R + 6}px`,
+        }}
         onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); onActiveSkill(skillIdx); }}
         onClick={(e) => { e.stopPropagation(); onActiveSkill(skillIdx); }}
       >
+        {/* housing collar — the part that is moulded into the bezel */}
+        <span className="joy-pod-housing" aria-hidden />
         <span className="joy-pod-arc" aria-hidden />
         <span className="joy-pod-face">
           <span className="joy-pod-icon">{sk.icon || skillIdx + 1}</span>
@@ -325,27 +369,31 @@ export default function MobileControls({
 
   return (
     <>
-      <JoyDial side="left"  accent="#4dffd4" charge={dashCharge}  armed={dashReady}            active={leftVis.active} />
-      <JoyDial side="right" accent="#ff9632" charge={swipeCharge} armed={swipeAttackUnlocked}  active={rightVis.active} />
+      <JoyDial side="left"  accent="#4dffd4" charge={dashCharge}  armed={dashReady}           active={leftVis.active}  origin={origin.left} />
+      <JoyDial side="right" accent="#ff9632" charge={swipeCharge} armed={swipeAttackUnlocked} active={rightVis.active} origin={origin.right} />
 
-      {/* Knobs — droplet-shaped caps, tilt into the direction they're pushed */}
+      {/* Knobs — water-bead caps that ride the dial they belong to */}
       <div className="static-knob static-knob-left"  data-testid="joy-knob-left"
-           style={{ transform: `translate(${leftVis.vx * MAX_D}px, ${leftVis.vy * MAX_D}px)` }}>
+           style={{
+             left: `${origin.left.x - KNOB_R}px`, top: `${origin.left.y - KNOB_R}px`,
+             transform: `translate(${leftVis.vx * MAX_D}px, ${leftVis.vy * MAX_D}px)`,
+           }}>
         <span className="knob-gloss" />
       </div>
       <div className="static-knob static-knob-right" data-testid="joy-knob-right"
-           style={{ transform: `translate(${rightVis.vx * MAX_D}px, ${rightVis.vy * MAX_D}px)` }}>
+           style={{
+             left: `${origin.right.x - KNOB_R}px`, top: `${origin.right.y - KNOB_R}px`,
+             transform: `translate(${rightVis.vx * MAX_D}px, ${rightVis.vy * MAX_D}px)`,
+           }}>
         <span className="knob-gloss" />
       </div>
 
-      {/* Active skill pods, seated in each bezel */}
+      {/* One active skill per dial, seated in the bezel housing */}
       {renderSkillPod(0)}
       {renderSkillPod(1)}
-      {renderSkillPod(2)}
-      {renderSkillPod(3)}
 
-      <div className="joy-lbl joy-lbl-left">MOVE · FLICK TO DASH</div>
-      <div className="joy-lbl joy-lbl-right">{swipeAttackUnlocked ? 'AIM · FLICK TO SWIPE' : 'AIM'}</div>
+      <div className="joy-lbl joy-lbl-left"  style={{ left: `${origin.left.x - 90}px`,  top: `${origin.left.y + 74}px` }}>MOVE · FLICK TO DASH</div>
+      <div className="joy-lbl joy-lbl-right" style={{ left: `${origin.right.x - 90}px`, top: `${origin.right.y + 74}px` }}>{swipeAttackUnlocked ? 'AIM · FLICK TO SWIPE' : 'AIM'}</div>
     </>
   );
 }

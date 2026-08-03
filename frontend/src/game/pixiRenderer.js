@@ -1,6 +1,6 @@
-// Waterdrop Survivor — PixiJS (WebGL) renderer.
+// Waterdrop Survivor â€” PixiJS (WebGL) renderer.
 // Faithful 1:1 visual conversion of the old Canvas2D render() pipeline.
-// All GAME LOGIC/STATE lives in engine.js (untouched) — this file is PURE
+// All GAME LOGIC/STATE lives in engine.js (untouched) â€” this file is PURE
 // drawing: it reads the Game instance's pooled state every frame and paints
 // it using PixiJS Graphics/Text, layered to match the original z-order.
 import { Application, Container, Graphics, Text, TextStyle, FillGradient, Sprite, Filter, Texture, defaultFilterVert, ColorMatrixFilter, ParticleContainer, Particle, Rectangle } from 'pixi.js';
@@ -44,7 +44,7 @@ function rotEllipsePoly(cx, cy, ang, rx, ry, segs = 14) {
   }
   return out;
 }
-// soft glow approximation (Canvas shadowBlur has no Pixi Graphics equivalent) —
+// soft glow approximation (Canvas shadowBlur has no Pixi Graphics equivalent) â€”
 // PERF: single layer only (halved from 2) since this is called per-entity,
 // every frame, and entity count scales heavily during sustained combat.
 function glow(g, x, y, r, color, strength = 1) {
@@ -111,22 +111,21 @@ export class PixiRenderer {
     const stage = this.app.stage;
     this.zoomRoot = new Container(); stage.addChild(this.zoomRoot);
 
-    // Deep-space parallax backdrop — sits BEHIND the world, scrolls at a
+    // Deep-space parallax backdrop â€” sits BEHIND the world, scrolls at a
     // fraction of camera speed per layer so distant planets/nebulae/asteroids
     // feel genuinely far away instead of locked to the foreground.
     this.deepSpace = new Container(); this.zoomRoot.addChild(this.deepSpace);
     this.gDeepFar = new Graphics(); this.deepSpace.addChild(this.gDeepFar);
     // Guaranteed galaxy/planet/moon. Each gets its OWN layer so it can carry
-    // its own parallax factor and its own autonomous drift — as one shared
+    // its own parallax factor and its own autonomous drift â€” as one shared
     // layer they could only ever move as a rigid sheet, which is why the sky
     // read as a painted backdrop. Drawn once, never re-cached, so nothing
     // ever snaps back to centre. See _drawDeepSpace.
     this.gHeroGalaxy = new Graphics(); this.deepSpace.addChild(this.gHeroGalaxy);
-    this.gHeroPlanet = new Graphics(); this.deepSpace.addChild(this.gHeroPlanet);
-    this.gHeroMoon   = new Graphics(); this.deepSpace.addChild(this.gHeroMoon);
+    this.gHeroStar   = new Graphics(); this.deepSpace.addChild(this.gHeroStar);
     this._heroBodiesDrawn = false;
     // Real shader-driven nebula cloud (fbm noise + uTime color drift) sitting
-    // between the far planets and the mid galaxy layer — genuine per-pixel
+    // between the far planets and the mid galaxy layer â€” genuine per-pixel
     // procedural gas clouds, not flat painted circles.
     this._buildNebulaShader();
     this.deepSpace.addChild(this.nebulaSprite);
@@ -137,10 +136,10 @@ export class PixiRenderer {
     this._nextShootingStarAt = 3 + Math.random() * 4;
 
     this.world = new Container(); this.zoomRoot.addChild(this.world);
-    // Soft bloom on the foreground world only — bright saturated colors
+    // Soft bloom on the foreground world only â€” bright saturated colors
     // (projectiles/gems/particles/muzzle flashes) glow, dark ground/grid stays
     // clean since it's below the brightness threshold. A standard
-    // ColorMatrixFilter contrast/saturation/brightness pass stacks on top —
+    // ColorMatrixFilter contrast/saturation/brightness pass stacks on top â€”
     // this is whole-scene color grading (not a per-object dynamic light), so
     // it's fine to use a built-in filter here rather than the custom GLSL
     // lit-shader pipeline that's reserved for actual light sources.
@@ -148,7 +147,7 @@ export class PixiRenderer {
     // (NOT 0 = neutral). Dialed the overall scene darker (brightness < 1)
     // with more contrast than before, per feedback that the world read too
     // bright/flat for muzzle-flash and projectile light to visibly "pop"
-    // when it lands on something — a darker, higher-contrast base gives
+    // when it lands on something â€” a darker, higher-contrast base gives
     // the dynamic point lights (see WORLD_LIGHT below) more room to read.
     this._gradeFilter = new ColorMatrixFilter();
     this._gradeFilter.brightness(0.90, true);
@@ -160,18 +159,18 @@ export class PixiRenderer {
     ];
 
     this.gGround = new Graphics(); this.world.addChild(this.gGround);
-    // Sky events (passing meteors/UFOs) — sit just above the ground, behind
+    // Sky events (passing meteors/UFOs) â€” sit just above the ground, behind
     // gameplay entities, so they read as things flying over the play area.
     this.gSkyEvents = new Graphics(); this.world.addChild(this.gSkyEvents);
     this._buildLightSystem();
     this._buildNormalLitSystem();
     // Ground-illumination patches (flat-normal lit sprites) sit in the same
-    // gLight container/z-band as the old point-light pool — after ground,
-    // before decals/gems/enemies — so muzzle-flash/projectile light washes
+    // gLight container/z-band as the old point-light pool â€” after ground,
+    // before decals/gems/enemies â€” so muzzle-flash/projectile light washes
     // over the ground and bleeds around enemy silhouettes.
     for (const { sprite } of this._groundLitPool) this.gLight.addChild(sprite);
     this.gDecals = new Graphics(); this.world.addChild(this.gDecals);
-    // Dock Station — sits with decals (ground-level, under enemies/player)
+    // Dock Station â€” sits with decals (ground-level, under enemies/player)
     // so its progress ring reads clearly even while the player stands on it.
     this.gDockStation = new Graphics(); this.world.addChild(this.gDockStation);
     this.dockStationLight = new Sprite(this.lightTex);
@@ -180,7 +179,7 @@ export class PixiRenderer {
     this.dockStationText = new Text({ text: 'DOCK', style: this._textStyle(9, '#4dffe0', '#06121e', 3) });
     this.dockStationText.anchor.set(0.5); this.dockStationText.visible = false;
     this.world.addChild(this.dockStationText);
-    // Tidal Shrine — same z-band as the Dock Station, own layer since both
+    // Tidal Shrine â€” same z-band as the Dock Station, own layer since both
     // can theoretically be up at once.
     this.gTidalShrine = new Graphics(); this.world.addChild(this.gTidalShrine);
     this.shrineLight = new Sprite(this.lightTex);
@@ -218,7 +217,7 @@ export class PixiRenderer {
 
     this.dmgTextContainer = new Container(); this.world.addChild(this.dmgTextContainer);
     this._dmgTextPool = [];
-    // Enemy tier tags ("T2", "T3"...) — tiny label under each tier>=2 enemy.
+    // Enemy tier tags ("T2", "T3"...) â€” tiny label under each tier>=2 enemy.
     this.tierTagContainer = new Container(); this.world.addChild(this.tierTagContainer);
     this._tierTagPool = [];
     this.levelUpText = new Text({ text: 'LEVEL UP!', style: this._textStyle(24, '#9fd8ff', '#06121e', 5) });
@@ -238,13 +237,13 @@ export class PixiRenderer {
   }
 
   // ---------------------------------------------------------------------
-  // Bulk particle field — sparks and gore go through ParticleContainer
+  // Bulk particle field â€” sparks and gore go through ParticleContainer
   // instead of the shared Graphics.
   //
   // Why: the Graphics path re-tessellates its whole geometry every frame
   // (clear() + N fill() calls), and sparks/blood are by far the highest-count
   // types, so a heavy fight was rebuilding hundreds of tiny meshes per frame
-  // on the CPU. Particles are a flat struct upload — the entire field lands
+  // on the CPU. Particles are a flat struct upload â€” the entire field lands
   // in one draw call. Complex one-off shapes (lightning arcs, meteor
   // telegraphs, shockwave rings, sweep arcs, shell casings) stay on Graphics
   // where their vector detail is the point and their counts are low.
@@ -282,7 +281,7 @@ export class PixiRenderer {
       // (single texture), so that stays static.
       dynamicProperties: { position: true, scale: true, rotation: true, color: true, uvs: false },
       // ParticleContainer reports empty bounds by default and would be culled
-      // as invisible — this is the world-space region particles can occupy.
+      // as invisible â€” this is the world-space region particles can occupy.
       boundsArea: new Rectangle(-20000, -20000, 40000, 40000),
     });
     if (additive) pc.blendMode = 'add';
@@ -295,7 +294,7 @@ export class PixiRenderer {
 
   // Builds the entire lighting system ONCE: a shared soft-radial texture used
   // by every point light (baked via generateTexture instead of redrawing
-  // vector circles every frame — sprites batch and transform for almost free,
+  // vector circles every frame â€” sprites batch and transform for almost free,
   // which is the difference between this running at 30fps vs 120fps with
   // dozens of simultaneous lights), a pooled set of additive light sprites,
   // a baked starburst muzzle-flash texture, and the flashlight cone.
@@ -318,12 +317,12 @@ export class PixiRenderer {
     tg.destroy();
 
     // Muzzle-flash: baked once, forward-facing (angle 0 = "out the barrel")
-    // since this sprite gets rotated to the current aim angle every shot —
+    // since this sprite gets rotated to the current aim angle every shot â€”
     // a full 8-point symmetric starburst read as too wide/round (rays
     // sticking out sideways and even backward off the gun). Real muzzle
     // flashes are a narrow forward cone, so this is one long central spike
-    // plus 2 shorter spikes close on either side (±16°/±34°) and nothing
-    // past ~40° off-axis.
+    // plus 2 shorter spikes close on either side (Â±16Â°/Â±34Â°) and nothing
+    // past ~40Â° off-axis.
     const fg = new Graphics();
     const flashRays = [
       { a: 0,     len: 60, w: 6.5 },
@@ -349,7 +348,7 @@ export class PixiRenderer {
     this._lightIdx = 0;
 
     // Flashlight cone (single Graphics shape, one draw/frame regardless of
-    // how many point lights exist — negligible cost) + the muzzle starburst
+    // how many point lights exist â€” negligible cost) + the muzzle starburst
     // + a small bright core, both additive sprites reused every shot.
     this.gCone = new Graphics(); this.gCone.blendMode = 'add'; this.world.addChild(this.gCone);
     this.muzzleFlashSprite = new Sprite(this.flashTex);
@@ -360,7 +359,7 @@ export class PixiRenderer {
     this.world.addChild(this.muzzleCoreSprite);
   }
 
-  // Grabs the next pooled additive light sprite and positions/tints it —
+  // Grabs the next pooled additive light sprite and positions/tints it â€”
   // O(1), no geometry rebuild. Silently no-ops past the pool cap (56
   // simultaneous lights is already far more than a frame realistically needs).
   _emitLight(x, y, r, color, alpha) {
@@ -374,13 +373,13 @@ export class PixiRenderer {
   }
 
   // ===========================================================================
-  // NORMAL-MAPPED LIGHTING — STEP 1 SMOKE TEST
+  // NORMAL-MAPPED LIGHTING â€” STEP 1 SMOKE TEST
   // Real per-pixel diffuse+specular shading instead of glow stickers. Since
   // this game has no hand-authored sprite art (every entity is a vector
-  // Graphics shape), a normal map is baked ANALYTICALLY as a sphere/dome —
+  // Graphics shape), a normal map is baked ANALYTICALLY as a sphere/dome â€”
   // exact same math a 3D engine uses for a round bumped surface, computed
   // once into a small canvas texture, no art pipeline needed. One shared
-  // filter class (GLSL, WebGL2 — the guaranteed baseline) drives it; each lit
+  // filter class (GLSL, WebGL2 â€” the guaranteed baseline) drives it; each lit
   // object gets its own Filter instance (own uniforms) since each is lit
   // from a different relative light-offset every frame.
   // ===========================================================================
@@ -411,7 +410,7 @@ export class PixiRenderer {
     this.normalTex = Texture.from(canvas);
 
     // Flat "ground" normal map (constant straight-up normal, RGB 128,128,255)
-    // — reusing the exact same per-pixel Lambertian/specular shader as the
+    // â€” reusing the exact same per-pixel Lambertian/specular shader as the
     // sphere normal map above but on a flat surface, so light patches cast
     // by projectiles/muzzle-flash onto the ground/enemies use the SAME
     // GlProgram lighting pipeline instead of a plain additive glow sprite.
@@ -422,7 +421,7 @@ export class PixiRenderer {
     fctx.fillRect(0, 0, 4, 4);
     this.flatNormalTex = Texture.from(flatCanvas);
 
-    // Flat white circle diffuse — same silhouette as the normal map exactly
+    // Flat white circle diffuse â€” same silhouette as the normal map exactly
     // (both are circles of the same size), tinted per-object via .tint so no
     // separate art is needed per color/entity.
     const dg = new Graphics();
@@ -461,14 +460,14 @@ void main() {
   finalColor = vec4(lit, base.a);
 }`;
 
-    // Player body — the one sprite for this step-1 test.
+    // Player body â€” the one sprite for this step-1 test.
     this.playerBodySprite = new Sprite(this.litDiffuseTex);
     this.playerBodySprite.anchor.set(0.5);
     this.playerBodyFilter = this._makeLitFilter();
     this.playerBodySprite.filters = [this.playerBodyFilter];
 
-    // Pooled lit sprites for the starter weapon's (hydropistol) projectiles —
-    // "för de på projektilerna på start vapnet" per spec.
+    // Pooled lit sprites for the starter weapon's (hydropistol) projectiles â€”
+    // "fÃ¶r de pÃ¥ projektilerna pÃ¥ start vapnet" per spec.
     this._litProjPool = [];
     for (let i = 0; i < 16; i++) {
       const sprite = new Sprite(this.litDiffuseTex);
@@ -478,12 +477,12 @@ void main() {
       this._litProjPool.push({ sprite, filter });
     }
 
-    // Pooled flat-normal lit sprites — used to cast each blue projectile's
+    // Pooled flat-normal lit sprites â€” used to cast each blue projectile's
     // own small light onto the ground/enemies it passes over. Uses the same
     // SOFT RADIAL GRADIENT base texture as the old point-light pool
     // (this.lightTex, alpha fades to 0 at the edge) instead of the hard-edged
-    // diffuse disc, so it reads as a small soft glow — not a giant flat
-    // circle — while still being lit through the real GlProgram shader.
+    // diffuse disc, so it reads as a small soft glow â€” not a giant flat
+    // circle â€” while still being lit through the real GlProgram shader.
     this._groundLitPool = [];
     for (let i = 0; i < 22; i++) {
       const sprite = new Sprite(this.lightTex);
@@ -493,7 +492,7 @@ void main() {
       this._groundLitPool.push({ sprite, filter });
     }
     // (XP orbs used to own a lit-sprite pool here. They're faceted crystals
-    // now — they catch light rather than emit it — so the pool is gone and
+    // now â€” they catch light rather than emit it â€” so the pool is gone and
     // those 10 filter instances with it. See _drawGems.)
   }
 
@@ -515,7 +514,7 @@ void main() {
   }
 
   // Feeds one moving light + this object's own size/position into its filter
-  // — all in world-pixel units, which cancels out camera zoom automatically
+  // â€” all in world-pixel units, which cancels out camera zoom automatically
   // since vTextureCoord is always 0..1 across the object's own rendered
   // bounds regardless of what scale it was rasterized at.
   _updateLitUniforms(filter, sprite, light) {
@@ -572,7 +571,7 @@ void main() {
   }
 
   // ------------------------------ SKY EVENTS --------------------------------
-  // Fiery meteors with tails, and slow UFOs trailing a colored light beam —
+  // Fiery meteors with tails, and slow UFOs trailing a colored light beam â€”
   // both cross the sky above the play area and feed into _drawLights below
   // so they cast genuine moving colored light onto the world as they pass.
   _drawSkyEvents(game) {
@@ -590,9 +589,9 @@ void main() {
             .fill({ color: ev.color, alpha: (1 - f) * 0.78 * heat });
         }
         glow(g, ev.x, ev.y, 15 + burnFrac * 10, ev.color, 1.5 * heat);
-        // White-hot leading edge — brighter/whiter the harder it's burning.
+        // White-hot leading edge â€” brighter/whiter the harder it's burning.
         g.circle(ev.x, ev.y, 5.5 + burnFrac * 2).fill(burnFrac > 0.4 ? '#ffffff' : '#fff8e0');
-        // Fragmentation — pieces drift apart and burn out independently.
+        // Fragmentation â€” pieces drift apart and burn out independently.
         if (ev.frags) {
           for (const f of ev.frags) {
             glow(g, ev.x + f.ox, ev.y + f.oy, 8, ev.color, 1.1);
@@ -600,7 +599,7 @@ void main() {
           }
         }
       } else {
-        // UFO — proper hull silhouette + 3 real blinking lamp lights
+        // UFO â€” proper hull silhouette + 3 real blinking lamp lights
         // (not a single flat colored dot) plus a soft scan-beam underneath.
         g.ellipse(ev.x, ev.y, 24, 8).fill('#33394a').stroke({ width: 1.5, color: '#5a6478' });
         g.ellipse(ev.x, ev.y, 24, 8).fill({ color: '#6a7488', alpha: 0.25 });
@@ -620,18 +619,18 @@ void main() {
 
   // ------------------------------ DYNAMIC LIGHTING --------------------------
   // Every light below is an additive SPRITE (pooled, baked texture) instead
-  // of a redrawn vector circle — this is the ~120fps-friendly technique real
+  // of a redrawn vector circle â€” this is the ~120fps-friendly technique real
   // 2D engines use for many simultaneous lights (see PixiJS perf guides: a
   // shared radial-gradient texture + blendMode:'add', reused every frame,
   // rather than rebuilding Graphics geometry per light per frame).
-  // The character itself stays dim/ambient on purpose — the muzzle-flash is
+  // The character itself stays dim/ambient on purpose â€” the muzzle-flash is
   // what should light it (and whatever it's aiming at) up the most.
   // STEP 2 (targeted extension): the merged flashlight/muzzle-flash light
   // now also (a) casts a real per-pixel-lit ground patch via the flat-normal
   // shader pool below (_drawGroundIllum), and (b) drives directional shadows
   // on the player/enemies (see _drawPlayer/_drawEnemies) so the muzzle flash
   // visibly "casts" a shadow the instant it fires, exactly like a real point
-  // light would — no plugin, same GlProgram pipeline, just fed a 2nd purpose.
+  // light would â€” no plugin, same GlProgram pipeline, just fed a 2nd purpose.
   _drawLights(game) {
     this.gCone.clear();
     this.muzzleFlashSprite.visible = false;
@@ -673,8 +672,8 @@ void main() {
       const mt = Math.min(1, p._muzzleFlashT / 0.10);
       const mAng = p._muzzleFlashAng != null ? p._muzzleFlashAng : aimAng;
       // Blend the warm gunpowder-flash base color WITH the weapon's own
-      // color (don't let the muzzle flash become 100% the weapon's hue —
-      // combine the two, per spec) — weighted toward the weapon color but
+      // color (don't let the muzzle flash become 100% the weapon's hue â€”
+      // combine the two, per spec) â€” weighted toward the weapon color but
       // never losing the warm flash identity.
       const hex = mixHex('#fff3d0', p._muzzleFlashColor || '#fff3d0', 0.55);
       return {
@@ -682,25 +681,28 @@ void main() {
         // outside the gun/character silhouette instead of overlapping it.
         x: p.x + Math.cos(mAng) * 32, y: p.y + Math.sin(mAng) * 32,
         rgb: hexToRgb01(hex), hex,
-        // Radius pulled in from 210 — was lighting up too far a radius per
-        // feedback; still bright at its core (ambient unchanged), just
-        // doesn't wash out such a wide area.
-        radius: 145, ambient: (0.22 + 0.55 * mt) * WORLD_LIGHT, mt,
+        // Reach is capped at roughly two enemy bodies (a typical enemy is
+        // ~36px across, so ~72px of useful throw). A real muzzle flash is a
+        // very bright, very short event — it should blow out whatever is
+        // right in front of the barrel and leave the rest of the field dark,
+        // which is also what makes it read as bright. Ambient is pushed up to
+        // compensate, so the flash got hotter as it got shorter.
+        radius: 78, ambient: (0.30 + 0.70 * mt) * WORLD_LIGHT, mt,
       };
     }
     return {
       x: p.x + Math.cos(aimAng) * 32, y: p.y + Math.sin(aimAng) * 32,
       rgb: hexToRgb01('#fff3d0'), hex: '#fff3d0',
-      radius: 120, ambient: 0.16 * WORLD_LIGHT, mt: 0,
+      radius: 96, ambient: 0.16 * WORLD_LIGHT, mt: 0,
     };
   }
 
   // ------------------------ GROUND ILLUMINATION -----------------------------
   // Extends the SAME normal-mapped filter (_makeLitFilter) to a flat-normal
-  // "ground patch" sprite pool — EVERY friendly projectile in flight (not
+  // "ground patch" sprite pool â€” EVERY friendly projectile in flight (not
   // just hydropistol) is now its own small soft light in ITS OWN color,
   // subtly brightening the ground/nearby enemies it flies over. The
-  // projectile's own sprite/size is untouched — this is a pure additive
+  // projectile's own sprite/size is untouched â€” this is a pure additive
   // glow layered underneath it, nothing about the bolt itself changes.
   // Slot 0 is reserved for a brief muzzle-flash glow (only while actively
   // firing) so nearby enemies visibly catch light from the flash too.
@@ -725,7 +727,7 @@ void main() {
       const { sprite, filter } = pool[idx++];
       const boltColor = pr.color || '#5fd6ff';
       const isHydro = pr._wid === 'hydropistol' || pr._wid === 'hydropistol_evo';
-      // Every weapon's bolt lights up in its OWN color — stronger than
+      // Every weapon's bolt lights up in its OWN color â€” stronger than
       // before (was reading as barely-there) but pulled to a tighter radius
       // (was bleeding too far into a wide wash) so it reads as "bright but
       // local to the bolt" instead of "faint but wide".
@@ -802,12 +804,12 @@ void main() {
 
   // ------------------------- DEEP SPACE PARALLAX --------------------------
   // 3 layers scrolling at fractions of camera speed (true parallax depth) +
-  // occasional shooting stars. Cached like the ground layer — rebuilt only
+  // occasional shooting stars. Cached like the ground layer â€” rebuilt only
   // when the (slow) parallax-camera has drifted past a padded buffer.
   _drawDeepSpace(game) {
     const W = game.W, H = game.H;
     // Guard against a stray NaN/Infinity camera position (e.g. from some
-    // other bug) ever reaching the parallax math below — worst case this
+    // other bug) ever reaching the parallax math below â€” worst case this
     // layer just freezes at its last good spot instead of feeding NaN into
     // Graphics positions/hashing.
     const cx = Number.isFinite(game.cam.x) ? game.cam.x : (this._lastCamX || 0);
@@ -817,9 +819,9 @@ void main() {
     // FAR: planets & moons. The real bug behind every earlier attempt at
     // this ("follows the image", "stuck to the edge") turned out to be the
     // hero bodies' fixed local position (see below) being placed at extreme
-    // corner offsets (e.g. W*0.30, -H*0.24 — literally above/beside the
+    // corner offsets (e.g. W*0.30, -H*0.24 â€” literally above/beside the
     // frame on anything but a very wide desktop viewport), not the parallax
-    // speed itself — on a phone-width screen almost the whole body sat
+    // speed itself â€” on a phone-width screen almost the whole body sat
     // off-frame with just an edge poking in, which reads exactly like
     // "riding along the side" no matter how slow or fast it drifts. Fixed
     // both: bodies now sit at safely-inside-frame fractions, and 0.03 gives
@@ -831,21 +833,23 @@ void main() {
       const g = this.gDeepFar; g.clear();
       const cell = 1400, pad = 500;
       const sX = Math.floor((fx - pad) / cell) * cell, sY = Math.floor((fy - pad) / cell) * cell;
-      const palette = [['#8a5a3a', '#c98a5a'], ['#3a5a8a', '#5a8ac9'], ['#7a3a5a', '#c95a8a'], ['#5a7a3a', '#8ac95a']];
+      // Procedural planets used to live here. They are out for now â€” planets
+      // are coming in as authored sprite art and two competing looks in one
+      // sky reads worse than either alone. What is left on this layer is
+      // diffuse gas: far, faint, no hard silhouette to clash with a sprite.
+      const gasPalette = ['#2a4f7a', '#5a2a6e', '#1f5a5a', '#6e2a44'];
       for (let gx = sX; gx < fx + W + pad; gx += cell) {
         for (let gy = sY; gy < fy + H + pad; gy += cell) {
           const h = ((gx * 92821) ^ (gy * 68917)) >>> 0;
-          if (h % 4 !== 0) continue;
+          if (h % 3 !== 0) continue;
           const px = gx + (h % cell), py = gy + ((h >> 6) % cell);
-          const size = 26 + (h % 46);
-          const [base, hi] = palette[h % palette.length];
-          // Soft atmospheric glow halo behind the planet body
-          g.circle(px, py, size * 1.55).fill({ color: hi, alpha: 0.06 });
-          g.circle(px, py, size).fill(base);
-          g.circle(px - size * 0.32, py - size * 0.32, size * 0.55).fill({ color: hi, alpha: 0.5 });
-          g.circle(px + size * 0.35, py + size * 0.3, size * 0.7).fill({ color: '#000000', alpha: 0.35 });
-          if (h % 12 === 0) g.ellipse(px, py, size * 1.8, size * 0.4).stroke({ width: 3, color: hi, alpha: 0.45 });
-          if (h % 7 === 0) g.circle(px + size * 1.6, py + size * 0.9, size * 0.22).fill('#cfd6de');
+          const size = 150 + (h % 260);
+          const col = gasPalette[h % gasPalette.length];
+          // layered falloff, deliberately soft-edged
+          for (let li = 5; li >= 1; li--) {
+            g.ellipse(px, py, size * (li / 5), size * (li / 5) * (0.5 + ((h >> 3) % 5) * 0.08))
+              .fill({ color: col, alpha: 0.022 });
+          }
         }
       }
     }
@@ -855,7 +859,7 @@ void main() {
     // dwarf star must always be visibly present, not left to hashed-grid RNG
     // which can spawn zero bodies near the player for a long time). Drawn
     // ONCE ever into their own layer at a fixed local origin, then given the
-    // exact same continuous parallax offset as the far grid above — unlike
+    // exact same continuous parallax offset as the far grid above â€” unlike
     // the grid, this layer is NEVER cleared/re-cached, so there's no
     // periodic "snap back" recentering it near the player. That snapping was
     // the actual bug behind "stuck to the edge": every ~140/farF world-units
@@ -907,7 +911,7 @@ void main() {
     // Nebula shader quad stays screen-centered (fixed-size fullscreen-ish
     // quad); the parallax-scroll illusion comes purely from feeding the
     // mid-layer camera fraction into uOffset, sliding the noise sample
-    // window — the standard technique for shader-driven parallax skies.
+    // window â€” the standard technique for shader-driven parallax skies.
     this.nebulaSprite.position.set(W / 2, H / 2);
     const nu = this._nebulaFilter.resources.uNebula.uniforms;
     nu.uTime = (game.run ? game.run.time : 0);
@@ -960,26 +964,43 @@ void main() {
   }
 
   // ---- Hero celestial bodies --------------------------------------------
-  // A galaxy, a ringed gas giant and a moon that are always somewhere in the
-  // sky, rather than leaving it to hashed-grid RNG that can produce an empty
-  // sky for minutes. Each is drawn ONCE into its own layer at a local origin;
-  // per-frame all that changes is the layer's position.
+  // Always-present sky features, rather than leaving it to hashed-grid RNG
+  // that can produce an empty sky for minutes. Each is drawn ONCE into its
+  // own layer at a local origin; per-frame all that changes is the layer's
+  // position.
+  //
+  // Planets and moons are deliberately NOT here â€” they are coming in as
+  // authored sprite art, and procedural ones sharing the sky would fight
+  // with them. What remains is the diffuse stuff that reads as depth rather
+  // than as an object: a galaxy and a dwarf star.
   _buildHeroBodies(W, H) {
     this._drawGalaxy(this.gHeroGalaxy, 0, 0);
-    this._drawGasGiant(this.gHeroPlanet, 0, 0, 132);
-    this._drawMoon(this.gHeroMoon, 0, 0, 96);
+    this._drawDwarfStar(this.gHeroStar, 0, 0);
 
-    // Depth is sold by three things at once: parallax factor (how much camera
-    // movement shifts it), autonomous drift (so the sky lives even when the
-    // player stands still) and haze (set on the layer alpha below). The
-    // galaxy is furthest — barely reacts to the camera, creeps along on its
-    // own; the moon is nearest and visibly sails past.
+    // Depth is sold by three cues disagreeing with each other: parallax
+    // factor (how much camera movement shifts it), autonomous drift (so the
+    // sky lives even when the player stands still) and haze (layer alpha).
     this._heroBodies = [
-      { g: this.gHeroGalaxy, bx: W * 0.52, by: H * 0.36, f: 0.016, driftX: -2.6, driftY: 0.7, pad: 460, alpha: 0.72 },
-      { g: this.gHeroPlanet, bx: W * 0.22, by: H * 0.66, f: 0.052, driftX:  4.8, driftY: -1.1, pad: 340, alpha: 0.80 },
-      { g: this.gHeroMoon,   bx: W * 0.76, by: H * 0.20, f: 0.078, driftX: -7.4, driftY: 1.6, pad: 260, alpha: 0.88 },
+      { g: this.gHeroGalaxy, bx: W * 0.52, by: H * 0.34, f: 0.016, driftX: -2.6, driftY: 0.7, pad: 460, alpha: 0.80 },
+      { g: this.gHeroStar,   bx: W * 0.24, by: H * 0.62, f: 0.042, driftX:  3.6, driftY: -0.9, pad: 240, alpha: 0.88 },
     ];
     for (const b of this._heroBodies) b.g.alpha = b.alpha;
+  }
+
+  _drawDwarfStar(g, cx, cy) {
+    for (let ri = 7; ri >= 1; ri--) {
+      g.circle(cx, cy, ri * 22).fill({ color: '#9fd4ff', alpha: 0.028 });
+    }
+    g.circle(cx, cy, 26).fill({ color: '#cfe8ff', alpha: 0.30 });
+    g.circle(cx, cy, 15).fill({ color: '#eaf6ff', alpha: 0.75 });
+    g.circle(cx, cy, 8).fill('#ffffff');
+    // uneven diffraction spikes, so it doesn't read as a compass rose
+    const spikes = [[0, 78], [Math.PI / 2, 52], [Math.PI, 70], [-Math.PI / 2, 46]];
+    for (const [a, len] of spikes) {
+      g.moveTo(cx - Math.cos(a) * len, cy - Math.sin(a) * len)
+        .lineTo(cx + Math.cos(a) * len, cy + Math.sin(a) * len)
+        .stroke({ width: 1.4, color: '#dcefff', alpha: 0.34 });
+    }
   }
 
   _positionHeroBodies(game, W, H, cx, cy) {
@@ -991,12 +1012,16 @@ void main() {
       const spanX = W + b.pad * 2;
       let sx = b.bx - cx * b.f + b.driftX * t;
       sx = ((((sx + b.pad) % spanX) + spanX) % spanX) - b.pad;
-      // Y does NOT wrap — a vertical jump would be visible while the body is
+      // Y does NOT wrap â€” a vertical jump would be visible while the body is
       // still on screen horizontally. Unbounded vertical drift is folded
       // through a sine instead, so it rises and falls smoothly forever.
       const rawY = b.by - cy * b.f + b.driftY * t;
       const sy = H * 0.5 + Math.sin(rawY / (H * 0.75)) * (H * 0.40);
-      b.g.position.set(sx - b.bx, sy - b.by);
+      // Each body is drawn at its layer's LOCAL origin, so the layer's
+      // position is its screen position outright. Subtracting the base
+      // offset here pushed the galaxy half a screen off to the left, which
+      // is why it was never visible.
+      b.g.position.set(sx, sy);
     }
   }
 
@@ -1010,7 +1035,7 @@ void main() {
       g.ellipse(cx, cy, R * (i / 6) * 1.15, R * (i / 6) * 0.62)
         .fill({ color: '#6a4fd0', alpha: 0.030 });
     }
-    // spiral arms — logarithmic, each traced as a tapering stroke
+    // spiral arms â€” logarithmic, each traced as a tapering stroke
     for (let arm = 0; arm < 2; arm++) {
       const base = arm * Math.PI;
       for (let pass = 0; pass < 3; pass++) {
@@ -1022,7 +1047,7 @@ void main() {
           const f = s / 26;
           const rr = 14 + f * R;
           const aa = base + f * 3.1;
-          // flattened disc — the galaxy is seen at an angle, not face-on
+          // flattened disc â€” the galaxy is seen at an angle, not face-on
           g.lineTo(cx + Math.cos(aa) * rr, cy + Math.sin(aa) * rr * 0.54);
         }
         g.stroke({ width: w, color: col, alpha: al });
@@ -1044,44 +1069,11 @@ void main() {
     g.ellipse(cx - 6, cy + 4, 96, 7).fill({ color: '#1a0f30', alpha: 0.45 });
   }
 
-  _drawGasGiant(g, cx, cy, R) {
-    g.circle(cx, cy, R * 1.55).fill({ color: '#ffb066', alpha: 0.05 });
-    // back half of the ring passes BEHIND the planet
-    g.ellipse(cx, cy, R * 1.95, R * 0.52).stroke({ width: 7, color: '#d9a35a', alpha: 0.42 });
-    g.ellipse(cx, cy, R * 2.25, R * 0.60).stroke({ width: 3, color: '#c08a4a', alpha: 0.24 });
-    g.circle(cx, cy, R).fill('#8a5228');
-    for (let bi = -4; bi <= 4; bi++) {
-      const off = bi * R * 0.108;
-      const bw = Math.sqrt(Math.max(0, R * R - off * off));
-      g.ellipse(cx, cy + off, bw, R * 0.062)
-        .fill({ color: bi % 2 === 0 ? '#e8a05a' : '#a85f2c', alpha: 0.42 });
-    }
-    // storm eye
-    g.ellipse(cx + R * 0.28, cy + R * 0.16, R * 0.22, R * 0.13).fill({ color: '#d2542c', alpha: 0.55 });
-    // reflected sunlight, not an internal lamp
-    g.circle(cx - R * 0.3, cy - R * 0.3, R * 0.5).fill({ color: '#ffd9a0', alpha: 0.13 });
-    g.circle(cx + R * 0.35, cy + R * 0.28, R * 0.66).fill({ color: '#3a1c08', alpha: 0.42 });
-    // front half of the ring crosses IN FRONT of the lower limb
-    g.ellipse(cx, cy + R * 0.03, R * 1.95, R * 0.52).stroke({ width: 4, color: '#f0c98a', alpha: 0.30 });
-  }
-
-  _drawMoon(g, cx, cy, R) {
-    g.circle(cx, cy, R * 1.6).fill({ color: '#cfd9e6', alpha: 0.05 });
-    g.circle(cx, cy, R).fill('#8a9199');
-    g.circle(cx - R * 0.33, cy - R * 0.28, R * 0.54).fill({ color: '#c7d0dc', alpha: 0.20 });
-    g.circle(cx + R * 0.28, cy + R * 0.22, R * 0.65).fill({ color: '#4a5058', alpha: 0.35 });
-    const craters = [[-0.19, 0.33, 0.15], [0.36, -0.13, 0.11], [0.04, 0.51, 0.085], [-0.43, -0.04, 0.075], [0.15, -0.42, 0.06], [-0.55, 0.35, 0.05]];
-    for (const [ox, oy, cr] of craters) {
-      g.circle(cx + ox * R, cy + oy * R, cr * R).fill({ color: '#767e8a', alpha: 0.7 });
-      g.circle(cx + ox * R - cr * R * 0.25, cy + oy * R - cr * R * 0.25, cr * R * 0.7).fill({ color: '#9aa4b2', alpha: 0.5 });
-    }
-  }
-
   // ---------------------------- GROUND / BG ------------------------------
   _drawGround(game) {
     const W = game.W, H = game.H, cx = game.cam.x, cy = game.cam.y;
     const t = game.run ? game.run.time : 0;
-    // PERF: the starfield/nebula/grid are near-static frame to frame — redrawing
+    // PERF: the starfield/nebula/grid are near-static frame to frame â€” redrawing
     // hundreds of hashed grid cells every single frame (60-200x/sec) was the
     // #1 cost under sustained combat. Cache the drawing and only rebuild when
     // the camera has actually moved past a padded buffer, or once per second
@@ -1101,14 +1093,14 @@ void main() {
     const bb = Math.floor(18 + (10 - 18) * zoneT2);
     // Semi-transparent (not opaque) so the deep-space parallax layer
     // (planets/moons/nebula/galaxy) behind `world` actually bleeds through
-    // instead of being 100% hidden — this was the reason the whole parallax
+    // instead of being 100% hidden â€” this was the reason the whole parallax
     // system was invisible even though it was drawing correctly.
     g.rect(cx - pad, cy - pad, W + pad * 2, H + pad * 2).fill({ color: `rgb(${br},${bg},${bb})`, alpha: 0.58 });
 
     // Starfield: five parallax layers, and within each layer the stars are
     // sorted into three brightness/size buckets by hash. Previously every
     // star in a layer was the exact same dot at the exact same alpha, which
-    // is what made the sky read as flat noise — a real sky is mostly faint
+    // is what made the sky read as flat noise â€” a real sky is mostly faint
     // pinpricks with a scattering of obviously brighter ones. Buckets are
     // filled as three batches per layer rather than per-star, so this is 15
     // fill calls for the whole field (and the whole thing is cached until
@@ -1127,7 +1119,7 @@ void main() {
     const warm = `rgb(255,${214 - Math.floor(zoneT2 * 40)},${176 - Math.floor(zoneT2 * 60)})`;
     // Six buckets = 3 brightness tiers x cool/warm. Graphics fills every
     // shape accumulated since the last fill() in one go, so stars have to be
-    // collected first and emitted bucket by bucket — interleaving them and
+    // collected first and emitted bucket by bucket â€” interleaving them and
     // filling at the end would paint the whole field in the first colour.
     if (!this._starBuckets) {
       this._starBuckets = Array.from({ length: 6 }, () => []);
@@ -1157,7 +1149,7 @@ void main() {
           const r = layer.size * (tier === 0 ? 0.62 : tier === 1 ? 1.0 : 1.5);
           buckets[tier * 2 + (isWarm ? 1 : 0)].push(wx, wy, r);
           // The brightest stars in the two nearest layers get a small
-          // diffraction cross — the classic "this one is close" cue.
+          // diffraction cross â€” the classic "this one is close" cue.
           if (tier === 2 && layer.speed > 0.15 && (h3 % 5) === 0) {
             flares.push(wx, wy, r * 4.2, isWarm ? 1 : 0, layer.alpha);
           }
@@ -1212,7 +1204,7 @@ void main() {
     const g = this.gDecals; g.clear();
     for (const d of game.bloodDecals) {
       // Pools grow into place over ~0.4s instead of popping in at full size,
-      // and get a darker clotted core once they've settled — real pooling.
+      // and get a darker clotted core once they've settled â€” real pooling.
       // Weapon-dependent: color comes from whichever weapon dealt the killing
       // blow (fire=ember, ice=frost, electric=arc, etc.) instead of always red.
       const age = Math.max(0, game.time - (d.bornAt ?? game.time));
@@ -1227,7 +1219,7 @@ void main() {
   // --------------------------- DOCK STATION --------------------------------
   // Random map objective: stand inside the ring to charge it, get a bonus on
   // completion. Its light goes through the same pooled-additive-sprite
-  // technique as every other light source (see waterdrop-lighting skill) —
+  // technique as every other light source (see waterdrop-lighting skill) â€”
   // no ad-hoc glow filter.
   _drawDockStation(game) {
     const g = this.gDockStation; g.clear();
@@ -1325,7 +1317,7 @@ void main() {
         // XP orbs are cut crystal, not lamps. They used to burn a slot from
         // the lit-sprite pool each and cast light onto nearby enemies, which
         // washed enemy colours out whenever loot piled up. Same silhouette as
-        // before — now it just catches the light instead of making it: a dark
+        // before â€” now it just catches the light instead of making it: a dark
         // facet down one side, a bright facet down the other, a hard specular
         // chip, and a slow travelling glint across the face.
         const cy = gm.y + wobble;
@@ -1370,7 +1362,7 @@ void main() {
   // ------------------------------ ENEMIES ---------------------------------
   _drawEnemies(game) {
     const g = this.gEnemies; g.clear();
-    // Viewport cull — this loop does per-enemy wound-decal iteration + a
+    // Viewport cull â€” this loop does per-enemy wound-decal iteration + a
     // light-blend scan over every projectile/gem, which is the single
     // heaviest per-frame cost in the renderer once enemy counts climb into
     // the hundreds (routine in a long endless run with the tier system).
@@ -1389,7 +1381,7 @@ void main() {
             g.circle(e.x - e.vx * ti * 0.032, e.y - e.vy * ti * 0.032, s * (0.45 + ti * 0.06)).fill({ color: t.color, alpha: ta });
           }
         }
-        // shadow — leans away from the current merged light (muzzle-flash/
+        // shadow â€” leans away from the current merged light (muzzle-flash/
         // flashlight) when close enough to be affected, plain/static beyond
         // that radius so it doesn't jitter far-away enemies pointlessly.
         const L = this._testLight;
@@ -1404,13 +1396,13 @@ void main() {
         if (t.boss) glow(g, e.x, e.y, s * 0.6, t.color, 1.4);
         else glow(g, e.x, e.y, s * 0.5, t.color, 0.35);
 
-        // Light the enemy's own body, not just the ground under it — gLight
+        // Light the enemy's own body, not just the ground under it â€” gLight
         // (muzzle-flash/flashlight + per-projectile ground-illum sprites)
         // renders BEHIND this opaque Graphics fill in z-order, so an additive
         // sprite alone can never bleed through the shape. Instead we find the
         // single strongest nearby light (merged muzzle/flashlight test light,
         // or the closest friendly projectile in flight) and blend a capped
-        // amount of ITS color into the enemy's own fill color — a genuine
+        // amount of ITS color into the enemy's own fill color â€” a genuine
         // "projectile casts light on what it flies near" effect while the
         // enemy's own identity color always stays dominant (max 45% mix).
         let bestStrength = 0, bestHex = null, bestIsProj = false;
@@ -1419,26 +1411,30 @@ void main() {
           const str = Math.max(0, 1 - ld / L.radius) * (0.35 + L.mt * 0.5);
           if (str > bestStrength) { bestStrength = str; bestHex = L.hex; }
         }
-        // Broadphase instead of scanning every projectile per enemy — see
+        // Broadphase instead of scanning every projectile per enemy â€” see
         // engine.js's projGrid. Reach and strength are both up: a bolt should
         // wash its own colour over whatever it passes, clearly, right where
         // it passes.
-        game.projGrid.query(e.x, e.y, game.maxProjSize * 8 + s, pr => {
+        // Tight and hot rather than wide and weak: a bolt should wash its own
+        // colour hard over the enemy it is passing and leave the one behind
+        // it untouched. Falloff is squared so the bright zone stays close.
+        game.projGrid.query(e.x, e.y, game.maxProjSize * 5 + s, pr => {
           if (!pr.alive || pr.friendly === false) return;
-          const rad = (pr.size || 6) * 8 + s * 0.35;
+          const rad = (pr.size || 6) * 5 + s * 0.55;
           const pd = Math.hypot(e.x - pr.x, e.y - pr.y);
           if (pd >= rad) return;
-          const str = (1 - pd / rad) * 1.15;
+          const f = 1 - pd / rad;
+          const str = f * f * 1.6;
           if (str > bestStrength) { bestStrength = str; bestHex = pr.color || '#5fd6ff'; bestIsProj = true; }
         });
-        // Gems no longer light anything — XP/gold orbs read as faceted
+        // Gems no longer light anything â€” XP/gold orbs read as faceted
         // crystals now (see _drawGems), and the old wide pickup glow was
         // washing enemy colours out in loot-heavy moments.
-        const mixCap = bestIsProj ? 0.68 : 0.45;  // a bullet's own colour is allowed to dominate harder than ambient
+        const mixCap = bestIsProj ? 0.78 : 0.45;  // a bullet's own colour is allowed to dominate harder than ambient
         let litColor = (bestHex && bestStrength > 0.03) ? mixHex(t.color, bestHex, Math.min(mixCap, bestStrength)) : t.color;
 
         // Wind-up tell. A melee enemy about to strike plants, rocks back and
-        // charges up — without a read on that the attack is unfair, and
+        // charges up â€” without a read on that the attack is unfair, and
         // without the attack a crowd is just a slow tide. The body brightens
         // toward white as the wind-up completes, and a chevron points along
         // the direction it has already committed to, so stepping aside after
@@ -1466,12 +1462,12 @@ void main() {
         const shape = this._enemyShapeFor(e, t, s);
         this._paintShape(g, shape, bodyColor, { width: 2, color: '#000000' });
 
-        // Progressive gore: reveal accumulated wound patches — torn, wet
+        // Progressive gore: reveal accumulated wound patches â€” torn, wet
         // flesh peeling away exactly where each 10%-HP hit landed.
         if (e._wounds && e._wounds.length) {
           for (const w of e._wounds) {
             const wx = e.x + w.lx, wy = e.y + w.ly;
-            // Softer/smaller than before — read as a wet wound patch, not a
+            // Softer/smaller than before â€” read as a wet wound patch, not a
             // punched-out hole (a smaller dark core + a softer wet halo).
             g.circle(wx, wy, w.size * 0.95).fill({ color: '#5a0710', alpha: 0.4 });
             g.circle(wx, wy, w.size * 0.62).fill({ color: '#2c0308', alpha: 0.6 });
@@ -1536,10 +1532,10 @@ void main() {
 
   // Enemy silhouettes are cached per-type (origin-centered local points,
   // computed once) instead of rebuilt with fresh trig + a fresh array every
-  // single frame for every living enemy — with 50+ enemies on screen this
+  // single frame for every living enemy â€” with 50+ enemies on screen this
   // was the single heaviest allocation in the renderer (found in a code
   // review pass). `s` (= t.size) is constant per type, so the shape never
-  // actually changes shape-to-shape, only its world position — translation
+  // actually changes shape-to-shape, only its world position â€” translation
   // into a shared scratch array is the only per-frame work now.
   _localShapeFor(typeId, s) {
     const x = 0, y = 0;
@@ -1557,8 +1553,8 @@ void main() {
       case 'slime': return { ellipse: [s * 0.55, s * 0.45] };
       // ---- Distinct silhouettes for enemy types that previously all fell
       // through to the same plain default circle (no bitmap sprite
-      // pipeline exists in this project — see waterdrop-lighting skill's
-      // "no hand-authored art" note — so this is procedural geometry, the
+      // pipeline exists in this project â€” see waterdrop-lighting skill's
+      // "no hand-authored art" note â€” so this is procedural geometry, the
       // same technique already used for every other enemy above). ----
       case 'crystalite': { const pts = []; for (let i = 0; i < 6; i++) { const a = (i / 6) * TAU - Math.PI / 2; const r = i % 2 ? s * 0.42 : s * 0.62; pts.push(x + Math.cos(a) * r, y + Math.sin(a) * r * 1.3); } return { poly: pts }; }
       case 'soulshard': return { poly: [x, y - s * 0.6, x + s * 0.38, y + s * 0.1, x, y + s * 0.55, x - s * 0.38, y + s * 0.1] };
@@ -1581,7 +1577,7 @@ void main() {
     if (local.rect) return { rect: [x + local.rect[0], y + local.rect[1], local.rect[2], local.rect[3]] };
     if (local.ellipse) return { ellipse: [x, y, local.ellipse[0], local.ellipse[1]] };
     // poly: translate into a single shared scratch array reused across every
-    // enemy this frame — _paintShape consumes it synchronously right after
+    // enemy this frame â€” _paintShape consumes it synchronously right after
     // this call returns, so there's no risk of it changing under another
     // enemy before it's read.
     const src = local.poly;
@@ -1591,7 +1587,7 @@ void main() {
     return { poly: out };
   }
 
-  // Tier tags ("T2"/"T3"...) — only drawn once tier >= 2 so a fresh run's
+  // Tier tags ("T2"/"T3"...) â€” only drawn once tier >= 2 so a fresh run's
   // opening minutes look untouched. Pooled Text objects (see constructor),
   // same convention as _drawDamageNumbers, so this never allocates per-frame.
   _drawEnemyTierTags(game) {
@@ -1636,14 +1632,14 @@ void main() {
     const aimAng = Math.atan2(p.aimY, p.aimX);
     // Idle animation: a slow breathing scale pulse + gentle sway when
     // standing still (dirX/dirY ~0), layered onto the existing squish/tilt
-    // "weight" system instead of a parallel one — same water-drop-simulator
+    // "weight" system instead of a parallel one â€” same water-drop-simulator
     // feel, just alive even when not actively moving.
     const idleT = Math.hypot(p.dirX || 0, p.dirY || 0) < 0.08;
     const breathe = idleT ? Math.sin((p.bob || 0) * 0.6) * 0.02 : 0;
     const sway = idleT ? Math.sin((p.bob || 0) * 0.4) * 0.05 : 0;
     const sqx = 1 + p.squish * 0.25 + breathe, sqy = 1 - p.squish * 0.18 - breathe * 0.6;
 
-    // Shadow — offset directionally AWAY from the current merged light
+    // Shadow â€” offset directionally AWAY from the current merged light
     // (flashlight normally, muzzle-flash when firing) so it visibly reacts
     // when the muzzle flash fires, i.e. the muzzle flash "casts" the shadow.
     const L = this._testLight;
@@ -1665,7 +1661,7 @@ void main() {
     const localPts = [];
     // sample the teardrop bezier body outline as a polygon (approx)
     const bez = (t) => {
-      // two symmetric bezier halves from (0,-r*1.15) to (0,r) via (±r*1.05, ...)
+      // two symmetric bezier halves from (0,-r*1.15) to (0,r) via (Â±r*1.05, ...)
       const p0 = [0, -r * 1.15], c1 = [r * 1.05, -r * 0.4], c2 = [r * 1.05, r * 0.65], p1 = [0, r];
       const mt = 1 - t;
       const x = mt ** 3 * p0[0] + 3 * mt * mt * t * c1[0] + 3 * mt * t * t * c2[0] + t ** 3 * p1[0];
@@ -1677,10 +1673,10 @@ void main() {
     const rotated = rotPoly(p.x, p.y, bodyAng, scalePts(localPts, sqx, sqy));
 
     // === LIGHTING TEST: the body is now a real normal-mapped lit sprite ===
-    // (baked sphere normal map + a single moving light — flashlight/muzzle
+    // (baked sphere normal map + a single moving light â€” flashlight/muzzle
     // flash merged into one uniform, per the step-1 smoke test) instead of a
     // flat poly fill. This REPLACES the old ambient/point-light-sprite
-    // system entirely for the body — no legacy glow left underneath it.
+    // system entirely for the body â€” no legacy glow left underneath it.
     const bodyDiam = r * 2.05;
     this.playerBodySprite.visible = true;
     this.playerBodySprite.position.set(p.x, p.y - r * 0.05);
@@ -1850,7 +1846,7 @@ void main() {
       }
     }
 
-    // Drone Squadron — small hovering bodies at whatever positions
+    // Drone Squadron â€” small hovering bodies at whatever positions
     // engine.js's weaponDrone computed this frame (see game._dronePositions).
     if (game.run.ownedWeapons.includes('droneSquad') && game._dronePositions && game._dronePositions.droneSquad) {
       for (const d of game._dronePositions.droneSquad) {
@@ -1918,7 +1914,7 @@ void main() {
       if (pr._wid !== 'hydropistol' && pr._wid !== 'hydropistol_evo') return;
       if (idx >= pool.length) return;
       const { sprite, filter } = pool[idx++];
-      // 50% smaller than before, per spec — the sprite/lit-shader treatment
+      // 50% smaller than before, per spec â€” the sprite/lit-shader treatment
       // itself is unchanged, just scaled down.
       const sz = (pr.size || 6) * 0.5;
       sprite.visible = true;
@@ -1947,8 +1943,8 @@ void main() {
         g.circle(x, y, sz * 1.0 * pulse).fill('#ff3146');
         return;
       }
-      // Starter weapon (hydropistol) bolts — and its evolution — are
-      // rendered by the normal-mapped lit sprite pool instead — see
+      // Starter weapon (hydropistol) bolts â€” and its evolution â€” are
+      // rendered by the normal-mapped lit sprite pool instead â€” see
       // _drawLitHydroProjectiles.
       if (pr._wid === 'hydropistol' || pr._wid === 'hydropistol_evo') return;
 
@@ -1989,7 +1985,7 @@ void main() {
           g.poly(rotPoly(x, y, ang, [sz * 1.4 * lvlBoost, 0, -sz * 0.8 * lvlBoost, sz * 0.6 * lvlBoost, -sz * 0.4 * lvlBoost, 0, -sz * 0.8 * lvlBoost, -sz * 0.6 * lvlBoost])).fill('#b362ff');
           break;
         }
-        case 'flameburst': { // FIRE — hot core, cooling tail, ember glow
+        case 'flameburst': { // FIRE â€” hot core, cooling tail, ember glow
           glow(g, x, y, sz * 1.35 * lvlBoost, '#ff7a1a', 1.3);
           g.circle(x, y, sz * lvlBoost).fill('#ffb84d');
           g.circle(x, y, sz * 0.5 * lvlBoost).fill('#fff2c2');
@@ -1997,12 +1993,12 @@ void main() {
           g.circle(x + ftx, y + fty, sz * 0.7).fill({ color: '#ff3146', alpha: 0.35 });
           break;
         }
-        case 'icespike': { // ICE — sharp frost shard, distinct from iceLance's diamond
+        case 'icespike': { // ICE â€” sharp frost shard, distinct from iceLance's diamond
           glow(g, x, y, sz, '#bff0ff', 0.7);
           g.poly(rotPoly(x, y, ang, [sz * 1.9 * lvlBoost, 0, sz * 0.25, sz * 0.55 * lvlBoost, -sz * 1.3 * lvlBoost, 0, sz * 0.25, -sz * 0.55 * lvlBoost])).fill('#e7f9ff').stroke({ width: 1, color: '#6fd6f0' });
           break;
         }
-        case 'arcTesla': case 'chainlightning': { // ELECTRICITY — jagged bolt, matches particle 'lightning' style
+        case 'arcTesla': case 'chainlightning': { // ELECTRICITY â€” jagged bolt, matches particle 'lightning' style
           const len2 = sz * 2.4 * lvlBoost;
           const [bx0, by0] = rot(-len2 * 0.5, 0, ang);
           g.moveTo(x + bx0, y + by0);
@@ -2019,7 +2015,7 @@ void main() {
         default: {
           // Every weapon without a bespoke render case (all 10 new weapons
           // added this session included) still gets a real light glow
-          // around the bolt itself, not just a flat-filled circle — this
+          // around the bolt itself, not just a flat-filled circle â€” this
           // is what actually casts visible light near where it flies,
           // separate from the invisible enemy-tint blend in _drawEnemies.
           glow(g, x, y, sz * 1.3 * lvlBoost, pr.color, 0.85);
@@ -2053,7 +2049,7 @@ void main() {
     const g = this.gParticles; g.clear();
 
     // Rebuild both particle layers from scratch each frame by refilling
-    // particleChildren directly and issuing ONE update() per layer — the
+    // particleChildren directly and issuing ONE update() per layer â€” the
     // documented batch path; addParticle/removeParticle would trigger a view
     // update per call.
     const sparkArr = this._sparkLayer.pc.particleChildren; sparkArr.length = 0;
@@ -2067,7 +2063,7 @@ void main() {
       if (p.type === 'spark') {
         // Motion-stretched ember: a spark flying at 400px/s reads as a line,
         // not a dot, so the quad is stretched along the velocity vector and
-        // collapses back to round as it slows — slow embers still look like
+        // collapses back to round as it slows â€” slow embers still look like
         // embers. Additive + bloom is what makes it glow.
         if (si >= sparkPool.length) return;
         const q = sparkPool[si++];
@@ -2081,7 +2077,7 @@ void main() {
         q.alpha = Math.min(1, a * 1.2);
         sparkArr.push(q);
       } else if (p.type === 'chunk' || p.type === 'blood' || !p.type) {
-        // Wet gore — droplets and torn-off pieces. Slightly elongated along
+        // Wet gore â€” droplets and torn-off pieces. Slightly elongated along
         // travel so a fast spray looks flung rather than sprinkled.
         if (gi >= gorePool.length) return;
         const q = gorePool[gi++];
@@ -2113,7 +2109,7 @@ void main() {
         g.circle(mx + 2, my - 1, 2.4).fill('#221008');
         g.circle(mx - 3, my + 2, 1.8).fill('#221008');
       } else if (p.type === 'bossSlamWarn') {
-        // Tidebreaker telegraph — a red danger ring that fills in as the
+        // Tidebreaker telegraph â€” a red danger ring that fills in as the
         // window to dodge runs out, so the threat reads at a glance.
         const t01 = 1 - (p.life / p.max);
         g.circle(p.x, p.y, p._radius).stroke({ width: 4, color: '#1fb6ff', alpha: 0.35 + t01 * 0.5 });
@@ -2212,7 +2208,7 @@ void main() {
         this.dmgTextContainer.addChild(txt);
         this._dmgTextPool[idx] = txt;
       }
-      // Quick "pop" bounce on spawn (life starts at 0.8s and counts down) —
+      // Quick "pop" bounce on spawn (life starts at 0.8s and counts down) â€”
       // overshoots slightly then settles within ~0.12s, nicer than a static number.
       const age = 0.8 - d.life;
       const pop = 1 + Math.max(0, 0.55 - age * 4.5);
@@ -2311,13 +2307,13 @@ void main() {
 
   _drawScreenOverlays(game, W, H) {
     const g = this.gUI; g.clear();
-    // Single centered radial vignette — kept deliberately light now (was
+    // Single centered radial vignette â€” kept deliberately light now (was
     // darkening the whole screen and making it hard to see, per feedback).
     // Only the far outer corners darken slightly; the entire play area
     // where combat happens stays fully clear.
     g.rect(0, 0, W, H).fill(this._ensureVignette(W, H));
 
-    // Thunder flash — Chain Lightning / Arc Tesla bounces briefly light up
+    // Thunder flash â€” Chain Lightning / Arc Tesla bounces briefly light up
     // the whole screen like real lightning.
     if (game._lightningFlash > 0) {
       const a = Math.min(1, game._lightningFlash * 3.2);

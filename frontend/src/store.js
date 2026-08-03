@@ -158,6 +158,10 @@ export function loadSave() {
     if (Array.isArray(s.equippedActives)) {
       s.equippedActives = s.equippedActives.map(id => (id === 'decoy' ? 'steamvent' : id));
     }
+    if (s.unlockedActives && s.unlockedActives.decoy) {
+      s.unlockedActives.steamvent = s.unlockedActives.decoy;
+      delete s.unlockedActives.decoy;
+    }
     if (s.skills && s.skills.sh_skill_decoy) {
       s.skills.sh_skill_steamvent = s.skills.sh_skill_decoy;
       delete s.skills.sh_skill_decoy;
