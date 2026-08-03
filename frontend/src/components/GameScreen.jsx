@@ -299,7 +299,7 @@ export default function GameScreen({ save, setSave, onExit, onRunEnd, mission })
     <div className="game-stage">
       <canvas ref={canvasRef} id="game" data-testid="game-canvas" />
       {!gameOverResult && <HUD snap={snap} onActiveSkill={onActiveSkill} isTutorial={!!(mission && mission.isTutorial)} />}
-      <MobileControls onUpdate={onMobileUpdate} onReload={onMobileReload} onDashDir={onMobileDashDir} onSwipeAttack={onMobileSwipeAttack} dashCD={snap ? snap.dashCD : 0} dashReady={snap ? snap.dashReady : false} swipeAttackUnlocked={snap ? snap.swipeAttackUnlocked : false} swipeAttackCD={snap ? snap.swipeAttackCD : 0} visible={!gameOverResult} activeSkills={snap ? snap.activeSkills : []} onActiveSkill={onActiveSkill} />
+      <MobileControls onUpdate={onMobileUpdate} onReload={onMobileReload} onDashDir={onMobileDashDir} onSwipeAttack={onMobileSwipeAttack} dashCD={snap ? snap.dashCD : 0} dashMaxCD={snap ? snap.dashMaxCD : 2.4} dashReady={snap ? snap.dashReady : false} swipeAttackUnlocked={snap ? snap.swipeAttackUnlocked : false} swipeAttackCD={snap ? snap.swipeAttackCD : 0} swipeAttackMaxCD={snap ? snap.swipeAttackMaxCD : 1.1} visible={!gameOverResult} activeSkills={snap ? snap.activeSkills : []} onActiveSkill={onActiveSkill} />
       {levelUpChoices && <LevelUpModal choices={levelUpChoices} onPick={pickCard} playerLevel={snap ? snap.level : 1} />}
       {paused && !gameOverResult && (
         <div className="pause-overlay">

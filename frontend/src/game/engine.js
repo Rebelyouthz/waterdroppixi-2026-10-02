@@ -443,9 +443,14 @@ export class Game {
       bossMaxHp: this.bossActive ? this.bossActive.maxHp : 0,
       bossName: this.bossActive ? this.bossActive.t.name : '',
       dashCD: this.player.dashCD,
+      // Max is reported alongside the remaining time so the joystick dial can
+      // draw an accurate 0..1 charge arc — it can't derive it, the dash CD is
+      // agility/meta-scaled at the moment of the dash.
+      dashMaxCD: this.player.dashMaxCD || 2.4,
       dashReady: this.run.stats.dash > 0,
       swipeAttackUnlocked: !!this.run.stats.swipeAttack,
       swipeAttackCD: this.player.swipeAttackCD || 0,
+      swipeAttackMaxCD: 1.1,
       shieldReady: this.run.stats.shield > 0 && this.player.shieldCharge > 0,
       activeSkills: this.activeSkills.map(id => ({
         id, icon: ACTIVE_SKILLS[id] ? ACTIVE_SKILLS[id].icon : '?',
@@ -1004,6 +1009,7 @@ export class Game {
     p.dashVY = (vy / l) * speed;
     p.dashing = 0.16;
     p.dashCD = (2.4 * (s.dashCDMult || 1)) / agi;
+    p.dashMaxCD = p.dashCD;   // snapshot reports this so the dial can draw the fill
     p.iframes = s.undertowDash ? 0.33 : 0.22;
     this.cam.shake = Math.max(this.cam.shake, 2);
     for (let i = 0; i < 12; i++) this.spawnSpark(p.x, p.y, '#4dffd4');

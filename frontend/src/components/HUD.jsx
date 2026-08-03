@@ -12,13 +12,11 @@ const TUTORIAL_TIPS = [
   { at: 160, text: 'The boss is impossible this time — use this run to learn the mechanics. Good luck!' },
 ];
 
-export default function HUD({ snap, onActiveSkill, isTutorial }) {
+export default function HUD({ snap, isTutorial }) {
   if (!snap) return null;
   const xpPct = (snap.xp / snap.xpToNext) * 100;
   const hpPct = (snap.hp / snap.maxHp) * 100;
   const missionTimeLeft = snap.targetDuration && snap.targetDuration < 999 ? Math.max(0, snap.targetDuration - snap.time) : null;
-
-  const skills = snap.activeSkills || [];
 
   // Tutorial tip to show
   const tutTip = isTutorial ? [...TUTORIAL_TIPS].reverse().find(t => snap.time >= t.at) : null;
@@ -82,23 +80,11 @@ export default function HUD({ snap, onActiveSkill, isTutorial }) {
         )}
       </div>
 
-      {/* Active skills — right column */}
-      {skills.length > 0 && (
-        <div className="active-bar active-bar-overflow" data-testid="active-bar-overflow">
-          {skills.map((s, idx) => {
-            const ready = s.cd <= 0;
-            const pct = s.maxCd > 0 ? Math.max(0, Math.min(100, 100 - (s.cd / s.maxCd) * 100)) : 100;
-            return (
-              <button key={idx} className={`skill-btn ${ready ? 'ready' : ''}`} onClick={() => onActiveSkill && onActiveSkill(idx)} data-testid={`skill-${idx}`} aria-label={s.name}>
-                <div className="skill-icon">{s.icon}</div>
-                <div className="skill-key">{idx + 1}</div>
-                <div className="skill-cd" style={{ height: `${100 - pct}%` }} />
-                {!ready && <div className="skill-cd-num">{Math.ceil(s.cd)}</div>}
-              </button>
-            );
-          })}
-        </div>
-      )}
+      {/* Active skills used to live here as a floating right-hand column.
+          They now live exclusively as pods seated into the joystick bezels
+          (MobileControls.jsx) so the thumb never leaves the stick — having
+          them in two places meant the HUD copy was the one you could reach
+          least and it crowded the top of the screen. */}
 
       {/* Bottom area: MAG text + HP bar (NO center active skill button) */}
       <div className="hud-bottom-stack">
