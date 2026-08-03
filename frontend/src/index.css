@@ -2728,6 +2728,133 @@ canvas#game, canvas.starraid-canvas {
 }
 .raid-card-lvl i.on { background: #5fd6ff; box-shadow: 0 0 6px #5fd6ff; }
 
+/* ============================================================
+   ASTRO PROSPECTOR
+   ============================================================ */
+.prosp-panel {
+  width: min(860px, 96vw); max-height: 92vh; overflow-y: auto;
+  background: linear-gradient(180deg, #14100c 0%, #08060a 100%);
+  border: 2px solid #c8912f66;
+  box-shadow: 0 20px 60px #000d, inset 0 0 60px rgba(200,145,47,0.05);
+  padding: 16px;
+}
+.prosp-header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.prosp-title {
+  font-family: 'Cinzel', serif; font-weight: 900; font-size: 20px;
+  letter-spacing: 0.14em; color: #e8c88a;
+  text-shadow: 0 0 16px rgba(232,200,138,0.35);
+}
+.prosp-wallet { display: flex; gap: 6px; margin-left: auto; flex-wrap: wrap; }
+.prosp-cur {
+  font-family: 'VT323', monospace; font-size: 14px;
+  padding: 3px 9px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(0,0,0,0.35));
+  border: 1px solid #ffffff20;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.12);
+}
+.prosp-cur.cores { color: #7cd6ff; }
+.prosp-cur.flux  { color: #b7f26a; }
+.prosp-cur.bp    { color: #d79bff; }
+.prosp-close { padding: 4px 11px; font-size: 13px; }
+
+.prosp-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+.prosp-tab {
+  flex: 1; padding: 8px; font-family: 'VT323', monospace; font-size: 14px;
+  letter-spacing: 0.14em; cursor: pointer;
+  background: #ffffff08; border: 1px solid #ffffff1a; color: var(--ink-dim);
+}
+.prosp-tab.active { background: #c8912f22; border-color: #c8912f; color: #ffe0a8; }
+
+.prosp-body { min-height: 260px; }
+.prosp-idle { text-align: center; padding: 24px 12px; }
+.prosp-rock { font-size: 54px; filter: drop-shadow(0 6px 14px #000); }
+.prosp-idle-txt {
+  font-family: 'VT323', monospace; font-size: 15px; line-height: 1.4;
+  color: var(--ink-dim); max-width: 480px; margin: 10px auto;
+}
+.prosp-probe-line { font-family: 'VT323', monospace; font-size: 13px; color: #e8c88a; margin-bottom: 14px; }
+
+.prosp-status { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.prosp-stat {
+  flex: 1 1 120px; padding: 7px 10px;
+  background: #ffffff06; border: 1px solid #ffffff16;
+  font-family: 'VT323', monospace;
+}
+.prosp-stat span { display: block; font-size: 10px; letter-spacing: 0.22em; color: #6a5f52; }
+.prosp-stat b { font-size: 17px; color: #ffe0a8; letter-spacing: 0.08em; }
+.prosp-stat b.crit { color: #ff5566; animation: attrPulse 0.8s ease-in-out infinite; }
+
+.prosp-bay { position: relative; height: 16px; background: #00000077; border: 1px solid #ffffff18; margin-bottom: 10px; }
+.prosp-bay-fill { height: 100%; background: linear-gradient(90deg, #2d6f8f, #7cd6ff); box-shadow: 0 0 10px #7cd6ff88; transition: width 0.25s; }
+.prosp-bay-txt {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-family: 'VT323', monospace; font-size: 11px; color: #dff2ff; text-shadow: 0 1px 2px #000;
+}
+
+.prosp-peek {
+  font-family: 'VT323', monospace; font-size: 13px; padding: 6px 10px; margin-bottom: 8px;
+  border: 1px dashed #7cd6ff55; background: #7cd6ff0d; color: #bfe8ff;
+}
+.prosp-peek.t-hazard { border-color: #ff556655; background: #ff55660d; color: #ffb3bb; }
+
+.prosp-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.prosp-btn {
+  font-family: 'VT323', monospace; font-size: 15px; letter-spacing: 0.1em;
+  padding: 9px 16px; cursor: pointer;
+  border: 1px solid #ffffff24; background: #ffffff0c; color: var(--ink);
+  transition: all 0.14s;
+}
+.prosp-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.prosp-btn.dig { flex: 1 1 auto; border-color: #ff9a4d; color: #ffcf9a; background: #ff9a4d18; }
+.prosp-btn.dig:not(:disabled):hover { background: #ff9a4d33; box-shadow: 0 0 18px #ff9a4d55; }
+.prosp-btn.bank { border-color: #4dff91; color: #b6ffd2; background: #4dff9118; }
+.prosp-btn.bank:not(:disabled):hover { background: #4dff9133; box-shadow: 0 0 18px #4dff9155; }
+.prosp-btn.go { border-color: #e8c88a; color: #ffe9c0; background: #c8912f22; padding: 11px 26px; font-size: 16px; }
+.prosp-btn.ghost { opacity: 0.6; }
+.prosp-btn.buy { width: 100%; margin-top: 8px; font-size: 13px; padding: 6px; }
+.prosp-risk { display: block; font-size: 11px; opacity: 0.75; letter-spacing: 0.06em; }
+
+.prosp-lost { text-align: center; padding: 22px 10px; }
+.prosp-lost-title {
+  font-family: 'Cinzel', serif; font-weight: 900; font-size: 26px; letter-spacing: 0.2em;
+  color: #ff5566; text-shadow: 0 0 22px rgba(255,85,102,0.5);
+}
+.prosp-lost-sub { font-family: 'VT323', monospace; font-size: 14px; color: var(--ink-dim); margin: 6px 0 16px; }
+
+.prosp-log { max-height: 190px; overflow-y: auto; border-top: 1px solid #ffffff12; padding-top: 6px; }
+.prosp-log-row {
+  display: grid; grid-template-columns: 34px 22px 1fr; gap: 6px; align-items: center;
+  font-family: 'VT323', monospace; font-size: 13px; padding: 2px 0;
+  color: var(--ink-dim);
+}
+.prosp-log-d { color: #6a5f52; font-size: 11px; letter-spacing: 0.1em; }
+.prosp-log-row.good  { color: #bfe8ff; }
+.prosp-log-row.great { color: #d79bff; text-shadow: 0 0 8px #d79bff66; }
+.prosp-log-row.warn  { color: #ffcf9a; }
+.prosp-log-row.bad   { color: #ff8a95; }
+
+.prosp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.prosp-card {
+  background: linear-gradient(180deg, #1a140e 0%, #0a0710 100%);
+  border: 1px solid #ffffff1c; padding: 11px;
+}
+.prosp-card.maxed { border-color: #e8c88a66; }
+.prosp-card.unique { border-color: #d79bff44; }
+.prosp-card.unique.owned { border-color: #d79bff; box-shadow: 0 0 18px #d79bff33; }
+.prosp-card-top { display: flex; align-items: center; gap: 7px; }
+.prosp-card-icon { font-size: 20px; }
+.prosp-card-name { font-family: 'VT323', monospace; font-size: 16px; color: #ffe0a8; letter-spacing: 0.06em; }
+.prosp-card-lvl { margin-left: auto; font-family: 'VT323', monospace; font-size: 12px; color: #6a5f52; }
+.prosp-card-desc { font-family: 'VT323', monospace; font-size: 13px; color: var(--ink-dim); margin-top: 4px; line-height: 1.3; }
+.prosp-lore { font-size: 10.5px; font-style: italic; color: #5c4f6e; margin-top: 5px; line-height: 1.35; }
+.prosp-pips { display: flex; gap: 3px; margin-top: 7px; }
+.prosp-pips i { flex: 1; height: 4px; background: #ffffff14; }
+.prosp-pips i.on { background: #e8c88a; box-shadow: 0 0 6px #e8c88a; }
+.prosp-note {
+  font-family: 'VT323', monospace; font-size: 13px; color: var(--ink-dim);
+  margin-bottom: 10px; line-height: 1.35;
+}
+
 /* ── Forge: flux catalysts and merge odds ─────────────────────── */
 .forge-flux-bar {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;

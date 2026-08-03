@@ -53,6 +53,9 @@ function buildMetaEffects(save) {
     weaponSlots: slots,
     skillSlots: slots,
     unlockedWeapons: save.unlockedWeapons || [],
+    // Unique Astro Prospector cards this profile has unlocked. Read by
+    // buildLevelUpChoices, which skips every gated card not listed here.
+    prospectCards: save.prospectCards || [],
   };
 
   // Old SKILL_TREE nodes (sk_ prefix)

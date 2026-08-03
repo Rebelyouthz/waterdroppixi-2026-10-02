@@ -579,6 +579,7 @@ export class Game {
     this._vortexT = Math.max(0, (this._vortexT || 0) - dt);
 
     this._updateFxBudget();
+    this._updateProspectorFlags(dt);
 
     // Rebuild the enemy broadphase before anything queries it this frame.
     // Enemies spawned later in the frame (spawnWave) land in it next frame —
@@ -1394,6 +1395,10 @@ export class Game {
       if (rs.autoRateMult !== 1) s.fireRate = (s.fireRate || 0) * rs.autoRateMult;
       if (rs.autoAreaMult !== 1 && s.area) s.area = s.area * rs.autoAreaMult;
     }
+    // Tempo Engine's kill stacks land here so every weapon picks them up
+    // uniformly, rather than having to touch each of the ten sites that read
+    // fireRateMult.
+    if (this._tempoStacks) s.fireRate = (s.fireRate || 0) * this.tempoMult();
     return s;
   }
 
@@ -1420,6 +1425,17 @@ export class Game {
       const spread = (s.spread || 0) + 0.035 * this.aimSpreadMult();
       const ang = Math.atan2(p.aimY, p.aimX) + (Math.random() - 0.5) * spread;
       this.fireProjectile(p.x + p.aimX * 14, p.y + p.aimY * 14, ang, s, true);
+      // Echo Chamber (Prospector unique): every 5th shot arrives twice, and
+      // the echo costs no ammo. Slightly offset so the pair reads as two
+      // rounds rather than one fat one.
+      if (rs.flags && rs.flags.echoChamber) {
+        p._echoCount = (p._echoCount || 0) + 1;
+        if (p._echoCount % 5 === 0) {
+          const ang2 = ang + rand(-0.05, 0.05);
+          this.fireProjectile(p.x + p.aimX * 10, p.y + p.aimY * 10, ang2, s, true);
+          this.spawnRing(p.x + p.aimX * 22, p.y + p.aimY * 22, 16, s.color || '#9fd8ff', 0.16);
+        }
+      }
       p.mag -= 1;
       this.cam.shake = Math.max(this.cam.shake, 1.4);
       Audio.shoot();
@@ -2431,6 +2447,29 @@ export class Game {
             this.cam.shake = Math.max(this.cam.shake, 3);
           }
           pr.hit.add(e);
+          // Prism Core (Prospector unique): the bolt refracts on its FIRST
+          // contact only — `_split` is the guard, without which a piercing
+          // shot would fork at every enemy it passed through and the screen
+          // would fill with shards.
+          if ((this.run.stats.flags || {}).prismCore && !pr._split) {
+            pr._split = true;
+            const baseAng = Math.atan2(pr.vy, pr.vx);
+            const sp = Math.hypot(pr.vx, pr.vy);
+            for (const side of [-1, 1]) {
+              const sh = this.projs.acquire();
+              const a2 = baseAng + side * 0.42;
+              sh.x = e.x; sh.y = e.y;
+              sh.vx = Math.cos(a2) * sp; sh.vy = Math.sin(a2) * sp;
+              sh.dmg = pr.dmg * 0.55; sh.crit = false;
+              sh.pierce = 0; sh.life = 0.7; sh.size = Math.max(2, (pr.size || 5) * 0.65);
+              sh.color = pr.color; sh.friendly = true; sh.homing = 0;
+              sh.knockback = 0; sh.explode = 0;
+              sh._split = true;              // shards cannot themselves refract
+              sh._element = pr._element; sh._wid = pr._wid;
+              sh._weaponBehaviour = pr._weaponBehaviour;
+              sh.hit.clear(); sh.hit.add(e);
+            }
+          }
           // Conductive Rounds passive: plain bullet-type hits (not
           // orbit/aoe/beam/chain weapons, which already have their own
           // multi-target mechanics) can arc to nearby enemies.
@@ -2438,11 +2477,16 @@ export class Game {
           if (bounces > 0 && pr._weaponBehaviour === 'projectile') {
             this.applyConductiveBounce(e.x, e.y, pr.dmg, bounces, new Set([e]));
           }
-          if (pr.pierce <= 0) {
-            if (pr.explode > 0) this.explodeProjectile(pr);
-            this.projs.release(pr); return;
+          // Core Overload (Prospector unique): a critical hit is not stopped
+          // by anything it touches.
+          const critPierces = pr.crit && (this.run.stats.flags || {}).coreOverload;
+          if (!critPierces) {
+            if (pr.pierce <= 0) {
+              if (pr.explode > 0) this.explodeProjectile(pr);
+              this.projs.release(pr); return;
+            }
+            pr.pierce -= 1;
           }
-          pr.pierce -= 1;
         }
       });
     });
@@ -2717,6 +2761,23 @@ export class Game {
     this.run.kills += 1;
     this.run.comboCount += 1;
     this.run.comboTimer = 1.8;
+
+    // ---- Prospector uniques that trigger on a kill ----
+    const pf = s.flags || {};
+    if (pf.tempoEngine) {
+      // Stacks refresh their own window rather than each carrying a separate
+      // timer — one timer, reset on every kill, is both cheaper and easier to
+      // read on the HUD.
+      this._tempoStacks = Math.min(10, (this._tempoStacks || 0) + 1);
+      this._tempoT = 4;
+    }
+    if (pf.singularityRounds) {
+      // Short, small vortex right where the enemy died. Reuses the same
+      // pull-and-graze shape as the Void Vortex skill, at a fraction of its
+      // radius and duration, so the two read as related.
+      this._microVortex = this._microVortex || [];
+      if (this._microVortex.length < 12) this._microVortex.push({ x: e.x, y: e.y, t: 0.55 });
+    }
     if (this.run.comboCount > this.run.maxCombo) this.run.maxCombo = this.run.comboCount;
 
     // ---- Pinball-style score + multiplier ----
@@ -3215,6 +3276,40 @@ export class Game {
     this.pushBloodDecal({ x: wx, y: wy, r: 3 + stage * 0.55, a: 0.5, bornAt: this.time, color: bc });
   }
 
+  // Per-frame upkeep for the Astro Prospector unique cards that need it.
+  // Kept in one place rather than scattered through update(), so the set of
+  // things these cards touch stays obvious.
+  _updateProspectorFlags(dt) {
+    if (this._tempoT > 0) {
+      this._tempoT -= dt;
+      if (this._tempoT <= 0) this._tempoStacks = 0;
+    }
+    const mv = this._microVortex;
+    if (mv && mv.length) {
+      for (let i = mv.length - 1; i >= 0; i--) {
+        const v = mv[i];
+        v.t -= dt;
+        if (v.t <= 0) { mv.splice(i, 1); continue; }
+        const R = 105;
+        this.enemyGrid.query(v.x, v.y, R + this._maxEnemyR, e => {
+          if (!e.alive || (e.t && e.t.boss)) return;   // bosses don't get dragged
+          const dx = v.x - e.x, dy = v.y - e.y;
+          const d = Math.hypot(dx, dy) || 1;
+          if (d > R) return;
+          const pull = (1 - d / R) * 620 * dt;
+          e.x += (dx / d) * pull;
+          e.y += (dy / d) * pull;
+        });
+        if (Math.random() < 0.5) this.spawnSpark(v.x + rand(-18, 18), v.y + rand(-18, 18), '#b362ff');
+      }
+    }
+  }
+
+  // Fire-rate multiplier contributed by Tempo Engine's current stacks.
+  tempoMult() {
+    return 1 + (this._tempoStacks || 0) * 0.04;
+  }
+
   // ---- Particle budget --------------------------------------------------
   // The old control was a single binary "_qualityHigh = fps > 55" flag wired
   // into two spawn helpers. That reacts only after the frame rate has already
@@ -3576,10 +3671,16 @@ export class Game {
     }
     // 4: advanced flag/stat cards (rare/epic only) — only if not already active
     for (const ac of ADVANCED_CARDS) {
+      // Gate FIRST, before the flag/stat branches. Prospector uniques are
+      // flag cards, so checking this second would let every one of them
+      // through the `ac.flag` branch regardless of whether it was unlocked.
+      if (ac.prospect && !(this.meta.prospectCards || []).includes(ac.prospectId)) continue;
       if (ac.flag) {
         if (r.stats.flags && r.stats.flags[ac.flag]) continue;
         const rar = rollRarity(r.stats.luck + 1);
-        pool.push({ kind: 'flag', flagId: ac.flag, icon: ac.icon, name: ac.name, desc: ac.desc, rarity: rar, amount: ac.amount });
+        // Uniques always present as legendary — they are not incremental
+        // bumps and should not be dressed as one.
+        pool.push({ kind: 'flag', flagId: ac.flag, icon: ac.icon, name: ac.name, desc: ac.desc, rarity: ac.prospect ? 'legendary' : rar, amount: ac.amount });
       } else if (ac.stat) {
         // Stat card (flat like Iron Hide's +armor, or a multiplier like the
         // weapon-class passives).
@@ -3696,6 +3797,7 @@ export class Game {
       if (choice.flagId === 'bloodrush') { r.stats.moveMult *= 1.15; r.stats.reloadMult *= 0.85; }
       if (choice.flagId === 'ironPull') r.stats.pickupMult *= 1.80;
       if (choice.flagId === 'vision') this._visionZoom = (this._visionZoom || 1) * 1.25;
+      if (choice.flagId === 'coreOverload') r.stats.crit += 0.12;
       if (!r.pickedPassives) r.pickedPassives = [];
       if (!r.pickedPassives.some(p => p.icon === choice.icon)) r.pickedPassives.push({ icon: choice.icon || '★', name: choice.name || '' });
     }

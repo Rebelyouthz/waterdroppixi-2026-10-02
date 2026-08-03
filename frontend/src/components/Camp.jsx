@@ -11,6 +11,7 @@ import CharacterPanel from './CharacterPanel';
 import TalentTree from './TalentTree';
 import CampaignPanel from './CampaignPanel';
 import PetPanel from './PetPanel';
+import ProspectorScreen from './ProspectorScreen';
 import GearPanel from './GearPanel';
 import { BattlePassPanel, CodexPanel, PatrolPanel, EyeBadge } from './MetaFeatures';
 import { ACHIEVEMENTS } from '../game/data_ext2';
@@ -74,6 +75,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStar
   const [characterOpen, setCharacterOpen] = useState(false);
   const [talentOpen, setTalentOpen] = useState(false);
   const [petOpen, setPetOpen] = useState(false);
+  const [prospectorOpen, setProspectorOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [attrOpen, setAttrOpen] = useState(false);
   // The attribute panel escapes the sidebar entirely. Both an absolutely
@@ -282,6 +284,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStar
             <button className={`camp-tab ${tab==='campaign'?'active':''}`} onClick={() => setTab('campaign')} data-testid="tab-campaign">📜 CAMPAIGN</button>
             <button className={`camp-tab ${tab === 'stats' ? 'active' : ''}`} onClick={() => setTab('stats')} data-testid="tab-stats">📊 STATS</button>
             <button className={`camp-tab ${tab === 'starraid' ? 'active' : ''}`} onClick={() => setTab('starraid')} data-testid="tab-starraid">🚀 STAR RAID</button>
+            <button className="camp-tab" onClick={() => setProspectorOpen(true)} data-testid="tab-prospector">⛏ PROSPECTOR</button>
             <div className="camp-tab-divider" />
             <button className="camp-tab" onClick={() => setCharacterOpen(true)} data-testid="tab-character">👤 CHARACTER</button>
             <button className="camp-tab" onClick={() => setPetOpen(true)} data-testid="tab-pets">🐾 PETS</button>
@@ -487,6 +490,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStar
       {characterOpen && <CharacterPanel save={save} setSave={setSave} onClose={() => setCharacterOpen(false)} />}
       {talentOpen && <TalentTree save={save} setSave={setSave} onClose={() => setTalentOpen(false)} />}
       {petOpen && <PetPanel save={save} setSave={setSave} onClose={() => setPetOpen(false)} />}
+      {prospectorOpen && <ProspectorScreen save={save} setSave={setSave} onClose={() => setProspectorOpen(false)} />}
       {profileOpen && <ProfilePanel save={save} setSave={setSave} onClose={() => setProfileOpen(false)} />}
       {save.pendingLevelUp && (
         <LevelUpOverlay save={save} onCollect={() => {

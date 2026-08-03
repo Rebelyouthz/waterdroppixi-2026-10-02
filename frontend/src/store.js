@@ -103,6 +103,9 @@ export const DEFAULT_SAVE = {
   // nobody can name is a currency that does nothing.
   cores: 0,
   flux: 0,
+  probe: {},                 // Astro Prospector probe upgrade levels
+  prospectBlueprints: 0,     // sealed data cores, spent to unlock unique cards
+  prospectCards: [],         // unlocked PROSPECT_CARDS ids -> enter the run pool
 
   // ---- Fields below were read (with `||` fallbacks) by various panels but
   // never actually declared here — added for documentation/consistency
@@ -166,6 +169,9 @@ export function loadSave() {
     s.incubatorSlots = s.incubatorSlots || DEFAULT_SAVE.incubatorSlots;
     s.cores = s.cores || 0;
     s.flux = s.flux || 0;
+    s.probe = s.probe || {};
+    s.prospectBlueprints = s.prospectBlueprints || 0;
+    s.prospectCards = s.prospectCards || [];
     // A save written before idle systems existed has no lastTickMs. Seeding it
     // to "now" rather than 0 matters: an epoch-0 timestamp would look like
     // decades of offline time and immediately pay out the full 8h cap.

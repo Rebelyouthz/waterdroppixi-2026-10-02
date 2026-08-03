@@ -315,6 +315,17 @@ export const ADVANCED_CARDS = [
   { id: 'c_autoLoader',   icon: '⚙️', name: 'Servo Loader',     desc: '+13% fire rate for auto weapons',        stat: 'autoRateMult',   amount: 0.13, mult: true },
   { id: 'c_powerCore',    icon: '🔋', name: 'Power Core',       desc: '+15% damage for auto weapons',           stat: 'autoDmgMult',    amount: 0.15, mult: true },
   { id: 'c_fieldCoils',   icon: '📡', name: 'Field Coils',      desc: '+18% area on auto weapons',              stat: 'autoAreaMult',   amount: 0.18, mult: true },
+
+  // ─── Astro Prospector uniques ────────────────────────────────────────
+  // Gated behind `prospect` + `prospectId`: buildLevelUpChoices skips these
+  // entirely unless the card has been unlocked in the Prospector, which is
+  // the whole reason that mode exists. Deliberately build-defining rather
+  // than another percentage — see game/prospector.js.
+  { id: 'c_prismCore',   icon: '🔷', name: 'Prism Core',         desc: 'Projectiles split into two shards on their first hit',      flag: 'prismCore',         prospect: true, prospectId: 'pc_prism' },
+  { id: 'c_tempoEngine', icon: '🎼', name: 'Tempo Engine',       desc: 'Each kill: +4% fire rate for 4s, stacking to 10',           flag: 'tempoEngine',       prospect: true, prospectId: 'pc_tempo' },
+  { id: 'c_singularity', icon: '🕳', name: 'Singularity Rounds', desc: 'Kills collapse into a vortex that drags nearby foes in',    flag: 'singularityRounds', prospect: true, prospectId: 'pc_singularity' },
+  { id: 'c_echoChamber', icon: '🔊', name: 'Echo Chamber',       desc: 'Every 5th shot fires a second time, free',                  flag: 'echoChamber',       prospect: true, prospectId: 'pc_echo' },
+  { id: 'c_coreOverload',icon: '☢️', name: 'Core Overload',      desc: '+12% crit chance, and crits pierce everything',             flag: 'coreOverload',      prospect: true, prospectId: 'pc_overload' },
 ];
 
 // ---------- CAMP CARD SHOP POOL (slot-machine pulls) ----------
