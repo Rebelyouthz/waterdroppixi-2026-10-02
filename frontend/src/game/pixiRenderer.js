@@ -1122,7 +1122,17 @@ void main() {
   // ------------------------------ ENEMIES ---------------------------------
   _drawEnemies(game) {
     const g = this.gEnemies; g.clear();
+    // Viewport cull — this loop does per-enemy wound-decal iteration + a
+    // light-blend scan over every projectile/gem, which is the single
+    // heaviest per-frame cost in the renderer once enemy counts climb into
+    // the hundreds (routine in a long endless run with the tier system).
+    // Enemies far outside the camera can't be seen, so skip all of that
+    // work for them entirely rather than computing an invisible result.
+    const cullPad = 160;
+    const cx0 = game.cam.x - cullPad, cy0 = game.cam.y - cullPad;
+    const cx1 = game.cam.x + game.W + cullPad, cy1 = game.cam.y + game.H + cullPad;
     game.enemies.forEach(e => {
+      if (e.x < cx0 || e.x > cx1 || e.y < cy0 || e.y > cy1) return;
       try {
         const t = e.t; const s = t.size;
         if (t.speed > 88 && e.vx !== undefined) {
