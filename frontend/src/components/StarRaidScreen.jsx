@@ -254,10 +254,13 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
     );
   }
 
-  // 'playing'
+  // 'playing' — reuse the main game's proven fullscreen canvas convention
+  // (.game-stage is position:fixed;inset:0) instead of .app-shell, which is
+  // a flex-centering wrapper meant for the menu forms and was collapsing
+  // this canvas down to a small viewport.
   return (
-    <div className="app-shell" style={{ position: 'relative', width: '100%', height: '100%' }}>
-      <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block', touchAction: 'none' }} />
+    <div className="game-stage">
+      <canvas ref={canvasRef} className="starraid-canvas" style={{ touchAction: 'none' }} />
       <div style={{ position: 'absolute', top: 40, left: 14, fontFamily: 'VT323', color: '#ffd166', fontSize: 16, pointerEvents: 'none' }}>
         ⚙ {snap?.scrap || 0}
       </div>

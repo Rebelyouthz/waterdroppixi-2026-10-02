@@ -154,7 +154,7 @@ h1, h2, h3 { font-family: 'Cinzel', serif; letter-spacing: 0.08em; }
   background: #000;
   z-index: 1;
 }
-canvas#game {
+canvas#game, canvas.starraid-canvas {
   position: absolute; inset: 0;
   width: 100%; height: 100%;
   display: block;
