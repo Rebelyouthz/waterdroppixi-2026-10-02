@@ -21,8 +21,22 @@ export default function HUD({ snap, isTutorial }) {
   // Tutorial tip to show
   const tutTip = isTutorial ? [...TUTORIAL_TIPS].reverse().find(t => snap.time >= t.at) : null;
 
+  // Campaign: how long until the guardian arrives. Once it is up the boss bar
+  // below says everything, so the countdown gets out of the way.
+  const guardianIn = snap.campaignBossAt && !snap.campaignBossUp
+    ? Math.max(0, snap.campaignBossAt - snap.time)
+    : null;
+
   return (
     <>
+      {guardianIn !== null && (
+        <div className={`hud-guardian${guardianIn <= 20 ? ' imminent' : ''}`} data-testid="hud-guardian">
+          <span className="hud-guardian-label">GUARDIAN IN</span>
+          <span className="hud-guardian-time">
+            {Math.floor(guardianIn / 60)}:{Math.floor(guardianIn % 60).toString().padStart(2, '0')}
+          </span>
+        </div>
+      )}
       {/* Boss bar ABOVE the main hud — fixed, full width centered at very top */}
       {snap.bossActive && (
         <div className="hud-boss-bar" data-testid="hud-boss-bar">

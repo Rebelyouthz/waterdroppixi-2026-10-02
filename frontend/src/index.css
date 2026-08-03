@@ -2855,6 +2855,87 @@ canvas#game, canvas.starraid-canvas {
   margin-bottom: 10px; line-height: 1.35;
 }
 
+/* ── Campaign guardian countdown ──────────────────────────────── */
+.hud-guardian {
+  position: fixed; top: 6px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: baseline; gap: 8px;
+  padding: 3px 12px; z-index: 1400;
+  font-family: 'VT323', monospace;
+  background: linear-gradient(180deg, rgba(255,77,106,0.15), rgba(0,0,0,0.5));
+  border: 1px solid rgba(255,77,106,0.35);
+  pointer-events: none;
+}
+.hud-guardian-label { font-size: 10px; letter-spacing: 0.28em; color: rgba(255,150,165,0.8); }
+.hud-guardian-time { font-size: 17px; color: #ffd6dc; }
+.hud-guardian.imminent {
+  border-color: #ff4d6a;
+  box-shadow: 0 0 20px rgba(255,77,106,0.5);
+  animation: attrPulse 0.7s ease-in-out infinite;
+}
+.hud-guardian.imminent .hud-guardian-time { color: #ff8a9a; }
+
+/* ── Continue-story call to action ────────────────────────────── */
+.camp-story-btn {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  position: relative;
+  text-align: left; padding: 11px 14px; margin-bottom: 4px;
+  cursor: pointer;
+  border: 1px solid #4dffd455;
+  background: linear-gradient(120deg, rgba(77,255,212,0.16) 0%, rgba(10,20,35,0.6) 60%);
+  box-shadow: inset 0 0 22px rgba(77,255,212,0.10), 0 3px 12px rgba(0,0,0,0.5);
+  overflow: hidden;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.09s;
+}
+.camp-story-btn:hover { border-color: #4dffd4; box-shadow: inset 0 0 26px rgba(77,255,212,0.18), 0 0 20px rgba(77,255,212,0.28); }
+.camp-story-btn:active { transform: scale(0.985); }
+.camp-story-kicker {
+  font-family: 'VT323', monospace; font-size: 11px; letter-spacing: 0.3em;
+  color: rgba(77,255,212,0.7);
+}
+.camp-story-node { font-family: 'VT323', monospace; font-size: 15px; color: #eaffff; }
+.camp-story-go {
+  position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+  font-size: 17px; color: #4dffd4;
+  animation: attrPulse 1.5s ease-in-out infinite;
+}
+
+/* ── Campaign node payout ─────────────────────────────────────── */
+.camp-payout {
+  width: min(460px, 92vw);
+  background: linear-gradient(180deg, #101826 0%, #06090f 100%);
+  border: 2px solid #4dffd455;
+  box-shadow: 0 20px 60px #000d;
+  padding: 20px; text-align: center;
+}
+.camp-payout-node { font-family: 'VT323', monospace; font-size: 16px; color: var(--ink-dim); letter-spacing: 0.08em; }
+.camp-payout-tier {
+  font-family: 'Cinzel', serif; font-weight: 900; font-size: 22px;
+  letter-spacing: 0.14em; margin: 6px 0 14px;
+}
+.camp-payout-tier.t0 { color: #7a6a8a; }
+.camp-payout-tier.t1 { color: #9ad6ff; }
+.camp-payout-tier.t2 { color: #ffd166; text-shadow: 0 0 16px rgba(255,209,102,0.4); }
+.camp-payout-tier.t3 { color: #4dffd4; text-shadow: 0 0 20px rgba(77,255,212,0.5); }
+.camp-payout-chests { display: flex; justify-content: center; gap: 14px; margin-bottom: 14px; }
+.camp-chest {
+  width: 58px; height: 58px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28px;
+  border: 1px solid #ffffff1c; background: #ffffff06;
+  filter: grayscale(1) brightness(0.5);
+}
+.camp-chest.won {
+  filter: none; border-color: #ffd166;
+  box-shadow: 0 0 20px rgba(255,209,102,0.45);
+  animation: cardIn 320ms cubic-bezier(.2,.9,.3,1.4) both;
+}
+.camp-payout-list { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 16px; }
+.camp-payout-item {
+  font-family: 'VT323', monospace; font-size: 13px;
+  padding: 3px 8px;
+  background: #ffffff0a; border: 1px solid #ffffff1c;
+}
+
 /* ── Gear levelling ───────────────────────────────────────────── */
 .gear-parts-bar {
   display: flex; align-items: center; gap: 9px; flex-wrap: wrap;

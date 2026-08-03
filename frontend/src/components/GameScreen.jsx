@@ -223,6 +223,9 @@ export default function GameScreen({ save, setSave, onExit, onRunEnd, mission })
       startWeapons: (isTutorial && mission.startWeapons) ? mission.startWeapons : ['hydropistol'],
       missionDuration: mission ? mission.duration : null,
       spawnMult: mission ? (mission.spawnMult || 1.0) : 1.0,
+      // Campaign node: hold-out time before the map's guardian arrives.
+      bossAt: mission ? (mission.bossAt || 0) : 0,
+      bossId: mission ? (mission.bossId || null) : null,
       stage: mission ? null : null,
       challenge: mission && mission.isChallenge ? mission.mod : null,
       tutorialMode: isTutorial,

@@ -278,6 +278,15 @@ export class Game {
     this.killGoal = (this.challenge && this.challenge.killGoal) || 0;
     this.spawnMultExtra = (this.challenge && this.challenge.spawnMult) || (opts.spawnMult || 1.0);
 
+    // Campaign node: hold out until the gate opens, then the map's guardian
+    // arrives and killing it clears the node. Deliberately NOT a target
+    // duration — a node ends because you beat something, not because a clock
+    // ran out, which is the whole difference between a stage and a timer.
+    this.campaignBossAt = opts.bossAt || 0;
+    this.campaignBossId = opts.bossId || null;
+    this._campaignBossSpawned = false;
+    this._campaignBoss = null;
+
     // periodic ticks for card flags
     this._auraTick = 0; this._knockTick = 0; this._mirrorTick = 0;
 
@@ -497,6 +506,9 @@ export class Game {
       level: this.run.level, xp: this.run.xp, xpToNext: this.run.xpToNext,
       kills: this.run.kills, gold: this.run.gold,
       gearParts: this.run.gearParts || 0,
+      // Campaign HUD: how long until the guardian, and whether it is up.
+      campaignBossAt: this.campaignBossAt || 0,
+      campaignBossUp: !!(this._campaignBoss && this._campaignBoss.alive),
       mag: Math.max(0, Math.floor(this.player.mag)),
       reloading: this.player.reloading,
       weapons: this.run.ownedWeapons.map(id => ({
@@ -658,6 +670,21 @@ export class Game {
       this.spawnSkyEvent();
     }
     this.updateSkyEvents(dt);
+
+    // Campaign gate: the guardian arrives once you have held out long enough.
+    if (this.campaignBossAt && !this._campaignBossSpawned && this.run.time >= this.campaignBossAt) {
+      this._campaignBossSpawned = true;
+      this.spawnBoss(this.campaignBossId);
+      this._campaignBoss = this.bossActive;
+      this.cam.shake = 22;
+      this.spawnDamageNumber(this.player.x, this.player.y - 90, 'THE GUARDIAN COMES', '#ff4d6a', 20);
+    }
+    // Clearing the node means killing THAT boss specifically — not merely
+    // having a boss die, since the ambient boss timeline can also fire one.
+    if (this._campaignBoss && !this._campaignBoss.alive && !this.over) {
+      this.victory = true; this.over = true;
+      if (this.callbacks.onGameOver) this.callbacks.onGameOver({ ...this.snapshot(), victory: true, completed: 'campaignBoss' });
+    }
 
     if (this.nextBoss && this.run.time >= this.nextBoss.t && !this.bossActive) {
       this.spawnBoss(this.nextBoss.event);

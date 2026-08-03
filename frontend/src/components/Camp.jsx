@@ -12,6 +12,7 @@ import TalentTree from './TalentTree';
 import CampaignPanel from './CampaignPanel';
 import PetPanel from './PetPanel';
 import ProspectorScreen from './ProspectorScreen';
+import { nextCampaignNode } from '../game/campaign';
 import GearPanel from './GearPanel';
 import { BattlePassPanel, CodexPanel, PatrolPanel, EyeBadge } from './MetaFeatures';
 import { ACHIEVEMENTS } from '../game/data_ext2';
@@ -61,7 +62,8 @@ const openChest = (chestId) => {
   return c ? rollChest(c, 0.5) : [];
 };
 
-export default function Camp({ save, setSave, onBack, onStart, onMission, onStarRaid }) {
+export default function Camp({ save, setSave, onBack, onStart, onMission, onStory, onStarRaid }) {
+  const storyNode = nextCampaignNode(save);
   const [toast, setToast] = useState('');
   const [tab, setTab] = useState('cards');
   const [shopOpen, setShopOpen] = useState(false);
@@ -281,6 +283,15 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStar
           </div>
           <div className="camp-scroll-hint">↓ scroll for more ↓</div>
           <div className="camp-tabs-scroll">
+            {/* The story is the default way to play, so it gets a real
+                call-to-action rather than being one tab among fifteen. */}
+            {storyNode && (
+              <button className="camp-story-btn" onClick={onStory} data-testid="continue-story">
+                <span className="camp-story-kicker">CONTINUE STORY</span>
+                <span className="camp-story-node">{storyNode.mapIcon} {storyNode.mapName} — {storyNode.name}</span>
+                <span className="camp-story-go">▸</span>
+              </button>
+            )}
             <button className={`camp-tab ${tab==='campaign'?'active':''}`} onClick={() => setTab('campaign')} data-testid="tab-campaign">📜 CAMPAIGN</button>
             <button className={`camp-tab ${tab === 'stats' ? 'active' : ''}`} onClick={() => setTab('stats')} data-testid="tab-stats">📊 STATS</button>
             <button className={`camp-tab ${tab === 'starraid' ? 'active' : ''}`} onClick={() => setTab('starraid')} data-testid="tab-starraid">🚀 STAR RAID</button>

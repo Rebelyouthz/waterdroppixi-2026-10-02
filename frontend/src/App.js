@@ -13,6 +13,9 @@ import { rollMissionRewards, MISSION_DEFS, CHALLENGES, ACHIEVEMENTS } from './ga
 import { AuthProvider, StripeReturnHandler, AuthCallback, useAuth } from './auth';
 import { Audio } from './game/audio';
 import { rollArtifact } from './game/artifacts';
+import { rollGearDrop } from './game/gear';
+import { rollRune } from './game/runes';
+import { rewardTier, rollCampaignChest, nextCampaignNode, nodeToMission, REWARD_TIERS } from './game/campaign';
 import { PET_TYPES } from './components/PetPanel';
 
 function AppInner() {
@@ -21,6 +24,7 @@ function AppInner() {
   const [booted, setBooted] = useState(false);
   const [activeMission, setActiveMission] = useState(null);
   const [missionReward, setMissionReward] = useState(null);
+  const [campaignPayout, setCampaignPayout] = useState(null);
   const [runKey, setRunKey] = useState(0);
   const [showPaywall, setShowPaywall] = useState(false);
   const { paid, loading: authLoading, user } = useAuth();
@@ -109,6 +113,29 @@ function AppInner() {
     wsum('wq_boss_5', result.victory ? 1 : 0);
     wsum('wq_lvl_100', result.level || 0);
     wsum('wq_gold_5000', result.gold || 0);
+    // ---- Campaign node payout ----
+    // Tiered by how far you got, so a failed attempt is still worth something
+    // — a node you nearly cleared should not pay the same as one you walked
+    // out of after thirty seconds.
+    if (mission && mission.isCampaign && mission.node) {
+      const tier = rewardTier(result, mission.node);
+      const chests = [];
+      for (let i = 0; i < tier; i++) chests.push(rollCampaignChest(mission.node, i === tier - 1 && result.victory));
+      for (const chest of chests) {
+        for (const item of chest) {
+          if (item.type === 'gold') { ns.gold = (ns.gold || 0) + item.amount; ns.lifetimeGold = (ns.lifetimeGold || 0) + item.amount; }
+          else if (item.type === 'gearParts') ns.gearParts = (ns.gearParts || 0) + item.amount;
+          else if (item.type === 'gems') ns.gems = (ns.gems || 0) + item.amount;
+          else if (item.type === 'sp') ns.sp = (ns.sp || 0) + item.amount;
+          else if (item.type === 'petFood') ns.petFood = (ns.petFood || 0) + item.amount;
+          else if (item.type === 'gear') ns.gearInventory = [...(ns.gearInventory || []), rollGearDrop(result.time, true)];
+          else if (item.type === 'rune') ns.runeInventory = [...(ns.runeInventory || []), rollRune(ns.attrs?.luck || 0)];
+        }
+      }
+      if (result.victory) ns.mapProgress = { ...(ns.mapProgress || {}), [mission.node.id]: true };
+      setCampaignPayout({ tier, node: mission.node, chests });
+    }
+
     if (result.victory && mission && mission.id && mission.id.startsWith('m_')) {
       // Mission success — roll rewards
       const md = MISSION_DEFS.find(m => m.id === mission.id);
@@ -282,6 +309,13 @@ function AppInner() {
         onBack={() => setView('welcome')}
         onStart={() => startTutorialIfNeeded()}
         onMission={(m) => tryStartGame(() => onMission(m), m)}
+        onStory={() => {
+          // "Continue story" resumes at the first node not yet cleared.
+          const node = nextCampaignNode(save);
+          if (!node) return;
+          const m = nodeToMission(node);
+          tryStartGame(() => onMission(m), m);
+        }}
         onStarRaid={() => setView('starraid')} />
       {showPaywall && <PaywallModal onClose={() => setShowPaywall(false)} />}
     </>);
@@ -299,6 +333,37 @@ function AppInner() {
           else setView(where);
         }} />
       {missionReward && <MissionReveal rewards={missionReward} onClose={() => { setMissionReward(null); setView('camp'); }} />}
+      {campaignPayout && (
+        <div className="modal-overlay" data-testid="campaign-payout">
+          <div className="camp-payout">
+            <div className="camp-payout-node">{campaignPayout.node.mapIcon} {campaignPayout.node.mapName} — {campaignPayout.node.name}</div>
+            <div className={`camp-payout-tier t${campaignPayout.tier}`}>
+              {REWARD_TIERS[campaignPayout.tier].label}
+            </div>
+            <div className="camp-payout-chests">
+              {[0, 1, 2].map(i => (
+                <div key={i} className={`camp-chest${i < campaignPayout.tier ? ' won' : ''}`}>
+                  {i < campaignPayout.tier ? '🎁' : '🔒'}
+                </div>
+              ))}
+            </div>
+            <div className="camp-payout-list">
+              {campaignPayout.chests.flat().map((it, i) => (
+                <span key={i} className="camp-payout-item">
+                  {it.type === 'gold' ? `★ ${it.amount}`
+                    : it.type === 'gearParts' ? `🔩 ${it.amount}`
+                    : it.type === 'gems' ? `💎 ${it.amount}`
+                    : it.type === 'sp' ? `◆ ${it.amount}`
+                    : it.type === 'petFood' ? `🍖 ${it.amount}`
+                    : it.type === 'gear' ? '🪖 Equipment'
+                    : '🔮 Rune'}
+                </span>
+              ))}
+            </div>
+            <button className="prosp-btn go" onClick={() => { setCampaignPayout(null); setView('camp'); }}>Continue</button>
+          </div>
+        </div>
+      )}
     </>);
   }
   return null;
