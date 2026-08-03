@@ -1436,6 +1436,20 @@ export class Game {
     p.reloadTotal = p.reloadT; // full duration, so the renderer can compute progress without weapon lookups
     p._reloadMag = (s.magazine || 12) + this.run.stats.magBonus; // capacity, for the revolver-cylinder notch count
     p._reloadWid = s._wid || null; // which weapon is reloading, so the renderer picks the right visual
+    // The spent magazine is a real object thrown to the ground rather than a
+    // shape drawn inside the gun for a moment — it tumbles, lands and lies
+    // there, which is what makes the reload read as physical.
+    const isRevolver = p._reloadWid === 'hydropistol' || p._reloadWid === 'hydropistol_evo';
+    if (!isRevolver) {
+      const mp = this.parts.acquire();
+      mp.x = p.x + p.aimX * 6; mp.y = p.y + 4;
+      mp.vx = -p.aimX * rand(20, 50) + rand(-25, 25);
+      mp.vy = rand(-40, -10);
+      mp.life = 2.6; mp.max = 2.6;
+      mp.color = '#2a313d'; mp.size = 3.4; mp.type = 'casing';
+      mp._rot = Math.random() * TAU; mp._rotSpd = rand(-9, 9);
+      mp._settled = false; mp._restY = undefined;
+    }
   }
 
   tryReload() {
@@ -2546,7 +2560,19 @@ export class Game {
       p.vy *= Math.pow(0.05, dt);
       if (p.type === 'blood') p.vy += 200 * dt;
       if (p.type === 'chunk') p.vy += 260 * dt; // dismembered flesh chunks fall
-      if (p.type === 'casing') { p.vy += 420 * dt; p._rot = (p._rot || 0) + (p._rotSpd || 0) * dt; }
+      if (p.type === 'casing') {
+        if (p._settled) {
+          // Come to rest on the floor instead of drifting off-screen — the
+          // point of the longer lifetime is that spent brass lies where it
+          // landed for a moment.
+          p.vx = 0; p.vy = 0;
+        } else {
+          p.vy += 420 * dt;
+          p._rot = (p._rot || 0) + (p._rotSpd || 0) * dt;
+          if (p._restY === undefined) p._restY = p.y + rand(12, 30);
+          if (p.y >= p._restY && p.vy > 0) { p._settled = true; p.y = p._restY; }
+        }
+      }
       p.life -= dt;
       if (p.life <= 0) {
         if (p.type === 'blood') {
@@ -3250,8 +3276,14 @@ export class Game {
     cs.x = x - Math.cos(ang) * 5; cs.y = y - Math.sin(ang) * 5;
     const sp = rand(70, 150);
     cs.vx = Math.cos(side) * sp * 0.6; cs.vy = Math.sin(side) * sp * 0.6 - rand(60, 110);
-    cs.life = rand(0.5, 0.75); cs.max = cs.life;
-    cs.color = '#ffb84d'; cs.size = rand(2, 3); cs.type = 'casing';
+    // Longer-lived than a spark on purpose: brass should stay on the ground
+    // for a beat after it stops glowing, so a firefight leaves a trail of
+    // spent casings behind you rather than evaporating.
+    cs.life = rand(1.6, 2.0); cs.max = cs.life;
+    cs.color = ''; cs.size = rand(2, 3); cs.type = 'casing';
+    // Pooled objects keep the previous occupant's fields — a recycled casing
+    // that inherited _settled would freeze in mid-air the frame it spawned.
+    cs._settled = false; cs._restY = undefined;
     cs._rot = Math.random() * TAU; cs._rotSpd = rand(-16, 16);
   }
 

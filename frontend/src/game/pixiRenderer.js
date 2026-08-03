@@ -1625,6 +1625,71 @@ void main() {
   }
 
   // ------------------------------ PLAYER -----------------------------------
+  // Where the gun sits and which way it points during a reload, plus where
+  // the support hand is. Returned in gun-local terms so the caller can apply
+  // it on top of the aim vector.
+  //   angOff  extra rotation (negative = muzzle up, positive = muzzle down)
+  //   pull    how far the gun is drawn back toward the body
+  //   offX/Y  world-space nudge (the gun drops as it is worked)
+  //   hand    support-hand position in gun-local space, or null to rest it
+  //   slide   slide travel, 0..-6
+  _reloadPose(p) {
+    const none = { angOff: 0, pull: 0, offX: 0, offY: 0, hand: null, slide: 0, prog: 0 };
+    if (!p.reloading || !p.reloadTotal) return none;
+    const prog = Math.min(1, Math.max(0, 1 - p.reloadT / p.reloadTotal));
+    // Phase boundaries. Deliberately uneven — the rack is the fast, snappy
+    // beat and the mag swap is where the time actually goes.
+    if (prog < 0.20) {                       // A: raise off target
+      const f = prog / 0.20;
+      return { angOff: -0.55 * f, pull: -2 * f, offX: 0, offY: -3 * f, hand: null, slide: 0, prog };
+    }
+    if (prog < 0.38) {                       // B: mag drops free
+      return { angOff: -0.55, pull: -2, offX: 0, offY: -3, hand: { x: -3, y: 6 }, slide: 0, prog };
+    }
+    if (prog < 0.66) {                       // C: fresh mag up from the pocket
+      const f = (prog - 0.38) / 0.28;
+      return { angOff: -0.55, pull: -2, offX: 0, offY: -3, hand: { x: -3, y: 20 - f * 16 }, slide: 0, prog };
+    }
+    if (prog < 0.86) {                       // D: muzzle to 5 o'clock, rack it
+      const f = (prog - 0.66) / 0.20;
+      const rack = f < 0.5 ? -(f / 0.5) * 6 : -(1 - (f - 0.5) / 0.5) * 6;
+      return { angOff: -0.55 + f * 1.15, pull: -1, offX: 0, offY: -1, hand: { x: 5 + rack, y: -4 }, slide: rack, prog };
+    }
+    const f = (prog - 0.86) / 0.14;          // E: swing back on target
+    return { angOff: 0.60 * (1 - f), pull: -1 * (1 - f), offX: 0, offY: -1 * (1 - f), hand: null, slide: 0, prog };
+  }
+
+  // Two short arms from the shoulders to the grip. The character is a
+  // waterdrop, so they are stubby capsules rather than jointed limbs — enough
+  // to make the gun read as held rather than floating, which is what the
+  // reload pantomime needs to land.
+  _drawArms(gf, p, bodyAng, r, gx, gy, gunAng, hand) {
+    const armCol = '#2b7fa8', armDark = '#06121e';
+    const shoulder = (side) => {
+      const [sx, sy] = rot(side * r * 0.62, r * 0.05, bodyAng);
+      return [p.x + sx, p.y + sy];
+    };
+    // main hand always on the grip
+    const [gripX, gripY] = rot(0, 1, gunAng);
+    const mainHand = [gx + gripX, gy + gripY];
+    // support hand either on the fore-end or wherever the reload puts it
+    const supportLocal = hand || { x: 9, y: 1 };
+    const [shX, shY] = rot(supportLocal.x, supportLocal.y, gunAng);
+    const supportHand = [gx + shX, gy + shY];
+
+    const limb = (from, to) => {
+      gf.moveTo(from[0], from[1]).lineTo(to[0], to[1])
+        .stroke({ width: 5.4, color: armDark, cap: 'round' });
+      gf.moveTo(from[0], from[1]).lineTo(to[0], to[1])
+        .stroke({ width: 3.4, color: armCol, cap: 'round' });
+    };
+    limb(shoulder(1), mainHand);
+    limb(shoulder(-1), supportHand);
+    // knuckles
+    gf.circle(mainHand[0], mainHand[1], 2.4).fill(armCol).stroke({ width: 1, color: armDark });
+    gf.circle(supportHand[0], supportHand[1], 2.2).fill(armCol).stroke({ width: 1, color: armDark });
+  }
+
   _drawPlayer(game) {
     const g = this.gPlayer; g.clear();
     const gf = this.gPlayerFront; gf.clear();
@@ -1714,9 +1779,23 @@ void main() {
       gf.circle(p.x + tipX, p.y + tipY, 1.2).fill(tipPulse > 0.5 ? '#ffb347' : '#ff6a1a');
     }
 
+    // ===== Reload pose =====
+    // The gun used to stay locked to the aim vector while a mag animation
+    // played inside it, which reads as the gun reloading itself. A real
+    // reload is a whole-body action, so the pose below drives where the gun
+    // sits and which way it points, and the arms below follow it.
+    //   A  raise and tilt up off the target
+    //   B  mag drops free
+    //   C  fresh mag comes up from the back pocket into the well
+    //   D  muzzle drops to about 5 o'clock and the slide is racked
+    //   E  swing back up onto the target
+    const rl = this._reloadPose(p);
+    const aimDrawAng = aimAng + rl.angOff;
+
     // ===== Gun (rotated in aim direction) =====
     const recoil = -p.recoil * 4;
-    const gx = p.x + Math.cos(aimAng) * recoil, gy = p.y + 1 + Math.sin(aimAng) * recoil;
+    const gx = p.x + Math.cos(aimDrawAng) * (recoil + rl.pull) + rl.offX;
+    const gy = p.y + 1 + Math.sin(aimDrawAng) * (recoil + rl.pull) + rl.offY;
     const owned = game.run.ownedWeapons;
     let gunColor = '#3a4658', accentColor = '#6cb4ff';
     if (owned.includes('voidBeam')) { gunColor = '#2a1a3a'; accentColor = '#b362ff'; }
@@ -1724,20 +1803,24 @@ void main() {
     else if (owned.includes('shotgun')) { gunColor = '#3a302a'; accentColor = '#ffd166'; }
     else if (owned.includes('autoBolts')) { gunColor = '#2a3a44'; accentColor = '#4dffd4'; }
 
-    const gunRect = (lx, ly, lw, lh, color) => gf.poly(rotPoly(gx, gy, aimAng, [lx, ly, lx + lw, ly, lx + lw, ly + lh, lx, ly + lh])).fill(color);
+    // Arms go down BEFORE the gun so the hands read as gripping it, not
+    // hovering in front of it.
+    this._drawArms(gf, p, bodyAng, r, gx, gy, aimDrawAng, rl.hand);
+
+    const gunRect = (lx, ly, lw, lh, color) => gf.poly(rotPoly(gx, gy, aimDrawAng, [lx, ly, lx + lw, ly, lx + lw, ly + lh, lx, ly + lh])).fill(color);
     gunRect(-6, -3, 8, 6, '#1f2632');
     gunRect(-2, 3, 4, 6, '#0f141c');
     gunRect(2, -3, 14, 6, gunColor);
     gunRect(8, 3, 4, 7, '#11161e');
     gunRect(4, -5, 9, 2, '#11161e');
-    const [sightX, sightY] = rot(8, -5.5, aimAng);
+    const [sightX, sightY] = rot(8, -5.5, aimDrawAng);
     gf.circle(gx + sightX, gy + sightY, 1.2).fill(accentColor);
     gunRect(16, -1.6, 12, 3.2, '#2a313d');
     gunRect(27, -2.4, 2.5, 4.8, '#0a0d12');
-    gf.poly(rotPoly(gx, gy, aimAng, [3, -0.6, 15, -0.6, 15, 0.6, 3, 0.6])).fill({ color: accentColor, alpha: 0.85 });
+    gf.poly(rotPoly(gx, gy, aimDrawAng, [3, -0.6, 15, -0.6, 15, 0.6, 3, 0.6])).fill({ color: accentColor, alpha: 0.85 });
 
     if (p.recoil > 0.05) {
-      const [mx, my] = rot(30, 0, aimAng);
+      const [mx, my] = rot(30, 0, aimDrawAng);
       // Small hot-tip glow at the barrel end (the real flash burst itself is
       // drawn additively in _drawLights as a baked starburst sprite).
       const muzzleR = 2 + p.recoil * 2.4;
@@ -1762,26 +1845,23 @@ void main() {
         this.reloadText.anchor.set(0, 0.5);
         this.reloadText.position.set(headX + cylR + 8, headY);
       } else {
-        // Other weapons: real mag-eject -> new-mag-insert -> slide-rack
-        // pantomime happening AT THE GUN, plus the existing spinner + text
-        // above the head as a clear at-a-glance status cue.
+        // Mag and slide follow the reload POSE (see _reloadPose) rather than
+        // running their own private timeline, so the gun, the arms and the
+        // magazine are all describing the same action. The ejected mag isn't
+        // drawn here at all — it is a real particle thrown by the engine on
+        // reload start, so it tumbles to the ground and stays there.
         const magW = 5, magH = 10;
-        if (prog < 0.35) {
-          const ft = prog / 0.35; // old mag drops free and falls away
-          const [ex, ey] = rot(-3, 5 + ft * 15, aimAng);
+        if (prog >= 0.38) {
+          // fresh mag rides the support hand up into the well, then seats
+          const seat = rl.hand || { x: -3, y: 4 };
+          const my2 = prog < 0.66 ? seat.y : 4;
+          const [ex, ey] = rot(-3, my2, aimDrawAng);
           gf.rect(gx + ex - magW / 2, gy + ey - magH / 2, magW, magH)
-            .fill({ color: '#2a313d', alpha: 1 - ft * 0.7 }).stroke({ width: 0.6, color: '#11161e', alpha: 1 - ft * 0.7 });
-        } else if (prog < 0.75) {
-          const ft = (prog - 0.35) / 0.4; // fresh mag rises up into the well
-          const [ex, ey] = rot(-3, 17 - ft * 13, aimAng);
-          gf.rect(gx + ex - magW / 2, gy + ey - magH / 2, magW, magH).fill('#2a313d').stroke({ width: 0.6, color: '#11161e' });
-        } else {
-          const ft = (prog - 0.75) / 0.25; // slide racks back, then snaps shut
-          const slideOff = ft < 0.55 ? -(ft / 0.55) * 6 : -(1 - (ft - 0.55) / 0.45) * 6;
-          const [sxo, syo] = rot(5 + slideOff, -4, aimAng);
+            .fill('#2a313d').stroke({ width: 0.6, color: '#11161e' });
+        }
+        if (rl.slide !== 0) {
+          const [sxo, syo] = rot(5 + rl.slide, -4, aimDrawAng);
           gf.rect(gx + sxo - 5, gy + syo - 1.4, 10, 2.8).fill('#3a4658');
-          const [ex, ey] = rot(-3, 4, aimAng);
-          gf.rect(gx + ex - magW / 2, gy + ey - magH / 2, magW, magH).fill('#2a313d').stroke({ width: 0.6, color: '#11161e' });
         }
         // Other weapons: just the text + a clean spinning ring (no cylinder)
         const spinR = 7.5;
@@ -2140,10 +2220,22 @@ void main() {
         const len2 = p.size * 2.4, wid2 = p.size * 0.9;
         const cs2 = Math.cos(rot2), sn2 = Math.sin(rot2);
         const hx = (len2 / 2) * cs2, hy = (len2 / 2) * sn2, wx = (wid2 / 2) * -sn2, wy = (wid2 / 2) * cs2;
-        const heat = Math.min(1, a * 1.5);
-        const col = heat > 0.55 ? '#ffcf6b' : '#8a5a2a';
+        // Brass leaves the chamber glowing and cools through orange to dull
+        // metal before it fades, instead of flipping between two colours.
+        // An ejected magazine carries its own colour and skips the heat.
+        const cooled = 1 - a;                       // 0 fresh -> 1 spent
+        const col = p.color && p.color !== '' && p.size > 3
+          ? p.color
+          : cooled < 0.18 ? '#fff2c8'
+          : cooled < 0.34 ? '#ffcf6b'
+          : cooled < 0.55 ? '#d08a3a'
+          : '#8a5a2a';
         g.poly([p.x - hx - wx, p.y - hy - wy, p.x + hx - wx, p.y + hy - wy, p.x + hx + wx, p.y + hy + wy, p.x - hx + wx, p.y - hy + wy])
-          .fill({ color: col, alpha: Math.min(1, a + 0.15) });
+          .fill({ color: col, alpha: Math.min(1, a * 2.2 + 0.2) });
+        // brief hot bloom while it is still glowing
+        if (cooled < 0.3 && p.size <= 3) {
+          g.circle(p.x, p.y, p.size * 1.5).fill({ color: '#ffb347', alpha: (0.3 - cooled) * 0.9 });
+        }
       } else if (p.type === 'wave') {
         // Expanding body of water: crest thins and fades as it grows, an
         // inner surge trails behind it, and foam speckles ride the leading
