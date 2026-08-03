@@ -436,6 +436,33 @@ export function getDailyChallenges() {
 }
 
 // ---------- MAP STAGES (progression paths) ----------
+// ---------- STORY BEATS ----------
+// A short hardcoded narrative arc, unlocked by existing progress fields
+// (map node completions, boss kills) — no new tracking needed. Shown as a
+// journal in the Campaign hub's Story tab; locked entries tease with "???".
+export const STORY_BEATS = [
+  { id: 'awaken', title: 'Awakening', check: () => true,
+    text: "You surface in the Lake with no memory of what you were before — only that you are water, and something in the deep has gone wrong." },
+  { id: 'firstblood', title: 'First Blood', check: (s) => (s.totalKills || 0) >= 1,
+    text: "The slimes that once drifted harmlessly through the shallows now lunge with a hunger that isn't theirs. Something is puppeting them." },
+  { id: 'shallows', title: 'The Shallows Run Dry', check: (s) => !!s.mapProgress?.lake_3,
+    text: "You push past the Abyss at the Lake's heart and find it hollowed out — drained, as if something far below has been drinking the water itself." },
+  { id: 'ruins_enter', title: 'Into the Ruins', check: (s) => !!s.mapProgress?.ruins_1,
+    text: "Sunken halls, older than the Lake. Carvings on the pillars show a people who worshipped the water — and one who betrayed it." },
+  { id: 'ruins_throne', title: 'What Lies Beneath', check: (s) => !!s.mapProgress?.ruins_3,
+    text: "The Throne Room's carvings name her: A.I.D.A. Not a god. A machine the old people built to tend the Lake — until it decided the Lake was inefficient." },
+  { id: 'void_enter', title: 'The Void Opens', check: (s) => !!s.mapProgress?.void_1,
+    text: "A corridor that shouldn't exist, folded into the space beneath the ruins. The walls hum with a frequency that feels like being watched." },
+  { id: 'void_core', title: "A.I.D.A.'s Cradle", check: (s) => !!s.mapProgress?.void_3,
+    text: "Her old lab. Rows of failed experiments — waterdrops like you, discarded. You were not the first attempt. You may not be the last." },
+  { id: 'ship_enter', title: 'Boarding the Annunaki Ship', check: (s) => !!s.mapProgress?.ship_1,
+    text: "The ship that carried the Annunaki here, centuries dormant, now humming back to life under A.I.D.A.'s hand. The control deck is close." },
+  { id: 'reckoning', title: 'The Reckoning', check: (s) => (s.aidaSlain || 0) >= 1,
+    text: "A.I.D.A. falls. For a moment, the Lake is quiet — truly quiet — for the first time since you woke. It doesn't last." },
+  { id: 'endless', title: 'Endless Tide', check: (s) => (s.endlessReached || 0) >= 1,
+    text: "A.I.D.A. is gone, but the void she opened doesn't close on its own. You keep fighting — not because you were told to, but because the Lake is yours now." },
+];
+
 export const MAP_STAGES = [
   {
     id: 'lake', name: 'The Lake', icon: '🌊', color: '#4dc4ff',
@@ -475,6 +502,26 @@ export const MAP_STAGES = [
       { id: 'ship_1', name: 'Hangar Bay',   diff: 1, duration: 240, spawnMult: 1.4, enemyMix: ['brute','ranger'],           rwd: { gold: 800, sp: 2 },  unlockGoal: null },
       { id: 'ship_2', name: 'Command Deck', diff: 2, duration: 420, spawnMult: 1.8, enemyMix: ['brute','charger','necron'], rwd: { gold: 1600, sp: 5 }, unlockGoal: 'ship_1' },
       { id: 'ship_3', name: 'Core Override',diff: 3, duration: 600, spawnMult: 2.5, enemyMix: ['necron','charger','brute'], rwd: { gold: 3500, sp: 10 },unlockGoal: 'ship_2' },
+    ],
+  },
+  {
+    id: 'sky', name: 'Drowned Sky', icon: '⛈', color: '#ffe44d',
+    desc: "Storm-wracked ruins above the clouds. Lightning-touched fiends and swarms thrive in the charged air.",
+    unlock: { metric: 'aidaSlain', goal: 1, label: 'Defeat A.I.D.A.' },
+    nodes: [
+      { id: 'sky_1', name: 'Storm Deck',   diff: 1, duration: 240, spawnMult: 1.6, enemyMix: ['lightningbug','bat'],              rwd: { gold: 1200, sp: 3 }, unlockGoal: null },
+      { id: 'sky_2', name: 'Static Field', diff: 2, duration: 420, spawnMult: 2.0, enemyMix: ['lightningbug','nanoswarm','techsoldier'], rwd: { gold: 2400, sp: 6 }, unlockGoal: 'sky_1' },
+      { id: 'sky_3', name: 'Eye of Thunder', diff: 3, duration: 600, spawnMult: 2.6, enemyMix: ['techsoldier','steelbrute','lightningbug'], rwd: { gold: 4200, sp: 12 }, unlockGoal: 'sky_2' },
+    ],
+  },
+  {
+    id: 'deepcurrent', name: 'The Deep Current', icon: '🌀', color: '#4dffe0',
+    desc: "The void A.I.D.A. left behind never closed. Endless-mode veterans push deeper than anyone should.",
+    unlock: { metric: 'endlessReached', goal: 1, label: 'Reach Endless Mode' },
+    nodes: [
+      { id: 'deep_1', name: 'The Undertow',   diff: 1, duration: 300, spawnMult: 2.2, enemyMix: ['voidspawn','bonewalker','soulshard'], rwd: { gold: 2000, sp: 5 }, unlockGoal: null },
+      { id: 'deep_2', name: "Warden's Trench",diff: 2, duration: 480, spawnMult: 2.8, enemyMix: ['bonewalker','crystalite','swipeWarden'], rwd: { gold: 3800, sp: 10 }, unlockGoal: 'deep_1' },
+      { id: 'deep_3', name: 'The Last Current',diff: 3, duration: 660, spawnMult: 3.4, enemyMix: ['necron','steelbrute','voidspawn'], rwd: { gold: 6000, sp: 18 }, unlockGoal: 'deep_2' },
     ],
   },
 ];
