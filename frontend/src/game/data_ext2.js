@@ -299,6 +299,22 @@ export const ADVANCED_CARDS = [
   { id: 'c_secondWind',  icon: '🌬️', name: 'Second Wind',      desc: 'Once per run, dropping below 15% HP grants a shield + heal', flag: 'secondWind' },
   { id: 'c_gravityCharge', icon: '🌀', name: 'Gravity Charge', desc: 'Every 15 kills, pull all nearby foes toward you',          flag: 'gravityPull' },
   { id: 'c_venomBite',   icon: '☠️', name: 'Venom Bite',       desc: 'Foes that touch you get poisoned',                          flag: 'venomBite' },
+
+  // ─── Weapon-class passives ───────────────────────────────────────────
+  // Every offensive card used to be another flat global bump, so two runs
+  // ended up feeling the same regardless of what you picked. These scope to
+  // a weapon class instead, which means the cards you take start pulling the
+  // build in a direction: a manual-weapon run and an auto-weapon run now
+  // want different offers. `mult: true` means the amount accumulates into a
+  // multiplier (1.0 -> 1.14 -> 1.28 ...) rather than being added to a raw
+  // stat, so they can be re-offered and stack predictably. See
+  // computeWeaponStats for where they land.
+  { id: 'c_rifledBore',   icon: '🔫', name: 'Rifled Bore',      desc: '+14% damage with manual weapons',        stat: 'manualDmgMult',  amount: 0.14, mult: true },
+  { id: 'c_lightTrigger', icon: '⚡', name: 'Light Trigger',    desc: '+12% fire rate with manual weapons',     stat: 'manualRateMult', amount: 0.12, mult: true },
+  { id: 'c_extendedMag',  icon: '📦', name: 'Extended Mag',     desc: '+25% magazine on manual weapons',        stat: 'manualMagMult',  amount: 0.25, mult: true },
+  { id: 'c_autoLoader',   icon: '⚙️', name: 'Servo Loader',     desc: '+13% fire rate for auto weapons',        stat: 'autoRateMult',   amount: 0.13, mult: true },
+  { id: 'c_powerCore',    icon: '🔋', name: 'Power Core',       desc: '+15% damage for auto weapons',           stat: 'autoDmgMult',    amount: 0.15, mult: true },
+  { id: 'c_fieldCoils',   icon: '📡', name: 'Field Coils',      desc: '+18% area on auto weapons',              stat: 'autoAreaMult',   amount: 0.18, mult: true },
 ];
 
 // ---------- CAMP CARD SHOP POOL (slot-machine pulls) ----------

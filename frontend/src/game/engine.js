@@ -174,6 +174,16 @@ export class Game {
       stats: {
         damageMult: 1.0 + (this.meta.dmg || 0),
         fireRateMult: 1.0 + (this.meta.atks || 0),
+        // Weapon-class scoped multipliers. These let a level-up card say
+        // something specific ("+14% damage with manual weapons") instead of
+        // every offensive card being another flat global bump, which is what
+        // makes two runs feel different. Applied in computeWeaponStats.
+        manualDmgMult: 1.0,
+        manualRateMult: 1.0,
+        manualMagMult: 1.0,
+        autoDmgMult: 1.0,
+        autoRateMult: 1.0,
+        autoAreaMult: 1.0,
         moveMult: 1.0 + (this.meta.mspd || 0),
         maxHp: 50 + (this.meta.maxHp || 0),
         regen: (this.meta.regen || 0),
@@ -1369,6 +1379,20 @@ export class Game {
     if (forkId) {
       const fork = getWeaponForkChoices(w).find(f => f.id === forkId);
       if (fork) fork.apply(s);
+    }
+
+    // Weapon-class scoped multipliers from level-up cards. Applied last so a
+    // card that says "manual weapons" genuinely scopes to manual weapons,
+    // including anything a fork or mod already changed.
+    const rs = this.run.stats;
+    if (w.type === 'manual') {
+      if (rs.manualDmgMult !== 1) s.damage = (s.damage || 0) * rs.manualDmgMult;
+      if (rs.manualRateMult !== 1) s.fireRate = (s.fireRate || 0) * rs.manualRateMult;
+      if (rs.manualMagMult !== 1 && s.magazine) s.magazine = Math.ceil(s.magazine * rs.manualMagMult);
+    } else {
+      if (rs.autoDmgMult !== 1) s.damage = (s.damage || 0) * rs.autoDmgMult;
+      if (rs.autoRateMult !== 1) s.fireRate = (s.fireRate || 0) * rs.autoRateMult;
+      if (rs.autoAreaMult !== 1 && s.area) s.area = s.area * rs.autoAreaMult;
     }
     return s;
   }
@@ -3511,9 +3535,16 @@ export class Game {
         const rar = rollRarity(r.stats.luck + 1);
         pool.push({ kind: 'flag', flagId: ac.flag, icon: ac.icon, name: ac.name, desc: ac.desc, rarity: rar, amount: ac.amount });
       } else if (ac.stat) {
-        // Flat stat boost card (like ironHide: +armor)
+        // Stat card (flat like Iron Hide's +armor, or a multiplier like the
+        // weapon-class passives).
+        //
+        // This built the ref with `id:` while applyCardChoice reads `.stat`,
+        // so every one of these cards was writing to run.stats[undefined] and
+        // doing absolutely nothing — Iron Hide, Conductive Rounds and the
+        // rest have been dead picks. It also hardcoded mult:false, which
+        // would have silently flattened the multiplier cards too.
         const rar = rollRarity(r.stats.luck + 1);
-        const statRef = { id: ac.stat, amount: ac.amount, mult: false };
+        const statRef = { stat: ac.stat, amount: ac.amount, mult: !!ac.mult };
         pool.push({ kind: 'stat', statId: ac.id, statRef, icon: ac.icon, name: ac.name, desc: ac.desc, rarity: rar, multiplier: 1 });
       }
     }

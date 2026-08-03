@@ -364,9 +364,13 @@ canvas#game, canvas.starraid-canvas {
   100% { transform: scale(1); box-shadow: var(--pixel-edge), 0 4px 0 #000; }
 }
 .card-pop { animation: cardPop 0.5s cubic-bezier(0.34,1.56,0.64,1); }
+/* Cards deal in on an arc rather than sliding straight up: they start
+   tipped away and rotate flat as they land, which is what sells them as
+   physical cards on a table instead of rectangles fading in. */
 @keyframes cardIn {
-  from { opacity: 0; transform: translateY(40px) scale(0.9); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  0%   { opacity: 0; transform: translateY(56px) rotateX(48deg) scale(0.86); }
+  60%  { opacity: 1; transform: translateY(-6px) rotateX(-7deg) scale(1.03); }
+  100% { opacity: 1; transform: translateY(0) rotateX(0deg) scale(1); }
 }
 .levelup {
   display: flex; flex-direction: column; align-items: center;
@@ -382,7 +386,15 @@ canvas#game, canvas.starraid-canvas {
   letter-spacing: 0.3em;
   font-size: 18px;
 }
-.card-row { display: flex; gap: 18px; flex-wrap: wrap; justify-content: center; max-width: 1100px; width: 100%; }
+/* Shared perspective on the row so every card tips around the same vanishing
+   point — perspective set per-card would give each one its own, and the
+   deal-in would look like independent flat rotations. */
+.card-row {
+  display: flex; gap: 18px; flex-wrap: wrap; justify-content: center;
+  max-width: 1100px; width: 100%;
+  perspective: 1400px;
+  perspective-origin: 50% 30%;
+}
 /* Daily lucky spin wheel — simple radial slice layout + spin animation. */
 /* ── Daily spin wheel ────────────────────────────────────────────
    The face is rotated to a computed angle so the pointer lands on the
@@ -545,9 +557,45 @@ canvas#game, canvas.starraid-canvas {
   clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
 }
 .card:hover {
-  transform: translateY(-6px);
+  transform: translateY(-8px) rotateX(-4deg) scale(1.02);
   box-shadow: var(--pixel-edge), 0 18px 0 #000, 0 0 40px var(--rar);
 }
+.card:active { transform: translateY(-2px) scale(0.985); }
+
+/* Rarity aura — a soft wash of the rarity colour rising through the card,
+   breathing on its own timer. This is what makes a legendary read as
+   legendary from across the screen before you have read a word of it.
+   Kept INSIDE the card on purpose: .card is overflow:hidden for the shine
+   sweep, so anything bleeding past the edge would simply be clipped. */
+.card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse 120% 70% at 50% 22%, var(--rar) 0%, transparent 70%);
+  opacity: var(--aura, 0.10);
+  mix-blend-mode: screen;
+  animation: cardAura 2.6s ease-in-out infinite;
+}
+@keyframes cardAura {
+  0%, 100% { opacity: calc(var(--aura, 0.10) * 0.55); }
+  50%      { opacity: var(--aura, 0.10); }
+}
+/* Content sits above the aura — an absolutely positioned ::after paints
+   after its siblings, so at mythical strength it would otherwise wash the
+   name and description out. */
+.card-portrait, .card-type-badge, .card-lvl-dots, .card-name, .card-desc {
+  position: relative; z-index: 2;
+}
+/* These two are already absolutely positioned — only lift them, don't
+   re-declare position or they jump out of their corners. */
+.card-tag, .card-evo-badge { z-index: 2; }
+.card.r-common    { --aura: 0.05; }
+.card.r-uncommon  { --aura: 0.14; }
+.card.r-rare      { --aura: 0.22; }
+.card.r-epic      { --aura: 0.32; }
+.card.r-legendary { --aura: 0.42; }
+.card.r-mythical  { --aura: 0.55; }
 /* Pick "out" animation — the chosen card punches up and glows hard while
    the rest fade/slide away, instead of the whole modal just vanishing. */
 .card-chosen {
@@ -605,6 +653,17 @@ canvas#game, canvas.starraid-canvas {
 .card-name { font-family: 'Cinzel', serif; font-weight: 800; font-size: 18px; color: var(--ink); text-align: center; }
 .card-desc { font-family: 'VT323', monospace; font-size: 18px; color: var(--ink-dim); text-align: center; line-height: 1.2; }
 .card-desc b { color: var(--rar); font-weight: 700; }
+/* Signed stat deltas read at a glance: gains green, losses red. Unsigned
+   quantities keep the rarity tint so "3 projectiles" isn't mistaken for a
+   change of +3. */
+.card-desc b.sv-up {
+  color: #6dff9e;
+  text-shadow: 0 0 8px rgba(109,255,158,0.55);
+}
+.card-desc b.sv-down {
+  color: #ff6a7a;
+  text-shadow: 0 0 8px rgba(255,106,122,0.55);
+}
 .card-tag {
   position: absolute; top: -1px; left: -1px;
   background: var(--rar); color: #000;

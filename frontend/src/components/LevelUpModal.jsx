@@ -9,15 +9,21 @@ const TYPE_BADGE = {
   'stat': { icon: '📈', label: 'STAT BOOST' },
 };
 
-// Wrap numeric tokens (+25%, +3, etc.) in <b> so stat values pop in the
-// card's rarity color instead of blending into the description text.
+// Stat values are pulled out of the description and coloured by their sign,
+// so the gain or loss is readable at a glance instead of every number
+// rendering in the same rarity colour: explicitly signed values go green for
+// a gain and red for a loss, and unsigned numbers stay neutral rarity-tinted
+// so plain quantities ("3 projectiles") don't masquerade as deltas.
 function highlightDesc(desc) {
   return desc.split('\n').map((line, li) => (
     <React.Fragment key={li}>
       {li > 0 && <br />}
-      {line.split(/(\+?-?\d+(?:\.\d+)?%?)/g).map((part, i) => (
-        /\d/.test(part) ? <b key={i}>{part}</b> : part
-      ))}
+      {line.split(/([+-]\d+(?:\.\d+)?%?|\d+(?:\.\d+)?%?)/g).map((part, i) => {
+        if (!/\d/.test(part)) return part;
+        if (part.startsWith('+')) return <b key={i} className="sv-up">{part}</b>;
+        if (part.startsWith('-')) return <b key={i} className="sv-down">{part}</b>;
+        return <b key={i}>{part}</b>;
+      })}
     </React.Fragment>
   ));
 }
