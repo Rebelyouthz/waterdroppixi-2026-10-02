@@ -8,7 +8,7 @@ import GameScreen from './components/GameScreen';
 import StarRaidScreen from './components/StarRaidScreen';
 import MissionReveal from './components/MissionReveal';
 import PaywallModal from './components/PaywallModal';
-import { loadSave, saveLocal, syncSave, postRunResult, DEFAULT_SAVE, getPlayerId, addAccountXp } from './store';
+import { loadSave, saveLocal, syncSave, postRunResult, DEFAULT_SAVE, getPlayerId, addAccountXp, tickIdle } from './store';
 import { rollMissionRewards, MISSION_DEFS, CHALLENGES, ACHIEVEMENTS } from './game/data_ext2';
 import { AuthProvider, StripeReturnHandler, AuthCallback, useAuth } from './auth';
 import { Audio } from './game/audio';
@@ -61,6 +61,27 @@ function AppInner() {
     saveLocal(newSave);
     syncSave(newSave);
   };
+
+  // Settle every time-based system (patrol, incubator, and later the clicker)
+  // from one place, on load and then periodically. tickIdle returns the same
+  // reference when nothing moved, so this cannot loop.
+  useEffect(() => {
+    const settle = () => {
+      setSaveState(cur => {
+        const next = tickIdle(cur, Date.now());
+        if (next !== cur) saveLocal(next);
+        return next;
+      });
+    };
+    settle();
+    const t = setInterval(settle, 10000);
+    // Coming back from a backgrounded tab is exactly when a lot of offline
+    // time has just elapsed, so settle immediately rather than waiting out
+    // the interval.
+    const onVis = () => { if (!document.hidden) settle(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', onVis); };
+  }, []);
 
   const onRunEnd = (result, newSave, mission) => {
     const ns = { ...newSave };

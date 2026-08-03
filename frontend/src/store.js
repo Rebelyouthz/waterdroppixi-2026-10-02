@@ -93,6 +93,16 @@ export const DEFAULT_SAVE = {
   // Patrol missions
   patrol: { missions: [] },
   missionEnergy: 0,
+  // ---- Idle systems -------------------------------------------------------
+  // Everything time-based settles through tickIdle() below, which is the one
+  // place that decides how much time has passed. See docs/ROADMAP-modes.md.
+  lastTickMs: 0,
+  incubator: { slots: [] }, // [{ eggId, rarity, type, startMs, durMs, spentMs }]
+  incubatorSlots: 2,        // grows with the Incubator building
+  // New currencies (Astro Prospector). Kept to two on purpose — a currency
+  // nobody can name is a currency that does nothing.
+  cores: 0,
+  flux: 0,
 
   // ---- Fields below were read (with `||` fallbacks) by various panels but
   // never actually declared here — added for documentation/consistency
@@ -152,6 +162,14 @@ export function loadSave() {
     else s.battlePass = { ...(s.battlePass || {}), claimed: { free: [], premium: [], ...(bpClaimed || {}) } };
     s.weeklyQuests = { ...DEFAULT_SAVE.weeklyQuests, ...(s.weeklyQuests || {}) };
     s.dailySpin = { ...DEFAULT_SAVE.dailySpin, ...(s.dailySpin || {}) };
+    s.incubator = { slots: [], ...(s.incubator || {}) };
+    s.incubatorSlots = s.incubatorSlots || DEFAULT_SAVE.incubatorSlots;
+    s.cores = s.cores || 0;
+    s.flux = s.flux || 0;
+    // A save written before idle systems existed has no lastTickMs. Seeding it
+    // to "now" rather than 0 matters: an epoch-0 timestamp would look like
+    // decades of offline time and immediately pay out the full 8h cap.
+    if (!s.lastTickMs) s.lastTickMs = Date.now();
     // 'decoy' was retired in favour of 'steamvent'. Without this, an existing
     // save keeps a skill id the engine no longer knows: the slot renders as
     // "?" and pressing it silently does nothing.
@@ -168,6 +186,91 @@ export function loadSave() {
     }
     return s;
   } catch { return { ...DEFAULT_SAVE }; }
+}
+
+// ---- Idle settling ---------------------------------------------------------
+// One place decides how much time has passed, so every time-based system
+// agrees. Called on load and on an interval while the app is open.
+//
+// Offline accrual is capped: uncapped idle income makes actually playing
+// pointless, and it removes the payoff from setting the device clock forward.
+// Elapsed time is also clamped at zero, because a clock moved BACKWARDS would
+// otherwise hand out negative progress.
+export const IDLE_CAP_MS = 8 * 60 * 60 * 1000;
+
+export function idleElapsed(save, nowMs) {
+  const last = save.lastTickMs || nowMs;
+  return Math.max(0, Math.min(IDLE_CAP_MS, nowMs - last));
+}
+
+// Hatch durations by egg rarity. Ticks whether or not the game is open.
+export const INCUBATOR_MS = {
+  common: 15 * 60 * 1000,
+  uncommon: 20 * 60 * 1000,
+  rare: 30 * 60 * 1000,
+  epic: 45 * 60 * 1000,
+  legendary: 70 * 60 * 1000,
+  mythical: 100 * 60 * 1000,
+};
+
+// Remaining incubation for a slot, in ms. `spentMs` is time bought with
+// gold/gems, so speeding up and waiting are the same thing to this function.
+export function incubatorRemaining(slot, nowMs) {
+  if (!slot) return 0;
+  const elapsed = (nowMs - (slot.startMs || nowMs)) + (slot.spentMs || 0);
+  return Math.max(0, (slot.durMs || 0) - elapsed);
+}
+
+// Cost to finish a slot right now. Priced off remaining time, so a nearly-done
+// egg is nearly free — the point is to skip a wait, not to buy the pet.
+export function incubatorSpeedCost(slot, nowMs) {
+  const remMin = incubatorRemaining(slot, nowMs) / 60000;
+  if (remMin <= 0) return { gems: 0, gold: 0 };
+  return {
+    gems: Math.max(1, Math.ceil(remMin / 8)),
+    gold: Math.max(50, Math.ceil(remMin) * 90),
+  };
+}
+
+// Settles every idle system forward. Returns a NEW save when something
+// changed, or the same reference when nothing did — so callers can safely
+// `const ns = tickIdle(save, Date.now()); if (ns !== save) setSave(ns);`
+// without causing a render loop.
+export function tickIdle(save, nowMs = Date.now()) {
+  const now = nowMs;
+  let changed = false;
+  let s = save;
+  const touch = () => { if (!changed) { s = { ...save }; changed = true; } return s; };
+
+  // Patrol missions are already stored with absolute start/duration, so they
+  // settle simply by being re-evaluated against `now`.
+  const missions = save.patrol?.missions || [];
+  if (missions.some(m => m.status === 'active' && now - m.startMs >= m.durationMs)) {
+    const ns = touch();
+    ns.patrol = {
+      ...save.patrol,
+      missions: missions.map(m =>
+        (m.status === 'active' && now - m.startMs >= m.durationMs) ? { ...m, status: 'complete' } : m),
+    };
+  }
+
+  // Incubator slots mark themselves ready; the actual hatch is a deliberate
+  // player action (the three-tap crack), not something that happens while
+  // you are not looking.
+  const slots = save.incubator?.slots || [];
+  if (slots.some(sl => !sl.ready && incubatorRemaining(sl, now) <= 0)) {
+    const ns = touch();
+    ns.incubator = {
+      ...save.incubator,
+      slots: slots.map(sl => (!sl.ready && incubatorRemaining(sl, now) <= 0 ? { ...sl, ready: true } : sl)),
+    };
+  }
+
+  if (changed || !save.lastTickMs) {
+    const ns = touch();
+    ns.lastTickMs = now;
+  }
+  return s;
 }
 
 export function saveLocal(data) {

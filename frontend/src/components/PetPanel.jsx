@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Audio } from '../game/audio';
+import { INCUBATOR_MS, incubatorRemaining, incubatorSpeedCost } from '../store';
 
 // ─── Pet Definitions ─────────────────────────────────────────────────────────
 export const PET_TYPES = [
@@ -87,6 +88,14 @@ function mergeEggs(eggs, rarity, petType) {
 export default function PetPanel({ save, setSave, onClose }) {
   const [view, setView] = useState('my_pets'); // 'my_pets' | 'shop' | 'eggs' | 'breed'
   const [breedPair, setBreedPair] = useState([]); // up to 2 pet ids
+  // Drives the incubator countdowns. A second is fine — these are 15-100
+  // minute timers, and a faster tick would just re-render the panel for
+  // nothing.
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   const pets = save.pets || [];
   const eggs = save.petEggs || [];
@@ -131,7 +140,80 @@ export default function PetPanel({ save, setSave, onClose }) {
     Audio.levelUp(); Audio.claimPing();
   };
 
-  // ----- Hatch egg -----
+  // ----- Incubator -----
+  // Eggs no longer hatch on a tap. They go into an incubator slot, run down a
+  // rarity-scaled timer that keeps ticking while the game is closed (see
+  // tickIdle in store.js), and only then can be cracked open.
+  const incSlots = save.incubator?.slots || [];
+  const maxIncSlots = save.incubatorSlots || 2;
+
+  const incubate = (egg) => {
+    if (incSlots.length >= maxIncSlots) return;
+    const durMs = INCUBATOR_MS[egg.rarity] || INCUBATOR_MS.common;
+    const slot = {
+      eggId: egg.id, rarity: egg.rarity, type: egg.type,
+      startMs: Date.now(), durMs, spentMs: 0, ready: false,
+    };
+    setSave({
+      ...save,
+      petEggs: eggs.filter(e => e.id !== egg.id),
+      incubator: { ...save.incubator, slots: [...incSlots, slot] },
+    });
+    Audio.click();
+  };
+
+  const speedUp = (slot, kind) => {
+    const cost = incubatorSpeedCost(slot, now);
+    if (kind === 'gems' && (save.gems || 0) < cost.gems) return;
+    if (kind === 'gold' && (save.gold || 0) < cost.gold) return;
+    const ns = { ...save };
+    if (kind === 'gems') ns.gems = (save.gems || 0) - cost.gems;
+    else ns.gold = (save.gold || 0) - cost.gold;
+    // Buying time is recorded as spentMs rather than by rewriting startMs, so
+    // a partial speed-up and simply waiting are the same thing to the timer.
+    ns.incubator = {
+      ...save.incubator,
+      slots: incSlots.map(s2 => s2.eggId === slot.eggId
+        ? { ...s2, spentMs: (s2.spentMs || 0) + incubatorRemaining(s2, now), ready: true }
+        : s2),
+    };
+    setSave(ns);
+    Audio.claimPing();
+  };
+
+  // Three taps to crack the shell — the payoff moment, not a silent swap.
+  const [cracking, setCracking] = useState({});
+  const tapShell = (slot) => {
+    if (!slot.ready) return;
+    const n = (cracking[slot.eggId] || 0) + 1;
+    if (n < 3) {
+      setCracking({ ...cracking, [slot.eggId]: n });
+      Audio.click();
+      return;
+    }
+    setCracking(c => { const c2 = { ...c }; delete c2[slot.eggId]; return c2; });
+    hatchFromSlot(slot);
+  };
+
+  const hatchFromSlot = (slot) => {
+    const petDef = PET_TYPES.find(p => p.id === slot.type);
+    if (!petDef) return;
+    const newPet = {
+      id: Date.now() + '_' + Math.random().toString(36).slice(2),
+      type: slot.type, rarity: slot.rarity, level: 1, xp: 0,
+      stage: 'Newborn', active: pets.length === 0,
+      name: `${petDef.name} (${slot.rarity})`,
+    };
+    setSave({
+      ...save,
+      pets: [...pets, newPet],
+      incubator: { ...save.incubator, slots: incSlots.filter(s2 => s2.eggId !== slot.eggId) },
+    });
+    Audio.levelUp(); Audio.claimPing();
+  };
+
+  // ----- Hatch egg (legacy direct hatch, kept for any code path that still
+  // grants a pet straight from an egg) -----
   const hatchEgg = (egg) => {
     const petDef = PET_TYPES.find(p => p.id === egg.type);
     if (!petDef) return;
@@ -298,6 +380,56 @@ export default function PetPanel({ save, setSave, onClose }) {
           {/* ── EGGS ── */}
           {view === 'eggs' && (
             <>
+              {/* Incubator */}
+              <div className="inc-head">
+                <span>🔥 INCUBATOR</span>
+                <span className="inc-slots">{incSlots.length}/{maxIncSlots} slots</span>
+              </div>
+              <div className="inc-grid">
+                {Array.from({ length: maxIncSlots }).map((_, i) => {
+                  const slot = incSlots[i];
+                  if (!slot) {
+                    return <div key={`empty-${i}`} className="inc-slot inc-empty">
+                      <span className="inc-empty-mark">＋</span>
+                      <span className="inc-empty-txt">place an egg</span>
+                    </div>;
+                  }
+                  const def = PET_TYPES.find(p => p.id === slot.type);
+                  const rc = RARITY_COLORS[slot.rarity] || '#9a8fa6';
+                  const rem = incubatorRemaining(slot, now);
+                  const ready = slot.ready || rem <= 0;
+                  const pct = Math.max(0, Math.min(1, 1 - rem / (slot.durMs || 1)));
+                  const cost = incubatorSpeedCost(slot, now);
+                  const cracks = cracking[slot.eggId] || 0;
+                  const mm = Math.floor(rem / 60000), ss = Math.floor((rem % 60000) / 1000);
+                  return (
+                    <div key={slot.eggId} className={`inc-slot${ready ? ' is-ready' : ''}`} style={{ '--rc': rc }}>
+                      <div className={`inc-egg${ready ? ' ready' : ''} crack-${cracks}`}
+                           onClick={() => tapShell(slot)}
+                           data-testid={`inc-egg-${slot.eggId}`}>
+                        <span className="inc-egg-glyph">🥚</span>
+                        {ready && cracks > 0 && <span className="inc-crack-count">{3 - cracks} more</span>}
+                      </div>
+                      <div className="inc-name" style={{ color: rc }}>{def?.icon} {slot.rarity}</div>
+                      {ready ? (
+                        <div className="inc-ready-txt">TAP 3× TO CRACK</div>
+                      ) : (
+                        <>
+                          <div className="inc-bar"><div className="inc-fill" style={{ width: `${pct * 100}%` }} /></div>
+                          <div className="inc-time">{mm}m {ss.toString().padStart(2, '0')}s</div>
+                          <div className="inc-btns">
+                            <button className="inc-btn inc-gem" disabled={(save.gems || 0) < cost.gems}
+                                    onClick={() => speedUp(slot, 'gems')}>💎 {cost.gems}</button>
+                            <button className="inc-btn inc-gold" disabled={(save.gold || 0) < cost.gold}
+                                    onClick={() => speedUp(slot, 'gold')}>★ {cost.gold}</button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
               {eggs.length === 0 ? (
                 <div style={{ textAlign:'center', color:'var(--ink-dim)', fontFamily:'VT323', fontSize:16, padding:40 }}>
                   No eggs. Visit the SHOP to buy some!
@@ -305,7 +437,7 @@ export default function PetPanel({ save, setSave, onClose }) {
               ) : (
                 <>
                   <div style={{ fontFamily:'VT323', color:'var(--ink-dim)', fontSize:14, marginBottom:12 }}>
-                    Click to hatch. Merge 3 of same rarity → higher rarity!
+                    Tap an egg to put it in the incubator. Merge 3 of same rarity → higher rarity!
                   </div>
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(130px,1fr))', gap:8 }}>
                     {eggs.map(egg => {
@@ -315,11 +447,13 @@ export default function PetPanel({ save, setSave, onClose }) {
                       return (
                         <div key={egg.id} data-testid={`egg-${egg.id}`}
                           style={{ background:'#0a0520', border:`1px solid ${rc}`, borderRadius:6, padding:10, textAlign:'center', cursor:'pointer' }}
-                          onClick={() => hatchEgg(egg)}>
+                          onClick={() => incubate(egg)}>
                           <div style={{ fontSize:30 }}>🥚</div>
                           <div style={{ fontFamily:'VT323', fontSize:13, color:rc }}>{egg.rarity}</div>
                           <div style={{ fontFamily:'VT323', fontSize:12, color:'var(--ink-dim)' }}>{def?.icon} {def?.name}</div>
-                          <div style={{ fontFamily:'VT323', fontSize:11, color:'#4dffd4', marginTop:4 }}>TAP TO HATCH</div>
+                          <div style={{ fontFamily:'VT323', fontSize:11, color: incSlots.length >= maxIncSlots ? '#7a6a8a' : '#4dffd4', marginTop:4 }}>
+                            {incSlots.length >= maxIncSlots ? 'INCUBATOR FULL' : `INCUBATE · ${Math.round((INCUBATOR_MS[egg.rarity] || INCUBATOR_MS.common) / 60000)}m`}
+                          </div>
                           {sameTypeEggs.length >= 3 && (
                             <button onClick={(e) => { e.stopPropagation(); doMerge(egg.rarity, egg.type); }}
                               style={{ marginTop:4, fontFamily:'VT323', fontSize:11, padding:'2px 8px',
