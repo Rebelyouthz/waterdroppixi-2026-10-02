@@ -754,16 +754,18 @@ void main() {
     const cy = Number.isFinite(game.cam.y) ? game.cam.y : (this._lastCamY || 0);
     this._lastCamX = cx; this._lastCamY = cy;
 
-    // FAR: planets & moons (parallax 0.006 — reads as a fixed backdrop, only
-    // drifting a little even over a long pan, instead of visibly "following").
-    // 0.035 originally tracked the camera too closely ("follows the
-    // image"); 0.006 over-corrected the other way — with such a tiny
-    // factor the hero moon/planet/star barely move at all during a normal
-    // play session and read as glued to one spot on screen instead of a
-    // background that can drift and eventually leave frame. 0.018 is the
-    // middle ground: visibly drifts as the camera travels, but still much
-    // slower than the foreground world.
-    const farF = 0.018, fx = cx * farF, fy = cy * farF;
+    // FAR: planets & moons. The real bug behind every earlier attempt at
+    // this ("follows the image", "stuck to the edge") turned out to be the
+    // hero bodies' fixed local position (see below) being placed at extreme
+    // corner offsets (e.g. W*0.30, -H*0.24 — literally above/beside the
+    // frame on anything but a very wide desktop viewport), not the parallax
+    // speed itself — on a phone-width screen almost the whole body sat
+    // off-frame with just an edge poking in, which reads exactly like
+    // "riding along the side" no matter how slow or fast it drifts. Fixed
+    // both: bodies now sit at safely-inside-frame fractions, and 0.03 gives
+    // real, visible drift over a normal play session (not the 0.006-0.018
+    // range tried earlier, which was correcting the wrong variable).
+    const farF = 0.03, fx = cx * farF, fy = cy * farF;
     if (!this._farCache || Math.abs(fx - this._farCache.x) > 140 || Math.abs(fy - this._farCache.y) > 140) {
       this._farCache = { x: fx, y: fy };
       const g = this.gDeepFar; g.clear();
@@ -803,7 +805,9 @@ void main() {
     if (!this._heroBodiesDrawn) {
       this._heroBodiesDrawn = true;
       const g = this.gDeepHero;
-      const heroMoonX = W * 0.30, heroMoonY = -H * 0.24;
+      // Kept well inside [0.15, 0.85] of frame on both axes so they're fully
+      // visible on a narrow phone viewport too, not just a wide desktop one.
+      const heroMoonX = W * 0.72, heroMoonY = H * 0.22;
       g.circle(heroMoonX, heroMoonY, 150).fill({ color: '#cfd9e6', alpha: 0.05 });
       g.circle(heroMoonX, heroMoonY, 92).fill('#8a9199');
       // Sunlit-side highlight toned way down — this used to read as a bright
@@ -815,7 +819,7 @@ void main() {
       g.circle(heroMoonX + 4, heroMoonY + 48, 8).fill({ color: '#9aa4b2', alpha: 0.55 });
       g.circle(heroMoonX - 40, heroMoonY - 4, 7).fill({ color: '#a6b0be', alpha: 0.5 });
 
-      const heroPlanetX = -W * 0.26, heroPlanetY = H * 0.30;
+      const heroPlanetX = W * 0.22, heroPlanetY = H * 0.68;
       const pR = 128;
       g.circle(heroPlanetX, heroPlanetY, pR * 1.5).fill({ color: '#ffb066', alpha: 0.05 });
       g.ellipse(heroPlanetX, heroPlanetY, pR * 1.9, pR * 0.5).stroke({ width: 6, color: '#d9a35a', alpha: 0.5 });
@@ -831,7 +835,7 @@ void main() {
       g.circle(heroPlanetX - pR * 0.3, heroPlanetY - pR * 0.3, pR * 0.5).fill({ color: '#ffd9a0', alpha: 0.14 });
       g.circle(heroPlanetX + pR * 0.35, heroPlanetY + pR * 0.28, pR * 0.65).fill({ color: '#3a1c08', alpha: 0.4 });
 
-      const heroStarX = W * 0.68, heroStarY = H * 0.14;
+      const heroStarX = W * 0.45, heroStarY = H * 0.42;
       for (let ri = 5; ri >= 1; ri--) g.circle(heroStarX, heroStarY, ri * 26).fill({ color: '#fff0c0', alpha: 0.05 });
       g.circle(heroStarX, heroStarY, 22).fill('#fff8e0');
       g.circle(heroStarX, heroStarY, 12).fill('#ffffff');
@@ -841,9 +845,11 @@ void main() {
           .stroke({ width: 2, color: '#fff8e0', alpha: 0.4 });
       }
     }
-    // Slightly slower than the grid layer (0.014 vs 0.018) so the guaranteed
-    // hero bodies read as even further away than the procedural planets.
-    this.gDeepHero.position.set(-cx * 0.014, -cy * 0.014);
+    // Slightly slower than the grid layer (0.024 vs 0.03) so the guaranteed
+    // hero bodies read as marginally further away than the procedural
+    // planets, while still drifting fast enough to visibly cross the
+    // screen and exit frame within a normal play session.
+    this.gDeepHero.position.set(-cx * 0.024, -cy * 0.024);
 
     // MID: galaxy spiral arms + soft nebula clouds (parallax 0.07)
     const midF = 0.07, mx = cx * midF, my = cy * midF;
