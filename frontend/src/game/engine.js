@@ -166,6 +166,9 @@ export class Game {
     this.bossesKilled = 0;
     this._aidaKilled = false;
     this._endlessAnnounced = false;
+    // Enemy tier escalation — tier N activates the instant boss N-1 dies, and
+    // keeps climbing forever for a long endless run (see spawnEnemy/killBoss).
+    this._tierBannerT = 0;
     // Boss guide-arrow state
     this._bossArrowWasOffscreen = false;
     this._bossArrowLast = null;
@@ -434,6 +437,8 @@ export class Game {
       challenge: this.challenge,
       aidaKilled: this._aidaKilled,
       endless: this._endlessAnnounced,
+      enemyTier: this.bossesKilled + 1,
+      tierBannerT: this._tierBannerT || 0,
       necroKilled: this._necroKilled,
       voidKilled:  this._voidKilled,
       horusKilled: this._horusKilled,
@@ -515,6 +520,7 @@ export class Game {
     this._levelUpFlash   = Math.max(0, this._levelUpFlash - dt * 4);
     this._levelUpTextTimer = Math.max(0, (this._levelUpTextTimer || 0) - dt);
     this._lightningFlash = Math.max(0, (this._lightningFlash || 0) - dt * 6);
+    this._tierBannerT = Math.max(0, (this._tierBannerT || 0) - dt);
 
     // Passing sky objects (meteors / UFOs) — decorative, and real light casters
     this._nextSkyEventAt -= dt;
@@ -1359,7 +1365,15 @@ export class Game {
     const scale = 1 + this.run.time / 240; // gradual scale
     e.dmgMult = 1 + this.bossesKilled * 2.0; // ~3x after boss 1, scales hard
     if (SQUARE_ENEMY_TYPES.has(typeId)) e.dmgMult *= 2.5; // brute/charger/necron/steelbrute hit harder
-    e.maxHp = Math.floor(t.hp * scale * 3);
+    // Tier escalation (task: T1..T5+, one boss kill = one tier up, keeps
+    // climbing indefinitely for a long endless). Speed/HP grow WITH the
+    // existing damage/time scaling above rather than replacing it, and the
+    // per-tier steps are deliberately mild (12%/25%) since dmgMult already
+    // scales hard — stacking two harsh curves would make the game unplayable
+    // past tier 3, which contradicts "never so strong you can facetank it".
+    e.tier = this.bossesKilled + 1;
+    e.speedMult = 1 + this.bossesKilled * 0.12;
+    e.maxHp = Math.floor(t.hp * scale * 3 * (1 + this.bossesKilled * 0.25));
     e.hp = e.maxHp;
     e.hit = 0; e.cd = 0; e.dz = 0;
     e.kbX = 0; e.kbY = 0;
@@ -1499,7 +1513,7 @@ export class Game {
       const dx = p.x - e.x, dy = p.y - e.y;
       const d = Math.hypot(dx, dy) || 1;
       const nx = dx / d, ny = dy / d;
-      let spd = t.speed * slowMul * (e._slowT > 0 ? (e._slowMult || 1) : 1);
+      let spd = t.speed * slowMul * (e._slowT > 0 ? (e._slowMult || 1) : 1) * (e.speedMult || 1);
       if (t.ai === 'ranged') {
         if (d < (t.shootRange || 320) - 50) spd = -spd * 0.6;
         else if (d < (t.shootRange || 320) + 20) spd = 0;
@@ -1982,6 +1996,7 @@ export class Game {
       this._pendingGearDrop = { timeInRun: this.run.time, boss: true };
       this.cam.shake = 18; this.cam.slowmo = 0.5;
       this.bossesKilled += 1; this.bossActive = null;
+      this._tierBannerT = 3.4; // "TIER N NOW ACTIVATED" banner, see snapshot()/HUD
       // Massive boss death rings
       this.spawnRing(e.x, e.y, 240, '#ff7a1a', 0.8);
       this.spawnRing(e.x, e.y, 160, '#ffd166', 0.6);

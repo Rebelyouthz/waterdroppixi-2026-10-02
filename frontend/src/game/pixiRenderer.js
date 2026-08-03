@@ -192,6 +192,9 @@ export class PixiRenderer {
 
     this.dmgTextContainer = new Container(); this.world.addChild(this.dmgTextContainer);
     this._dmgTextPool = [];
+    // Enemy tier tags ("T2", "T3"...) — tiny label under each tier>=2 enemy.
+    this.tierTagContainer = new Container(); this.world.addChild(this.tierTagContainer);
+    this._tierTagPool = [];
     this.levelUpText = new Text({ text: 'LEVEL UP!', style: this._textStyle(24, '#9fd8ff', '#06121e', 5) });
     this.levelUpText.anchor.set(0.5); this.levelUpText.visible = false; this.world.addChild(this.levelUpText);
 
@@ -471,6 +474,7 @@ void main() {
     this._drawDockStation(game);
     this._drawGems(game);
     this._drawEnemies(game);
+    this._drawEnemyTierTags(game);
     this._drawPlayer(game);
     if (game.pet) this._drawPet(game);
     this._drawProjectiles(game);
@@ -1224,6 +1228,28 @@ void main() {
       case 'nanoswarm': { const pts = []; for (let i = 0; i < 12; i++) { const a = (i / 12) * TAU; const r = s * (0.35 + (i % 3) * 0.12); pts.push(x + Math.cos(a) * r, y + Math.sin(a) * r); } return { poly: pts }; }
       default: return { circle: [x, y, s * 0.5] };
     }
+  }
+
+  // Tier tags ("T2"/"T3"...) — only drawn once tier >= 2 so a fresh run's
+  // opening minutes look untouched. Pooled Text objects (see constructor),
+  // same convention as _drawDamageNumbers, so this never allocates per-frame.
+  _drawEnemyTierTags(game) {
+    let idx = 0;
+    game.enemies.forEach(e => {
+      if (!e.tier || e.tier < 2) return;
+      let txt = this._tierTagPool[idx];
+      if (!txt) {
+        txt = new Text({ text: '', style: this._textStyle(8, '#ff3146', '#1a0206', 3) });
+        txt.anchor.set(0.5);
+        this.tierTagContainer.addChild(txt);
+        this._tierTagPool[idx] = txt;
+      }
+      txt.visible = true;
+      txt.text = 'T' + e.tier;
+      txt.position.set(e.x, e.y - e.t.size * 0.7);
+      idx++;
+    });
+    for (let i = idx; i < this._tierTagPool.length; i++) this._tierTagPool[i].visible = false;
   }
 
   _paintShape(g, shape, fillColor, strokeStyle) {

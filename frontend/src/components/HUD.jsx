@@ -137,6 +137,14 @@ export default function HUD({ snap, onActiveSkill, isTutorial }) {
         </div>
       )}
 
+      {/* Tier escalation banner — fires once per boss kill, see engine.js _tierBannerT */}
+      {snap.tierBannerT > 0 && (
+        <div className="tier-banner" style={{ opacity: Math.min(1, snap.tierBannerT) }} data-testid="tier-banner">
+          <div className="tier-banner-num">TIER {snap.enemyTier}</div>
+          <div className="tier-banner-sub">NOW ACTIVATED — enemies level up. It's getting harder. Be ready.</div>
+        </div>
+      )}
+
       {/* Tutorial banner */}
       {isTutorial && (
         <div style={{
