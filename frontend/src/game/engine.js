@@ -2349,9 +2349,16 @@ export class Game {
     const finalBlood = e._lastHitColor || t.color;
     this.spawnBrutalKill(e.x, e.y, finalBlood, t.size, fx);
     Audio.kill();
-    // Big pooling blood splat right where the body fell — grows in visually
-    // via the renderer, distinct from the smaller per-hit wound decals.
-    this.pushBloodDecal({ x: e.x, y: e.y, r: t.size * 0.85, a: 0.55, bornAt: this.time, color: finalBlood });
+    // Ground mark where the body fell — was a body-sized (0.85x) flat pool
+    // that read as "the enemy went flat and is lying here", which the user
+    // explicitly disliked ("de gillar ja inte") in favor of the body just
+    // breaking into pieces (spawnBrutalKill's particles) and being gone.
+    // Kept much smaller (a modest splash, not a silhouette-sized stain), and
+    // skipped entirely for FX types that shouldn't leave a blood pool at all
+    // (crystal shatter / dust decay / metal spark burst).
+    if (fx !== 'crystallize' && fx !== 'decay' && fx !== 'sparkExplode') {
+      this.pushBloodDecal({ x: e.x, y: e.y, r: t.size * 0.3, a: 0.4, bornAt: this.time, color: finalBlood });
+    }
     // drop XP gem
     const gm = this.gems.acquire();
     gm.x = e.x; gm.y = e.y; gm.t = 0;

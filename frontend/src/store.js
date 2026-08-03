@@ -1,6 +1,6 @@
 // Extended save store with profile, skills, equipment, quests, daily streak.
 import axios from 'axios';
-import { dailyQuests, accountXpToNext } from './game/data_ext';
+import { dailyQuests, accountXpToNext, weeklyQuests, weekIdx } from './game/data_ext';
 
 const KEY = 'wds.save.v1';
 const PID_KEY = 'wds.player_id';
@@ -85,8 +85,12 @@ export const DEFAULT_SAVE = {
   gearEquipped:  {}, // { helmet: itemId, chest: itemId, ... }
   // Codex
   codex: { enemies: {}, weapons: {}, claimedDiscoveries: [] },
-  // Battle Pass
-  battlePass: { claimed: [] },
+  // Battle Pass — 2 tracks (free + premium, both unlocked, no payment gate)
+  battlePass: { claimed: { free: [], premium: [] } },
+  // Weekly quests (separate from the existing daily `quests`)
+  weeklyQuests: { week: 0, completed: {}, claimed: {} },
+  // Daily lucky spin wheel (separate from the 7-day DAILY_REWARDS login streak)
+  dailySpin: { day: 0, spun: false },
   // Patrol missions
   patrol: { missions: [] },
 };
@@ -120,6 +124,12 @@ export function loadSave() {
     s.pets = s.pets || [];
     s.petEggs = s.petEggs || [];
     if (s.tutorialDone === undefined) s.tutorialDone = false;
+    // Battle Pass: migrate the old flat claimed-array shape to {free,premium}
+    const bpClaimed = s.battlePass?.claimed;
+    if (Array.isArray(bpClaimed)) s.battlePass = { claimed: { free: bpClaimed, premium: [] } };
+    else s.battlePass = { ...(s.battlePass || {}), claimed: { free: [], premium: [], ...(bpClaimed || {}) } };
+    s.weeklyQuests = { ...DEFAULT_SAVE.weeklyQuests, ...(s.weeklyQuests || {}) };
+    s.dailySpin = { ...DEFAULT_SAVE.dailySpin, ...(s.dailySpin || {}) };
     return s;
   } catch { return { ...DEFAULT_SAVE }; }
 }
@@ -160,6 +170,14 @@ export function ensureDailyQuests(save) {
     save.quests = { day, completed: {}, claimed: {} };
   }
   return dailyQuests(day);
+}
+
+export function ensureWeeklyQuests(save) {
+  const week = weekIdx();
+  if (save.weeklyQuests.week !== week) {
+    save.weeklyQuests = { week, completed: {}, claimed: {} };
+  }
+  return weeklyQuests(week);
 }
 
 export function addAccountXp(save, amount) {

@@ -75,6 +75,16 @@ function AppInner() {
     if (result.maxCombo) { bump('q_combo_50', result.maxCombo); }
     // runs quest: count today's completed runs
     ns.quests.completed['q_runs_3'] = (ns.quests.completed['q_runs_3'] || 0) + 1;
+
+    // Weekly quests accumulate (sum) across runs all week, unlike daily
+    // quests above (which track the best single run via Math.max).
+    ns.weeklyQuests = { ...ns.weeklyQuests, completed: { ...ns.weeklyQuests.completed } };
+    const wsum = (id, v) => { const q = ns.weeklyQuests.completed; q[id] = (q[id] || 0) + v; };
+    wsum('wq_runs_15', 1);
+    wsum('wq_kills_1000', result.kills || 0);
+    wsum('wq_boss_5', result.victory ? 1 : 0);
+    wsum('wq_lvl_100', result.level || 0);
+    wsum('wq_gold_5000', result.gold || 0);
     if (result.victory && mission && mission.id && mission.id.startsWith('m_')) {
       // Mission success — roll rewards
       const md = MISSION_DEFS.find(m => m.id === mission.id);

@@ -190,8 +190,13 @@ function rwd_preview(def, mult = 1) {
   return ' — ' + parts.join(', ');
 }
 
-// ─── BATTLE PASS ─────────────────────────────────────────
-const BP_REWARDS = Array.from({ length: 40 }, (_, i) => {
+// ─── BATTLE PASS (2 tracks: Free + Premium) ─────────────────────────────
+// The game has no real payment gate (Stripe/login bypassed — see App.js),
+// so "owning the pass" isn't a purchase state here: both tracks are always
+// unlocked, matching the spirit of "bought the game -> both sides".
+// Premium carries the pet-focused rewards, per the explicit ask to keep
+// pet stuff on one side only.
+const BP_REWARDS_FREE = Array.from({ length: 40 }, (_, i) => {
   const n = i + 1;
   if (n % 20 === 0) return { type:'gem',    amount:20,          icon:'💎', label:`${20} Gems` };
   if (n % 10 === 0) return { type:'shard',  amount:1,           icon:'🔮', label:`Shard` };
@@ -201,42 +206,54 @@ const BP_REWARDS = Array.from({ length: 40 }, (_, i) => {
   if (n % 2  === 0) return { type:'talent', amount:5,           icon:'◆',  label:`5 TP` };
   return              { type:'gold',   amount:200+n*20,    icon:'💰', label:`${200+n*20}★` };
 });
+const BP_REWARDS_PREMIUM = Array.from({ length: 40 }, (_, i) => {
+  const n = i + 1;
+  if (n % 20 === 0) return { type:'gem',     amount:50,           icon:'💎', label:`${50} Gems` };
+  if (n % 10 === 0) return { type:'petEgg',  amount:1,            icon:'🥚', label:`Pet Egg` };
+  if (n % 5  === 0) return { type:'petFood', amount:8,            icon:'🍖', label:`8 Pet Food` };
+  if (n % 4  === 0) return { type:'gold',    amount:900+n*70,     icon:'💰', label:`${900+n*70}★` };
+  if (n % 3  === 0) return { type:'gem',     amount:12,           icon:'💎', label:`12 Gems` };
+  if (n % 2  === 0) return { type:'talent',  amount:10,           icon:'◆',  label:`10 TP` };
+  return               { type:'petFood', amount:4,            icon:'🍖', label:`4 Pet Food` };
+});
 const XP_PER_NODE = 200;
 
+function claimBpNode(save, setSave, track, i, reachedNode) {
+  const claimedObj = save.battlePass?.claimed && !Array.isArray(save.battlePass.claimed)
+    ? save.battlePass.claimed : { free: Array.isArray(save.battlePass?.claimed) ? save.battlePass.claimed : [], premium: [] };
+  const claimed = claimedObj[track] || [];
+  if (i > reachedNode || claimed.includes(i)) return;
+  const rwd = (track === 'premium' ? BP_REWARDS_PREMIUM : BP_REWARDS_FREE)[i];
+  let ns = { ...save, battlePass: { claimed: { ...claimedObj, [track]: [...claimed, i] } } };
+  if (rwd.type === 'gold')    ns.gold         = (ns.gold         || 0) + rwd.amount;
+  if (rwd.type === 'gem')     ns.gems         = (ns.gems         || 0) + rwd.amount;
+  if (rwd.type === 'slot')    ns.slotCoins    = (ns.slotCoins    || 0) + rwd.amount;
+  if (rwd.type === 'talent')  ns.talentPoints = (ns.talentPoints || 0) + rwd.amount;
+  if (rwd.type === 'shard')   ns.character    = { ...ns.character, shards: (ns.character?.shards || 0) + rwd.amount };
+  if (rwd.type === 'petFood') ns.petFood      = (ns.petFood      || 0) + rwd.amount;
+  if (rwd.type === 'petEgg')  ns.petEggs      = [...(ns.petEggs || []), { rarity: 'common', type: 'aquaSprite' }];
+  setSave(ns);
+}
+
 export function BattlePassPanel({ save, setSave }) {
-  const claimed     = save.battlePass?.claimed || [];
+  const rawClaimed = save.battlePass?.claimed;
+  const claimedObj = rawClaimed && !Array.isArray(rawClaimed) ? rawClaimed : { free: Array.isArray(rawClaimed) ? rawClaimed : [], premium: [] };
   const profileXp   = save.profile?.xp || 0;
   const reachedNode = Math.floor(profileXp / XP_PER_NODE);
-  const unclaimed   = BP_REWARDS.filter((_, i) => i <= reachedNode && !claimed.includes(i)).length;
+  const unclaimedFree    = BP_REWARDS_FREE.filter((_, i) => i <= reachedNode && !(claimedObj.free || []).includes(i)).length;
+  const unclaimedPremium = BP_REWARDS_PREMIUM.filter((_, i) => i <= reachedNode && !(claimedObj.premium || []).includes(i)).length;
 
-  const claim = (i) => {
-    if (i > reachedNode || claimed.includes(i)) return;
-    const rwd = BP_REWARDS[i];
-    let ns = { ...save, battlePass: { claimed: [...claimed, i] } };
-    if (rwd.type === 'gold')   ns.gold         = (ns.gold         || 0) + rwd.amount;
-    if (rwd.type === 'gem')    ns.gems         = (ns.gems         || 0) + rwd.amount;
-    if (rwd.type === 'slot')   ns.slotCoins    = (ns.slotCoins    || 0) + rwd.amount;
-    if (rwd.type === 'talent') ns.talentPoints = (ns.talentPoints || 0) + rwd.amount;
-    if (rwd.type === 'shard')  ns.character    = { ...ns.character, shards: (ns.character?.shards || 0) + rwd.amount };
-    setSave(ns);
-  };
-
-  return (
-    <div className="bp-panel" data-testid="bp-panel">
-      <div className="bp-header">
-        <span className="bp-title">SEASON PASS</span>
-        <span className="bp-progress">XP: {profileXp} / {40 * XP_PER_NODE}</span>
-        {unclaimed > 0 && <span className="bp-unclaimed">{unclaimed} rewards ready!</span>}
-      </div>
-      <div className="bp-desc">Earn XP from runs. Each {XP_PER_NODE} XP = 1 reward node.</div>
-      <div className="bp-track" data-testid="bp-track">
-        {BP_REWARDS.map((rwd, i) => {
+  const renderTrack = (track, rewards, claimedList, label, accentClass) => (
+    <div className={`bp-track-wrap ${accentClass}`}>
+      <div className="bp-track-label">{label}</div>
+      <div className="bp-track" data-testid={`bp-track-${track}`}>
+        {rewards.map((rwd, i) => {
           const reached   = i <= reachedNode;
-          const isClaimed = claimed.includes(i);
+          const isClaimed = claimedList.includes(i);
           const canClaim  = reached && !isClaimed;
           return (
             <div key={i} className={`bp-node ${reached?'reached':''} ${isClaimed?'claimed':''} ${canClaim?'claimable':''}`}
-              onClick={() => canClaim && claim(i)} data-testid={`bp-node-${i}`}>
+              onClick={() => canClaim && claimBpNode(save, setSave, track, i, reachedNode)} data-testid={`bp-node-${track}-${i}`}>
               <span className="bp-node-icon">{rwd.icon}</span>
               <span className="bp-node-label">{rwd.label}</span>
               {isClaimed && <span className="bp-check">✓</span>}
@@ -246,6 +263,19 @@ export function BattlePassPanel({ save, setSave }) {
           );
         })}
       </div>
+    </div>
+  );
+
+  return (
+    <div className="bp-panel" data-testid="bp-panel">
+      <div className="bp-header">
+        <span className="bp-title">SEASON PASS</span>
+        <span className="bp-progress">XP: {profileXp} / {40 * XP_PER_NODE}</span>
+        {(unclaimedFree + unclaimedPremium) > 0 && <span className="bp-unclaimed">{unclaimedFree + unclaimedPremium} rewards ready!</span>}
+      </div>
+      <div className="bp-desc">Earn XP from runs. Each {XP_PER_NODE} XP = 1 reward node — both tracks unlocked.</div>
+      {renderTrack('premium', BP_REWARDS_PREMIUM, claimedObj.premium || [], '✨ PREMIUM (pet rewards)', 'bp-premium')}
+      {renderTrack('free', BP_REWARDS_FREE, claimedObj.free || [], 'FREE', 'bp-free')}
     </div>
   );
 }

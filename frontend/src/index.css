@@ -383,6 +383,32 @@ canvas#game, canvas.starraid-canvas {
   font-size: 18px;
 }
 .card-row { display: flex; gap: 18px; flex-wrap: wrap; justify-content: center; max-width: 1100px; width: 100%; }
+/* Daily lucky spin wheel — simple radial slice layout + spin animation. */
+.spin-wheel {
+  position: relative; width: 140px; height: 140px; margin: 8px auto;
+  border-radius: 50%; border: 3px solid #ffd166;
+  background: radial-gradient(circle, #1a1228 0%, #0a0612 80%);
+  box-shadow: 0 0 20px #ffd16655;
+  transition: transform 0.9s cubic-bezier(.2,.8,.2,1);
+}
+.spin-wheel.spinning { transform: rotate(1080deg); }
+.spin-slice {
+  position: absolute; inset: 0; display: flex; justify-content: center;
+  pointer-events: none;
+}
+.spin-slice-icon { margin-top: 6px; font-size: 16px; filter: drop-shadow(0 0 3px #000); }
+.spin-wheel-hub {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: 34px; height: 34px; border-radius: 50%;
+  background: #0a0612; border: 2px solid #ffd166; display: flex; align-items: center; justify-content: center;
+  font-size: 16px; box-shadow: 0 0 10px #ffd16688;
+}
+.spin-result {
+  margin-top: 8px; text-align: center; font-family: 'VT323', monospace;
+  color: #ffd166; font-size: 14px; letter-spacing: 0.05em;
+  animation: tierBannerIn 0.4s ease both;
+}
+
 /* Tier escalation banner — big center-screen callout, fires once per boss kill. */
 .tier-banner {
   position: fixed; top: 22%; left: 50%; transform: translateX(-50%);
@@ -3085,6 +3111,14 @@ canvas#game, canvas.starraid-canvas {
   animation: attrPulse 1.4s ease-in-out infinite;
 }
 .bp-desc { font-size:10px; color:#4a3a6e; margin-bottom:14px; letter-spacing:.1em; }
+.bp-track-wrap { margin-bottom: 10px; }
+.bp-track-label {
+  font-family: 'VT323', monospace; font-size: 12px; letter-spacing: 0.2em;
+  margin-bottom: 4px; color: #ffd166;
+}
+.bp-premium .bp-track-label { color: #ffd700; text-shadow: 0 0 8px #ffd70066; }
+.bp-premium .bp-node { border-color: #ffd70044; }
+.bp-free .bp-track-label { color: #8a8a9a; }
 .bp-track {
   display:flex; gap:6px; overflow-x:auto; padding:10px 0 16px;
   flex-wrap:nowrap; scrollbar-width:thin; scrollbar-color:#2a1a4e #050010;

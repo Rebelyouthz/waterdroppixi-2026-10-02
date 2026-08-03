@@ -384,6 +384,50 @@ export function dailyQuests(daySeed) {
   return chosen.map((i, k) => ({ ...QUEST_POOL[i % QUEST_POOL.length], slot: k }));
 }
 
+// ---------- WEEKLY QUESTS (bigger goals, bigger rewards, reset weekly) ----------
+export const WEEKLY_QUEST_POOL = [
+  { id: 'wq_runs_15',   icon: '🔄', name: 'Weekly Grind',    desc: 'Complete 15 runs this week',        goal: 15,   type: 'weekRuns',  reward: { gold: 2000, gems: 5 } },
+  { id: 'wq_kills_1000',icon: '☠️', name: 'Thousand Cuts',   desc: 'Get 1000 kills this week',           goal: 1000, type: 'weekKills', reward: { gold: 2500, slotCoins: 3 } },
+  { id: 'wq_boss_5',    icon: '👑', name: 'Boss Hunter',     desc: 'Defeat 5 bosses this week',          goal: 5,    type: 'weekBosses',reward: { gold: 1800, gems: 4 } },
+  { id: 'wq_lvl_100',   icon: '⭐', name: 'Century Climb',   desc: 'Gain 100 character levels this week',goal: 100,  type: 'weekLevels',reward: { gold: 2200, talentPoints: 3 } },
+  { id: 'wq_gold_5000', icon: '💰', name: 'Fortune Week',    desc: 'Collect 5000 gold this week',        goal: 5000, type: 'weekGold',  reward: { gold: 1000, gems: 5, petFood: 5 } },
+];
+
+export function weekIdx() { return Math.floor(Date.now() / (86400000 * 7)); }
+
+export function weeklyQuests(weekSeed) {
+  // pick 3 unique deterministic by week (pool is small, so mostly all get used across weeks)
+  const seeded = (n) => { let s = weekSeed * 7919 + n * 104729; s = (s % 233280); if (s < 0) s += 233280; return s / 233280; };
+  const chosen = []; const used = new Set();
+  for (let i = 0; chosen.length < 3 && i < 50; i++) {
+    const idx = Math.floor(seeded(i + 1) * WEEKLY_QUEST_POOL.length);
+    if (!used.has(idx)) { used.add(idx); chosen.push(idx); }
+  }
+  return chosen.map((i, k) => ({ ...WEEKLY_QUEST_POOL[i % WEEKLY_QUEST_POOL.length], slot: k }));
+}
+
+// ---------- DAILY SPIN WHEEL (separate from the 7-day login streak below) ----------
+export const SPIN_WHEEL_SLICES = [
+  { id: 'sw_gold_s',  icon: '💰', label: '150 Gold',  type: 'gold',      amount: 150,  weight: 22 },
+  { id: 'sw_gold_m',  icon: '💰', label: '400 Gold',  type: 'gold',      amount: 400,  weight: 14 },
+  { id: 'sw_gems_s',  icon: '💎', label: '2 Gems',    type: 'gems',      amount: 2,    weight: 16 },
+  { id: 'sw_gems_m',  icon: '💎', label: '5 Gems',    type: 'gems',      amount: 5,    weight: 8  },
+  { id: 'sw_slot',    icon: '🎰', label: '2 Coins',   type: 'slotCoins', amount: 2,    weight: 14 },
+  { id: 'sw_food',    icon: '🍖', label: '4 Pet Food',type: 'petFood',   amount: 4,    weight: 14 },
+  { id: 'sw_sp',      icon: '◆',  label: '2 SP',      type: 'sp',        amount: 2,    weight: 10 },
+  { id: 'sw_jackpot',  icon: '🏆', label: 'JACKPOT: 1500 Gold + 10 Gems', type: 'jackpot', amount: 0, weight: 2 },
+];
+
+export function rollSpinWheel() {
+  const total = SPIN_WHEEL_SLICES.reduce((a, s) => a + s.weight, 0);
+  let r = Math.random() * total;
+  for (let i = 0; i < SPIN_WHEEL_SLICES.length; i++) {
+    r -= SPIN_WHEEL_SLICES[i].weight;
+    if (r <= 0) return { index: i, slice: SPIN_WHEEL_SLICES[i] };
+  }
+  return { index: 0, slice: SPIN_WHEEL_SLICES[0] };
+}
+
 // ---------- DAILY REWARDS (7-day streak loop) ----------
 export const DAILY_REWARDS = [
   { day: 1, icon: '💰', label: '+200 Gold',  type: 'gold', amount: 200 },

@@ -116,6 +116,10 @@ export class PixiRenderer {
     // feel genuinely far away instead of locked to the foreground.
     this.deepSpace = new Container(); this.zoomRoot.addChild(this.deepSpace);
     this.gDeepFar = new Graphics(); this.deepSpace.addChild(this.gDeepFar);
+    // Guaranteed moon/planet/star — drawn once, never re-cached (see
+    // _drawDeepSpace), so their parallax drift is never reset/snapped back.
+    this.gDeepHero = new Graphics(); this.deepSpace.addChild(this.gDeepHero);
+    this._heroBodiesDrawn = false;
     // Real shader-driven nebula cloud (fbm noise + uTime color drift) sitting
     // between the far planets and the mid galaxy layer — genuine per-pixel
     // procedural gas clouds, not flat painted circles.
@@ -742,7 +746,14 @@ void main() {
 
     // FAR: planets & moons (parallax 0.006 — reads as a fixed backdrop, only
     // drifting a little even over a long pan, instead of visibly "following").
-    const farF = 0.006, fx = cx * farF, fy = cy * farF;
+    // 0.035 originally tracked the camera too closely ("follows the
+    // image"); 0.006 over-corrected the other way — with such a tiny
+    // factor the hero moon/planet/star barely move at all during a normal
+    // play session and read as glued to one spot on screen instead of a
+    // background that can drift and eventually leave frame. 0.018 is the
+    // middle ground: visibly drifts as the camera travels, but still much
+    // slower than the foreground world.
+    const farF = 0.018, fx = cx * farF, fy = cy * farF;
     if (!this._farCache || Math.abs(fx - this._farCache.x) > 140 || Math.abs(fy - this._farCache.y) > 140) {
       this._farCache = { x: fx, y: fy };
       const g = this.gDeepFar; g.clear();
@@ -765,45 +776,52 @@ void main() {
           if (h % 7 === 0) g.circle(px + size * 1.6, py + size * 0.9, size * 0.22).fill('#cfd6de');
         }
       }
-      // ---- Hardcoded "hero" celestial bodies (per spec: a moon + a planet +
-      // a glowing dwarf star must always be visibly present, not left to
-      // hashed-grid RNG which can spawn zero bodies near the player for a
-      // long time). Positioned as an offset from the CURRENT far-space
-      // camera position (fx,fy) at cache-rebuild time, so they read as
-      // genuinely fixed points in the sky with real (slow, bounded)
-      // parallax drift — same technique as the procedural grid above, just
-      // guaranteed instead of probabilistic.
-      const heroMoonX = fx + W * 0.30, heroMoonY = fy - H * 0.24;
+    }
+    this.gDeepFar.position.set(-fx, -fy);
+
+    // ---- Hardcoded "hero" celestial bodies (a moon + a planet + a glowing
+    // dwarf star must always be visibly present, not left to hashed-grid RNG
+    // which can spawn zero bodies near the player for a long time). Drawn
+    // ONCE ever into their own layer at a fixed local origin, then given the
+    // exact same continuous parallax offset as the far grid above — unlike
+    // the grid, this layer is NEVER cleared/re-cached, so there's no
+    // periodic "snap back" recentering it near the player. That snapping was
+    // the actual bug behind "stuck to the edge": every ~140/farF world-units
+    // of camera movement it got recentered back to the same on-screen spot,
+    // capping its visible drift to a small radius forever. Now it drifts
+    // continuously and will genuinely leave frame on a long pan.
+    if (!this._heroBodiesDrawn) {
+      this._heroBodiesDrawn = true;
+      const g = this.gDeepHero;
+      const heroMoonX = W * 0.30, heroMoonY = -H * 0.24;
       g.circle(heroMoonX, heroMoonY, 150).fill({ color: '#cfd9e6', alpha: 0.05 });
-      g.circle(heroMoonX, heroMoonY, 92).fill('#c7d0dc');
-      g.circle(heroMoonX - 30, heroMoonY - 26, 50).fill({ color: '#eef2f7', alpha: 0.55 });
-      g.circle(heroMoonX + 26, heroMoonY + 20, 60).fill({ color: '#8d97a6', alpha: 0.4 });
-      // Craters
+      g.circle(heroMoonX, heroMoonY, 92).fill('#8a9199');
+      // Sunlit-side highlight toned way down — this used to read as a bright
+      // internally-lit patch ("like a lamp") rather than reflected sunlight.
+      g.circle(heroMoonX - 30, heroMoonY - 26, 50).fill({ color: '#c7d0dc', alpha: 0.22 });
+      g.circle(heroMoonX + 26, heroMoonY + 20, 60).fill({ color: '#4a5058', alpha: 0.35 });
       g.circle(heroMoonX - 18, heroMoonY + 30, 14).fill({ color: '#9aa4b2', alpha: 0.7 });
       g.circle(heroMoonX + 34, heroMoonY - 12, 10).fill({ color: '#9aa4b2', alpha: 0.6 });
       g.circle(heroMoonX + 4, heroMoonY + 48, 8).fill({ color: '#9aa4b2', alpha: 0.55 });
       g.circle(heroMoonX - 40, heroMoonY - 4, 7).fill({ color: '#a6b0be', alpha: 0.5 });
 
-      const heroPlanetX = fx - W * 0.26, heroPlanetY = fy + H * 0.30;
+      const heroPlanetX = -W * 0.26, heroPlanetY = H * 0.30;
       const pR = 128;
       g.circle(heroPlanetX, heroPlanetY, pR * 1.5).fill({ color: '#ffb066', alpha: 0.05 });
       g.ellipse(heroPlanetX, heroPlanetY, pR * 1.9, pR * 0.5).stroke({ width: 6, color: '#d9a35a', alpha: 0.5 });
       g.ellipse(heroPlanetX, heroPlanetY, pR * 1.9, pR * 0.5).stroke({ width: 2, color: '#fff3d6', alpha: 0.35 });
-      g.circle(heroPlanetX, heroPlanetY, pR).fill('#c9793a');
-      // Cloud bands
+      g.circle(heroPlanetX, heroPlanetY, pR).fill('#8a5228');
       for (let bi = -3; bi <= 3; bi++) {
         const by = heroPlanetY + bi * pR * 0.13;
         const bw = Math.sqrt(Math.max(0, pR * pR - (bi * pR * 0.13) * (bi * pR * 0.13)));
         g.ellipse(heroPlanetX, by, bw, pR * 0.075).fill({ color: bi % 2 === 0 ? '#e8a05a' : '#a85f2c', alpha: 0.45 });
       }
-      g.circle(heroPlanetX - pR * 0.3, heroPlanetY - pR * 0.3, pR * 0.5).fill({ color: '#ffd9a0', alpha: 0.35 });
-      g.circle(heroPlanetX + pR * 0.35, heroPlanetY + pR * 0.28, pR * 0.65).fill({ color: '#5a2c10', alpha: 0.3 });
+      // Sunlit-side highlight (was reading as an internal light source —
+      // toned down to a subtle sheen instead of a bright "lamp" patch).
+      g.circle(heroPlanetX - pR * 0.3, heroPlanetY - pR * 0.3, pR * 0.5).fill({ color: '#ffd9a0', alpha: 0.14 });
+      g.circle(heroPlanetX + pR * 0.35, heroPlanetY + pR * 0.28, pR * 0.65).fill({ color: '#3a1c08', alpha: 0.4 });
 
-      // Glowing dwarf star — small, blindingly bright core with a big soft
-      // halo (visual-only for now; wiring it into the dynamic point-light
-      // array as a real directional light is a Phase-2 item, see
-      // waterdrop-lighting skill).
-      const heroStarX = fx + W * 0.68, heroStarY = fy + H * 0.14;
+      const heroStarX = W * 0.68, heroStarY = H * 0.14;
       for (let ri = 5; ri >= 1; ri--) g.circle(heroStarX, heroStarY, ri * 26).fill({ color: '#fff0c0', alpha: 0.05 });
       g.circle(heroStarX, heroStarY, 22).fill('#fff8e0');
       g.circle(heroStarX, heroStarY, 12).fill('#ffffff');
@@ -813,7 +831,9 @@ void main() {
           .stroke({ width: 2, color: '#fff8e0', alpha: 0.4 });
       }
     }
-    this.gDeepFar.position.set(-fx, -fy);
+    // Slightly slower than the grid layer (0.014 vs 0.018) so the guaranteed
+    // hero bodies read as even further away than the procedural planets.
+    this.gDeepHero.position.set(-cx * 0.014, -cy * 0.014);
 
     // MID: galaxy spiral arms + soft nebula clouds (parallax 0.07)
     const midF = 0.07, mx = cx * midF, my = cy * midF;
@@ -1148,6 +1168,18 @@ void main() {
           if (pd >= rad) return;
           const str = (1 - pd / rad) * 0.55;
           if (str > bestStrength) { bestStrength = str; bestHex = pr.color || '#5fd6ff'; }
+        });
+        // XP orbs / gold also cast a little light on nearby enemies — much
+        // weaker than a muzzle flash or bullet, just enough to read as a
+        // faint pickup glow touching whatever's standing next to it.
+        game.gems.forEach(gm => {
+          if (gm.xp <= 2 && gm.gold <= 2) return; // tiny orbs don't glow at all
+          const rad = 46;
+          const gd = Math.hypot(e.x - gm.x, e.y - gm.y);
+          if (gd >= rad) return;
+          const str = (1 - gd / rad) * 0.22;
+          const hex = gm.xp > 15 ? '#ffffff' : gm.xp > 0 ? '#a0c8ff' : gm.gold >= 13 ? '#fff7a0' : '#ffd166';
+          if (str > bestStrength) { bestStrength = str; bestHex = hex; }
         });
         const litColor = (bestHex && bestStrength > 0.03) ? mixHex(t.color, bestHex, Math.min(0.45, bestStrength)) : t.color;
         const bodyColor = e.hit > 0 ? '#ffffff' : litColor;
@@ -1679,6 +1711,12 @@ void main() {
           break;
         }
         default: {
+          // Every weapon without a bespoke render case (all 10 new weapons
+          // added this session included) still gets a real light glow
+          // around the bolt itself, not just a flat-filled circle — this
+          // is what actually casts visible light near where it flies,
+          // separate from the invisible enemy-tint blend in _drawEnemies.
+          glow(g, x, y, sz * 1.3 * lvlBoost, pr.color, 0.85);
           g.circle(x, y, sz * lvlBoost).fill(pr.color);
           const [dtx, dty] = rot(-sz * 1.6, 0, ang);
           g.circle(x + dtx, y + dty, sz * 0.7).fill({ color: pr.color, alpha: 0.4 });

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AVATARS, DAILY_REWARDS, accountXpToNext, dailyQuests, CHESTS, rollChest } from '../game/data_ext';
+import { AVATARS, DAILY_REWARDS, accountXpToNext, dailyQuests, CHESTS, rollChest, weeklyQuests, weekIdx, rollSpinWheel, SPIN_WHEEL_SLICES } from '../game/data_ext';
 import { todayIdx, applyReward } from '../store';
 import { useAuth } from '../auth';
 import LeaderboardPanel from './LeaderboardPanel';
@@ -48,6 +48,8 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
   const [avatar, setAvatar] = useState(save.profile.avatar || 'drop');
   const [claimedRewards, setClaimedRewards] = useState([]);
   const [showLb, setShowLb] = useState(false);
+  const [spinning, setSpinning] = useState(false);
+  const [spinResult, setSpinResult] = useState(null);
 
   const today = todayIdx();
   const canClaim = save.daily.lastClaim !== today;
@@ -112,6 +114,26 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
   const xpNext = accountXpToNext(save.profile.level);
   const xpPct = (save.profile.xp / xpNext) * 100;
   const quests = dailyQuests(today);
+  const week = weekIdx();
+  const wquests = weeklyQuests(week);
+  const canSpin = save.dailySpin?.day !== today;
+  const doSpin = () => {
+    if (!canSpin || spinning) return;
+    setSpinning(true);
+    setTimeout(() => {
+      const { slice } = rollSpinWheel();
+      const ns = { ...save, dailySpin: { day: today, spun: true } };
+      if (slice.type === 'jackpot') { ns.gold = (ns.gold || 0) + 1500; ns.gems = (ns.gems || 0) + 10; }
+      else if (slice.type === 'gold') ns.gold = (ns.gold || 0) + slice.amount;
+      else if (slice.type === 'gems') ns.gems = (ns.gems || 0) + slice.amount;
+      else if (slice.type === 'slotCoins') ns.slotCoins = (ns.slotCoins || 0) + slice.amount;
+      else if (slice.type === 'petFood') ns.petFood = (ns.petFood || 0) + slice.amount;
+      else if (slice.type === 'sp') ns.sp = (ns.sp || 0) + slice.amount;
+      setSave(ns);
+      setSpinResult(slice);
+      setSpinning(false);
+    }, 900);
+  };
 
   return (
     <div className="app-shell" style={{ alignItems: 'flex-start' }}>
@@ -213,6 +235,78 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
                 );
               })}
             </div>
+          </div>
+
+          {/* Weekly Quests */}
+          <div className="panel">
+            <div className="panel-title">WEEKLY QUESTS</div>
+            <div className="quest-list">
+              {wquests.map(q => {
+                const prog = save.weeklyQuests.completed[q.id] || 0;
+                const claimed = save.weeklyQuests.claimed[q.id];
+                const done = prog >= q.goal;
+                return (
+                  <div key={q.id} className={`quest-row ${done ? 'done' : ''}`} data-testid={`wquest-${q.id}`}>
+                    <div className="quest-icon">{q.icon}</div>
+                    <div className="quest-body">
+                      <div className="quest-name">{q.name}</div>
+                      <div className="quest-desc">{q.desc}</div>
+                      <div className="quest-bar">
+                        <div className="quest-bar-fill" style={{ width: Math.min(100, (prog / q.goal) * 100) + '%' }} />
+                      </div>
+                      <div className="quest-prog">{Math.min(prog, q.goal)} / {q.goal}</div>
+                    </div>
+                    <div className="quest-reward">
+                      {q.reward.gold && <div>★ {q.reward.gold}</div>}
+                      {q.reward.gems && <div>💎 {q.reward.gems}</div>}
+                      {q.reward.slotCoins && <div>🎰 {q.reward.slotCoins}</div>}
+                      {q.reward.talentPoints && <div>🌿 {q.reward.talentPoints} TP</div>}
+                      {q.reward.petFood && <div>🍖 {q.reward.petFood}</div>}
+                      {done && !claimed && (
+                        <button
+                          onClick={() => {
+                            const ns = { ...save, weeklyQuests: { ...save.weeklyQuests, claimed: { ...save.weeklyQuests.claimed, [q.id]: true } } };
+                            applyReward(ns, q.reward, openChest);
+                            setSave(ns);
+                          }}
+                          data-testid={`wclaim-${q.id}`}
+                          className="claim-burst"
+                          style={{ padding: '4px 10px', fontSize: 11, marginTop: 4, background: 'linear-gradient(180deg,#1a2b1a,#0e1a0e)', borderColor: '#4dffd4', color: '#4dffd4' }}
+                        >★ CLAIM</button>
+                      )}
+                      {claimed && <div style={{ color: 'var(--accent-2)' }}>✓</div>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Daily Lucky Spin Wheel */}
+          <div className="panel">
+            <div className="panel-title">DAILY SPIN</div>
+            <div className={`spin-wheel ${spinning ? 'spinning' : ''}`} data-testid="spin-wheel">
+              {SPIN_WHEEL_SLICES.map((s, i) => (
+                <div key={s.id} className="spin-slice" style={{ transform: `rotate(${(i / SPIN_WHEEL_SLICES.length) * 360}deg)` }}>
+                  <span className="spin-slice-icon">{s.icon}</span>
+                </div>
+              ))}
+              <div className="spin-wheel-hub">🎡</div>
+            </div>
+            <button
+              onClick={doSpin}
+              disabled={!canSpin || spinning}
+              data-testid="spin-btn"
+              className="claim-burst"
+              style={{ width: '100%', marginTop: 8 }}
+            >
+              {spinning ? 'Spinning…' : canSpin ? '▸ SPIN THE WHEEL' : '✓ Spun Today'}
+            </button>
+            {spinResult && !spinning && (
+              <div className="spin-result" data-testid="spin-result">
+                {spinResult.type === 'jackpot' ? '🏆 JACKPOT! 1500★ + 10💎' : `${spinResult.icon} ${spinResult.label}`}
+              </div>
+            )}
           </div>
         </div>
 
