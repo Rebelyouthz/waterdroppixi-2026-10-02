@@ -869,8 +869,8 @@ export class Game {
             this.dealDamage(e, 22 * s.damageMult, false, 0, p.x, p.y, true);
           }
         });
-        this.spawnRing(p.x, p.y, r, '#1fb6ff', 0.5);
-        this.cam.shake = Math.max(this.cam.shake, 5);
+        this.spawnTidalWave(p.x, p.y, r);
+        this.cam.shake = Math.max(this.cam.shake, 7);
       }
     }
     // Second Wind — once per run, a safety net when HP crashes low
@@ -1164,11 +1164,57 @@ export class Game {
     } else if (id === 'timewarp') {
       this._timewarpT = 4; this.cam.slowmo = 0.6;
       this.spawnRing(p.x, p.y, 200, '#b362ff', 1.0);
-    } else if (id === 'decoy') {
-      const e = this.enemies.acquire();
-      e.x = p.x + p.aimX * 80; e.y = p.y + p.aimY * 80;
-      e.t = { id: 'decoy', name: 'Decoy', size: 16, hp: 9999, dmg: 0, speed: 0, color: '#4dc4ff', xp: 0, gold: 0, ai: 'decoy', boss: false };
-      e.maxHp = 9999; e.hp = 9999; e.hit = 0; e.cd = 0; e.dz = 0; e.kbX = 0; e.kbY = 0; e._decoy = 6;
+    } else if (id === 'steamvent') {
+      // Replaced Decoy Drop. A stationary aggro magnet asked nothing of the
+      // player and did nothing visually — you dropped it and carried on.
+      // Steam Vent is the archetype the roster was missing: mobility that is
+      // also offence and sustain, so using it well means choosing WHERE to
+      // punch through a crowd, not just when.
+      const dirX = p.aimX || 1, dirY = p.aimY || 0;
+      const dl = Math.hypot(dirX, dirY) || 1;
+      const nx = dirX / dl, ny = dirY / dl;
+      const range = 260;
+      const x0 = p.x, y0 = p.y;
+      const x1 = clamp(p.x + nx * range, 20, this.world.w - 20);
+      const y1 = clamp(p.y + ny * range, 20, this.world.h - 20);
+
+      let healed = 0;
+      const hitR = 46;
+      this.enemies.forEach(e => {
+        if (!e.alive) return;
+        // distance from the enemy to the dash segment, not just to the
+        // endpoints — everything the vent passes through gets scalded
+        const vx = x1 - x0, vy = y1 - y0;
+        const segLen2 = vx * vx + vy * vy || 1;
+        let tt = ((e.x - x0) * vx + (e.y - y0) * vy) / segLen2;
+        tt = clamp(tt, 0, 1);
+        const px = x0 + vx * tt, py = y0 + vy * tt;
+        if (dist2(e.x, e.y, px, py) > hitR * hitR) return;
+        this.dealDamage(e, 42 * s.damageMult, false, 180, x0, y0, false, '#dff6ff');
+        this.applyElementalEffect(e, 'fire', 42 * s.damageMult * 0.5);
+        if (healed < 5) { healed++; }
+      });
+      if (healed > 0) p.hp = Math.min(p.maxHp, p.hp + healed * 2);
+
+      // Steam plume along the whole path, thickest where you launched from.
+      const puffs = this.fxCount(26);
+      for (let i = 0; i < puffs; i++) {
+        const f = i / puffs;
+        const pp = this.parts.acquire();
+        pp.x = x0 + (x1 - x0) * f + rand(-10, 10);
+        pp.y = y0 + (y1 - y0) * f + rand(-10, 10);
+        const a = Math.random() * TAU;
+        pp.vx = Math.cos(a) * rand(20, 90) - nx * 40;
+        pp.vy = Math.sin(a) * rand(20, 90) - ny * 40 - rand(10, 50);
+        pp.life = rand(0.3, 0.7) * (1 - f * 0.4); pp.max = pp.life;
+        pp.color = i % 3 === 0 ? '#ffffff' : '#cfeeff';
+        pp.size = rand(2.4, 5.5) * (1 - f * 0.35); pp.type = 'spark';
+      }
+      this.spawnRing(x0, y0, 70, '#dff6ff', 0.4);
+      this.spawnRing(x1, y1, 54, '#9fe8ff', 0.35);
+      p.x = x1; p.y = y1;
+      p.iframes = Math.max(p.iframes, 0.35);
+      this.cam.shake = Math.max(this.cam.shake, 6);
     } else if (id === 'meteor') {
       const tx = p.x + p.aimX * 200, ty = p.y + p.aimY * 200;
       const warn = this.parts.acquire();
@@ -1236,10 +1282,40 @@ export class Game {
     this.cam.shake = Math.max(this.cam.shake, 5);
   }
 
-  spawnLightning(x1, y1, x2, y2) {
+  // Tidal Wave used to be a single thin ring, which is why a passive that
+  // knocks back and damages everything within 220px read as "nothing
+  // happened, some enemies bled". It is now an actual body of water: a thick
+  // crest that thins as it expands, an inner surge, foam along the leading
+  // edge, and spray thrown outward ahead of it.
+  spawnTidalWave(x, y, r) {
+    const w = this.parts.acquire();
+    w.x = x; w.y = y; w.vx = 0; w.vy = 0;
+    w.life = 0.55; w.max = 0.55;
+    w.color = '#1fb6ff'; w.size = 0; w.type = 'wave'; w._radius = r;
+
+    // Spray leading the crest outward — thrown, not sprinkled.
+    const n = this.fxCount(22);
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * TAU + rand(-0.12, 0.12);
+      const sp = rand(r * 1.5, r * 2.6);
+      const pp = this.parts.acquire();
+      pp.x = x + Math.cos(a) * 18; pp.y = y + Math.sin(a) * 18;
+      pp.vx = Math.cos(a) * sp; pp.vy = Math.sin(a) * sp - rand(20, 90);
+      pp.life = rand(0.28, 0.5); pp.max = pp.life;
+      pp.color = i % 3 === 0 ? '#dff6ff' : '#4fc9ff';
+      pp.size = rand(1.4, 3.2); pp.type = 'spark';
+    }
+  }
+
+  // NOTE: vx/vy hold the arc's END POINT here, not a velocity. updateParts
+  // special-cases 'lightning' for exactly that reason — don't remove it.
+  spawnLightning(x1, y1, x2, y2, color) {
     const pp = this.parts.acquire();
-    pp.x = x1; pp.y = y1; pp.vx = x2; pp.vy = y2; pp.life = 0.18; pp.max = 0.18;
-    pp.color = '#bff0ff'; pp.size = 0; pp.type = 'lightning';
+    pp.x = x1; pp.y = y1; pp.vx = x2; pp.vy = y2;
+    // Long enough to actually register as a strike. At 0.18s an arc was
+    // roughly ten frames — technically drawn, practically invisible.
+    pp.life = 0.30; pp.max = 0.30;
+    pp.color = color || '#bff0ff'; pp.size = 0; pp.type = 'lightning';
   }
 
 
@@ -2250,9 +2326,7 @@ export class Game {
           if (pr._wid === 'stormLance') {
             // Storm Lance: a real bolt visibly strikes down from the sky
             // onto the target on impact, not just a hit-spark.
-            const lp = this.parts.acquire();
-            lp.x = e.x; lp.y = e.y - 220; lp.vx = e.x; lp.vy = e.y;
-            lp.life = 0.18; lp.max = 0.18; lp.color = pr.color || '#fff44d'; lp.size = 4; lp.type = 'lightning';
+            this.spawnLightning(e.x, e.y - 220, e.x, e.y, pr.color || '#fff44d');
             this.cam.shake = Math.max(this.cam.shake, 3);
           }
           pr.hit.add(e);
@@ -2292,9 +2366,7 @@ export class Game {
     const bounceDmg = Math.max(1, Math.round(baseDmg * ratio));
     hitSet.add(next);
     this.dealDamage(next, bounceDmg, false, 15, x, y, true);
-    const lp = this.parts.acquire();
-    lp.x = x; lp.y = y; lp.vx = next.x; lp.vy = next.y;
-    lp.life = 0.16; lp.max = 0.16; lp.color = '#a0e4ff'; lp.size = 3; lp.type = 'lightning';
+    this.spawnLightning(x, y, next.x, next.y, '#a0e4ff');
     this.applyConductiveBounce(next.x, next.y, baseDmg, bouncesLeft - 1, hitSet);
   }
 
@@ -2381,6 +2453,19 @@ export class Game {
           this.spawnHitBurst(p.x, p.y, '#1fb6ff', 26);
           this.parts.release(p);
         }
+        return;
+      }
+      // 'lightning' stores the arc's END POINT in vx/vy, not a velocity —
+      // running it through the integrator below hurled the start point away
+      // at ~900px/s and decayed the endpoint at the same time, so the arc was
+      // off-screen within a frame or two of its 0.18s life. That is why chain
+      // lightning, Storm Lance strikes and Conductive Rounds bounces were
+      // firing and dealing damage with nothing visible on screen.
+      // Same story for 'wave' — its radius lives in _radius and its position
+      // is the fixed epicentre, so it must not be integrated either.
+      if (p.type === 'lightning' || p.type === 'wave') {
+        p.life -= dt;
+        if (p.life <= 0) this.parts.release(p);
         return;
       }
       p.x += p.vx * dt; p.y += p.vy * dt;
@@ -3235,10 +3320,7 @@ export class Game {
     this._lightningFlash = Math.max(this._lightningFlash || 0, 0.16);
 
     // Initial bolt: player → first target
-    const lp0 = this.parts.acquire();
-    lp0.x = p.x; lp0.y = p.y;
-    lp0.vx = first.x; lp0.vy = first.y;
-    lp0.life = 0.20; lp0.max = 0.20; lp0.color = s.color || '#a0e4ff'; lp0.size = 4; lp0.type = 'lightning';
+    this.spawnLightning(p.x, p.y, first.x, first.y, s.color || '#a0e4ff');
 
     // Chain to nearby enemies — each bounce is a real jagged arc + its own
     // brief flash, so it reads as electricity actually jumping between foes.
@@ -3253,10 +3335,7 @@ export class Game {
         if (cd < bestD) { bestD = cd; next = e; }
       });
       if (!next) break;
-      const lp = this.parts.acquire();
-      lp.x = chainFrom.x; lp.y = chainFrom.y;
-      lp.vx = next.x; lp.vy = next.y;
-      lp.life = 0.20; lp.max = 0.20; lp.color = s.color || '#a0e4ff'; lp.size = 4; lp.type = 'lightning';
+      this.spawnLightning(chainFrom.x, chainFrom.y, next.x, next.y, s.color || '#a0e4ff');
       this.dealDamage(next, dmg.dmg * 0.65, dmg.crit, 20, chainFrom.x, chainFrom.y);
       this.spawnSpark(next.x, next.y, s.color || '#a0e4ff');
       hit.add(next); prev = next;

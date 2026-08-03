@@ -239,7 +239,10 @@ export const ACTIVE_SKILLS = {
   lightning: { id: 'lightning', name: 'Lightning Strike', icon: '⚡', cd: 8,  cost: 0, key: '1', desc: 'Strike a foe with lightning. Chains to 4 nearby.' },
   aegis:     { id: 'aegis',     name: 'Aegis Aura',       icon: '🛡', cd: 18, cost: 0, key: '2', desc: 'Invuln + reflect 3s.' },
   timewarp:  { id: 'timewarp',  name: 'Time Warp',        icon: '⏱', cd: 25, cost: 0, key: '3', desc: 'Slow all enemies for 4s.' },
-  decoy:     { id: 'decoy',     name: 'Decoy Drop',       icon: '👤', cd: 12, cost: 0, key: '4', desc: 'Drop decoy that pulls aggro 6s.' },
+  // Replaced Decoy Drop — a stationary aggro magnet you dropped and forgot
+  // about. Steam Vent covers the archetype the roster lacked: mobility that
+  // is also offence and sustain.
+  steamvent: { id: 'steamvent', name: 'Steam Vent',       icon: '💨', cd: 11, cost: 0, key: '4', desc: 'Blast forward in a scalding jet — burns and knocks back everything on the path, and heals 2 HP per foe scalded (max 5).' },
   meteor:    { id: 'meteor',    name: 'Meteor Call',      icon: '☄️', cd: 14, cost: 0, key: '1', desc: 'Call meteor on cursor — massive AoE.' },
   vortex:    { id: 'vortex',    name: 'Void Vortex',      icon: '🌀', cd: 16, cost: 0, key: '2', desc: 'Black hole pulls enemies, drains HP.' },
   riptide:   { id: 'riptide',   name: 'Riptide Pulse',    icon: '🌊', cd: 10, cost: 0, key: '3', desc: 'Piercing wave in front of you — damages + slows.' },
@@ -317,7 +320,7 @@ export const SHOP_CARD_POOL = [
   { id: 'sh_skill_lightning', icon: '⚡', name: 'Unlock: Lightning',   category:'active', effect: { unlockSkill: 'lightning' } },
   { id: 'sh_skill_aegis',     icon: '🛡', name: 'Unlock: Aegis',       category:'active', effect: { unlockSkill: 'aegis' } },
   { id: 'sh_skill_timewarp',  icon: '⏱', name: 'Unlock: Time Warp',   category:'active', effect: { unlockSkill: 'timewarp' } },
-  { id: 'sh_skill_decoy',     icon: '👤', name: 'Unlock: Decoy',       category:'active', effect: { unlockSkill: 'decoy' } },
+  { id: 'sh_skill_steamvent', icon: '💨', name: 'Unlock: Steam Vent',  category:'active', effect: { unlockSkill: 'steamvent' } },
   { id: 'sh_skill_meteor',    icon: '☄️', name: 'Unlock: Meteor',      category:'active', effect: { unlockSkill: 'meteor' } },
   { id: 'sh_skill_vortex',    icon: '🌀', name: 'Unlock: Void Vortex', category:'active', effect: { unlockSkill: 'vortex' } },
   // ── Auto weapon unlocks ──

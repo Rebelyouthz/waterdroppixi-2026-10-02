@@ -2122,6 +2122,29 @@ void main() {
         const col = heat > 0.55 ? '#ffcf6b' : '#8a5a2a';
         g.poly([p.x - hx - wx, p.y - hy - wy, p.x + hx - wx, p.y + hy - wy, p.x + hx + wx, p.y + hy + wy, p.x - hx + wx, p.y - hy + wy])
           .fill({ color: col, alpha: Math.min(1, a + 0.15) });
+      } else if (p.type === 'wave') {
+        // Expanding body of water: crest thins and fades as it grows, an
+        // inner surge trails behind it, and foam speckles ride the leading
+        // edge. Bright cyan on an additive-friendly bloom threshold, so the
+        // crest genuinely glows rather than being a hairline circle.
+        const t01 = 1 - a;                       // 0 at spawn -> 1 at death
+        const ease = 1 - Math.pow(1 - t01, 2);   // fast out, settling
+        const R = p._radius * ease;
+        const fade = Math.pow(a, 0.7);
+        g.circle(p.x, p.y, R).stroke({ width: 16 * fade + 2, color: '#1fb6ff', alpha: 0.30 * fade });
+        g.circle(p.x, p.y, R).stroke({ width: 7 * fade + 1.5, color: '#6fdcff', alpha: 0.55 * fade });
+        g.circle(p.x, p.y, R * 0.995).stroke({ width: 2.5, color: '#e8fbff', alpha: 0.85 * fade });
+        // inner surge
+        g.circle(p.x, p.y, R * 0.72).stroke({ width: 5 * fade, color: '#1fb6ff', alpha: 0.22 * fade });
+        g.circle(p.x, p.y, R * 0.86).fill({ color: '#1fb6ff', alpha: 0.05 * fade });
+        // foam along the crest
+        const foam = 14;
+        for (let k = 0; k < foam; k++) {
+          const fa = (k / foam) * TAU + p.max * 7.3 + t01 * 1.1;
+          const fr = R + Math.sin(k * 2.7 + t01 * 9) * 5;
+          g.circle(p.x + Math.cos(fa) * fr, p.y + Math.sin(fa) * fr, (2.6 - t01 * 1.4) * fade)
+            .fill({ color: '#ffffff', alpha: 0.5 * fade });
+        }
       } else if (p.type === 'ring') {
         const r = p.size * (1 - a);
         g.circle(p.x, p.y, r).stroke({ width: 4, color: p.color, alpha: a });

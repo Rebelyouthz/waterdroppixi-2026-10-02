@@ -152,6 +152,16 @@ export function loadSave() {
     else s.battlePass = { ...(s.battlePass || {}), claimed: { free: [], premium: [], ...(bpClaimed || {}) } };
     s.weeklyQuests = { ...DEFAULT_SAVE.weeklyQuests, ...(s.weeklyQuests || {}) };
     s.dailySpin = { ...DEFAULT_SAVE.dailySpin, ...(s.dailySpin || {}) };
+    // 'decoy' was retired in favour of 'steamvent'. Without this, an existing
+    // save keeps a skill id the engine no longer knows: the slot renders as
+    // "?" and pressing it silently does nothing.
+    if (Array.isArray(s.equippedActives)) {
+      s.equippedActives = s.equippedActives.map(id => (id === 'decoy' ? 'steamvent' : id));
+    }
+    if (s.skills && s.skills.sh_skill_decoy) {
+      s.skills.sh_skill_steamvent = s.skills.sh_skill_decoy;
+      delete s.skills.sh_skill_decoy;
+    }
     return s;
   } catch { return { ...DEFAULT_SAVE }; }
 }
