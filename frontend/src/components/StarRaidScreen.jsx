@@ -266,11 +266,39 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
   return (
     <div className="game-stage">
       <canvas ref={canvasRef} className="starraid-canvas" style={{ touchAction: 'none' }} />
-      <div style={{ position: 'absolute', top: 40, left: 14, fontFamily: 'VT323', color: '#ffd166', fontSize: 16, pointerEvents: 'none' }}>
-        ⚙ {snap?.scrap || 0}
+      <div className="raid-run-hud">
+        <span className="raid-run-scrap">⚙ {snap?.scrap || 0}</span>
+        <span className="raid-run-lvl">LV {snap?.level || 1}</span>
       </div>
       <button className="go-btn go-btn-ghost" style={{ position: 'absolute', top: 10, right: 10, padding: '4px 10px' }}
         onClick={() => { gameRef.current && gameRef.current.destroy(); setScreen('menu'); }}>✕</button>
+
+      {/* In-run level-up cards. The engine gates its own sim on levelUpQueue,
+          so this is a real pause — the modal is not something you get shot
+          through. */}
+      {snap?.levelUpChoices && (
+        <div className="raid-lvlup">
+          <div className="raid-lvlup-head">
+            <span className="raid-lvlup-kicker">SYSTEMS ONLINE</span>
+            <span className="raid-lvlup-title">LEVEL {snap.level}</span>
+          </div>
+          <div className="raid-lvlup-cards">
+            {snap.levelUpChoices.map((c) => (
+              <button key={c.id} className="raid-card"
+                onClick={() => { gameRef.current && gameRef.current.pickCard(c.id); }}>
+                <span className="raid-card-icon">{c.icon}</span>
+                <span className="raid-card-name">{c.name}</span>
+                <span className="raid-card-desc">{c.desc}</span>
+                <span className="raid-card-lvl">
+                  {Array.from({ length: c.max }).map((_, i) => (
+                    <i key={i} className={i < c.level ? 'on' : ''} />
+                  ))}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
