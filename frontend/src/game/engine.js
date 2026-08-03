@@ -8,6 +8,10 @@ const TAU = Math.PI * 2;
 // Heavy "square" melee enemies — hit noticeably harder than the rest of the
 // roster once the first boss is down, on top of the general post-boss scaling.
 const SQUARE_ENEMY_TYPES = new Set(['brute', 'charger', 'necron', 'steelbrute']);
+// 'aoe'-behaviour weapons that pulse radially around the player (reuse
+// weaponShockwave) rather than sweeping a directional arc in the aim
+// direction (weaponScythe, the default for 'aoe').
+const RADIAL_AOE_WEAPONS = new Set(['shockwave', 'plasmaTurret', 'solarFlare']);
 const rand = (a, b) => a + Math.random() * (b - a);
 const randi = (a, b) => Math.floor(rand(a, b));
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -1090,6 +1094,23 @@ export class Game {
     }
   }
 
+  // AOE burst on impact for projectiles with `explode` > 0 (radius). This
+  // field existed on the projectile pool object already but was never
+  // actually consumed anywhere — wired it up here rather than adding a new
+  // field, so Comet Launcher (and anything else that sets base.explode)
+  // gets a real splash-damage payoff.
+  explodeProjectile(pr) {
+    const r = pr.explode;
+    this.enemies.forEach(en => {
+      if (dist2(en.x, en.y, pr.x, pr.y) <= r * r) {
+        this.dealDamage(en, pr.dmg * 0.6, false, 100, pr.x, pr.y, true);
+      }
+    });
+    this.spawnRing(pr.x, pr.y, r, pr.color || '#ff7a1a', 0.4);
+    this.spawnHitBurst(pr.x, pr.y, pr.color || '#ff7a1a', 22);
+    this.cam.shake = Math.max(this.cam.shake, 5);
+  }
+
   spawnLightning(x1, y1, x2, y2) {
     const pp = this.parts.acquire();
     pp.x = x1; pp.y = y1; pp.vx = x2; pp.vy = y2; pp.life = 0.18; pp.max = 0.18;
@@ -1122,10 +1143,11 @@ export class Game {
           this.weaponShotgun(stats, dt);
           break;
         case 'orbit':   stats._behaviour = w.behaviour; this.weaponOrbit(stats, dt); break;
-        case 'aoe':     stats._behaviour = w.behaviour; w.id === 'shockwave' ? this.weaponShockwave(stats, dt) : this.weaponScythe(stats, dt); break;
+        case 'aoe':     stats._behaviour = w.behaviour; RADIAL_AOE_WEAPONS.has(w.id) ? this.weaponShockwave(stats, dt) : this.weaponScythe(stats, dt); break;
         case 'beam':    stats._behaviour = w.behaviour; this.weaponBeam(stats, dt); break;
         case 'meteor':  stats._behaviour = w.behaviour; this.weaponMeteor(stats, dt); break;
         case 'chain':   stats._behaviour = w.behaviour; this.weaponChain(stats, dt); break;
+        case 'drone':   stats._behaviour = w.behaviour; this.weaponDrone(stats, dt); break;
         default: break;
       }
     }
@@ -1956,7 +1978,10 @@ export class Game {
           if (bounces > 0 && pr._weaponBehaviour === 'projectile') {
             this.applyConductiveBounce(e.x, e.y, pr.dmg, bounces, new Set([e]));
           }
-          if (pr.pierce <= 0) { this.projs.release(pr); return; }
+          if (pr.pierce <= 0) {
+            if (pr.explode > 0) this.explodeProjectile(pr);
+            this.projs.release(pr); return;
+          }
           pr.pierce -= 1;
         }
       });
@@ -2828,6 +2853,42 @@ export class Game {
       this.spawnSpark(next.x, next.y, s.color || '#a0e4ff');
       hit.add(next); prev = next;
     }
+  }
+
+  // Drone Squadron — 1-2 small drones orbit the player and independently
+  // auto-fire at the nearest enemy in range. Positions are recomputed every
+  // frame (no persistent entity needed since they're purely visual+firing
+  // points, not collidable) and stashed on `this._dronePositions[wid]` so
+  // pixiRenderer can draw them without duplicating this orbit math.
+  weaponDrone(s, dt) {
+    const p = this.player; const rs = this.run.stats;
+    const wid = s._wid || 'droneSquad';
+    const count = Math.max(1, Math.floor(s.droneCount || 1));
+    const radius = 62;
+    this._droneCD = this._droneCD || {};
+    this._dronePositions = this._dronePositions || {};
+    const cds = (this._droneCD[wid] = this._droneCD[wid] || [0, 0]);
+    const positions = [];
+    for (let i = 0; i < count; i++) {
+      const ang = this.time * 1.6 + (i / count) * TAU;
+      const dx = p.x + Math.cos(ang) * radius, dy = p.y + Math.sin(ang) * radius;
+      positions.push({ x: dx, y: dy });
+      cds[i] = (cds[i] || 0) - dt;
+      if (cds[i] <= 0) {
+        const tgt = this.nearestEnemy(dx, dy, s.range || 380);
+        if (tgt) {
+          cds[i] = 1 / (s.fireRate * rs.fireRateMult);
+          const ang2 = Math.atan2(tgt.y - dy, tgt.x - dx);
+          this.fireProjectile(dx, dy, ang2, {
+            damage: s.damage, projSpeed: s.projSpeed || 520, projSize: s.projSize || 5,
+            color: s.color, pierce: s.pierce || 0, crit: s.crit, _behaviour: 'drone', _wid: wid,
+          }, true, 0);
+        } else {
+          cds[i] = 0.2; // no target yet — check again soon rather than stalling the cooldown
+        }
+      }
+    }
+    this._dronePositions[wid] = positions;
   }
 
   // ====== LEVEL UP CHOICES ======

@@ -1496,6 +1496,18 @@ void main() {
         }
       }
     }
+
+    // Drone Squadron — small hovering bodies at whatever positions
+    // engine.js's weaponDrone computed this frame (see game._dronePositions).
+    if (game.run.ownedWeapons.includes('droneSquad') && game._dronePositions && game._dronePositions.droneSquad) {
+      for (const d of game._dronePositions.droneSquad) {
+        const bob = Math.sin(game.time * 4 + d.x * 0.05) * 3;
+        glow(gf, d.x, d.y + bob, 8, '#4dc4ff', 0.8);
+        gf.circle(d.x, d.y + bob, 6).fill('#1a2a3a');
+        gf.circle(d.x, d.y + bob, 6).stroke({ width: 1.5, color: '#4dc4ff', alpha: 0.9 });
+        gf.circle(d.x, d.y + bob, 2.4).fill({ color: '#bff0ff', alpha: 0.9 });
+      }
+    }
   }
 
   // -------------------------------- PET ------------------------------------

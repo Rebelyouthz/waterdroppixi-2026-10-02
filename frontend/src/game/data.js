@@ -281,6 +281,113 @@ export const WEAPONS = {
   },
 
   // ═══════════════════════════════════════════════════════════════
+  // NEW AUTO WEAPONS (5) — see engine.js weaponDrone for the 'drone'
+  // behaviour; plasmaTurret/solarFlare reuse weaponShockwave (see the
+  // updateWeapons switch's 'aoe' case), shrapnelMine reuses weaponMeteor,
+  // railgunArray reuses weaponBeam — all pre-existing generic handlers.
+  // ═══════════════════════════════════════════════════════════════
+  droneSquad: {
+    id: 'droneSquad', name: 'Drone Squadron', icon: '🛸', type: 'auto', behaviour: 'drone', requireUnlock: true,
+    desc: 'Deploys drones that independently hunt and fire at nearby foes.',
+    base: { damage: 10, fireRate: 1.6, projSpeed: 520, projSize: 5, pierce: 0, crit: 0.06, range: 380, droneCount: 1, color: '#4dc4ff' },
+    levelUps: [
+      { stat: 'damage', mult: 1.2 }, { stat: 'fireRate', mult: 1.15 }, { stat: 'droneCount', add: 1 },
+      { stat: 'damage', mult: 1.25 }, { stat: 'fireRate', mult: 1.15 }, { stat: 'range', add: 80 },
+      { stat: 'damage', mult: 1.5, evolve: true },
+    ],
+  },
+  plasmaTurret: {
+    id: 'plasmaTurret', name: 'Plasma Turret', icon: '🔵', type: 'auto', behaviour: 'aoe', requireUnlock: true,
+    desc: 'Pulses a short-range plasma burst around you.',
+    base: { damage: 20, fireRate: 1.4, area: 150, knockback: 30, crit: 0.05, color: '#4dc4ff' },
+    levelUps: [
+      { stat: 'damage', mult: 1.2 }, { stat: 'area', mult: 1.15 }, { stat: 'fireRate', mult: 1.15 },
+      { stat: 'damage', mult: 1.3 }, { stat: 'area', mult: 1.2 }, { stat: 'damage', mult: 1.5, evolve: true },
+    ],
+  },
+  shrapnelMine: {
+    id: 'shrapnelMine', name: 'Shrapnel Mine', icon: '💣', type: 'auto', behaviour: 'meteor', requireUnlock: true,
+    desc: 'Auto-drops proximity mines that shred everything in the blast.',
+    base: { damage: 55, fireRate: 0.5, area: 100, color: '#ffb347' },
+    levelUps: [
+      { stat: 'damage', mult: 1.22 }, { stat: 'area', mult: 1.15 }, { stat: 'fireRate', mult: 1.15 },
+      { stat: 'damage', mult: 1.3 }, { stat: 'area', mult: 1.2 }, { stat: 'damage', mult: 1.5, evolve: true },
+    ],
+  },
+  solarFlare: {
+    id: 'solarFlare', name: 'Solar Flare', icon: '☀️', type: 'auto', behaviour: 'aoe', requireUnlock: true,
+    desc: 'A radiant burning nova erupts around you periodically.',
+    base: { damage: 26, fireRate: 1.1, area: 170, knockback: 40, crit: 0.05, color: '#ff9900' },
+    levelUps: [
+      { stat: 'damage', mult: 1.22 }, { stat: 'area', mult: 1.15 }, { stat: 'fireRate', mult: 1.15 },
+      { stat: 'damage', mult: 1.32 }, { stat: 'area', mult: 1.2 }, { stat: 'damage', mult: 1.5, evolve: true },
+    ],
+  },
+  railgunArray: {
+    id: 'railgunArray', name: 'Railgun Array', icon: '📡', type: 'auto', behaviour: 'beam', requireUnlock: true,
+    desc: 'Long-range auto-sniper — pins down the nearest foe from afar.',
+    base: { damage: 46, fireRate: 0.9, range: 620, crit: 0.15, color: '#9fe0ff' },
+    levelUps: [
+      { stat: 'damage', mult: 1.22 }, { stat: 'range', add: 60 }, { stat: 'fireRate', mult: 1.15 },
+      { stat: 'damage', mult: 1.3 }, { stat: 'crit', add: 0.08 }, { stat: 'damage', mult: 1.5, evolve: true },
+    ],
+  },
+
+  // ═══════════════════════════════════════════════════════════════
+  // NEW MANUAL WEAPONS (5) — tidalHarpoon + twinRevolvers ship as
+  // standard (no requireUnlock, same as hydropistol/bloodscythe etc.);
+  // the other 3 unlock via the card-shop slot machine (SHOP_CARD_POOL).
+  // ═══════════════════════════════════════════════════════════════
+  tidalHarpoon: {
+    id: 'tidalHarpoon', name: 'Tidal Harpoon', icon: '🔱', type: 'manual', behaviour: 'projectile',
+    desc: 'Heavy piercing harpoon — skewers everything in its path.',
+    base: { damage: 30, fireRate: 2.2, projSpeed: 760, projSize: 7, magazine: 8, reloadTime: 1.3, pierce: 4, knockback: 130, spread: 0.03, crit: 0.1, color: '#1fb6ff', sound: 'shoot' },
+    levelUps: [
+      { stat: 'damage', mult: 1.18 }, { stat: 'pierce', add: 2 }, { stat: 'fireRate', mult: 1.1 },
+      { stat: 'damage', mult: 1.25 }, { stat: 'magazine', add: 3 }, { stat: 'crit', add: 0.08 },
+      { stat: 'damage', mult: 1.4, evolve: true },
+    ],
+  },
+  twinRevolvers: {
+    id: 'twinRevolvers', name: 'Twin Revolvers', icon: '🔫', type: 'manual', behaviour: 'projectile',
+    desc: 'Dual-wielded sidearms — twice the lead, twice the noise.',
+    base: { damage: 12, fireRate: 6.5, projSpeed: 900, projSize: 5, projectiles: 2, magazine: 18, reloadTime: 0.9, pierce: 0, knockback: 60, spread: 0.05, crit: 0.1, color: '#ffd166', sound: 'shoot' },
+    levelUps: [
+      { stat: 'damage', mult: 1.18 }, { stat: 'fireRate', mult: 1.12 }, { stat: 'magazine', add: 6 },
+      { stat: 'damage', mult: 1.22 }, { stat: 'crit', add: 0.1 }, { stat: 'fireRate', mult: 1.15 },
+      { stat: 'damage', mult: 1.4, evolve: true },
+    ],
+  },
+  voidScatter: {
+    id: 'voidScatter', name: 'Void Scattergun', icon: '🌌', type: 'manual', behaviour: 'shotgun', requireUnlock: true,
+    desc: 'A void-charged blast of homing shards in a wide cone.',
+    base: { damage: 9, fireRate: 2.6, projSpeed: 400, projSize: 7, projectiles: 9, pierce: 1, spread: 0.7, crit: 0.06, color: '#b362ff', magazine: 14, reloadTime: 1.8 },
+    levelUps: [
+      { stat: 'damage', mult: 1.2 }, { stat: 'projectiles', add: 2 }, { stat: 'fireRate', mult: 1.1 },
+      { stat: 'damage', mult: 1.28 }, { stat: 'pierce', add: 1 }, { stat: 'damage', mult: 1.5, evolve: true },
+    ],
+  },
+  arcCaster: {
+    id: 'arcCaster', name: 'Arc Caster', icon: '⚡', type: 'manual', behaviour: 'projectile', requireUnlock: true,
+    desc: 'Manual-aim lightning sidearm — fast, sharp, precise.',
+    base: { damage: 14, fireRate: 5.5, projSpeed: 950, projSize: 5, magazine: 16, reloadTime: 1.0, pierce: 1, knockback: 40, spread: 0.02, crit: 0.14, color: '#a0e4ff', sound: 'shoot' },
+    levelUps: [
+      { stat: 'damage', mult: 1.18 }, { stat: 'fireRate', mult: 1.12 }, { stat: 'pierce', add: 1 },
+      { stat: 'damage', mult: 1.24 }, { stat: 'crit', add: 0.1 }, { stat: 'magazine', add: 5 },
+      { stat: 'damage', mult: 1.4, evolve: true },
+    ],
+  },
+  cometLauncher: {
+    id: 'cometLauncher', name: 'Comet Launcher', icon: '☄️', type: 'manual', behaviour: 'projectile', requireUnlock: true,
+    desc: 'Fires a slow heavy comet that explodes violently on impact.',
+    base: { damage: 65, fireRate: 0.9, projSpeed: 460, projSize: 12, magazine: 4, reloadTime: 2.4, pierce: 0, knockback: 160, spread: 0.04, crit: 0.08, color: '#ff7a1a', explode: 90, sound: 'shoot' },
+    levelUps: [
+      { stat: 'damage', mult: 1.22 }, { stat: 'fireRate', mult: 1.12 }, { stat: 'magazine', add: 2 },
+      { stat: 'damage', mult: 1.3 }, { stat: 'fireRate', mult: 1.15 }, { stat: 'damage', mult: 1.5, evolve: true },
+    ],
+  },
+
+  // ═══════════════════════════════════════════════════════════════
   // EVOLVED WEAPONS — unlocked via Skill Tree (poe_awk0) + EVO Slot
   // ═══════════════════════════════════════════════════════════════
   hydropistol_evo: {

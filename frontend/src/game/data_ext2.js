@@ -335,6 +335,16 @@ export const SHOP_CARD_POOL = [
   // ── New manual weapons ──
   { id: 'sh_wep_sniperDrop', icon: '🎯', name: 'Unlock: Sniper Drop',  category:'manual', effect: { unlockWeapon: 'sniperDrop' } },
   { id: 'sh_wep_acidSprayer',icon: '☠️', name: 'Unlock: Acid Sprayer', category:'manual', effect: { unlockWeapon: 'acidSprayer' } },
+  // ── New auto weapons (drone/turret/mine/flare/railgun) ──
+  { id: 'sh_wep_droneSquad',   icon: '🛸', name: 'Unlock: Drone Squadron', category:'auto', effect: { unlockWeapon: 'droneSquad' } },
+  { id: 'sh_wep_plasmaTurret', icon: '🔵', name: 'Unlock: Plasma Turret',  category:'auto', effect: { unlockWeapon: 'plasmaTurret' } },
+  { id: 'sh_wep_shrapnelMine', icon: '💣', name: 'Unlock: Shrapnel Mine',  category:'auto', effect: { unlockWeapon: 'shrapnelMine' } },
+  { id: 'sh_wep_solarFlare',   icon: '☀️', name: 'Unlock: Solar Flare',    category:'auto', effect: { unlockWeapon: 'solarFlare' } },
+  { id: 'sh_wep_railgunArray', icon: '📡', name: 'Unlock: Railgun Array',  category:'auto', effect: { unlockWeapon: 'railgunArray' } },
+  // ── New manual weapons (3 of the 5 new manuals — the other 2 ship standard) ──
+  { id: 'sh_wep_voidScatter', icon: '🌌', name: 'Unlock: Void Scattergun', category:'manual', effect: { unlockWeapon: 'voidScatter' } },
+  { id: 'sh_wep_arcCaster',   icon: '⚡', name: 'Unlock: Arc Caster',      category:'manual', effect: { unlockWeapon: 'arcCaster' } },
+  { id: 'sh_wep_cometLauncher', icon: '☄️', name: 'Unlock: Comet Launcher', category:'manual', effect: { unlockWeapon: 'cometLauncher' } },
   // ── EVO Unlocks (requires poe_awk0 in skill tree) ──────────────────
   { id: 'sh_evo_hydropistol', icon: '🌊', name: 'EVO: Torrent Cannon',  category:'evo', evoFrom:'hydropistol',  effect: { unlockEvo: 'hydropistol'  } },
   { id: 'sh_evo_bloodscythe', icon: '💀', name: 'EVO: Soul Reaper',     category:'evo', evoFrom:'bloodscythe',  effect: { unlockEvo: 'bloodscythe'  } },
