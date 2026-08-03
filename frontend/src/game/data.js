@@ -434,6 +434,19 @@ export const ENEMIES = {
     id: 'bossAida', name: 'A.I.D.A.', size: 80, hp: 12000, dmg: 58, speed: 145, color: '#b362ff',
     xp: 800, gold: 800, ai: 'boss', boss: true, shootCD: 0.6,
   },
+  // ---- New bosses (endless rotation, unique learnable attack patterns) ----
+  bossTidebreaker: {
+    id: 'bossTidebreaker', name: 'The Tidebreaker', size: 95, hp: 16000, dmg: 55, speed: 70, color: '#1fb6ff',
+    xp: 900, gold: 900, ai: 'boss', boss: true, shootCD: 1.0,
+  },
+  bossSentinel: {
+    id: 'bossSentinel', name: 'Sentinel Prime', size: 85, hp: 20000, dmg: 60, speed: 50, color: '#44aaff',
+    xp: 1000, gold: 1000, ai: 'boss', boss: true, shootCD: 0.9,
+  },
+  bossHollowQueen: {
+    id: 'bossHollowQueen', name: 'The Hollow Queen', size: 78, hp: 14000, dmg: 48, speed: 95, color: '#8a3fd4',
+    xp: 950, gold: 950, ai: 'boss', boss: true, shootCD: 1.1,
+  },
 };
 
 // ---------- LEVEL UP CARD POOL (in-run) ----------
@@ -507,13 +520,26 @@ export const WAVE_TIMELINE = [
   { t: 465, spawn: 5.2, types: ['steelbrute', 'lightningbug', 'necron', 'charger'] },
   { t: 540, spawn: 6.0, types: ['necron', 'charger', 'brute', 'steelbrute'], event: 'bossAida' },
   { t: 575, spawn: 6.2, types: ['techsoldier', 'nanoswarm', 'necron', 'lightningbug'] },
-  // Endless waves (after A.I.D.A. besegras)
+  // Endless waves (after A.I.D.A. besegras) — the 3 new bosses (Tidebreaker,
+  // Sentinel Prime, Hollow Queen) are woven into the rotation alongside the
+  // originals so a long endless run keeps seeing fresh attack patterns
+  // instead of just looping the same 4 bosses.
   { t: 620, spawn: 7.0, types: ['necron', 'charger', 'brute', 'ranger'] },
-  { t: 720, spawn: 8.0, types: ['necron', 'charger', 'brute'], event: 'bossOcular' },
+  { t: 720, spawn: 8.0, types: ['necron', 'charger', 'brute'], event: 'bossTidebreaker' },
   { t: 840, spawn: 9.5, types: ['necron', 'charger', 'brute', 'ranger'] },
-  { t: 960, spawn: 11.0, types: ['necron', 'charger', 'brute'], event: 'bossNecromancer' },
+  { t: 960, spawn: 11.0, types: ['necron', 'charger', 'brute'], event: 'bossSentinel' },
   { t: 1100, spawn: 12.5, types: ['necron', 'charger', 'brute', 'ranger'] },
-  { t: 1240, spawn: 14.0, types: ['necron', 'charger', 'brute'], event: 'bossVoidTitan' },
+  { t: 1240, spawn: 14.0, types: ['necron', 'charger', 'brute'], event: 'bossHollowQueen' },
+  { t: 1380, spawn: 15.5, types: ['necron', 'charger', 'brute', 'ranger'] },
+  { t: 1520, spawn: 17.0, types: ['necron', 'charger', 'brute'], event: 'bossOcular' },
+  { t: 1660, spawn: 18.5, types: ['necron', 'charger', 'brute', 'ranger'] },
+  { t: 1800, spawn: 20.0, types: ['necron', 'charger', 'brute'], event: 'bossNecromancer' },
+  { t: 1940, spawn: 21.5, types: ['necron', 'charger', 'brute', 'ranger'] },
+  { t: 2080, spawn: 23.0, types: ['necron', 'charger', 'brute'], event: 'bossVoidTitan' },
+  { t: 2220, spawn: 24.5, types: ['necron', 'charger', 'brute', 'ranger'] },
+  { t: 2360, spawn: 26.0, types: ['necron', 'charger', 'brute'], event: 'bossTidebreaker' },
+  { t: 2500, spawn: 27.5, types: ['necron', 'charger', 'brute', 'ranger'] },
+  { t: 2640, spawn: 29.0, types: ['necron', 'charger', 'brute'], event: 'bossSentinel' },
 ];
 
 export function waveAt(t) {

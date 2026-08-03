@@ -1692,6 +1692,12 @@ void main() {
         g.circle(mx - headR * 0.25, my - headR * 0.25, headR * 0.4).fill('#fff5d6');
         g.circle(mx + 2, my - 1, 2.4).fill('#221008');
         g.circle(mx - 3, my + 2, 1.8).fill('#221008');
+      } else if (p.type === 'bossSlamWarn') {
+        // Tidebreaker telegraph — a red danger ring that fills in as the
+        // window to dodge runs out, so the threat reads at a glance.
+        const t01 = 1 - (p.life / p.max);
+        g.circle(p.x, p.y, p._radius).stroke({ width: 4, color: '#1fb6ff', alpha: 0.35 + t01 * 0.5 });
+        g.circle(p.x, p.y, p._radius * t01).fill({ color: '#1fb6ff', alpha: 0.12 + t01 * 0.22 });
       } else if (p.type === 'poison') {
         g.circle(p.x, p.y, p.size).fill({ color: '#7ad96b', alpha: 0.30 * a }).stroke({ width: 2, color: '#5ab93b', alpha: 0.6 * a });
       } else if (p.type === 'lightning') {

@@ -1528,6 +1528,7 @@ export class Game {
           ep.life = 2.5;
           ep.color = t.color;
           ep.size = 5;
+          ep.homing = 0; // pooled object — clear any stale homing from a previous Sentinel Prime missile
         }
       } else if (t.ai === 'charge') {
         e.cd -= dt;
@@ -1549,6 +1550,7 @@ export class Game {
             ep.life = 3.5;
             ep.color = t.color;
             ep.size = 7;
+            ep.homing = 0;
           }
         }
       }
@@ -1608,10 +1610,146 @@ export class Game {
             const evp = this.eprojs.acquire();
             evp.x = e.x; evp.y = e.y;
             evp.vx = Math.cos(va) * 155; evp.vy = Math.sin(va) * 155;
-            evp.dmg = t.dmg * 0.45; evp.life = 5.5; evp.color = '#b362ff'; evp.size = 11;
+            evp.dmg = t.dmg * 0.45; evp.life = 5.5; evp.color = '#b362ff'; evp.size = 11; evp.homing = 0;
           }
         }
       }
+
+      // === The Tidebreaker: telegraphed ground slam + strafeable bullet fan ===
+      if (t.id === 'bossTidebreaker') {
+        e._slamCD = (e._slamCD !== undefined ? e._slamCD : 3.5) - dt;
+        if (e._slamCD <= 0) {
+          e._slamCD = 4.5;
+          const warn = this.parts.acquire();
+          warn.x = p.x; warn.y = p.y; warn.vx = 0; warn.vy = 0;
+          warn.life = 1.1; warn.max = 1.1; warn.type = 'bossSlamWarn';
+          warn._radius = 130; warn._dmg = t.dmg * (e.dmgMult || 1) * 2.2;
+          this.spawnDamageNumber(e.x, e.y - 48, 'TIDAL SLAM!', '#1fb6ff');
+        }
+        e._fanCD = (e._fanCD !== undefined ? e._fanCD : 1.6) - dt;
+        if (e._fanCD <= 0) {
+          e._fanCD = 3.0;
+          const baseAng = Math.atan2(p.y - e.y, p.x - e.x);
+          for (let fi = -3; fi <= 3; fi++) {
+            const a = baseAng + fi * 0.16;
+            const evp = this.eprojs.acquire();
+            evp.x = e.x; evp.y = e.y;
+            evp.vx = Math.cos(a) * 240; evp.vy = Math.sin(a) * 240;
+            evp.dmg = t.dmg * (e.dmgMult || 1) * 0.4; evp.life = 3.5; evp.color = '#1fb6ff'; evp.size = 8; evp.homing = 0;
+          }
+        }
+      }
+
+      // === Sentinel Prime: 3 HP-gated phases, each a different pattern ===
+      if (t.id === 'bossSentinel') {
+        const hpPct = e.hp / e.maxHp;
+        const phase = hpPct > 0.66 ? 1 : hpPct > 0.33 ? 2 : 3;
+        if (e._phase !== phase) {
+          e._phase = phase;
+          this.spawnDamageNumber(e.x, e.y - 50, phase === 2 ? 'TURRETS ONLINE' : phase === 3 ? 'OVERDRIVE!' : 'PHASE 1', '#44aaff');
+          this.cam.shake = Math.max(this.cam.shake, 10);
+          this.spawnRing(e.x, e.y, t.size * 0.9, '#44aaff', 0.6);
+          if (phase === 2) {
+            for (let ti = 0; ti < 2; ti++) {
+              const ta = (ti === 0 ? -1 : 1) * 1.1;
+              const tx = e.x + Math.cos(ta) * 160, ty = e.y + Math.sin(ta) * 160;
+              const turret = this.enemies.acquire();
+              turret.x = clamp(tx, 20, this.world.w - 20); turret.y = clamp(ty, 20, this.world.h - 20);
+              turret.vx = 0; turret.vy = 0; turret.t = ENEMIES.ranger;
+              turret.maxHp = 90; turret.hp = 90; turret.hit = 0; turret.cd = 0; turret.dz = 0;
+              turret.kbX = 0; turret.kbY = 0; turret.dmgMult = e.dmgMult;
+            }
+          }
+        }
+        if (phase === 1) {
+          e._sweepAngle = (e._sweepAngle || 0) + dt * 1.6;
+          e._laserCD = (e._laserCD !== undefined ? e._laserCD : 0.15) - dt;
+          if (e._laserCD <= 0) {
+            e._laserCD = 0.09;
+            const evp = this.eprojs.acquire();
+            evp.x = e.x; evp.y = e.y;
+            evp.vx = Math.cos(e._sweepAngle) * 260; evp.vy = Math.sin(e._sweepAngle) * 260;
+            evp.dmg = t.dmg * (e.dmgMult || 1) * 0.28; evp.life = 2.2; evp.color = '#9fe0ff'; evp.size = 6; evp.homing = 0;
+          }
+        } else if (phase === 3) {
+          e._missileCD = (e._missileCD !== undefined ? e._missileCD : 1.8) - dt;
+          if (e._missileCD <= 0) {
+            e._missileCD = 1.8;
+            for (let mi = 0; mi < 3; mi++) {
+              const ma = Math.atan2(p.y - e.y, p.x - e.x) + (mi - 1) * 0.4;
+              const evp = this.eprojs.acquire();
+              evp.x = e.x; evp.y = e.y;
+              evp.vx = Math.cos(ma) * 130; evp.vy = Math.sin(ma) * 130;
+              evp.dmg = t.dmg * (e.dmgMult || 1) * 0.5; evp.life = 4.5; evp.color = '#ff3146'; evp.size = 9;
+              evp.homing = 2.2;
+            }
+          }
+        }
+      }
+
+      // === The Hollow Queen: swarm adds + telegraphed lunge + molt shield ===
+      if (t.id === 'bossHollowQueen') {
+        e._swarmCD = (e._swarmCD !== undefined ? e._swarmCD : 4) - dt;
+        if (e._swarmCD <= 0 && !e._molting) {
+          e._swarmCD = 6;
+          for (let bi = 0; bi < 3; bi++) {
+            const ba = Math.random() * TAU;
+            const b = this.enemies.acquire();
+            b.x = e.x + Math.cos(ba) * 60; b.y = e.y + Math.sin(ba) * 60;
+            b.vx = 0; b.vy = 0; b.t = ENEMIES.bat;
+            b.maxHp = 30; b.hp = 30; b.hit = 0; b.cd = 0; b.dz = 0; b.kbX = 0; b.kbY = 0;
+            b.dmgMult = e.dmgMult;
+          }
+          this.spawnDamageNumber(e.x, e.y - 44, 'SWARM CALL', '#8a3fd4');
+        }
+        e._moltCD = (e._moltCD !== undefined ? e._moltCD : 8) - dt;
+        if (!e._molting && e._moltCD <= 0) {
+          e._molting = true; e._moltT = 2.5;
+          this.spawnDamageNumber(e.x, e.y - 44, 'MOLTING...', '#8a3fd4');
+          this.cam.shake = Math.max(this.cam.shake, 6);
+        }
+        if (e._molting) {
+          e._moltT -= dt;
+          e.hp = Math.min(e.maxHp, e.hp + e.maxHp * 0.03 * dt);
+          if (e._moltT <= 0) {
+            e._molting = false; e._moltCD = 9;
+            this.spawnRing(e.x, e.y, t.size * 1.4, '#8a3fd4', 0.5);
+            if (dist2(e.x, e.y, p.x, p.y) <= (t.size * 1.4) ** 2 && p.iframes <= 0 && Math.random() > this.run.stats.dodge) {
+              p.hp -= Math.max(1, t.dmg * (e.dmgMult || 1) * 0.6 - this.run.stats.armor);
+              p.hit = 0.15; p.iframes = 0.3;
+            }
+          }
+          e.hit = Math.max(0, e.hit - dt);
+          return; // invulnerable + rooted while molting — skip movement/lunge
+        }
+        e._lungeCD = (e._lungeCD !== undefined ? e._lungeCD : 3) - dt;
+        if (!e._lunging && e._lungeCD <= 0) {
+          e._lunging = true; e._lungeWindup = 0.55; e._lungeTargetX = p.x; e._lungeTargetY = p.y;
+        }
+        if (e._lunging) {
+          if (e._lungeWindup > 0) {
+            e._lungeWindup -= dt;
+            this.spawnRing(e.x, e.y, t.size * 0.55, '#ff3146', 0.15);
+          } else {
+            const ldx = e._lungeTargetX - e.x, ldy = e._lungeTargetY - e.y, ld = Math.hypot(ldx, ldy);
+            if (ld < 14 || (e._lungeT = (e._lungeT || 0) + dt) > 0.5) {
+              e._lunging = false; e._lungeT = 0; e._lungeCD = 5;
+            } else {
+  e.x += (ldx / (ld || 1)) * 520 * dt;
+              e.y += (ldy / (ld || 1)) * 520 * dt;
+            }
+            e.x = clamp(e.x, 20, this.world.w - 20);
+            e.y = clamp(e.y, 20, this.world.h - 20);
+            // Don't `return` here — the shared collision-with-player check
+            // below is exactly what makes the lunge deal contact damage, so
+            // it must still run this frame. Zero out spd instead so the
+            // shared chase-movement line just below becomes a no-op on top
+            // of the dash position we already set.
+            spd = 0;
+          }
+        }
+      }
+
       e.x += nx * spd * dt + e.kbX * dt;
       e.y += ny * spd * dt + e.kbY * dt;
       e.x = clamp(e.x, 20, this.world.w - 20);
@@ -1739,6 +1877,13 @@ export class Game {
     const p = this.player;
     this.eprojs.forEach(ep => {
       if (!ep.alive) return;
+      if (ep.homing) {
+        const hdx = p.x - ep.x, hdy = p.y - ep.y, hd = Math.hypot(hdx, hdy) || 1;
+        const spd = Math.hypot(ep.vx, ep.vy) || 1;
+        const turn = Math.min(1, ep.homing * dt);
+        ep.vx += ((hdx / hd) * spd - ep.vx) * turn;
+        ep.vy += ((hdy / hd) * spd - ep.vy) * turn;
+      }
       ep.x += ep.vx * dt; ep.y += ep.vy * dt;
       ep.life -= dt;
       if (ep.life <= 0) { this.eprojs.release(ep); return; }
@@ -1786,6 +1931,29 @@ export class Game {
             cp.size = rand(3, 5); cp.type = 'spark';
           }
           this.cam.shake = Math.max(this.cam.shake, 9);
+          this.parts.release(p);
+        }
+        return;
+      }
+      if (p.type === 'bossSlamWarn') {
+        p.life -= dt;
+        if (p.life <= 0) {
+          // Detonate: telegraphed AOE hits the player only if they're still
+          // standing in the ring when it lands (see Tidebreaker AI below).
+          const pl = this.player;
+          if (dist2(pl.x, pl.y, p.x, p.y) <= p._radius * p._radius && pl.iframes <= 0) {
+            if (Math.random() > this.run.stats.dodge) {
+              const dmg = Math.max(1, p._dmg - this.run.stats.armor);
+              pl.hp -= dmg; pl.hit = 0.15; pl.iframes = 0.3;
+              this.cam.shake = Math.max(this.cam.shake, 14);
+              this.spawnHitBurst(pl.x, pl.y, '#1fb6ff', 20);
+            } else {
+              this.spawnDamageNumber(pl.x, pl.y - 10, 'DODGE', '#4dffd4');
+            }
+          }
+          this.spawnRing(p.x, p.y, p._radius, '#1fb6ff', 0.6);
+          this.spawnRing(p.x, p.y, p._radius * 0.55, '#dff6ff', 0.4);
+          this.spawnHitBurst(p.x, p.y, '#1fb6ff', 26);
           this.parts.release(p);
         }
         return;
@@ -1850,6 +2018,10 @@ export class Game {
     if (!e.alive) return;
     const s = this.run.stats;
     if (e._decoy !== undefined) { e._decoy -= 0.5; if (e._decoy <= 0) this.killEnemy(e); return; }
+    if (e._molting) { // Hollow Queen shield phase — no damage, just a block ping
+      if (!silent) this.spawnDamageNumber(e.x, e.y - e.t.size * 0.6, 'BLOCKED', '#8a3fd4');
+      return;
+    }
     if (e.t.boss && s.bossDmg > 1) dmg *= s.bossDmg;
     if (e._voidVulnT > 0) dmg *= e._voidVulnMult || 1;
     let head = false;
