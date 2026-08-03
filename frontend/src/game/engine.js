@@ -146,6 +146,11 @@ export class Game {
         levelUpKB:  150 + (this.meta.lvlBoomKB  || 0),
         evoUnlocked: !!(opts.skills && opts.skills.poe_awk0 >= 1),
         unlockedEvos: opts.unlockedEvos || [],
+        // Tempest skill tree (poe_tmp5/6/7) — see buildLevelUpChoices/
+        // tryDash/castSkill('riptide') for where these are consumed.
+        forksUnlocked: !!this.meta.forksUnlocked,
+        undertowDash: !!this.meta.undertowDash,
+        riptideMastery: !!this.meta.riptideMastery,
         // Advanced card flags
         flags: this.meta.flags || {},
       },
@@ -619,6 +624,21 @@ export class Game {
         if (e._burnAcc >= 0.5) { e._burnAcc = 0; this.dealDamage(e, 6 * s.damageMult, false, 0, e.x, e.y, true); if (Math.random() < 0.5) this.spawnSpark(e.x, e.y, '#ff7a1a'); }
       }
     });
+    // Stasis Beacon field — deployed by the 'beacon' active skill (castSkill)
+    if (this._beaconT > 0) {
+      this._beaconT -= dt;
+      this._beaconTick = (this._beaconTick || 0) + dt;
+      if (this._beaconTick >= 0.4) {
+        this._beaconTick = 0;
+        this.enemies.forEach(e => {
+          if (dist2(e.x, e.y, this._beaconX, this._beaconY) <= 150 * 150) {
+            this.dealDamage(e, 10 * s.damageMult, false, 0, this._beaconX, this._beaconY, true);
+            e._slowT = Math.max(e._slowT || 0, 0.5); e._slowMult = 0.25;
+          }
+        });
+        this.spawnRing(this._beaconX, this._beaconY, 150, '#ffd166', 0.35);
+      }
+    }
     // Vortex pull
     if (this._vortexT > 0) {
       const vx = this._vortexX, vy = this._vortexY;
@@ -723,6 +743,46 @@ export class Game {
     }
     // holyWater nerf: heal 8 HP instead of 15
     if (f.holyWater) { /* handled above, no change */ }
+    // Tidal Wave — periodic knockback + damage pulse
+    if (f.tidalWave) {
+      this._tidalT = (this._tidalT || 0) + dt;
+      if (this._tidalT >= 10) {
+        this._tidalT = 0;
+        const r = 220 * s.areaMult;
+        this.enemies.forEach(e => {
+          const dx = e.x - p.x, dy = e.y - p.y; const d = Math.hypot(dx, dy) || 1;
+          if (d <= r) {
+            e.kbX += (dx / d) * 340; e.kbY += (dy / d) * 340;
+            this.dealDamage(e, 22 * s.damageMult, false, 0, p.x, p.y, true);
+          }
+        });
+        this.spawnRing(p.x, p.y, r, '#1fb6ff', 0.5);
+        this.cam.shake = Math.max(this.cam.shake, 5);
+      }
+    }
+    // Second Wind — once per run, a safety net when HP crashes low
+    if (f.secondWind && !p._secondWindUsed && p.hp < p.maxHp * 0.15) {
+      p._secondWindUsed = true;
+      p.iframes = Math.max(p.iframes, 1.2);
+      p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.35);
+      this.spawnRing(p.x, p.y, 90, '#4dffd4', 0.6);
+      this.spawnDamageNumber(p.x, p.y - 20, 'SECOND WIND!', '#4dffd4', 20);
+      this.cam.shake = Math.max(this.cam.shake, 8);
+    }
+    // Gravity Charge — every 15 kills, pull nearby foes in
+    if (f.gravityPull) {
+      const threshold = 15;
+      p._gravityKills = p._gravityKills || 0;
+      if (Math.floor(this.run.kills / threshold) > Math.floor(p._gravityKills / threshold)) {
+        const r = 260;
+        this.enemies.forEach(e => {
+          const dx = p.x - e.x, dy = p.y - e.y; const d = Math.hypot(dx, dy) || 1;
+          if (d <= r) { e.kbX += (dx / d) * 260; e.kbY += (dy / d) * 260; }
+        });
+        this.spawnRing(p.x, p.y, r, '#b362ff', 0.4);
+      }
+      p._gravityKills = this.run.kills;
+    }
   }
 
   // Agility attribute (save.attrs.mob): 0 points = 33% slower/sluggier than
@@ -886,9 +946,17 @@ export class Game {
     p.dashVY = (vy / l) * speed;
     p.dashing = 0.16;
     p.dashCD = (2.4 * (s.dashCDMult || 1)) / agi;
-    p.iframes = 0.22;
+    p.iframes = s.undertowDash ? 0.33 : 0.22;
     this.cam.shake = Math.max(this.cam.shake, 2);
     for (let i = 0; i < 12; i++) this.spawnSpark(p.x, p.y, '#4dffd4');
+    if (s.undertowDash) {
+      const pullR = 180;
+      this.enemies.forEach(e => {
+        const dx = p.x - e.x, dy = p.y - e.y; const d = Math.hypot(dx, dy) || 1;
+        if (d <= pullR) { e.kbX += (dx / d) * 220; e.kbY += (dy / d) * 220; }
+      });
+      this.spawnRing(p.x, p.y, pullR, '#1fb6ff', 0.3);
+    }
     Audio.dash();
   }
 
@@ -981,6 +1049,44 @@ export class Game {
       warn._fallFrom = -480; warn._fallOffX = rand(-100, 100);
     } else if (id === 'vortex') {
       this._vortexT = 2; this._vortexX = p.x + p.aimX * 60; this._vortexY = p.y + p.aimY * 60;
+    } else if (id === 'riptide') {
+      // A forward piercing wave in the aim direction — damages + slows
+      // everything in a 100° cone out to 260 range, one instant hit.
+      const aimAng = Math.atan2(p.aimY, p.aimX);
+      const range = 260;
+      const mastery = !!s.riptideMastery;
+      this.enemies.forEach(e => {
+        const edx = e.x - p.x, edy = e.y - p.y; const ed = Math.hypot(edx, edy);
+        if (ed > range) return;
+        let da = Math.atan2(edy, edx) - aimAng;
+        while (da > Math.PI) da -= TAU; while (da < -Math.PI) da += TAU;
+        if (Math.abs(da) <= Math.PI * 0.5) {
+          const dmg = this.rollDamage(90 * s.damageMult * (mastery ? 1.5 : 1));
+          this.dealDamage(e, dmg.dmg, dmg.crit, 120, p.x, p.y);
+          e._slowT = Math.max(e._slowT || 0, mastery ? 1.0 : 2.5);
+          e._slowMult = mastery ? 0.02 : 0.45; // mastery: near-total root for 1s
+        }
+      });
+      this.spawnArc(p.x, p.y, range, '#1fb6ff', aimAng);
+      this.cam.shake = Math.max(this.cam.shake, 6);
+    } else if (id === 'beacon') {
+      // Deploys a stationary field (same stateful-timer pattern as vortex
+      // above) that repeatedly damages + roots enemies inside it — see the
+      // tick in tickCardFlags.
+      this._beaconT = 5; this._beaconX = p.x + p.aimX * 140; this._beaconY = p.y + p.aimY * 140;
+      this.spawnRing(this._beaconX, this._beaconY, 150, '#ffd166', 0.6);
+    } else if (id === 'nova') {
+      const r = 190 * s.areaMult;
+      this.enemies.forEach(e => {
+        if (dist2(e.x, e.y, p.x, p.y) <= r * r) {
+          const dmg = this.rollDamage(70 * s.damageMult);
+          this.dealDamage(e, dmg.dmg, dmg.crit, 60, p.x, p.y);
+          e._slowT = Math.max(e._slowT || 0, 3); e._slowMult = 0.4;
+        }
+      });
+      this.spawnRing(p.x, p.y, r, '#bff0ff', 0.5);
+      this.spawnRing(p.x, p.y, r * 0.6, '#ffffff', 0.35);
+      this.cam.shake = Math.max(this.cam.shake, 7);
     }
   }
 
@@ -1759,6 +1865,15 @@ export class Game {
       // separation - mild
       // collision with player
       const sumR = (t.size / 2) + p.r;
+      if (d < sumR + 4 && (this.run.stats.flags || {}).venomBite) {
+        e._venomCD = (e._venomCD || 0) - dt;
+        if (e._venomCD <= 0) {
+          e._venomCD = 1.0;
+          e._poisonStacks = Math.min(8, (e._poisonStacks || 0) + 1);
+          e._poisonT = 4;
+          this.spawnSpark(e.x, e.y, '#7ad96b');
+        }
+      }
       if (d < sumR + 4 && p.iframes <= 0) {
         if (p.shieldCharge > 0) {
           p.shieldCharge = 0; p.shieldCD = 25;
@@ -2131,6 +2246,23 @@ export class Game {
         const r = 70 * s.areaMult;
         this.enemies.forEach(en => { if (en !== e && en.alive && dist2(en.x, en.y, e.x, e.y) <= r * r) this.dealDamage(en, 30 * s.damageMult, false, 80, e.x, e.y, true); });
         this.spawnRing(e.x, e.y, r, '#ff7a1a', 0.3);
+      }
+      if (f.staticChainKill && Math.random() < 0.25) {
+        let prev = e; const hit = new Set([e]);
+        const activeEnemies = this.enemies.active;
+        for (let ci = 0; ci < 2; ci++) {
+          let next = null; let bestD = 220;
+          for (let ai = 0; ai < activeEnemies.length; ai++) {
+            const en = activeEnemies[ai];
+            if (hit.has(en) || !en.alive) continue;
+            const cd = Math.hypot(en.x - prev.x, en.y - prev.y);
+            if (cd < bestD) { bestD = cd; next = en; }
+          }
+          if (!next) break;
+          this.dealDamage(next, 26 * s.damageMult, false, 30, prev.x, prev.y, true);
+          this.spawnLightning(prev.x, prev.y, next.x, next.y);
+          hit.add(next); prev = next;
+        }
       }
     }
     this._inCascade = inCascade;
@@ -2709,7 +2841,9 @@ export class Game {
     // bring it to level 5, replace the WHOLE normal 3-card modal with a
     // special 4-way fork screen for that one weapon (one fork per weapon per
     // run — see run.weaponForks / computeWeaponStats / applyCardChoice).
-    const forkWeaponId = owned.find(id => (r.weaponLvls[id] || 0) === 4 && !r.weaponForks[id]);
+    const forkWeaponId = r.stats.forksUnlocked
+      ? owned.find(id => (r.weaponLvls[id] || 0) === 4 && !r.weaponForks[id])
+      : null;
     if (forkWeaponId) {
       const def = WEAPONS[forkWeaponId];
       const forks = getWeaponForkChoices(def);

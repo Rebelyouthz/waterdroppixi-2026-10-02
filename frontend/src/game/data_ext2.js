@@ -242,6 +242,9 @@ export const ACTIVE_SKILLS = {
   decoy:     { id: 'decoy',     name: 'Decoy Drop',       icon: '👤', cd: 12, cost: 0, key: '4', desc: 'Drop decoy that pulls aggro 6s.' },
   meteor:    { id: 'meteor',    name: 'Meteor Call',      icon: '☄️', cd: 14, cost: 0, key: '1', desc: 'Call meteor on cursor — massive AoE.' },
   vortex:    { id: 'vortex',    name: 'Void Vortex',      icon: '🌀', cd: 16, cost: 0, key: '2', desc: 'Black hole pulls enemies, drains HP.' },
+  riptide:   { id: 'riptide',   name: 'Riptide Pulse',    icon: '🌊', cd: 10, cost: 0, key: '3', desc: 'Piercing wave in front of you — damages + slows.' },
+  beacon:    { id: 'beacon',    name: 'Stasis Beacon',    icon: '📡', cd: 20, cost: 0, key: '4', desc: 'Deploy a field that roots + damages foes for 5s.' },
+  nova:      { id: 'nova',      name: 'Frost Nova',       icon: '❄️', cd: 14, cost: 0, key: '1', desc: 'Instant AoE around you — damages + slows.' },
 };
 export const ACTIVE_SKILL_KEYS = Object.keys(ACTIVE_SKILLS);
 // You can equip up to 4 active skills (out of pool). Unlock via card shop.
@@ -287,6 +290,12 @@ export const ADVANCED_CARDS = [
   { id: 'c_thorns',     icon: '🌵', name: 'Thorns',             desc: 'Return 25% of dmg received as melee',           flag: 'thorns', amount: 0.25 },
   { id: 'c_berserker',  icon: '🔥', name: 'Berserker',          desc: 'Below 30% HP: +40% attack speed',               flag: 'berserkerMode' },
   { id: 'c_deathmark',  icon: '☠️', name: 'Death Mark',         desc: 'Your shots slow-marked foes take +30% dmg',     flag: 'deathMark' },
+  // ─── 5 new passives (see engine.js tickCardFlags/killEnemy for hooks) ───
+  { id: 'c_tidalWave',   icon: '🌊', name: 'Tidal Wave',       desc: 'Every 10s, a wave knocks back + damages all nearby foes', flag: 'tidalWave' },
+  { id: 'c_staticChain', icon: '⚡', name: 'Static Chain',     desc: 'Kills have 25% chance to chain-lightning 2 nearby foes',   flag: 'staticChainKill' },
+  { id: 'c_secondWind',  icon: '🌬️', name: 'Second Wind',      desc: 'Once per run, dropping below 15% HP grants a shield + heal', flag: 'secondWind' },
+  { id: 'c_gravityCharge', icon: '🌀', name: 'Gravity Charge', desc: 'Every 15 kills, pull all nearby foes toward you',          flag: 'gravityPull' },
+  { id: 'c_venomBite',   icon: '☠️', name: 'Venom Bite',       desc: 'Foes that touch you get poisoned',                          flag: 'venomBite' },
 ];
 
 // ---------- CAMP CARD SHOP POOL (slot-machine pulls) ----------

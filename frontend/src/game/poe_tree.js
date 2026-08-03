@@ -12,6 +12,7 @@ export const POE_BRANCHES = {
   void:      { name:'VOID',      icon:'🌌',  color:'#4dc4ff', glow:'rgba(77,196,255,0.5)' },
   pets:      { name:'PETS',      icon:'🐾',  color:'#51cf66', glow:'rgba(81,207,102,0.5)' },
   awakening: { name:'AWAKENING', icon:'🔱',  color:'#ff9900', glow:'rgba(255,153,0,0.5)'  },
+  tempest:   { name:'TEMPEST',   icon:'🌊',  color:'#1fb6ff', glow:'rgba(31,182,255,0.5)' },
 };
 
 // Tree canvas: 1800 × 2600 px
@@ -128,6 +129,19 @@ export const POE_TREE_NODES = [
   { id:'poe_awk0', branch:'awakening', type:'notable',  x:1720, y:2380, req:[],               max:1, c:6, stat:'area',  val:0.05,  name:'Awakening Gate',    icon:'🔱', desc:'Unlocks WEAPON EVOLUTION. Grants +5% area.' },
   { id:'poe_awk1', branch:'awakening', type:'notable',  x:1720, y:2080, req:['poe_awk0'],     max:3, c:3, stat:'area',  val:0.03,  name:'Shockwave Mastery', icon:'💥', desc:'+3% area per level. Unlocks: Explosion Dmg meta upgrade.' },
   { id:'poe_awk2', branch:'awakening', type:'keystone', x:1720, y:1780, req:['poe_awk1'],     max:1, c:8, stat:'area',  val:0.10,  name:'Earthshaker',       icon:'🌍', desc:'+10% area. Unlocks: Explosion Knockback meta upgrade.' },
+
+  // ═══════════════════════════════════════════
+  // TEMPEST (cx=1920, #1fb6ff) — 5 passives + 3 active keystones, gates the
+  // level-5 weapon evolution fork system (see engine.js buildLevelUpChoices)
+  // ═══════════════════════════════════════════
+  { id:'poe_tmp0', branch:'tempest', type:'minor',    x:1920, y:2380, req:[],                         max:3, c:1, stat:'elementalDmg', val:0.02, name:'Tidal Charge',    icon:'🌊', desc:'+2% elemental damage per level.' },
+  { id:'poe_tmp1', branch:'tempest', type:'minor',    x:1920, y:2080, req:['poe_tmp0'],                max:3, c:1, stat:'mspd',         val:0.02, name:'Undertow',        icon:'💧', desc:'+2% move speed per level. The current carries you.' },
+  { id:'poe_tmp2', branch:'tempest', type:'minor',    x:1860, y:1780, req:['poe_tmp1'],                max:3, c:1, stat:'pierce',       val:1,    name:'Riptide Edge',    icon:'➰', desc:'+1 pierce per level. Water cuts deeper than steel.' },
+  { id:'poe_tmp3', branch:'tempest', type:'minor',    x:1980, y:1780, req:['poe_tmp1'],                max:3, c:2, stat:'area',         val:0.03, name:'Wave Expansion',  icon:'🌀', desc:'+3% area per level. Your reach widens like the tide.' },
+  { id:'poe_tmp4', branch:'tempest', type:'notable',  x:1920, y:1480, req:['poe_tmp2','poe_tmp3'],     max:1, c:4, stat:'crit',         val:0.08, name:'Maelstrom Focus', icon:'💢', desc:'+8% crit chance. Find the eye of the storm.' },
+  { id:'poe_tmp5', branch:'tempest', type:'keystone', x:1920, y:1180, req:['poe_tmp4'],                max:1, c:8, stat:'forksUnlocked',val:1,    name:'Evolution Current', icon:'🔀', desc:'ACTIVE: Unlocks Weapon Evolution Forks — every weapon gets a build-defining 4-way choice at level 5.', active:true },
+  { id:'poe_tmp6', branch:'tempest', type:'keystone', x:1920, y:880,  req:['poe_tmp5'],                max:1, c:8, stat:'undertowDash', val:1,    name:'Undertow Dash',   icon:'💨', desc:'ACTIVE: Dash pulls nearby foes toward you and gains +50% i-frame duration.', active:true },
+  { id:'poe_tmp7', branch:'tempest', type:'keystone', x:1920, y:500,  req:['poe_tmp6'],                max:1, c:10,stat:'riptideMastery',val:1,   name:'Riptide Mastery', icon:'🌊', desc:'ACTIVE: Riptide Pulse damage +50% and its slow becomes a full root for 1s.', active:true },
 ];
 
 // Fast lookup by ID

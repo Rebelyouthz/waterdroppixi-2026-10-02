@@ -70,7 +70,7 @@ function buildMetaEffects(save) {
   });
 
   // New POE tree nodes (poe_ prefix)
-  const BOOLEAN_STATS = new Set(['berserk','dash','blink','shield','revive','chestSense','swipeAttack']);
+  const BOOLEAN_STATS = new Set(['berserk','dash','blink','shield','revive','chestSense','swipeAttack','forksUnlocked','undertowDash','riptideMastery']);
   Object.entries(sk).forEach(([id, lvl]) => {
     const pn = POE_INDEX[id]; if (!pn || lvl < 1) return;
     const amt = pn.val * lvl;
