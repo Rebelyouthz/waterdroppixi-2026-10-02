@@ -40,6 +40,11 @@ export const DEFAULT_SAVE = {
   // Elemental Rounds (Weaponsmith): { weaponId: [elementId, ...] }, cycles
   // shot-by-shot within the same magazine — see game/data_ext2.js ELEMENTS.
   weaponElements: {},
+  // Runes — socketable into manual weapons + the ring/amulet gear slots.
+  // See game/runes.js.
+  runeInventory: [],
+  gearRunes: {},   // { ring: runeId, amulet: runeId }
+  weaponRunes: {}, // { weaponId: runeId }
   // daily
   daily: { lastClaim: 0, streak: 0 }, // unix day index
   quests: { day: 0, completed: {}, claimed: {} },

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { StarRaidGame, STAGES, SHIP_UPGRADES, upgradeCost } from '../game/starRaidEngine';
 import { StarRaidRenderer } from '../game/starRaidRenderer';
 import { SHIP_COLORS } from '../game/data_ext';
+import { rollRune } from '../game/runes';
 
 // ═══════════════════════════════════════════════════════════════════════
 // STAR RAID — "Patrol minigame" from spec (named to avoid colliding with
@@ -25,6 +26,10 @@ import { SHIP_COLORS } from '../game/data_ext';
 export default function StarRaidScreen({ save, setSave, onExit }) {
   const [screen, setScreen] = useState('menu'); // 'menu' | 'shop' | 'playing' | 'result'
   const [stageIdx, setStageIdx] = useState(save.starRaid?.stageUnlocked || 0);
+  // Two modes, same ship/stages/upgrades — only the final-stage-clear
+  // reward differs. Per spec: "ett läge där man får runes och ett där man
+  // får artifacts".
+  const [mode, setMode] = useState('artifact'); // 'artifact' | 'rune'
   const [result, setResult] = useState(null);
   const canvasRef = useRef(null);
   const gameRef = useRef(null);
@@ -51,17 +56,22 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
         onGameOver: (s) => {
           const scrapEarned = s.scrap;
           const newSr = { ...sr, scrap: (sr.scrap || 0) + scrapEarned };
-          let gotToken = false;
+          let gotToken = false, gotRune = null;
           if (s.cleared) {
             const nextUnlocked = Math.max(newSr.stageUnlocked || 0, stageIdx + 1);
             newSr.stageUnlocked = Math.min(STAGES.length - 1, nextUnlocked);
             if (stageIdx === STAGES.length - 1) {
-              gotToken = true;
+              if (mode === 'rune') gotRune = rollRune();
+              else gotToken = true;
             }
           }
-          const newSave = { ...save, starRaid: newSr, gachaTokens: (save.gachaTokens || 0) + (gotToken ? 1 : 0) };
+          const newSave = {
+            ...save, starRaid: newSr,
+            gachaTokens: (save.gachaTokens || 0) + (gotToken ? 1 : 0),
+            runeInventory: gotRune ? [...(save.runeInventory || []), gotRune] : (save.runeInventory || []),
+          };
           setSave(newSave);
-          setResult({ ...s, scrapEarned, gotToken });
+          setResult({ ...s, scrapEarned, gotToken, gotRune });
           setScreen('result');
         },
       },
@@ -167,6 +177,15 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
               );
             })}
           </div>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+            <button className={`go-btn ${mode === 'artifact' ? 'go-btn-retry' : 'go-btn-ghost'}`} style={{ flex: 1 }}
+              onClick={() => setMode('artifact')} data-testid="starraid-mode-artifact">🔶 Artifact Run</button>
+            <button className={`go-btn ${mode === 'rune' ? 'go-btn-retry' : 'go-btn-ghost'}`} style={{ flex: 1 }}
+              onClick={() => setMode('rune')} data-testid="starraid-mode-rune">🔮 Rune Run</button>
+          </div>
+          <div style={{ fontFamily: 'VT323', color: 'var(--ink-dim)', fontSize: 12, marginBottom: 10 }}>
+            Clearing the final stage in this mode awards {mode === 'rune' ? 'a Rune' : 'a Gacha Token'}.
+          </div>
           <div style={{ display: 'flex', gap: 10 }}>
             <button className="go-btn go-btn-ghost" onClick={onExit} data-testid="starraid-exit">↩ Camp</button>
             <button className="go-btn go-btn-camp" onClick={() => setScreen('shop')} data-testid="starraid-shop">🔧 Upgrade Ship</button>
@@ -221,6 +240,9 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
           </div>
           {result?.gotToken && (
             <div className="go-badges"><div className="go-badge"><span>🎰</span><b>GACHA TOKEN EARNED</b></div></div>
+          )}
+          {result?.gotRune && (
+            <div className="go-badges"><div className="go-badge"><span>{result.gotRune.icon}</span><b>{result.gotRune.name.toUpperCase()} EARNED</b></div></div>
           )}
           <div className="go-actions">
             <button className="go-btn go-btn-ghost" onClick={onExit}>↩ Camp</button>

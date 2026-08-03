@@ -6,6 +6,7 @@ import { HEADBANDS } from '../game/data_ext';
 import { POE_INDEX, POE_ATTRS } from '../game/poe_tree';
 import { rollGearDrop } from '../game/gear';
 import { applyArtifactsToStats } from '../game/artifacts';
+import { applyRunesToStats } from '../game/runes';
 import { Audio } from '../game/audio';
 import HUD from './HUD';
 import LevelUpModal from './LevelUpModal';
@@ -156,6 +157,7 @@ function buildMetaEffects(save) {
     if (item.secondary) result.armor += item.secondary.val;
   }
   applyArtifactsToStats(save, result);
+  applyRunesToStats(save, result);
   const activePet = (save.pets || []).find(p => p.active);
   if (activePet) {
     const PET_STAT_MAP = {

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { WEAPONS } from '../game/data';
 import { WEAPON_PARTS, WEAPON_PART_OVERRIDES } from '../game/data_ext';
 import { ELEMENTS, STARTER_WEAPONS, PART_SLOTS, PART_SLOT_INFO, STAT_DISPLAY } from '../game/data_ext2';
+import { RUNE_RARITY_COLORS, getRuneMergeGroups, mergeRunes, rollRune } from '../game/runes';
 import { Audio } from '../game/audio';
 
 const PART_RAR_CLS = { common: 'r-common', magic: 'r-magic', rare: 'r-rare', epic: 'r-epic', legendary: 'r-legendary', mythical: 'r-mythical' };
@@ -12,7 +13,7 @@ const PART_RAR_CLS = { common: 'r-common', magic: 'r-magic', rare: 'r-rare', epi
 // per feedback ("too many menus"), same underlying save data, nothing
 // about the mechanics themselves changed.
 export default function Weaponsmith({ save, setSave, onClose }) {
-  const [sub, setSub] = useState('parts'); // 'parts' | 'blueprints' | 'inventory'
+  const [sub, setSub] = useState('parts'); // 'parts' | 'blueprints' | 'inventory' | 'runes'
   const [wid, setWid] = useState('hydropistol');
   const w = WEAPONS[wid];
   const parts = save.weaponParts[wid] || {};
@@ -25,6 +26,25 @@ export default function Weaponsmith({ save, setSave, onClose }) {
     const next = cur.includes(elId) ? cur.filter(x => x !== elId)
       : cur.length < elementSlots ? [...cur, elId] : cur;
     setSave({ ...save, weaponElements: { ...(save.weaponElements || {}), [wid]: next } });
+  };
+
+  // ---- Runes (socketable into manual weapons only, per spec) ----
+  const runeInv = save.runeInventory || [];
+  const weaponRunes = save.weaponRunes || {};
+  const runeMergeGroups = getRuneMergeGroups(runeInv);
+  const socketedRuneId = weaponRunes[wid];
+  const socketRune = (runeId) => setSave({ ...save, weaponRunes: { ...weaponRunes, [wid]: runeId } });
+  const unsocketRune = () => { const wr = { ...weaponRunes }; delete wr[wid]; setSave({ ...save, weaponRunes: wr }); };
+  const doMergeRunes = (stat, rarity) => {
+    const ids = runeInv.filter(r => r.stat === stat && r.rarity === rarity).slice(0, 3).map(r => r.id);
+    if (ids.length < 3) return;
+    const { inventory: newInv } = mergeRunes(runeInv, ids);
+    setSave({ ...save, runeInventory: newInv });
+    Audio.levelUp();
+  };
+  // DEBUG: grant a random rune (real acquisition is Star Raid's Rune Run mode)
+  const debugGrantRune = () => {
+    setSave({ ...save, runeInventory: [...runeInv, rollRune()] });
   };
 
   const buyTier = (partKey, tierIdx) => {
@@ -105,6 +125,7 @@ export default function Weaponsmith({ save, setSave, onClose }) {
           <button className={`gear-tab ${sub === 'parts' ? 'active' : ''}`} onClick={() => setSub('parts')} data-testid="smith-sub-parts">UPGRADE PARTS</button>
           <button className={`gear-tab ${sub === 'blueprints' ? 'active' : ''}`} onClick={() => setSub('blueprints')} data-testid="smith-sub-blueprints">📜 BLUEPRINTS</button>
           <button className={`gear-tab ${sub === 'inventory' ? 'active' : ''}`} onClick={() => setSub('inventory')} data-testid="smith-sub-inventory">🔧 PARTS INVENTORY</button>
+          <button className={`gear-tab ${sub === 'runes' ? 'active' : ''}`} onClick={() => setSub('runes')} data-testid="smith-sub-runes">🔮 RUNES</button>
         </div>
 
         {sub === 'parts' && (<>
@@ -255,6 +276,71 @@ export default function Weaponsmith({ save, setSave, onClose }) {
               </div>
             ))}
           </div>
+        </>)}
+
+        {sub === 'runes' && (<>
+          <div style={{ color: 'var(--ink-dim)', fontFamily: 'VT323', marginBottom: 10, fontSize: 14 }}>
+            Runes only socket into <b>manual</b> weapons (and the Ring/Amulet gear slots, in Equipment). Earn them in Star Raid's "Rune Run" mode.
+          </div>
+          {w.type !== 'manual' ? (
+            <div className="gear-empty">
+              <div style={{ fontSize: 36 }}>🔮</div>
+              <div style={{ fontFamily: 'VT323', color: '#4a3a6e', fontSize: 15, marginTop: 8 }}>
+                {w.name} isn't a manual weapon — pick one from the row above to socket a rune.
+              </div>
+            </div>
+          ) : (
+            <div className="forge-part" data-testid="forge-rune-socket" style={{ marginBottom: 16 }}>
+              <div className="forge-part-h">🔮 Socketed Rune — {w.name}</div>
+              {socketedRuneId ? (() => {
+                const r = runeInv.find(x => x.id === socketedRuneId);
+                if (!r) return null;
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ color: RUNE_RARITY_COLORS[r.rarity] }}>{r.icon} {r.name}</span>
+                    <span style={{ fontSize: 11, color: 'var(--ink-dim)' }}>+{r.val} {STAT_DISPLAY[r.stat] || r.stat}</span>
+                    <button onClick={unsocketRune} style={{ fontSize: 11, padding: '3px 8px' }}>Unsocket</button>
+                  </div>
+              );
+              })() : <div style={{ color: 'var(--ink-dim)', fontFamily: 'VT323', fontSize: 13 }}>— empty socket —</div>}
+            </div>
+          )}
+
+          {runeMergeGroups.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontFamily: 'VT323', color: 'var(--accent-2)', fontSize: 13, letterSpacing: '0.15em', marginBottom: 6 }}>FORGE — 3 same -&gt; next rarity</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {runeMergeGroups.map(group => {
+                  const base = group[0];
+                  return (
+                    <div key={`${base.stat}_${base.rarity}`} className="gear-popover-row" style={{ '--rc': RUNE_RARITY_COLORS[base.rarity] }}>
+                      <span className="gear-popover-name">{base.icon} {base.name} ×{group.length}</span>
+                      <button className="gear-btn equip" onClick={() => doMergeRunes(base.stat, base.rarity)}>FORGE</button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div style={{ fontFamily: 'VT323', color: 'var(--accent-2)', fontSize: 13, letterSpacing: '0.15em', marginBottom: 6 }}>
+            RUNE INVENTORY ({runeInv.length}) <button onClick={debugGrantRune} style={{ marginLeft: 10, fontSize: 10, opacity: 0.5 }}>+ Grant Rune</button>
+          </div>
+          {runeInv.length === 0 ? (
+            <div style={{ color: 'var(--ink-dim)', fontFamily: 'VT323', fontSize: 13, padding: 10 }}>No runes yet. Play Star Raid's Rune Run mode.</div>
+          ) : (
+            <div className="inv-row">
+              {runeInv.map(r => (
+                <div key={r.id} className="part-chip" style={{ '--rar': RUNE_RARITY_COLORS[r.rarity], borderLeft: `3px solid ${RUNE_RARITY_COLORS[r.rarity]}` }}>
+                  <div style={{ fontWeight: 800, fontSize: 11, color: RUNE_RARITY_COLORS[r.rarity] }}>{r.icon} {r.name}</div>
+                  <div style={{ fontSize: 10, color: 'var(--ink-dim)' }}>+{r.val} {STAT_DISPLAY[r.stat] || r.stat}</div>
+                  {w.type === 'manual' && socketedRuneId !== r.id && (
+                    <button onClick={() => socketRune(r.id)} style={{ padding: '3px 5px', fontSize: 10, marginTop: 4 }}>Socket</button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </>)}
       </div>
     </div>

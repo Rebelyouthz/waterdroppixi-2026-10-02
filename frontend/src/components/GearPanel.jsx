@@ -6,6 +6,7 @@ import {
 import {
   ARTIFACT_SLOT_COUNT, ARTIFACT_RARITY_COLORS, rollArtifact
 } from '../game/artifacts';
+import { RUNE_GEAR_SLOTS, RUNE_RARITY_COLORS } from '../game/runes';
 
 const STAT_LABELS = {
   maxHp:'Max HP', armor:'Armor', dmg:'ATK %', atks:'Atk Spd', mspd:'Move Spd',
@@ -40,6 +41,10 @@ export default function GearPanel({ save, setSave }) {
   const eq  = save.gearEquipped  || {};
   const artInv = save.artifactInventory || [];
   const artEq  = save.artifactEquipped  || {};
+  const runeInv = save.runeInventory || [];
+  const gearRunes = save.gearRunes || {};
+  const socketGearRune = (slot, runeId) => setSave({ ...save, gearRunes: { ...gearRunes, [slot]: runeId } });
+  const unsocketGearRune = (slot) => { const gr = { ...gearRunes }; delete gr[slot]; setSave({ ...save, gearRunes: gr }); };
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 1600); };
 
@@ -199,6 +204,30 @@ export default function GearPanel({ save, setSave }) {
               {eq[popoverSlot] && (
                 <button className="gear-btn unequip" style={{ width: '100%', marginTop: 8 }}
                   onClick={() => { unequipSlot(popoverSlot); }}>UNEQUIP</button>
+              )}
+              {RUNE_GEAR_SLOTS.includes(popoverSlot) && (
+                <div style={{ marginTop: 10, borderTop: '1px solid #2a1a4e', paddingTop: 8 }}>
+                  <div style={{ fontFamily: 'VT323', fontSize: 12, color: 'var(--accent-2)', letterSpacing: '0.1em', marginBottom: 4 }}>🔮 SOCKETED RUNE</div>
+                  {gearRunes[popoverSlot] ? (() => {
+                    const r = runeInv.find(x => x.id === gearRunes[popoverSlot]);
+                    if (!r) return null;
+                    return (
+                      <div className="gear-popover-row" style={{ '--rc': RUNE_RARITY_COLORS[r.rarity] }} onClick={() => unsocketGearRune(popoverSlot)}>
+                        <span className="gear-popover-name">{r.icon} {r.name}</span>
+                        <span className="gear-popover-stat">+{r.val} {STAT_LABELS[r.stat] || r.stat} (click to unsocket)</span>
+                      </div>
+                    );
+                  })() : (
+                    runeInv.length === 0
+                      ? <div className="gear-popover-empty">No runes yet — play Star Raid's Rune Run.</div>
+                      : runeInv.map(r => (
+                        <div key={r.id} className="gear-popover-row" style={{ '--rc': RUNE_RARITY_COLORS[r.rarity] }} onClick={() => socketGearRune(popoverSlot, r.id)}>
+                          <span className="gear-popover-name">{r.icon} {r.name}</span>
+                          <span className="gear-popover-stat">+{r.val} {STAT_LABELS[r.stat] || r.stat}</span>
+                        </div>
+                      ))
+                  )}
+                </div>
               )}
             </div>
           )}
