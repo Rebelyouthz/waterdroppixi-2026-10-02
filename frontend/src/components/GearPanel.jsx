@@ -7,6 +7,8 @@ import {
   ARTIFACT_SLOT_COUNT, ARTIFACT_RARITY_COLORS, rollArtifact
 } from '../game/artifacts';
 import { RUNE_GEAR_SLOTS, RUNE_RARITY_COLORS } from '../game/runes';
+import { mergeChance, FLUX_PER_MERGE_MAX } from '../game/forge';
+import { Audio } from '../game/audio';
 
 const STAT_LABELS = {
   maxHp:'Max HP', armor:'Armor', dmg:'ATK %', atks:'Atk Spd', mspd:'Move Spd',
@@ -36,6 +38,7 @@ export default function GearPanel({ save, setSave }) {
   const [popoverSlot, setPopoverSlot] = useState(null);      // gear slot name, e.g. 'helmet'
   const [popoverArtSlot, setPopoverArtSlot] = useState(null); // artifact slot index
   const [gachaReveal, setGachaReveal] = useState(null);
+  const [fluxSpend, setFluxSpend] = useState(0);   // catalysts to burn on the next merge
 
   const inv = save.gearInventory || [];
   const eq  = save.gearEquipped  || {};
@@ -61,12 +64,23 @@ export default function GearPanel({ save, setSave }) {
     setSave({ ...save, gearEquipped: newEq });
   };
 
-  const tryMerge = (slot, rarity) => {
+  // Merging is a gamble now (see game/forge.js). Flux catalysts raise the
+  // odds and are spent whether or not the roll lands — that's what makes
+  // deciding how many to burn an actual decision.
+  const tryMerge = (slot, rarity, flux = 0) => {
     const candidates = inv.filter(x => x.slot === slot && x.rarity === rarity);
     if (candidates.length < 3) return;
-    const { inventory: newInv, newItem } = mergeItems(inv, candidates.slice(0, 3).map(x => x.id));
-    setSave({ ...save, gearInventory: newInv });
-    showToast(`Merged → ${newItem?.name} [${newItem?.rarity?.toUpperCase()}]`);
+    const spend = Math.max(0, Math.min(FLUX_PER_MERGE_MAX, flux, save.flux || 0));
+    const { inventory: newInv, newItem, result } = mergeItems(inv, candidates.slice(0, 3).map(x => x.id), spend);
+    if (!result || result.atMax) return;
+    setSave({ ...save, gearInventory: newInv, flux: (save.flux || 0) - spend });
+    if (result.ok) {
+      showToast(`✦ SUCCESS → ${newItem?.name} [${newItem?.rarity?.toUpperCase()}]`);
+      Audio.levelUp();
+    } else {
+      showToast(`✖ MERGE FAILED — 2 lost, 1 left (${Math.round(result.chance * 100)}% chance)`);
+      Audio.hit();
+    }
   };
 
   // DEBUG: grant a random item
@@ -326,7 +340,25 @@ export default function GearPanel({ save, setSave }) {
       {/* ── FORGE (MERGE) TAB ── */}
       {tab === 'merge' && (
         <div className="gear-forge">
-          <div className="gear-forge-title">FORGE — Merge 3 of same type & rarity → Higher rarity</div>
+          <div className="gear-forge-title">FORGE — Merge 3 of same type &amp; rarity → chance at higher rarity</div>
+          <div className="forge-flux-bar">
+            <span className="forge-flux-label">⚗ FLUX CATALYST</span>
+            <div className="forge-flux-pips">
+              {Array.from({ length: FLUX_PER_MERGE_MAX }).map((_, i) => (
+                <button
+                  key={i}
+                  className={`forge-flux-pip${i < fluxSpend ? ' on' : ''}`}
+                  disabled={i >= (save.flux || 0)}
+                  onClick={() => setFluxSpend(i + 1 === fluxSpend ? i : i + 1)}
+                  title={i >= (save.flux || 0) ? 'Not enough Flux' : `Use ${i + 1}`}
+                >⚗</button>
+              ))}
+            </div>
+            <span className="forge-flux-have">{save.flux || 0} held · +15% each</span>
+          </div>
+          <div className="forge-warn">
+            A failed merge destroys 2 of the 3. Flux is spent either way.
+          </div>
           {mergeGroups.length === 0 ? (
             <div className="gear-empty">
               <div style={{ fontSize:36 }}>🔨</div>
@@ -349,10 +381,13 @@ export default function GearPanel({ save, setSave }) {
                     {nextRar && (
                       <button
                         className="gear-btn forge"
-                        onClick={() => tryMerge(base.slot, base.rarity)}
+                        onClick={() => tryMerge(base.slot, base.rarity, fluxSpend)}
                         data-testid={`forge-${base.slot}-${base.rarity}`}
                       >
                         FORGE → {nextRar.toUpperCase()}
+                        <span className="forge-odds">
+                          {Math.round(mergeChance(GEAR_RARITIES.indexOf(base.rarity) + 1, Math.min(fluxSpend, save.flux || 0)) * 100)}%
+                        </span>
                       </button>
                     )}
                     {!nextRar && <span style={{ color:'#ff3146', fontFamily:'VT323' }}>MYTHICAL MAX</span>}

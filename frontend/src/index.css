@@ -2728,6 +2728,40 @@ canvas#game, canvas.starraid-canvas {
 }
 .raid-card-lvl i.on { background: #5fd6ff; box-shadow: 0 0 6px #5fd6ff; }
 
+/* ── Forge: flux catalysts and merge odds ─────────────────────── */
+.forge-flux-bar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 8px 10px; margin-bottom: 6px;
+  background: linear-gradient(180deg, rgba(77,196,255,0.09), rgba(0,0,0,0.25));
+  border: 1px solid #4dc4ff33;
+}
+.forge-flux-label {
+  font-family: 'VT323', monospace; font-size: 13px;
+  letter-spacing: 0.18em; color: #4dc4ff;
+}
+.forge-flux-pips { display: flex; gap: 4px; }
+.forge-flux-pip {
+  width: 26px; height: 26px;
+  font-size: 13px; line-height: 1; cursor: pointer;
+  background: #ffffff0a; border: 1px solid #ffffff22; color: #6a7f92;
+  transition: all 0.14s;
+}
+.forge-flux-pip:disabled { opacity: 0.28; cursor: not-allowed; }
+.forge-flux-pip.on {
+  background: #4dc4ff26; border-color: #4dc4ff; color: #d8f4ff;
+  box-shadow: 0 0 10px #4dc4ff66;
+}
+.forge-flux-have { font-family: 'VT323', monospace; font-size: 12px; color: var(--ink-dim); margin-left: auto; }
+.forge-warn {
+  font-family: 'VT323', monospace; font-size: 12px; letter-spacing: 0.06em;
+  color: #ff9a7a; margin-bottom: 10px;
+}
+.forge-odds {
+  margin-left: 8px; padding: 0 5px;
+  font-size: 11px; border-radius: 3px;
+  background: #00000055; border: 1px solid #ffffff22;
+}
+
 /* ============================================================
    PET INCUBATOR — rarity-timed hatching, ticks offline
    ============================================================ */

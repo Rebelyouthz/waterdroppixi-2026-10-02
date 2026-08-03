@@ -1,11 +1,12 @@
 // =============================================
 // RUNE SYSTEM — single-stat socketable items for manual weapons and the
 // two "accessory" gear slots (ring/amulet). Mirrors gear.js/artifacts.js's
-// shape and merge conventions (3-of-a-kind or 2-of-a-kind -> next rarity)
+// shape and merge conventions (3-of-a-kind, chance-based — see forge.js)
 // so all three item systems feel like one family. Obtained from Star
 // Raid's "Rune Run" mode (see StarRaidScreen.jsx) instead of the Gacha
 // Machine, which is Artifact-only.
 // =============================================
+import { resolveMerge } from './forge';
 
 export const RUNE_RARITIES = ['common', 'magic', 'rare', 'epic', 'legendary', 'mythical'];
 export const RUNE_RARITY_COLORS = {
@@ -65,19 +66,26 @@ export function getRuneMergeGroups(inventory) {
   }
   return Object.values(groups).filter(g => g.length >= 3);
 }
-export function mergeRunes(inventory, ids) {
+// Chance-based, same rules as gear — see game/forge.js. Success keeps the
+// rune's flavour and only bumps its rarity; failure eats two of the three.
+export function mergeRunes(inventory, ids, flux = 0) {
   const items = ids.map(id => inventory.find(x => x.id === id)).filter(Boolean);
-  if (items.length < 3) return { inventory, newItem: null };
+  if (items.length < 3) return { inventory, newItem: null, result: null };
   const base = items[0];
-  const nextRarity = RUNE_RARITIES[RUNE_RARITIES.indexOf(base.rarity) + 1] || base.rarity;
-  const newItem = generateRune(nextRarity);
+  const result = resolveMerge(RUNE_RARITIES, base.rarity, flux);
+  if (result.atMax) return { inventory, newItem: null, result };
+
+  const doomed = new Set(ids.slice(0, result.consumed));
+  const kept = inventory.filter(x => !doomed.has(x.id));
+  if (!result.ok) return { inventory: kept, newItem: null, result };
+
+  const newItem = generateRune(result.targetRarity);
   newItem.stat = base.stat; newItem.icon = base.icon; // keep the same flavor, just bump rarity
-  const mult = RARITY_MULT[nextRarity];
+  const mult = RARITY_MULT[result.targetRarity];
   const poolDef = RUNE_POOL.find(p => p.stat === base.stat);
   newItem.val = Math.round((poolDef?.base || 0.01) * mult * 1000) / 1000;
-  newItem.name = `${poolDef?.name || 'Rune'} ${NAME_SUFFIX[nextRarity]}`;
-  const removeIds = new Set(ids.slice(0, 3));
-  return { inventory: inventory.filter(x => !removeIds.has(x.id)).concat(newItem), newItem };
+  newItem.name = `${poolDef?.name || 'Rune'} ${NAME_SUFFIX[result.targetRarity]}`;
+  return { inventory: kept.concat(newItem), newItem, result };
 }
 
 // gearRunes: { ring: runeId, amulet: runeId } — only these 2 "accessory"

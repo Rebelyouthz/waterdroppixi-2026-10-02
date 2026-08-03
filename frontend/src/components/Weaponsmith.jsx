@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { WEAPONS } from '../game/data';
 import { WEAPON_PARTS, WEAPON_PART_OVERRIDES } from '../game/data_ext';
 import { ELEMENTS, STARTER_WEAPONS, PART_SLOTS, PART_SLOT_INFO, STAT_DISPLAY } from '../game/data_ext2';
-import { RUNE_RARITY_COLORS, getRuneMergeGroups, mergeRunes, rollRune } from '../game/runes';
+import { RUNE_RARITY_COLORS, RUNE_RARITIES, getRuneMergeGroups, mergeRunes, rollRune } from '../game/runes';
+import { mergeChance, FLUX_PER_MERGE_MAX } from '../game/forge';
 import { Audio } from '../game/audio';
 
 const PART_RAR_CLS = { common: 'r-common', magic: 'r-magic', rare: 'r-rare', epic: 'r-epic', legendary: 'r-legendary', mythical: 'r-mythical' };
@@ -35,12 +36,25 @@ export default function Weaponsmith({ save, setSave, onClose }) {
   const socketedRuneId = weaponRunes[wid];
   const socketRune = (runeId) => setSave({ ...save, weaponRunes: { ...weaponRunes, [wid]: runeId } });
   const unsocketRune = () => { const wr = { ...weaponRunes }; delete wr[wid]; setSave({ ...save, weaponRunes: wr }); };
+  // Same gamble as gear (see game/forge.js): the merge can fail and takes 2
+  // of the 3 with it. Flux is burned whether or not it lands.
+  const [runeFlux, setRuneFlux] = useState(0);
+  const [forgeMsg, setForgeMsg] = useState('');
   const doMergeRunes = (stat, rarity) => {
     const ids = runeInv.filter(r => r.stat === stat && r.rarity === rarity).slice(0, 3).map(r => r.id);
     if (ids.length < 3) return;
-    const { inventory: newInv } = mergeRunes(runeInv, ids);
-    setSave({ ...save, runeInventory: newInv });
-    Audio.levelUp();
+    const spend = Math.max(0, Math.min(FLUX_PER_MERGE_MAX, runeFlux, save.flux || 0));
+    const { inventory: newInv, newItem, result } = mergeRunes(runeInv, ids, spend);
+    if (!result || result.atMax) return;
+    setSave({ ...save, runeInventory: newInv, flux: (save.flux || 0) - spend });
+    if (result.ok) {
+      setForgeMsg(`✦ SUCCESS → ${newItem.name}`);
+      Audio.levelUp();
+    } else {
+      setForgeMsg(`✖ FAILED at ${Math.round(result.chance * 100)}% — 2 runes lost`);
+      Audio.hit();
+    }
+    setTimeout(() => setForgeMsg(''), 2600);
   };
   // DEBUG: grant a random rune (real acquisition is Star Raid's Rune Run mode)
   const debugGrantRune = () => {
@@ -308,14 +322,30 @@ export default function Weaponsmith({ save, setSave, onClose }) {
 
           {runeMergeGroups.length > 0 && (
             <div style={{ marginBottom: 16 }}>
-              <div style={{ fontFamily: 'VT323', color: 'var(--accent-2)', fontSize: 13, letterSpacing: '0.15em', marginBottom: 6 }}>FORGE — 3 same -&gt; next rarity</div>
+              <div style={{ fontFamily: 'VT323', color: 'var(--accent-2)', fontSize: 13, letterSpacing: '0.15em', marginBottom: 6 }}>FORGE — 3 same, chance at next rarity</div>
+              <div className="forge-flux-bar">
+                <span className="forge-flux-label">⚗ FLUX</span>
+                <div className="forge-flux-pips">
+                  {Array.from({ length: FLUX_PER_MERGE_MAX }).map((_, i) => (
+                    <button key={i} className={`forge-flux-pip${i < runeFlux ? ' on' : ''}`}
+                            disabled={i >= (save.flux || 0)}
+                            onClick={() => setRuneFlux(i + 1 === runeFlux ? i : i + 1)}>⚗</button>
+                  ))}
+                </div>
+                <span className="forge-flux-have">{save.flux || 0} held · +15% each</span>
+              </div>
+              <div className="forge-warn">A failed merge destroys 2 of the 3. Flux is spent either way.</div>
+              {forgeMsg && <div className="forge-warn" style={{ color: forgeMsg.startsWith('✦') ? '#6dff9e' : '#ff6a7a' }}>{forgeMsg}</div>}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {runeMergeGroups.map(group => {
                   const base = group[0];
+                  const odds = Math.round(mergeChance(RUNE_RARITIES.indexOf(base.rarity) + 1, Math.min(runeFlux, save.flux || 0)) * 100);
                   return (
                     <div key={`${base.stat}_${base.rarity}`} className="gear-popover-row" style={{ '--rc': RUNE_RARITY_COLORS[base.rarity] }}>
                       <span className="gear-popover-name">{base.icon} {base.name} ×{group.length}</span>
-                      <button className="gear-btn equip" onClick={() => doMergeRunes(base.stat, base.rarity)}>FORGE</button>
+                      <button className="gear-btn equip" onClick={() => doMergeRunes(base.stat, base.rarity)}>
+                        FORGE <span className="forge-odds">{odds}%</span>
+                      </button>
                     </div>
                   );
                 })}

@@ -1,6 +1,7 @@
 // =============================================
 // EQUIPMENT / GEAR SYSTEM
 // =============================================
+import { resolveMerge } from './forge';
 
 export const GEAR_SLOTS = ['helmet','chest','arms','legs','boots','ring','amulet'];
 export const GEAR_SLOT_ICONS = {
@@ -139,16 +140,23 @@ export function getMergeGroups(inventory) {
   return Object.values(groups).filter(g => g.length >= 3);
 }
 
-export function mergeItems(inventory, ids) {
-  // Remove 3 items by IDs, return new item with +1 rarity
+// Merge three matching items. This can FAIL — see game/forge.js for why, and
+// for the shared odds/catalyst rules that artifacts and runes use too.
+//
+// On success the three are consumed and replaced by one item of the next
+// rarity. On failure two are consumed and one survives, so a bad roll costs
+// you material without wiping the attempt entirely.
+export function mergeItems(inventory, ids, flux = 0) {
   const items = ids.map(id => inventory.find(x => x.id === id)).filter(Boolean);
-  if (items.length < 3) return { inventory, newItem: null };
+  if (items.length < 3) return { inventory, newItem: null, result: null };
   const base = items[0];
-  const nextRarity = GEAR_RARITIES[GEAR_RARITIES.indexOf(base.rarity) + 1] || base.rarity;
-  const newItem = generateGearItem(base.slot, nextRarity);
-  const newIds = new Set(ids.slice(0, 3));
-  return {
-    inventory: inventory.filter(x => !newIds.has(x.id)).concat(newItem),
-    newItem,
-  };
+  const result = resolveMerge(GEAR_RARITIES, base.rarity, flux);
+  if (result.atMax) return { inventory, newItem: null, result };
+
+  const doomed = new Set(ids.slice(0, result.consumed));
+  const kept = inventory.filter(x => !doomed.has(x.id));
+  if (!result.ok) return { inventory: kept, newItem: null, result };
+
+  const newItem = generateGearItem(base.slot, result.targetRarity);
+  return { inventory: kept.concat(newItem), newItem, result };
 }
