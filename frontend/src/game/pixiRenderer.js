@@ -1435,7 +1435,33 @@ void main() {
         // crystals now (see _drawGems), and the old wide pickup glow was
         // washing enemy colours out in loot-heavy moments.
         const mixCap = bestIsProj ? 0.68 : 0.45;  // a bullet's own colour is allowed to dominate harder than ambient
-        const litColor = (bestHex && bestStrength > 0.03) ? mixHex(t.color, bestHex, Math.min(mixCap, bestStrength)) : t.color;
+        let litColor = (bestHex && bestStrength > 0.03) ? mixHex(t.color, bestHex, Math.min(mixCap, bestStrength)) : t.color;
+
+        // Wind-up tell. A melee enemy about to strike plants, rocks back and
+        // charges up — without a read on that the attack is unfair, and
+        // without the attack a crowd is just a slow tide. The body brightens
+        // toward white as the wind-up completes, and a chevron points along
+        // the direction it has already committed to, so stepping aside after
+        // the tell genuinely makes it whiff.
+        if (e._windup > 0) {
+          const chg = 1 - e._windup / 0.34;          // 0 -> 1 over the wind-up
+          litColor = mixHex(litColor, '#ffffff', 0.25 + chg * 0.45);
+          const ax = e._atkDX || 0, ay = e._atkDY || 0;
+          const reach = s * 0.62 + 16 + chg * 12;
+          const px2 = e.x + ax * reach, py2 = e.y + ay * reach;
+          const perpX = -ay, perpY = ax;
+          const wing = 9 + chg * 7;
+          g.moveTo(px2 - ax * 9 + perpX * wing, py2 - ay * 9 + perpY * wing)
+            .lineTo(px2, py2)
+            .lineTo(px2 - ax * 9 - perpX * wing, py2 - ay * 9 - perpY * wing)
+            .stroke({ width: 2 + chg * 2, color: '#ffdd66', alpha: 0.35 + chg * 0.6 });
+          // charge ring tightening onto the body
+          g.circle(e.x, e.y, s * (0.95 - chg * 0.3))
+            .stroke({ width: 1.5, color: '#ffdd66', alpha: 0.25 + chg * 0.4 });
+        } else if (e._strikeT > 0) {
+          // mid-strike: hot leading edge
+          litColor = mixHex(litColor, '#fff0c0', 0.35);
+        }
         const bodyColor = e.hit > 0 ? '#ffffff' : litColor;
         const shape = this._enemyShapeFor(e, t, s);
         this._paintShape(g, shape, bodyColor, { width: 2, color: '#000000' });

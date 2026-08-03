@@ -1757,12 +1757,21 @@ export class Game {
     // scales hard — stacking two harsh curves would make the game unplayable
     // past tier 3, which contradicts "never so strong you can facetank it".
     e.tier = this.bossesKilled + 1;
-    e.speedMult = 1 + this.bossesKilled * 0.12;
+    // Baseline pace lifted 12%: the game read noticeably more sluggish after
+    // the player's agility/aim attributes were rebased down by a third, and
+    // enemy speed had never been adjusted to match.
+    e.speedMult = 1.12 * (1 + this.bossesKilled * 0.12);
     e.maxHp = Math.floor(t.hp * scale * 3 * (1 + this.bossesKilled * 0.25));
     e.hp = e.maxHp;
     e.hit = 0; e.cd = 0; e.dz = 0;
     e.kbX = 0; e.kbY = 0;
     e._woundStage = 0; e._wounds.length = 0;
+    // Melee-strike state — pooled objects keep whatever the previous
+    // occupant left behind, so a recycled enemy could otherwise spawn
+    // mid-windup or permanently unable to attack.
+    e._windup = 0; e._strikeT = 0; e._atkCD = rand(0.6, 2.0);
+    e._atkDX = 0; e._atkDY = 0;
+    e._lunging = false; e._lungeT = 0;
   }
 
   // ====== DOCK STATION ======
@@ -2236,6 +2245,46 @@ export class Game {
             }
           });
           if (buffed > 0) this.spawnRing(e.x, e.y, 160, '#7ad96b', 0.35);
+        }
+      }
+
+      // ---- Melee strike ------------------------------------------------
+      // Plain melee enemies used to have no attack at all: they walked into
+      // you and the shared contact check below did the rest, which is why a
+      // crowd read as a slow tide rather than a fight. They now commit to a
+      // real strike — plant, wind up with a visible tell, then lunge — so
+      // there is something to dodge and a moment where backing off wins.
+      // Skipped for ranged/boss AI and for anything already doing its own
+      // scripted lunge.
+      const meleeAI = t.ai !== 'ranged' && t.ai !== 'boss' && !e._lunging;
+      if (meleeAI) {
+        e._atkCD = (e._atkCD !== undefined ? e._atkCD : rand(0.6, 2.0)) - dt;
+        const reach = (t.size / 2) + p.r + 30;
+        if (e._windup > 0) {
+          e._windup -= dt;
+          spd = -spd * 0.25;      // rock back onto the trailing foot
+          if (e._windup <= 0) {
+            // Strike: commit along the direction locked in at wind-up start,
+            // so a player who moved after the tell can be missed entirely.
+            e.kbX += (e._atkDX || nx) * 620;
+            e.kbY += (e._atkDY || ny) * 620;
+            e._strikeT = 0.18;
+            e._atkCD = rand(1.5, 2.6);
+            const sa = this.parts.acquire();
+            sa.x = e.x + (e._atkDX || nx) * t.size * 0.5;
+            sa.y = e.y + (e._atkDY || ny) * t.size * 0.5;
+            sa.vx = 0; sa.vy = 0;
+            sa.life = 0.2; sa.max = 0.2; sa.color = t.color;
+            sa.size = t.size * 0.85; sa.type = 'arc';
+            sa._ang = Math.atan2(e._atkDY || ny, e._atkDX || nx);
+          }
+        } else if (e._strikeT > 0) {
+          e._strikeT -= dt;
+          spd = 0;                // the lunge is carried entirely by knockback
+        } else if (e._atkCD <= 0 && d < reach) {
+          e._windup = 0.34;
+          e._atkDX = nx; e._atkDY = ny;
+          spd = 0;
         }
       }
 
