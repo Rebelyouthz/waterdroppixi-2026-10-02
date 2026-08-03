@@ -364,7 +364,9 @@ export function bumpRarity(rar, steps = 1) {
   return RARITY_ORDER[Math.min(idx + steps, RARITY_ORDER.length - 1)];
 }
 
-export function rollShopPull(luck = 0, section = null) {
+// Only used internally by rollShopPull3 below — not exported (was public
+// with no external caller, per a code review pass).
+function rollShopPull(luck = 0, section = null) {
   const pool = section ? SHOP_CARD_POOL.filter(c => c.category === section) : SHOP_CARD_POOL;
   const safePool = pool.length ? pool : SHOP_CARD_POOL;
   const card = safePool[Math.floor(Math.random() * safePool.length)];

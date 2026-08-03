@@ -446,8 +446,6 @@ export const WEAPONS = {
   },
 };
 
-export const WEAPON_KEYS = Object.keys(WEAPONS);
-
 // Map of base weapon → evo weapon id
 export const WEAPON_EVO_MAP = Object.fromEntries(
   Object.values(WEAPONS).filter(w => w.isEvo).map(w => [w.evoFrom, w.id])

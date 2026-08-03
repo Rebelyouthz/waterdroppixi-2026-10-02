@@ -2909,6 +2909,10 @@ export class Game {
     const localAng = Math.atan2(ny, nx) + rand(-0.35, 0.35);
     const localR = t.size * rand(0.12, 0.4);
     e._wounds.push({ lx: Math.cos(localAng) * localR, ly: Math.sin(localAng) * localR, size: t.size * rand(0.13, 0.21) });
+    // Capped like bloodDecals — an unbounded per-enemy wound list during a
+    // very long boss fight would otherwise keep growing for the fight's
+    // whole duration (found in a code review pass).
+    if (e._wounds.length > 24) e._wounds.shift();
     this.pushBloodDecal({ x: wx, y: wy, r: 3 + stage * 0.55, a: 0.5, bornAt: this.time, color: bc });
   }
 

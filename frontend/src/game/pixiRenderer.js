@@ -1330,20 +1330,27 @@ void main() {
     });
   }
 
-  _enemyShapeFor(e, t, s) {
-    const x = e.x, y = e.y;
-    switch (t.id) {
+  // Enemy silhouettes are cached per-type (origin-centered local points,
+  // computed once) instead of rebuilt with fresh trig + a fresh array every
+  // single frame for every living enemy — with 50+ enemies on screen this
+  // was the single heaviest allocation in the renderer (found in a code
+  // review pass). `s` (= t.size) is constant per type, so the shape never
+  // actually changes shape-to-shape, only its world position — translation
+  // into a shared scratch array is the only per-frame work now.
+  _localShapeFor(typeId, s) {
+    const x = 0, y = 0;
+    switch (typeId) {
       case 'bat': return { poly: [x, y - s * 0.4, x + s * 0.6, y, x, y + s * 0.3, x - s * 0.6, y] };
       case 'brute': return { rect: [x - s * 0.5, y - s * 0.5, s, s] };
       case 'ranger': { const pts = []; for (let i = 1; i <= 6; i++) { const a = (i / 6) * TAU - Math.PI / 2; pts.push(x + Math.cos(a) * s * 0.6, y + Math.sin(a) * s * 0.6); } return { poly: pts }; }
       case 'charger': return { poly: [x + s * 0.6, y, x - s * 0.5, y - s * 0.5, x - s * 0.5, y + s * 0.5] };
-      case 'ghoul': return { circle: [x, y, s * 0.5] };
+      case 'ghoul': return { circle: s * 0.5 };
       case 'necron': { const pts = []; for (let i = 0; i < 8; i++) { const a = (i / 8) * TAU; const r = i % 2 ? s * 0.4 : s * 0.7; pts.push(x + Math.cos(a) * r, y + Math.sin(a) * r); } return { poly: pts }; }
-      case 'bossOcular': return { circle: [x, y, s * 0.6] };
-      case 'bossNecromancer': return { circle: [x, y, s * 0.55] };
+      case 'bossOcular': return { circle: s * 0.6 };
+      case 'bossNecromancer': return { circle: s * 0.55 };
       case 'bossVoidTitan': { const pts = [x + s * 0.6, y]; for (let i = 1; i <= 6; i++) { const a = (i / 6) * TAU; pts.push(x + Math.cos(a) * s * 0.6, y + Math.sin(a) * s * 0.6); } return { poly: pts }; }
       case 'bossAida': { const pts = []; for (let i = 0; i < 6; i++) { const a = (i / 6) * TAU; const r = s * 0.55; pts.push(x + Math.cos(a) * r, y + Math.sin(a) * r); } return { poly: pts }; }
-      case 'slime': return { ellipse: [x, y, s * 0.55, s * 0.45] };
+      case 'slime': return { ellipse: [s * 0.55, s * 0.45] };
       // ---- Distinct silhouettes for enemy types that previously all fell
       // through to the same plain default circle (no bitmap sprite
       // pipeline exists in this project — see waterdrop-lighting skill's
@@ -1357,8 +1364,27 @@ void main() {
       case 'lightningbug': { const pts = []; for (let i = 0; i < 8; i++) { const a = (i / 8) * TAU; const r = s * (i % 2 ? 0.62 : 0.22); pts.push(x + Math.cos(a) * r, y + Math.sin(a) * r); } return { poly: pts }; }
       case 'techsoldier': return { poly: [x - s * 0.42, y - s * 0.5, x + s * 0.42, y - s * 0.5, x + s * 0.5, y, x + s * 0.3, y + s * 0.5, x - s * 0.3, y + s * 0.5, x - s * 0.5, y] };
       case 'nanoswarm': { const pts = []; for (let i = 0; i < 12; i++) { const a = (i / 12) * TAU; const r = s * (0.35 + (i % 3) * 0.12); pts.push(x + Math.cos(a) * r, y + Math.sin(a) * r); } return { poly: pts }; }
-      default: return { circle: [x, y, s * 0.5] };
+      default: return { circle: s * 0.5 };
     }
+  }
+
+  _enemyShapeFor(e, t, s) {
+    const x = e.x, y = e.y;
+    this._shapeCache = this._shapeCache || {};
+    let local = this._shapeCache[t.id];
+    if (!local) { local = this._localShapeFor(t.id, s); this._shapeCache[t.id] = local; }
+    if (local.circle != null) return { circle: [x, y, local.circle] };
+    if (local.rect) return { rect: [x + local.rect[0], y + local.rect[1], local.rect[2], local.rect[3]] };
+    if (local.ellipse) return { ellipse: [x, y, local.ellipse[0], local.ellipse[1]] };
+    // poly: translate into a single shared scratch array reused across every
+    // enemy this frame — _paintShape consumes it synchronously right after
+    // this call returns, so there's no risk of it changing under another
+    // enemy before it's read.
+    const src = local.poly;
+    const out = this._polyScratch || (this._polyScratch = []);
+    out.length = src.length;
+    for (let i = 0; i < src.length; i += 2) { out[i] = x + src[i]; out[i + 1] = y + src[i + 1]; }
+    return { poly: out };
   }
 
   // Tier tags ("T2"/"T3"...) — only drawn once tier >= 2 so a fresh run's

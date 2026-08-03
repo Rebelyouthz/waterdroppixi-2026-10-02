@@ -518,5 +518,3 @@ export const AIDA_INTRO = [
   { who: 'A.I.D.A.', text: 'Begin at the camp. Build. Grow. Ascend.', emote: '◈' },
 ];
 
-// ---------- HELP CONSTANTS ----------
-export const MAX_ACTIVE_WEAPONS = 10;

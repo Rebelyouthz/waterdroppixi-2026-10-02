@@ -8,7 +8,6 @@ const PID_KEY = 'wds.player_id';
 export const DEFAULT_SAVE = {
   // legacy / core
   gold: 0,
-  essence: 0,
   meta: {},
   runsCompleted: 0,
   bestRunTime: 0,
@@ -93,6 +92,29 @@ export const DEFAULT_SAVE = {
   dailySpin: { day: 0, spun: false },
   // Patrol missions
   patrol: { missions: [] },
+  missionEnergy: 0,
+
+  // ---- Fields below were read (with `||` fallbacks) by various panels but
+  // never actually declared here — added for documentation/consistency
+  // during a code review pass; behavior is unchanged since every read site
+  // already defended against them being undefined on a fresh save. ----
+  equippedParts: {},   // { weaponId: { slot: partId } }
+  equippedActives: [], // active-skill ids currently slotted (Loadout)
+  parts: [],           // loose weapon-parts inventory
+  settings: {},
+  shopBonuses: {},
+  blueprintShards: {}, // { weaponId: shardCount }
+  craftedWeapons: [],
+  milestoneBar: 0,
+  achClaimed: {},      // { achievementId: true }
+  challengesDone: {},
+  chestsOpened: 0,
+  legendaryPartsFound: 0,
+  shopPulls: 0,
+  noHitRuns: 0,
+  unlockedActives: [], // ACTIVE_SKILLS ids unlocked via the card shop
+  unlockedEvos: [],    // weapon ids with evolution unlocked
+  lifetimeGold: 0,
 };
 
 export function loadSave() {
