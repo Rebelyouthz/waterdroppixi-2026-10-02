@@ -8,6 +8,7 @@ import { rollGearDrop } from '../game/gear';
 import { applyArtifactsToStats } from '../game/artifacts';
 import { applyRunesToStats } from '../game/runes';
 import { Audio } from '../game/audio';
+import { petStageMult } from './PetPanel';
 import HUD from './HUD';
 import LevelUpModal from './LevelUpModal';
 import GameOver from './GameOverScreen';
@@ -173,7 +174,11 @@ function buildMetaEffects(save) {
     const ps = PET_STAT_MAP[activePet.type];
     if (ps) {
       const lvlMult = 1 + (activePet.level - 1) / 100;
-      result[ps.stat] = (result[ps.stat] || 0) + ps.perLevel * activePet.level * lvlMult;
+      // Growth stage is a real multiplier now, not just a label — see
+      // petStageMult in PetPanel, which the panel displays from the same
+      // function so the two cannot drift apart.
+      const stageMult = petStageMult(activePet.level);
+      result[ps.stat] = (result[ps.stat] || 0) + ps.perLevel * activePet.level * lvlMult * stageMult;
     }
   }
 

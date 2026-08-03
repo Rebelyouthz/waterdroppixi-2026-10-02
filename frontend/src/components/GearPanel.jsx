@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import {
   GEAR_SLOTS, GEAR_SLOT_ICONS, GEAR_SLOT_NAMES,
-  GEAR_RARITIES, GEAR_RARITY_COLORS, getMergeGroups, mergeItems, generateGearItem
+  GEAR_RARITIES, GEAR_RARITY_COLORS, getMergeGroups, getPendingMergeGroups, mergeItems, generateGearItem,
+  GEAR_MAX_LEVEL, gearLevelCost, gearStatValue, gearHasSocket
 } from '../game/gear';
 import {
   ARTIFACT_SLOT_COUNT, ARTIFACT_RARITY_COLORS, rollArtifact
@@ -120,8 +121,25 @@ export default function GearPanel({ save, setSave }) {
   // Merging is a gamble now (see game/forge.js). Flux catalysts raise the
   // odds and are spent whether or not the roll lands — that's what makes
   // deciding how many to burn an actual decision.
+  // Level a piece with Gear Parts. Levels are what makes a drop grow into
+  // something; rarity is a separate, much rarer axis on top.
+  const levelUpGear = (item) => {
+    const lvl = item.level || 1;
+    if (lvl >= GEAR_MAX_LEVEL) return;
+    const cost = gearLevelCost(lvl, item.rarity);
+    if ((save.gearParts || 0) < cost) { showToast(`Need ${cost} gear parts`); return; }
+    setSave({
+      ...save,
+      gearParts: save.gearParts - cost,
+      gearInventory: inv.map(x => (x.id === item.id ? { ...x, level: lvl + 1 } : x)),
+    });
+    Audio.claimPing();
+    if (lvl + 1 === GEAR_MAX_LEVEL) showToast(`${item.name} is finished — it can be forged now`);
+  };
+
   const tryMerge = (slot, rarity, flux = 0) => {
-    const candidates = inv.filter(x => x.slot === slot && x.rarity === rarity);
+    // Only finished pieces feed the forge (see getMergeGroups).
+    const candidates = inv.filter(x => x.slot === slot && x.rarity === rarity && (x.level || 1) >= GEAR_MAX_LEVEL);
     if (candidates.length < 3) return;
     const spend = Math.max(0, Math.min(FLUX_PER_MERGE_MAX, flux, save.flux || 0));
     const { inventory: newInv, newItem, result } = mergeItems(inv, candidates.slice(0, 3).map(x => x.id), spend);
@@ -146,6 +164,7 @@ export default function GearPanel({ save, setSave }) {
   };
 
   const mergeGroups = getMergeGroups(inv);
+  const pendingGroups = getPendingMergeGroups(inv);
 
   // ---- Artifacts handlers ----
   const equipArtifact = (item, slotIdx) => {
@@ -319,6 +338,11 @@ export default function GearPanel({ save, setSave }) {
       {/* ── INVENTORY TAB ── */}
       {tab === 'inventory' && (
         <div className="gear-inventory">
+          <div className="gear-parts-bar">
+            <span className="gear-parts-label">🔩 GEAR PARTS</span>
+            <span className="gear-parts-val">{save.gearParts || 0}</span>
+            <span className="gear-parts-hint">Level a piece to {GEAR_MAX_LEVEL} before it can be forged up a rarity</span>
+          </div>
           {inv.length === 0 && (
             <div className="gear-empty">
               <div style={{ fontSize: 40 }}>🎒</div>
@@ -342,14 +366,37 @@ export default function GearPanel({ save, setSave }) {
                   onClick={() => setSelected(isSel ? null : item)}
                   data-testid={`gear-item-${item.slot}-${item.rarity}`}
                 >
-                  <div className="gear-item-icon">{GEAR_SLOT_ICONS[item.slot]}</div>
+                  <div className="gear-item-icon">
+                    {GEAR_SLOT_ICONS[item.slot]}
+                    {gearHasSocket(item) && <span className="gear-socket-dot" title="Rune socket">◈</span>}
+                  </div>
                   <div className="gear-item-info">
                     <span className="gear-item-name" style={{ color: GEAR_RARITY_COLORS[item.rarity] }}>
                       {item.name}
+                      <span className="gear-item-lvl">Lv{item.level || 1}</span>
                     </span>
-                    <span className="gear-item-stat">{fmtVal(item.stat, item.val)} {STAT_LABELS[item.stat]}</span>
+                    <span className="gear-item-stat">{fmtVal(item.stat, gearStatValue(item))} {STAT_LABELS[item.stat]}</span>
+                    {/* Level track: the piece's own progress toward being
+                        forgeable, readable without opening anything. */}
+                    <span className="gear-lvl-track">
+                      {Array.from({ length: GEAR_MAX_LEVEL }).map((_, i) => (
+                        <i key={i} className={i < (item.level || 1) ? 'on' : ''} />
+                      ))}
+                    </span>
                     {isEquipped && <span className="gear-equipped-badge">EQ</span>}
                   </div>
+                  {(item.level || 1) < GEAR_MAX_LEVEL ? (
+                    <button
+                      className="gear-lvl-btn"
+                      disabled={(save.gearParts || 0) < gearLevelCost(item.level || 1, item.rarity)}
+                      onClick={(ev) => { ev.stopPropagation(); levelUpGear(item); }}
+                      data-testid={`gear-lvl-${item.id}`}
+                    >
+                      ▲ 🔩{gearLevelCost(item.level || 1, item.rarity)}
+                    </button>
+                  ) : (
+                    <span className="gear-lvl-max">MAX</span>
+                  )}
                 </div>
               );
             })}
@@ -408,11 +455,30 @@ export default function GearPanel({ save, setSave }) {
           <div className="forge-warn">
             A failed merge destroys 2 of the 3. Flux is spent either way.
           </div>
+          {/* What you are waiting on. Without this the forge just looks empty
+              while you have nine of something, and the level gate reads as a
+              bug rather than as a rule. */}
+          {pendingGroups.length > 0 && (
+            <div className="forge-pending">
+              {pendingGroups.map(g => {
+                const b = g[0];
+                const done = g.filter(i => (i.level || 1) >= GEAR_MAX_LEVEL).length;
+                return (
+                  <div key={`p_${b.slot}_${b.rarity}`} className="forge-pending-row">
+                    <span style={{ color: GEAR_RARITY_COLORS[b.rarity] }}>
+                      {GEAR_SLOT_ICONS[b.slot]} {b.rarity.toUpperCase()} {GEAR_SLOT_NAMES[b.slot]}
+                    </span>
+                    <span className="forge-pending-need">{done}/3 at Lv{GEAR_MAX_LEVEL}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
           {mergeGroups.length === 0 ? (
             <div className="gear-empty">
               <div style={{ fontSize:36 }}>🔨</div>
               <div style={{ fontFamily:'VT323', color:'#4a3a6e', fontSize:15, marginTop:8 }}>
-                Collect 3 of the same item to forge
+                Three of the same piece, all at level {GEAR_MAX_LEVEL}
               </div>
             </div>
           ) : (

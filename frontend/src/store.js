@@ -103,6 +103,7 @@ export const DEFAULT_SAVE = {
   // nobody can name is a currency that does nothing.
   cores: 0,
   flux: 0,
+  gearParts: 0,              // spent to level equipment 1..10 (see game/gear.js)
   probe: {},                 // Astro Prospector probe upgrade levels
   prospectBlueprints: 0,     // sealed data cores, spent to unlock unique cards
   prospectCards: [],         // unlocked PROSPECT_CARDS ids -> enter the run pool
@@ -169,6 +170,13 @@ export function loadSave() {
     s.incubatorSlots = s.incubatorSlots || DEFAULT_SAVE.incubatorSlots;
     s.cores = s.cores || 0;
     s.flux = s.flux || 0;
+    s.gearParts = s.gearParts || 0;
+    // Gear predating the levelling system has no level. Treating a missing
+    // level as 1 in the readers would work, but writing it once here means
+    // the forge's level-10 gate and the level-up UI both see a real number.
+    if (Array.isArray(s.gearInventory)) {
+      s.gearInventory = s.gearInventory.map(g => (g && g.level ? g : { ...g, level: 1 }));
+    }
     s.probe = s.probe || {};
     s.prospectBlueprints = s.prospectBlueprints || 0;
     s.prospectCards = s.prospectCards || [];

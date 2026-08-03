@@ -496,6 +496,7 @@ export class Game {
       hp: this.player.hp, maxHp: this.player.maxHp,
       level: this.run.level, xp: this.run.xp, xpToNext: this.run.xpToNext,
       kills: this.run.kills, gold: this.run.gold,
+      gearParts: this.run.gearParts || 0,
       mag: Math.max(0, Math.floor(this.player.mag)),
       reloading: this.player.reloading,
       weapons: this.run.ownedWeapons.map(id => ({
@@ -2901,6 +2902,13 @@ export class Game {
       const h = this.gems.acquire();
       h.x = e.x + rand(-10, 10); h.y = e.y + rand(-10, 10); h.t = 0;
       h.xp = 0; h.gold = 0; h.heart = 1;
+    }
+    // Gear parts — the levelling currency. Far more common than a whole
+    // item, because levelling is the steady progression and a drop is the
+    // occasional event. Accumulated on the run and banked at the end.
+    if (Math.random() < (t.boss ? 1 : 0.22)) {
+      this.run.gearParts = (this.run.gearParts || 0)
+        + (t.boss ? 14 + Math.floor(this.run.time / 60) : 1 + (Math.random() < 0.2 ? 1 : 0));
     }
     // Gear drop — 8% chance per non-boss kill; boss = guaranteed
     if (!t.boss && Math.random() < 0.08) {

@@ -50,18 +50,29 @@ const BREED_MIN_LEVEL = 31; // Adult stage (see STAGES below)
 const BREED_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes
 const BREED_GEM_COST = { common: 80, uncommon: 160, rare: 350, epic: 800, legendary: 2000 };
 
-const STAGES = [
-  { name: 'Newborn',  minLvl: 1,  icon: '🥚', sizeClass: 'pet-xs' },
-  { name: 'Child',    minLvl: 6,  icon: '🐣', sizeClass: 'pet-sm' },
-  { name: 'Young',    minLvl: 16, icon: '🐥', sizeClass: 'pet-md' },
-  { name: 'Adult',    minLvl: 31, icon: '✨', sizeClass: 'pet-lg' },
-  { name: 'Veteran',  minLvl: 51, icon: '⭐', sizeClass: 'pet-xl' },
-  { name: 'Elder',    minLvl: 76, icon: '🌟', sizeClass: 'pet-xl' },
-  { name: 'Max',      minLvl: 100, icon: '💫', sizeClass: 'pet-max' },
+// Growth stages. These used to be labels only — a pet's contribution came
+// purely from its level, so "Adult" meant nothing mechanically. Each stage
+// now carries a multiplier on the pet's stat, which is what makes feeding it
+// toward the next stage a goal rather than a number going up.
+export const STAGES = [
+  { name: 'Newborn',  minLvl: 1,  icon: '🥚', sizeClass: 'pet-xs',  mult: 1.00 },
+  { name: 'Young',    minLvl: 6,  icon: '🐣', sizeClass: 'pet-sm',  mult: 1.18 },
+  { name: 'Teenage',  minLvl: 16, icon: '🐥', sizeClass: 'pet-md',  mult: 1.42 },
+  { name: 'Adult',    minLvl: 31, icon: '✨', sizeClass: 'pet-lg',  mult: 1.75 },
+  { name: 'Veteran',  minLvl: 51, icon: '⭐', sizeClass: 'pet-xl',  mult: 2.15 },
+  { name: 'Elder',    minLvl: 76, icon: '🌟', sizeClass: 'pet-xl',  mult: 2.60 },
+  { name: 'Max',      minLvl: 100, icon: '💫', sizeClass: 'pet-max', mult: 3.20 },
 ];
 
-function getStage(level) {
+export function getStage(level) {
   return [...STAGES].reverse().find(s => level >= s.minLvl) || STAGES[0];
+}
+
+// Multiplier the pet's active stat gets from its growth stage. Exported so
+// buildMetaEffects applies exactly the same curve the panel displays —
+// the two drifting apart is how a stat ends up lying to the player.
+export function petStageMult(level) {
+  return getStage(level).mult || 1;
 }
 
 function xpToLevel(level) {

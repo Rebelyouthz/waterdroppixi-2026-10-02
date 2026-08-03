@@ -97,6 +97,9 @@ function AppInner() {
     // runs quest: count today's completed runs
     ns.quests.completed['q_runs_3'] = (ns.quests.completed['q_runs_3'] || 0) + 1;
 
+    // Gear Parts banked from the run — the currency that levels equipment.
+    if (result.gearParts) ns.gearParts = (ns.gearParts || 0) + result.gearParts;
+
     // Weekly quests accumulate (sum) across runs all week, unlike daily
     // quests above (which track the best single run via Math.max).
     ns.weeklyQuests = { ...ns.weeklyQuests, completed: { ...ns.weeklyQuests.completed } };
