@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { RARITY } from '../game/data';
 
 const TYPE_BADGE = {
@@ -25,6 +25,19 @@ function highlightDesc(desc) {
 // Dopamine-heavy level up modal: FORCE text, slot-machine card reveal, particles.
 export default function LevelUpModal({ choices, onPick, playerLevel }) {
   const isFork = choices.length > 0 && choices[0].kind === 'weapon-fork';
+  // Cards used to vanish instantly on click (setLevelUpChoices(null) in the
+  // parent unmounts this whole modal the same frame) — no exit beat at all.
+  // Now the pick plays a short "chosen" animation (winner punches up +
+  // glows, the rest fade/slide away) and only calls the real onPick after
+  // it finishes, so there's an actual out-animation instead of a hard cut.
+  const [pickedIdx, setPickedIdx] = useState(null);
+  const pickTimer = useRef(null);
+  const handlePick = (c, i) => {
+    if (pickedIdx !== null) return; // ignore double-clicks mid-animation
+    setPickedIdx(i);
+    pickTimer.current = setTimeout(() => onPick(c), 480);
+  };
+  useEffect(() => () => { if (pickTimer.current) clearTimeout(pickTimer.current); }, []);
   useEffect(() => {
     // play a small "ding" via WebAudio (no asset)
     try {
@@ -57,13 +70,15 @@ export default function LevelUpModal({ choices, onPick, playerLevel }) {
             const badge = TYPE_BADGE[c.kind] || TYPE_BADGE.stat;
             const showLvlDots = c.kind === 'weapon-upgrade' && !c.isEvolve && Number.isFinite(c.lvl);
             const dotCount = showLvlDots ? Math.min(8, Math.max(c.lvl + 1, c.maxLvl || 1)) : 0;
+            const isPicked = pickedIdx === i;
+            const isRejected = pickedIdx !== null && !isPicked;
             return (
               <div
                 key={i}
-                className={`card ${r.cls}${isFork ? ' card-fork' : ''}`}
-                onClick={() => onPick(c)}
+                className={`card ${r.cls}${isFork ? ' card-fork' : ''}${isPicked ? ' card-chosen' : ''}${isRejected ? ' card-rejected' : ''}`}
+                onClick={() => handlePick(c, i)}
                 data-testid={`card-${i}`}
-                style={{ animationDelay: (i * 90) + 'ms' }}
+                style={{ animationDelay: pickedIdx === null ? (i * 90) + 'ms' : '0ms' }}
               >
                 <div className="card-tag">{r.name}</div>
                 {c.isEvolve && <div className="card-evo-badge">✦ EVOLUTION</div>}
