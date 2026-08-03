@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { CHESTS, rollChest, EQUIP_RARITY, EQUIP_SLOTS } from '../game/data_ext';
+import { PART_SLOTS, PART_SLOT_INFO, PART_RARITY_COLORS, rollPart } from '../game/data_ext2';
 import { PET_TYPES } from './PetPanel';
 
 export default function Shop({ save, setSave, onClose }) {
@@ -40,6 +41,38 @@ export default function Shop({ save, setSave, onClose }) {
         };
         setSave(ns);
         setOpenedDrops([{ isPetEgg: true, egg: newEgg, petType, icon: '🥚', name: `${petType.name} Egg`, rarity: chosenRarity }]);
+        setOpening(false);
+      }, 900);
+      return;
+    }
+
+    // Parts Chest: was silently giving generic gear (rollEquip) despite its
+    // name/odds promising weapon parts — real bug, not just a display
+    // issue. Now actually rolls from the parts system (data_ext2.js).
+    if (chest.partsOnly) {
+      const newParts = [];
+      for (let i = 0; i < chest.rolls; i++) {
+        const slot = PART_SLOTS[Math.floor(Math.random() * PART_SLOTS.length)];
+        newParts.push(rollPart(slot));
+      }
+      setTimeout(() => {
+        setSave({ ...save, gems: gems - chest.cost, parts: [...(save.parts || []), ...newParts] });
+        setOpenedDrops(newParts.map(p => ({ ...p, isPart: true, icon: PART_SLOT_INFO[p.slot]?.icon || '🔩' })));
+        setOpening(false);
+      }, 900);
+      return;
+    }
+    // Resource Cache: same bug — was giving gear instead of a currency
+    // bundle. Now actually grants gold/gems.
+    if (chest.resourceOnly) {
+      const goldAmt = Math.round(80 + Math.random() * 120);
+      const gemsAmt = Math.round(5 + Math.random() * 10);
+      setTimeout(() => {
+        setSave({ ...save, gems: gems - chest.cost + gemsAmt, gold: (save.gold || 0) + goldAmt });
+        setOpenedDrops([
+          { isResource: true, icon: '★', name: `${goldAmt} Gold`, rarity: 'common' },
+          { isResource: true, icon: '💎', name: `${gemsAmt} Gems`, rarity: 'common' },
+        ]);
         setOpening(false);
       }, 900);
       return;
@@ -96,7 +129,7 @@ export default function Shop({ save, setSave, onClose }) {
             <div className="chest-result-title">YOU GOT</div>
             <div className="drop-row">
               {openedDrops.map((d, i) => {
-                const r = EQUIP_RARITY[d.rarity];
+                const r = d.isPart ? { cls: '', color: PART_RARITY_COLORS[d.rarity] } : EQUIP_RARITY[d.rarity];
                 return (
                   <div key={i} className={`drop-item card ${r?.cls || ''}`} style={{ animationDelay: (i * 80) + 'ms' }}>
                     <div className="card-tag">{d.rarity?.toUpperCase()}</div>
@@ -104,6 +137,13 @@ export default function Shop({ save, setSave, onClose }) {
                     <div className="card-name">{d.name}</div>
                     {d.isPetEgg ? (
                       <div className="card-desc" style={{ color: r?.color }}>🥚 {d.petType?.type} pet</div>
+                    ) : d.isResource ? (
+                      <div className="card-desc" style={{ color: '#ffd166' }}>Added to your balance</div>
+                    ) : d.isPart ? (
+                      <div className="card-desc" style={{ color: r?.color }}>
+                        <div>+{d.primary.val} {d.primary.stat}</div>
+                        {(d.sub || []).map((s, j) => <div key={j}>+{s.val} {s.stat}</div>)}
+                      </div>
                     ) : (
                       <div className="card-desc">
                         {(d.stats || []).map((s, j) => (

@@ -12,6 +12,8 @@ import { loadSave, saveLocal, syncSave, postRunResult, DEFAULT_SAVE, getPlayerId
 import { rollMissionRewards, MISSION_DEFS, CHALLENGES, ACHIEVEMENTS } from './game/data_ext2';
 import { AuthProvider, StripeReturnHandler, AuthCallback, useAuth } from './auth';
 import { Audio } from './game/audio';
+import { rollArtifact } from './game/artifacts';
+import { PET_TYPES } from './components/PetPanel';
 
 function AppInner() {
   const [view, setView] = useState(null);
@@ -134,6 +136,27 @@ function AppInner() {
     if (result.voidKilled)  ns.gems = (ns.gems || 0) + 10;
     if (result.horusKilled) ns.gems = (ns.gems || 0) + 8;
     if (result.victory)     ns.gems = (ns.gems || 0) + 15;
+
+    // Post-boss variation: each boss grants something distinct beyond gear
+    // drops + gems, so beating one doesn't always feel like the same
+    // reward. Eye of Horus -> guaranteed artifact; Void Titan -> Gacha
+    // Token (feeds the Artifact Gacha Machine); Necromancer -> a free pet
+    // egg; A.I.D.A. (the run-ending victory) -> a bigger artifact pull +
+    // extra Gacha Tokens, since it's the campaign's actual finale.
+    if (result.horusKilled) {
+      ns.artifactInventory = [...(ns.artifactInventory || []), rollArtifact(1)];
+    }
+    if (result.voidKilled) {
+      ns.gachaTokens = (ns.gachaTokens || 0) + 1;
+    }
+    if (result.necroKilled) {
+      const petType = PET_TYPES[Math.floor(Math.random() * PET_TYPES.length)];
+      ns.petEggs = [...(ns.petEggs || []), { id: Date.now() + '_necroegg', type: petType.id, rarity: 'rare' }];
+    }
+    if (result.victory) {
+      ns.artifactInventory = [...(ns.artifactInventory || []), rollArtifact(3)];
+      ns.gachaTokens = (ns.gachaTokens || 0) + 2;
+    }
     // Talent Points: +5 per run, +2 bonus if 1000+ kills
     ns.talentPoints = (ns.talentPoints || 0) + 5;
     if ((result.kills || 0) >= 1000) ns.talentPoints += 2;
