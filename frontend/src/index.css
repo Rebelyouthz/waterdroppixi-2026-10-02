@@ -3461,42 +3461,28 @@ canvas#game, canvas.starraid-canvas {
    water-drop body instead of a single bare floating emoji ("ugly, doesn't
    fit the character" per feedback). Plain CSS shapes, no art asset needed,
    consistent with the rest of the game's fully-procedural visual identity. */
+/* The paperdoll figure is the same silhouette as the in-game hero (see
+   game/heroShape.js) rendered as SVG. It used to be a stack of divs shaped
+   like a humanoid, which is why it read as a different character. */
 .gear-doll-char {
-  position: absolute; top: 40px; left: 50%; transform: translateX(-50%);
-  width: 140px; height: 300px;
+  position: absolute; top: 34px; left: 50%; transform: translateX(-50%);
+  width: 190px; height: 210px;
   pointer-events: none;
+  filter: drop-shadow(0 0 18px rgba(95,214,255,0.32));
+  animation: dollBreathe 3.6s ease-in-out infinite;
+}
+/* Idle breathing, matching the in-game character's squash/stretch. */
+@keyframes dollBreathe {
+  0%, 100% { transform: translateX(-50%) scale(1, 1); }
+  50%      { transform: translateX(-50%) scale(1.025, 0.982); }
 }
 .doll-glow {
-  position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
-  width: 100px; height: 100px; border-radius: 50%;
-  background: radial-gradient(circle, #4dffd455 0%, transparent 70%);
-  filter: blur(4px);
+  position: absolute; top: 46px; left: 50%; transform: translateX(-50%);
+  width: 130px; height: 130px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(95,214,255,0.28) 0%, transparent 70%);
+  filter: blur(6px);
+  pointer-events: none;
 }
-.doll-head {
-  position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
-  width: 46px; height: 46px; border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #baffef, #1a8a7a 75%);
-  box-shadow: 0 0 16px #4dffd466;
-}
-.doll-torso {
-  position: absolute; top: 54px; left: 50%; transform: translateX(-50%);
-  width: 64px; height: 90px; border-radius: 32px 32px 24px 24px;
-  background: linear-gradient(180deg, #2fd9c4 0%, #146a5e 100%);
-  box-shadow: 0 0 14px #4dffd444;
-}
-.doll-arm {
-  position: absolute; top: 60px; width: 16px; height: 76px; border-radius: 10px;
-  background: linear-gradient(180deg, #2fd9c4 0%, #146a5e 100%);
-}
-.doll-arm-l { left: 22px; transform: rotate(8deg); }
-.doll-arm-r { right: 22px; transform: rotate(-8deg); }
-.doll-leg {
-  position: absolute; top: 142px; width: 20px; height: 96px; border-radius: 10px;
-  background: linear-gradient(180deg, #1e8a78 0%, #0c3a32 100%);
-}
-.doll-leg-l { left: 50%; margin-left: -30px; }
-.doll-leg-r { left: 50%; margin-left: 10px; }
-
 /* Quick equip popover — appears next to the paperdoll/artifact slots */
 .gear-popover {
   position: relative; width: 260px; max-height: 320px;

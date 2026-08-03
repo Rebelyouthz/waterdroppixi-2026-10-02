@@ -1840,6 +1840,8 @@ export class Game {
     e._windup = 0; e._strikeT = 0; e._atkCD = rand(0.6, 2.0);
     e._atkDX = 0; e._atkDY = 0;
     e._lunging = false; e._lungeT = 0;
+    if (e._marks) e._marks.length = 0;
+    e._burn = 0; e._slowT = 0; e._poisonT = 0; e._poisonStacks = 0;
   }
 
   // ====== DOCK STATION ======
@@ -2743,6 +2745,7 @@ export class Game {
     // center), so hits visibly "punch in" somewhere specific on the body
     // rather than just tinting the whole silhouette.
     this.spawnPunctureHit(ox, oy, bloodColor);
+    this._addImpactMark(e, ox, oy, impactAccent);
     // Hit sparks use the impact accent (weapon/muzzle light color) — small,
     // transient, additive-looking flash particles are the right place for
     // "what hit me" color feedback; the blood itself stays enemy-colored.
@@ -2751,6 +2754,29 @@ export class Game {
     // tagged yet (see the Elemental system backlog item).
     if (!silent) this.spawnHitSparks(e.x, e.y, impactAccent, dmg, crit);
     if (e.hp <= 0) this.killEnemy(e);
+  }
+
+  // A small permanent mark on the enemy's own body at the exact point the
+  // shot landed — a bullet hole, a scorch, or a frost bloom depending on what
+  // hit it. Distinct from _wounds, which are the big 10%-HP flesh tears:
+  // these are per-shot, so a body visibly fills with holes as you work on it.
+  //
+  // Stored in the enemy's LOCAL space so the marks travel with it. Capped,
+  // because a long boss fight would otherwise grow this list for the whole
+  // duration of the fight (the same bug _wounds already had).
+  _addImpactMark(e, ox, oy, accent) {
+    if (!e.alive || !e.t) return;
+    if (!e._marks) e._marks = [];
+    const R = e.t.size * 0.5;
+    let lx = (ox ?? e.x) - e.x, ly = (oy ?? e.y) - e.y;
+    const d = Math.hypot(lx, ly);
+    // Pull the mark inside the silhouette — the impact point is where the
+    // projectile was, which is usually just outside the body.
+    if (d > R * 0.82) { const k = (R * 0.82) / (d || 1); lx *= k; ly *= k; }
+    const el = this._elementHintFor(accent);
+    const kind = el === 'fire' ? 'burn' : el === 'ice' ? 'frost' : 'hole';
+    e._marks.push({ lx, ly, r: rand(1.4, 2.6), kind });
+    if (e._marks.length > 16) e._marks.shift();
   }
 
   killEnemy(e) {

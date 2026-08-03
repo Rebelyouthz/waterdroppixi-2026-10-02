@@ -9,6 +9,59 @@ import {
 import { RUNE_GEAR_SLOTS, RUNE_RARITY_COLORS } from '../game/runes';
 import { mergeChance, FLUX_PER_MERGE_MAX } from '../game/forge';
 import { Audio } from '../game/audio';
+import { heroBodyPath, HERO_RIG, HERO_COLORS } from '../game/heroShape';
+
+// The paperdoll figure. Same silhouette and rig as the in-game hero, drawn
+// as SVG instead of into a canvas. R is in viewBox units.
+function HeroDoll({ cosmetics }) {
+  const R = 34;
+  const [shx, shy] = HERO_RIG.shoulder;
+  const [hrx, hry] = HERO_RIG.handRest;
+  const hb = HERO_RIG.headband;
+  const armPath = (side) =>
+    `M ${side * shx * R},${shy * R} L ${side * hrx * R},${hry * R}`;
+  return (
+    <svg className="gear-doll-char" viewBox="-60 -60 120 130" aria-hidden>
+      <defs>
+        <radialGradient id="dollBody" cx="38%" cy="26%" r="70%">
+          <stop offset="0%" stopColor="#d6f7ff" />
+          <stop offset="42%" stopColor={HERO_COLORS.body} />
+          <stop offset="100%" stopColor={HERO_COLORS.bodyDeep} />
+        </radialGradient>
+      </defs>
+
+      {/* ground shadow */}
+      <ellipse cx="0" cy={R * 1.12} rx={R * 0.8} ry={R * 0.22} fill="#000" opacity="0.45" />
+
+      {/* arms behind the body, so the shoulders read as attached */}
+      <g stroke={HERO_COLORS.outline} strokeWidth="9" strokeLinecap="round" fill="none">
+        <path d={armPath(1)} /><path d={armPath(-1)} />
+      </g>
+      <g stroke={HERO_COLORS.arm} strokeWidth="5.5" strokeLinecap="round" fill="none">
+        <path d={armPath(1)} /><path d={armPath(-1)} />
+      </g>
+
+      {/* body */}
+      <path d={heroBodyPath(R)} fill="url(#dollBody)" stroke={HERO_COLORS.outline} strokeWidth="3" />
+
+      {/* wet-surface highlights, mirroring the in-game gloss droplets */}
+      <ellipse cx={-R * 0.35} cy={-R * 0.5} rx="4.2" ry="6.6" fill="#fff" opacity="0.85" />
+      <circle cx={R * 0.3} cy={R * 0.25} r="2.6" fill="#fff" opacity="0.45" />
+
+      {/* hands */}
+      <circle cx={hrx * R} cy={hry * R} r="4.2" fill={HERO_COLORS.arm} stroke={HERO_COLORS.outline} strokeWidth="1.6" />
+      <circle cx={-hrx * R} cy={hry * R} r="4.2" fill={HERO_COLORS.arm} stroke={HERO_COLORS.outline} strokeWidth="1.6" />
+
+      {/* rank-unlocked headband, same placement as in-game */}
+      {cosmetics.headband && cosmetics.headbandColor && (
+        <path
+          d={`M ${-hb.halfW * R},${hb.y * R} L ${hb.halfW * R},${hb.y * R} L ${hb.halfW * R * 0.9},${(hb.y + hb.drop) * R} L ${-hb.halfW * R * 0.9},${(hb.y + hb.drop) * R} Z`}
+          fill={cosmetics.headbandColor} stroke="#000" strokeOpacity="0.4" strokeWidth="1"
+        />
+      )}
+    </svg>
+  );
+}
 
 const STAT_LABELS = {
   maxHp:'Max HP', armor:'Armor', dmg:'ATK %', atks:'Atk Spd', mspd:'Move Spd',
@@ -149,17 +202,13 @@ export default function GearPanel({ save, setSave }) {
       {tab === 'equip' && (
         <div className="gear-paperdoll">
           <div className="gear-doll-bg">
-            {/* Procedural character silhouette matching the in-game water-drop
-                body (teal-glow torso + head), not a bare floating emoji. */}
-            <div className="gear-doll-char" aria-hidden>
-              <div className="doll-head" />
-              <div className="doll-torso" />
-              <div className="doll-arm doll-arm-l" />
-              <div className="doll-arm doll-arm-r" />
-              <div className="doll-leg doll-leg-l" />
-              <div className="doll-leg doll-leg-r" />
-              <div className="doll-glow" />
-            </div>
+            {/* The actual in-game character, not an approximation of it. The
+                outline comes from game/heroShape.js, which pixiRenderer's
+                _drawPlayer reads too — this used to be a stack of CSS divs
+                (head, torso, arms, legs) and looked like a different
+                character entirely. */}
+            <HeroDoll cosmetics={save.profile || {}} />
+            <div className="doll-glow" aria-hidden />
             {GEAR_SLOTS.map(slot => {
               const itemId = eq[slot];
               const item = inv.find(x => x.id === itemId);

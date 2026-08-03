@@ -6,6 +6,7 @@
 import { Application, Container, Graphics, Text, TextStyle, FillGradient, Sprite, Filter, Texture, defaultFilterVert, ColorMatrixFilter, ParticleContainer, Particle, Rectangle } from 'pixi.js';
 import { AdvancedBloomFilter } from 'pixi-filters';
 import { WEAPONS } from './data';
+import { heroHalfPoints } from './heroShape';
 
 const TAU = Math.PI * 2;
 
@@ -1475,6 +1476,59 @@ void main() {
           }
         }
 
+        // Per-shot impact marks — a body visibly fills with damage as you
+        // work on it, and the mark says WHAT hit it. Kept small; the wound
+        // patches above are the big statement, these are the texture.
+        if (e._marks && e._marks.length) {
+          for (const m of e._marks) {
+            const mx = e.x + m.lx, my = e.y + m.ly;
+            if (m.kind === 'burn') {
+              // scorch: sooty ring with a charred centre
+              g.circle(mx, my, m.r * 1.9).fill({ color: '#1a0d06', alpha: 0.35 });
+              g.circle(mx, my, m.r * 1.05).fill({ color: '#0a0603', alpha: 0.7 });
+              g.circle(mx - m.r * 0.3, my - m.r * 0.3, m.r * 0.45).fill({ color: '#5a2a10', alpha: 0.5 });
+            } else if (m.kind === 'frost') {
+              // frost bloom: pale crust with a few radiating spurs
+              g.circle(mx, my, m.r * 1.7).fill({ color: '#bfe8ff', alpha: 0.30 });
+              g.circle(mx, my, m.r * 0.8).fill({ color: '#eafaff', alpha: 0.65 });
+              for (let sp = 0; sp < 3; sp++) {
+                const sa = (sp / 3) * TAU + m.lx;
+                g.moveTo(mx, my).lineTo(mx + Math.cos(sa) * m.r * 2.6, my + Math.sin(sa) * m.r * 2.6)
+                  .stroke({ width: 0.9, color: '#dff4ff', alpha: 0.5 });
+              }
+            } else {
+              // bullet hole: dark punch-through with a bright torn lip
+              g.circle(mx, my, m.r * 1.25).fill({ color: '#000000', alpha: 0.55 });
+              g.circle(mx, my, m.r * 0.7).fill({ color: '#12060a', alpha: 0.9 });
+              g.circle(mx - m.r * 0.35, my - m.r * 0.35, m.r * 0.4).fill({ color: '#c9424f', alpha: 0.45 });
+            }
+          }
+        }
+
+        // Status overlays, on top of the marks so a frozen enemy reads as
+        // frozen even when it is riddled with holes.
+        if (e._slowT > 0) {
+          // Ice encasement: a pale shell over the whole silhouette plus a
+          // couple of crystal facets, fading as the freeze wears off.
+          const fa = Math.min(1, e._slowT) * 0.5;
+          this._paintShape(g, this._enemyShapeFor(e, t, s), null, { width: 2.4, color: '#cfefff', alpha: fa + 0.2 });
+          g.circle(e.x, e.y, s * 0.5).fill({ color: '#9fdcff', alpha: fa * 0.35 });
+          g.poly([e.x - s * 0.3, e.y - s * 0.1, e.x - s * 0.08, e.y - s * 0.42, e.x + s * 0.04, e.y - s * 0.12])
+            .fill({ color: '#eafaff', alpha: fa * 0.55 });
+          g.poly([e.x + s * 0.12, e.y + s * 0.34, e.x + s * 0.34, e.y + s * 0.06, e.x + s * 0.4, e.y + s * 0.34])
+            .fill({ color: '#eafaff', alpha: fa * 0.45 });
+        }
+        if (e._burn > 0) {
+          // Burning: embers licking upward off the body.
+          const flick = 0.6 + Math.sin(game.time * 18 + e.x) * 0.4;
+          for (let fi = 0; fi < 3; fi++) {
+            const fx = e.x + Math.sin(game.time * 7 + fi * 2.1 + e.y) * s * 0.28;
+            const fy = e.y - s * 0.28 - fi * s * 0.16 - flick * 3;
+            g.circle(fx, fy, (2.6 - fi * 0.6) * (0.6 + flick * 0.6))
+              .fill({ color: fi === 0 ? '#ffd98a' : fi === 1 ? '#ff9a3c' : '#c2401a', alpha: 0.75 - fi * 0.18 });
+          }
+        }
+
         // Boss-specific extra passes
         if (t.id === 'swipeWarden') {
           // Armor plating normally; guard-down window telegraphs hard (bright
@@ -1609,19 +1663,19 @@ void main() {
     for (let i = idx; i < this._tierTagPool.length; i++) this._tierTagPool[i].visible = false;
   }
 
+  // fillColor may be null, for stroke-only overlays such as the ice shell.
+  // The shape is only emitted when there is something to consume it —
+  // emitting it and skipping the fill would leave the geometry in the path
+  // for the stroke to pick up as well.
   _paintShape(g, shape, fillColor, strokeStyle) {
-    if (shape.poly) g.poly(shape.poly);
-    else if (shape.rect) g.rect(...shape.rect);
-    else if (shape.circle) g.circle(...shape.circle);
-    else if (shape.ellipse) g.ellipse(...shape.ellipse);
-    g.fill(fillColor);
-    if (strokeStyle) {
+    const emit = () => {
       if (shape.poly) g.poly(shape.poly);
       else if (shape.rect) g.rect(...shape.rect);
       else if (shape.circle) g.circle(...shape.circle);
       else if (shape.ellipse) g.ellipse(...shape.ellipse);
-      g.stroke(strokeStyle);
-    }
+    };
+    if (fillColor) { emit(); g.fill(fillColor); }
+    if (strokeStyle) { emit(); g.stroke(strokeStyle); }
   }
 
   // ------------------------------ PLAYER -----------------------------------
@@ -1723,18 +1777,14 @@ void main() {
 
     const r = p.r;
     const bodyAng = (p.tilt || 0) + sway;
+    // Outline comes from game/heroShape.js, which the equipment paperdoll
+    // also reads — the two used to be unrelated drawings and looked like
+    // different characters. Sampled as points here because Graphics needs
+    // points; the paperdoll asks the same module for an SVG path.
+    const half = heroHalfPoints(r, 8);
     const localPts = [];
-    // sample the teardrop bezier body outline as a polygon (approx)
-    const bez = (t) => {
-      // two symmetric bezier halves from (0,-r*1.15) to (0,r) via (Â±r*1.05, ...)
-      const p0 = [0, -r * 1.15], c1 = [r * 1.05, -r * 0.4], c2 = [r * 1.05, r * 0.65], p1 = [0, r];
-      const mt = 1 - t;
-      const x = mt ** 3 * p0[0] + 3 * mt * mt * t * c1[0] + 3 * mt * t * t * c2[0] + t ** 3 * p1[0];
-      const y = mt ** 3 * p0[1] + 3 * mt * mt * t * c1[1] + 3 * mt * t * t * c2[1] + t ** 3 * p1[1];
-      return [x, y];
-    };
-    for (let i = 0; i <= 8; i++) { const [x, y] = bez(i / 8); localPts.push(x, y); }
-    for (let i = 8; i >= 0; i--) { const [x, y] = bez(i / 8); localPts.push(-x, y); }
+    for (let i = 0; i < half.length; i += 2) localPts.push(half[i], half[i + 1]);
+    for (let i = half.length - 2; i >= 0; i -= 2) localPts.push(-half[i], half[i + 1]);
     const rotated = rotPoly(p.x, p.y, bodyAng, scalePts(localPts, sqx, sqy));
 
     // === LIGHTING TEST: the body is now a real normal-mapped lit sprite ===
