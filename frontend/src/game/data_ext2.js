@@ -234,6 +234,40 @@ export const CHALLENGES = [
   { id: 'c_nohit',    name: 'No-Hit Hero',icon: '👻', desc: 'Survive 3 min. ZERO hits.',   mod: { duration: 180, noHit: true },      rwd: { gold: 1200, sp: 5 } },
 ];
 
+// ---------- PER-WEAPON UPGRADE NAMING ----------
+// A level-up card that reads "+20% damage" tells you nothing about WHICH
+// weapon you are improving or what improving it means. These give each
+// weapon its own vocabulary for the same underlying stat, so upgrading a
+// shotgun sounds like a shotgun and upgrading a bow sounds like a bow.
+//
+// Falls back to the generic stat name (engine.statName) for any weapon or
+// stat not listed, so adding a weapon never breaks the card — it just reads
+// plainly until someone writes it a vocabulary.
+export const WEAPON_UPGRADE_NAMES = {
+  hydropistol:  { damage: 'pressure', fireRate: 'cycle rate', magazine: 'reservoir', pierce: 'jet coherence', crit: 'nozzle precision' },
+  desertEagle:  { damage: 'stopping power', fireRate: 'lockwork', magazine: 'clip', pierce: 'penetration', crit: 'match trigger' },
+  bow:          { damage: 'draw weight', fireRate: 'nocking speed', pierce: 'shaft penetration', crit: 'fletching', projectiles: 'arrows' },
+  daggers:      { damage: 'edge', fireRate: 'throwing speed', pierce: 'follow-through', projectiles: 'blades' },
+  flameburst:   { damage: 'burn intensity', fireRate: 'ignition rate', area: 'flame spread', range: 'reach' },
+  icespike:     { damage: 'shard density', fireRate: 'formation rate', pierce: 'shard hardness', projSpeed: 'shard velocity' },
+  sniperDrop:   { damage: 'muzzle energy', fireRate: 'bolt cycling', pierce: 'armour bypass', crit: 'optics' },
+  stormLance:   { damage: 'charge', fireRate: 'capacitor recovery', pierce: 'arc length', crit: 'ionisation' },
+  shotgun:      { damage: 'shot weight', fireRate: 'pump speed', projectiles: 'pellets', area: 'choke spread' },
+  autoBolts:    { damage: 'bolt mass', fireRate: 'feed rate', pierce: 'bolt hardness', projectiles: 'bolts' },
+  emberOrbs:    { damage: 'ember heat', orbitCount: 'orbs', orbitRadius: 'orbit width', orbitSpeed: 'orbit speed' },
+  frostOrb:     { damage: 'frost bite', orbitCount: 'orbs', orbitRadius: 'orbit width', orbitSpeed: 'orbit speed' },
+  whirlwind:    { damage: 'blade force', orbitCount: 'blades', orbitRadius: 'sweep width', orbitSpeed: 'spin rate' },
+  bloodScythe:  { damage: 'cut depth', fireRate: 'swing rate', area: 'reach', knockback: 'cleave force' },
+  tideWhip:     { damage: 'crack force', fireRate: 'snap rate', area: 'lash reach', knockback: 'whipcrack' },
+  voidBeam:     { damage: 'beam intensity', fireRate: 'recharge', range: 'beam length', area: 'beam width' },
+  chainlightning: { damage: 'discharge', fireRate: 'recharge', chain: 'arc jumps', area: 'arc reach' },
+  arcTesla:     { damage: 'discharge', chainCount: 'arc jumps', chainRange: 'arc reach', fireRate: 'recharge' },
+  staticField:  { damage: 'field strength', chainCount: 'arc jumps', chainRange: 'field radius', fireRate: 'pulse rate' },
+  meteorStrike: { damage: 'impact force', fireRate: 'call rate', area: 'blast radius' },
+  droneSquad:   { damage: 'drone guns', fireRate: 'drone fire rate', droneCount: 'drones', range: 'engagement range' },
+  annunakiPulse:{ damage: 'pulse force', fireRate: 'pulse rate', area: 'pulse radius', knockback: 'shockwave' },
+};
+
 // ---------- ACTIVE SKILLS (button-icon with cooldown) ----------
 export const ACTIVE_SKILLS = {
   lightning: { id: 'lightning', name: 'Lightning Strike', icon: '⚡', cd: 8,  cost: 0, key: '1', desc: 'Strike a foe with lightning. Chains to 4 nearby.' },

@@ -1,6 +1,6 @@
 // Waterdrop Survivor — Canvas 2D engine with pooling, twin-stick combat, juicy effects.
 import { WEAPONS, ENEMIES, STAT_CARDS, RARITY, rollRarity, waveAt, nextBossEvent, WEAPON_EVO_MAP, metaCost } from './data';
-import { ACTIVE_SKILLS, KILL_FX, ENEMY_KILL_FX, ADVANCED_CARDS, ELEMENTS, getWeaponForkChoices, WEAPON_SET_BONUSES } from './data_ext2';
+import { ACTIVE_SKILLS, KILL_FX, ENEMY_KILL_FX, ADVANCED_CARDS, ELEMENTS, getWeaponForkChoices, WEAPON_SET_BONUSES, WEAPON_UPGRADE_NAMES } from './data_ext2';
 import { Audio } from './audio';
 import { PixiRenderer } from './pixiRenderer';
 
@@ -3829,9 +3829,18 @@ export class Game {
       const suffix = evoDef ? ` | Evolves into: ${evoDef.name}` : '';
       return 'EVOLVED: +' + Math.round((upg.mult - 1) * 100) + '% ' + k + '. Awakened form.' + suffix;
     }
-    if (upg.mult != null) return '+' + Math.round((upg.mult - 1) * 100) + '% ' + this.statName(k);
-    if (upg.add != null) return '+' + upg.add + ' ' + this.statName(k);
+    const label = this.weaponStatName(weapon, k);
+    if (upg.mult != null) return '+' + Math.round((upg.mult - 1) * 100) + '% ' + label;
+    if (upg.add != null) return '+' + upg.add + ' ' + label;
     return '...';
+  }
+
+  // Weapon-specific vocabulary for a stat, falling back to the generic name.
+  // "+20% damage" says nothing about which weapon you are improving; "+20%
+  // draw weight" tells you it is the bow without reading the card header.
+  weaponStatName(weapon, k) {
+    const table = weapon && WEAPON_UPGRADE_NAMES[weapon.id];
+    return (table && table[k]) || this.statName(k);
   }
 
   statName(k) {
