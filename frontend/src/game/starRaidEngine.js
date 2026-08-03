@@ -67,6 +67,7 @@ export class StarRaidGame {
       vx: 0, vy: 0, bank: 0, fireT: 0, iframes: 0, hit: 0,
     };
     this.input = { x: 0, y: 0 };
+    this.chaseTarget = null; // { x, y } in canvas-pixel space — see setChaseTarget
     this.enemies = [];
     this.eprojs = [];
     this.projs = [];
@@ -86,6 +87,15 @@ export class StarRaidGame {
   }
 
   setInput(x, y) { this.input.x = clamp(x, -1, 1); this.input.y = clamp(y, -1, 1); }
+
+  // Direct finger-follow control (Sky Force Reloaded style): the ship
+  // chases wherever the finger/cursor is with an "arrive" ease (see
+  // update()) instead of snapping to it 1:1, and instead of the old
+  // virtual-joystick anchor-drag scheme, which read as fighting the touch
+  // rather than following it — holding the finger down anywhere on screen
+  // should make the ship head there and trail slightly behind as it moves.
+  setChaseTarget(x, y) { this.chaseTarget = { x, y }; }
+  clearChaseTarget() { this.chaseTarget = null; }
 
   destroy() { this.running = false; }
 
@@ -110,12 +120,26 @@ export class StarRaidGame {
     this.time += dt;
     const p = this.player;
 
-    // Movement — single stick, all directions, clamped to lower ~70% of screen.
-    p.vx = this.input.x * this.stats.speed;
-    p.vy = this.input.y * this.stats.speed;
+    // Movement: touch/mouse chases the pointer with an "arrive" ease (slows
+    // as it nears the target instead of snapping) — falls back to the old
+    // direct-velocity scheme for keyboard input when no chase target is set.
+    let steerX = this.input.x;
+    if (this.chaseTarget) {
+      const dx = this.chaseTarget.x - p.x, dy = this.chaseTarget.y - p.y;
+      const d = Math.hypot(dx, dy);
+      const arriveRadius = 90; // starts easing off within this many px of the finger
+      const speedFrac = d < arriveRadius ? d / arriveRadius : 1;
+      const nx = d > 0.01 ? dx / d : 0, ny = d > 0.01 ? dy / d : 0;
+      p.vx = nx * this.stats.speed * speedFrac;
+      p.vy = ny * this.stats.speed * speedFrac;
+      steerX = nx * speedFrac;
+    } else {
+      p.vx = this.input.x * this.stats.speed;
+      p.vy = this.input.y * this.stats.speed;
+    }
     p.x = clamp(p.x + p.vx * dt, p.r, this.W - p.r);
     p.y = clamp(p.y + p.vy * dt, this.H * 0.15, this.H - p.r - 10);
-    p.bank = clamp(p.bank + (this.input.x * 0.6 - p.bank) * Math.min(1, dt * 8), -1, 1);
+    p.bank = clamp(p.bank + (steerX * 0.6 - p.bank) * Math.min(1, dt * 8), -1, 1);
     p.iframes = Math.max(0, p.iframes - dt);
     p.hit = Math.max(0, p.hit - dt);
 
@@ -141,6 +165,14 @@ export class StarRaidGame {
     if (p.hp <= 0 && !this.over) {
       this.over = true;
       this.cleared = false;
+      // Ship breaks apart instead of just vanishing — a real explosion burst
+      // (sparks + a couple of hull chunks) plus a shockwave ring.
+      for (let i = 0; i < 30; i++) this.spawnSpark(p.x, p.y, i % 3 === 0 ? '#ffffff' : i % 3 === 1 ? '#ff7a1a' : '#4dc4ff');
+      for (let i = 0; i < 6; i++) {
+        const a = Math.random() * TAU, sp = rand(40, 140);
+        this.parts.push({ x: p.x, y: p.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: rand(0.5, 0.9), color: '#5a6a7a', size: rand(4, 8) });
+      }
+      this._shipExplodeRing = { x: p.x, y: p.y, t: 0 };
       if (this.callbacks && this.callbacks.onGameOver) this.callbacks.onGameOver(this.snapshot());
     }
   }

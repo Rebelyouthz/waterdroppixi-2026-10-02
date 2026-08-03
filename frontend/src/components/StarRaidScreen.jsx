@@ -110,20 +110,25 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
       const rect = canvas.getBoundingClientRect();
       return { x: clientX - rect.left, y: clientY - rect.top };
     };
+    // Direct finger-follow: the ship chases wherever the finger/cursor is
+    // (with an "arrive" ease handled engine-side, see setChaseTarget) rather
+    // than a virtual-joystick anchor-drag — matches Sky Force Reloaded's
+    // "hold your thumb down, the ship trails toward it" feel, and fixes the
+    // old scheme's awkward backward/upward drag behavior (dragging back
+    // toward the anchor point used to fight the joystick's deadzone).
     const onPointerDown = (e) => {
       const pt = e.touches ? e.touches[0] : e;
-      dragAnchor.current = toLocal(pt.clientX, pt.clientY);
+      dragAnchor.current = true;
+      const cur = toLocal(pt.clientX, pt.clientY);
+      game.setChaseTarget(cur.x, cur.y);
     };
     const onPointerMove = (e) => {
       if (!dragAnchor.current) return;
       const pt = e.touches ? e.touches[0] : e;
       const cur = toLocal(pt.clientX, pt.clientY);
-      const dx = cur.x - dragAnchor.current.x, dy = cur.y - dragAnchor.current.y;
-      const d = Math.hypot(dx, dy) || 1;
-      const cl = Math.min(d, 50);
-      game.setInput((dx / d) * (cl / 50), (dy / d) * (cl / 50));
+      game.setChaseTarget(cur.x, cur.y);
     };
-    const onPointerUp = () => { dragAnchor.current = null; game.setInput(0, 0); };
+    const onPointerUp = () => { dragAnchor.current = null; game.clearChaseTarget(); game.setInput(0, 0); };
     canvas.addEventListener('touchstart', onPointerDown, { passive: true });
     canvas.addEventListener('touchmove', onPointerMove, { passive: true });
     canvas.addEventListener('touchend', onPointerUp);

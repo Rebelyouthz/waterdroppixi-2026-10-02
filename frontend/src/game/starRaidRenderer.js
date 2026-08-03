@@ -53,19 +53,32 @@ export class StarRaidRenderer {
     this.bossText = new Text({ text: '', style: new TextStyle({ fontFamily: 'VT323, monospace', fontSize: 14, fill: '#ff6a6a' }) });
     this.bossText.anchor.set(0.5); stage.addChild(this.bossText);
 
+    // Built with whatever size the renderer happens to have at construction
+    // time — which used to be a small pre-resize viewport, so the stars all
+    // clustered in a narrow strip and took ~50s of natural downward drift to
+    // redistribute across the real (now fullscreen) width. _rebuildStars
+    // below regenerates them the instant render() sees the real game.W/H.
     this._starLayers = [
-      { arr: this._makeStars(60, 0.6), speed: 40 },
-      { arr: this._makeStars(40, 1.0), speed: 90 },
-      { arr: this._makeStars(20, 1.6), speed: 150 },
+      { arr: this._makeStars(60, 0.6, 1, 1), speed: 40 },
+      { arr: this._makeStars(40, 1.0, 1, 1), speed: 90 },
+      { arr: this._makeStars(20, 1.6, 1, 1), speed: 150 },
     ];
+    this._starsW = 1; this._starsH = 1;
   }
 
-  _makeStars(n, size) {
-    const w = this.app.renderer.width / this.app.renderer.resolution;
-    const h = this.app.renderer.height / this.app.renderer.resolution;
+  _makeStars(n, size, w, h) {
     const arr = [];
     for (let i = 0; i < n; i++) arr.push({ x: Math.random() * w, y: Math.random() * h, size });
     return arr;
+  }
+
+  _rebuildStars(W, H) {
+    this._starsW = W; this._starsH = H;
+    this._starLayers = [
+      { arr: this._makeStars(60, 0.6, W, H), speed: 40 },
+      { arr: this._makeStars(40, 1.0, W, H), speed: 90 },
+      { arr: this._makeStars(20, 1.6, W, H), speed: 150 },
+    ];
   }
 
   resize(w, h) {
@@ -81,6 +94,7 @@ export class StarRaidRenderer {
     if (!this.ready) return;
     const W = game.W, H = game.H;
     const dt = 1 / 60;
+    if (Math.abs(W - this._starsW) > 4 || Math.abs(H - this._starsH) > 4) this._rebuildStars(W, H);
 
     // Scrolling starfield — 3 parallax layers, fast = near.
     this.gStars.clear();
@@ -100,24 +114,37 @@ export class StarRaidRenderer {
     // (no bitmap sprite pipeline in this project — see waterdrop-lighting
     // skill's "no hand-authored art" note; this delivers the same felt
     // effect of banking into a turn).
-    const bank = p.bank * 0.5;
-    const shipColor = p.hit > 0 ? '#ffffff' : (game.shipColor || '#5fd6ff');
-    const pts = [[0, -18], [-13, 12], [-6, 6], [0, 10], [6, 6], [13, 12]];
-    const rp = pts.map(([lx, ly]) => {
-      const c = Math.cos(bank), s = Math.sin(bank);
-      return [p.x + lx * c - ly * s, p.y + lx * s + ly * c];
-    });
-    g.poly(rp.flat()).fill(shipColor).stroke({ width: 2, color: '#0a2a3a' });
-    if (p.iframes > 0) g.circle(p.x, p.y, p.r + 4).stroke({ width: 2, color: '#ffffff', alpha: 0.5 });
+    if (!game._shipExplodeRing) {
+      const bank = p.bank * 0.5;
+      const shipColor = p.hit > 0 ? '#ffffff' : (game.shipColor || '#5fd6ff');
+      const pts = [[0, -18], [-13, 12], [-6, 6], [0, 10], [6, 6], [13, 12]];
+      const rp = pts.map(([lx, ly]) => {
+        const c = Math.cos(bank), s = Math.sin(bank);
+        return [p.x + lx * c - ly * s, p.y + lx * s + ly * c];
+      });
+      g.poly(rp.flat()).fill(shipColor).stroke({ width: 2, color: '#0a2a3a' });
+      if (p.iframes > 0) g.circle(p.x, p.y, p.r + 4).stroke({ width: 2, color: '#ffffff', alpha: 0.5 });
 
-    // Engine glow — real pooled additive light sprite, brighter/bigger while
-    // actively thrusting (moving), tinted the ship's own color.
-    this.engineGlow.visible = true;
-    this.engineGlow.position.set(p.x - Math.sin(bank) * 14, p.y + Math.cos(bank) * 14);
-    this.engineGlow.tint = game.shipColor || '#5fd6ff';
-    const thrust = Math.hypot(p.vx, p.vy) > 10 ? 1 : 0.5;
-    this.engineGlow.width = this.engineGlow.height = 34 * thrust;
-    this.engineGlow.alpha = 0.55 * thrust;
+      // Engine glow — real pooled additive light sprite, brighter/bigger while
+      // actively thrusting (moving), tinted the ship's own color.
+      this.engineGlow.visible = true;
+      this.engineGlow.position.set(p.x - Math.sin(bank) * 14, p.y + Math.cos(bank) * 14);
+      this.engineGlow.tint = game.shipColor || '#5fd6ff';
+      const thrust = Math.hypot(p.vx, p.vy) > 10 ? 1 : 0.5;
+      this.engineGlow.width = this.engineGlow.height = 34 * thrust;
+      this.engineGlow.alpha = 0.55 * thrust;
+    } else {
+      // Ship destroyed — hidden, replaced by the explosion burst (particles
+      // pushed in engine.js) + a fading shockwave ring drawn here.
+      this.engineGlow.visible = false;
+      const ex = game._shipExplodeRing;
+      ex.t += dt;
+      const a = Math.max(0, 1 - ex.t / 0.6);
+      if (a > 0) {
+        g.circle(ex.x, ex.y, 10 + ex.t * 180).stroke({ width: 4, color: '#ff7a1a', alpha: a * 0.7 });
+        g.circle(ex.x, ex.y, 6 + ex.t * 90).fill({ color: '#ffe066', alpha: a * 0.4 });
+      }
+    }
 
     // Enemies
     for (const e of game.enemies) {
