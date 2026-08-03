@@ -116,9 +116,14 @@ export class PixiRenderer {
     // feel genuinely far away instead of locked to the foreground.
     this.deepSpace = new Container(); this.zoomRoot.addChild(this.deepSpace);
     this.gDeepFar = new Graphics(); this.deepSpace.addChild(this.gDeepFar);
-    // Guaranteed moon/planet/star — drawn once, never re-cached (see
-    // _drawDeepSpace), so their parallax drift is never reset/snapped back.
-    this.gDeepHero = new Graphics(); this.deepSpace.addChild(this.gDeepHero);
+    // Guaranteed galaxy/planet/moon. Each gets its OWN layer so it can carry
+    // its own parallax factor and its own autonomous drift — as one shared
+    // layer they could only ever move as a rigid sheet, which is why the sky
+    // read as a painted backdrop. Drawn once, never re-cached, so nothing
+    // ever snaps back to centre. See _drawDeepSpace.
+    this.gHeroGalaxy = new Graphics(); this.deepSpace.addChild(this.gHeroGalaxy);
+    this.gHeroPlanet = new Graphics(); this.deepSpace.addChild(this.gHeroPlanet);
+    this.gHeroMoon   = new Graphics(); this.deepSpace.addChild(this.gHeroMoon);
     this._heroBodiesDrawn = false;
     // Real shader-driven nebula cloud (fbm noise + uTime color drift) sitting
     // between the far planets and the mid galaxy layer — genuine per-pixel
@@ -859,52 +864,9 @@ void main() {
     // continuously and will genuinely leave frame on a long pan.
     if (!this._heroBodiesDrawn) {
       this._heroBodiesDrawn = true;
-      const g = this.gDeepHero;
-      // Kept well inside [0.15, 0.85] of frame on both axes so they're fully
-      // visible on a narrow phone viewport too, not just a wide desktop one.
-      const heroMoonX = W * 0.72, heroMoonY = H * 0.22;
-      g.circle(heroMoonX, heroMoonY, 150).fill({ color: '#cfd9e6', alpha: 0.05 });
-      g.circle(heroMoonX, heroMoonY, 92).fill('#8a9199');
-      // Sunlit-side highlight toned way down — this used to read as a bright
-      // internally-lit patch ("like a lamp") rather than reflected sunlight.
-      g.circle(heroMoonX - 30, heroMoonY - 26, 50).fill({ color: '#c7d0dc', alpha: 0.22 });
-      g.circle(heroMoonX + 26, heroMoonY + 20, 60).fill({ color: '#4a5058', alpha: 0.35 });
-      g.circle(heroMoonX - 18, heroMoonY + 30, 14).fill({ color: '#9aa4b2', alpha: 0.7 });
-      g.circle(heroMoonX + 34, heroMoonY - 12, 10).fill({ color: '#9aa4b2', alpha: 0.6 });
-      g.circle(heroMoonX + 4, heroMoonY + 48, 8).fill({ color: '#9aa4b2', alpha: 0.55 });
-      g.circle(heroMoonX - 40, heroMoonY - 4, 7).fill({ color: '#a6b0be', alpha: 0.5 });
-
-      const heroPlanetX = W * 0.22, heroPlanetY = H * 0.68;
-      const pR = 128;
-      g.circle(heroPlanetX, heroPlanetY, pR * 1.5).fill({ color: '#ffb066', alpha: 0.05 });
-      g.ellipse(heroPlanetX, heroPlanetY, pR * 1.9, pR * 0.5).stroke({ width: 6, color: '#d9a35a', alpha: 0.5 });
-      g.ellipse(heroPlanetX, heroPlanetY, pR * 1.9, pR * 0.5).stroke({ width: 2, color: '#fff3d6', alpha: 0.35 });
-      g.circle(heroPlanetX, heroPlanetY, pR).fill('#8a5228');
-      for (let bi = -3; bi <= 3; bi++) {
-        const by = heroPlanetY + bi * pR * 0.13;
-        const bw = Math.sqrt(Math.max(0, pR * pR - (bi * pR * 0.13) * (bi * pR * 0.13)));
-        g.ellipse(heroPlanetX, by, bw, pR * 0.075).fill({ color: bi % 2 === 0 ? '#e8a05a' : '#a85f2c', alpha: 0.45 });
-      }
-      // Sunlit-side highlight (was reading as an internal light source —
-      // toned down to a subtle sheen instead of a bright "lamp" patch).
-      g.circle(heroPlanetX - pR * 0.3, heroPlanetY - pR * 0.3, pR * 0.5).fill({ color: '#ffd9a0', alpha: 0.14 });
-      g.circle(heroPlanetX + pR * 0.35, heroPlanetY + pR * 0.28, pR * 0.65).fill({ color: '#3a1c08', alpha: 0.4 });
-
-      const heroStarX = W * 0.45, heroStarY = H * 0.42;
-      for (let ri = 5; ri >= 1; ri--) g.circle(heroStarX, heroStarY, ri * 26).fill({ color: '#fff0c0', alpha: 0.05 });
-      g.circle(heroStarX, heroStarY, 22).fill('#fff8e0');
-      g.circle(heroStarX, heroStarY, 12).fill('#ffffff');
-      for (let ri = 0; ri < 4; ri++) {
-        const a = (ri / 4) * TAU + 0.4;
-        g.moveTo(heroStarX, heroStarY).lineTo(heroStarX + Math.cos(a) * 46, heroStarY + Math.sin(a) * 46)
-          .stroke({ width: 2, color: '#fff8e0', alpha: 0.4 });
-      }
+      this._buildHeroBodies(W, H);
     }
-    // Slightly slower than the grid layer (0.024 vs 0.03) so the guaranteed
-    // hero bodies read as marginally further away than the procedural
-    // planets, while still drifting fast enough to visibly cross the
-    // screen and exit frame within a normal play session.
-    this.gDeepHero.position.set(-cx * 0.024, -cy * 0.024);
+    this._positionHeroBodies(game, W, H, cx, cy);
 
     // MID: galaxy spiral arms + soft nebula clouds (parallax 0.07)
     const midF = 0.07, mx = cx * midF, my = cy * midF;
@@ -997,6 +959,124 @@ void main() {
     }
   }
 
+  // ---- Hero celestial bodies --------------------------------------------
+  // A galaxy, a ringed gas giant and a moon that are always somewhere in the
+  // sky, rather than leaving it to hashed-grid RNG that can produce an empty
+  // sky for minutes. Each is drawn ONCE into its own layer at a local origin;
+  // per-frame all that changes is the layer's position.
+  _buildHeroBodies(W, H) {
+    this._drawGalaxy(this.gHeroGalaxy, 0, 0);
+    this._drawGasGiant(this.gHeroPlanet, 0, 0, 132);
+    this._drawMoon(this.gHeroMoon, 0, 0, 96);
+
+    // Depth is sold by three things at once: parallax factor (how much camera
+    // movement shifts it), autonomous drift (so the sky lives even when the
+    // player stands still) and haze (set on the layer alpha below). The
+    // galaxy is furthest — barely reacts to the camera, creeps along on its
+    // own; the moon is nearest and visibly sails past.
+    this._heroBodies = [
+      { g: this.gHeroGalaxy, bx: W * 0.52, by: H * 0.36, f: 0.016, driftX: -2.6, driftY: 0.7, pad: 460, alpha: 0.72 },
+      { g: this.gHeroPlanet, bx: W * 0.22, by: H * 0.66, f: 0.052, driftX:  4.8, driftY: -1.1, pad: 340, alpha: 0.80 },
+      { g: this.gHeroMoon,   bx: W * 0.76, by: H * 0.20, f: 0.078, driftX: -7.4, driftY: 1.6, pad: 260, alpha: 0.88 },
+    ];
+    for (const b of this._heroBodies) b.g.alpha = b.alpha;
+  }
+
+  _positionHeroBodies(game, W, H, cx, cy) {
+    const t = game.run ? game.run.time : 0;
+    for (const b of this._heroBodies) {
+      // X wraps: a body that sails off one edge returns from the other, so
+      // the sky never empties out on a long run. pad >= the body's own radius
+      // means the wrap always happens while it is fully off-screen.
+      const spanX = W + b.pad * 2;
+      let sx = b.bx - cx * b.f + b.driftX * t;
+      sx = ((((sx + b.pad) % spanX) + spanX) % spanX) - b.pad;
+      // Y does NOT wrap — a vertical jump would be visible while the body is
+      // still on screen horizontally. Unbounded vertical drift is folded
+      // through a sine instead, so it rises and falls smoothly forever.
+      const rawY = b.by - cy * b.f + b.driftY * t;
+      const sy = H * 0.5 + Math.sin(rawY / (H * 0.75)) * (H * 0.40);
+      b.g.position.set(sx - b.bx, sy - b.by);
+    }
+  }
+
+  _drawGalaxy(g, cx, cy) {
+    // Replaces the old dwarf star. A star at this scale was just a bright
+    // dot with four spikes; a barred spiral gives the sky an actual focal
+    // point with structure to read.
+    const R = 190;
+    // halo
+    for (let i = 6; i >= 1; i--) {
+      g.ellipse(cx, cy, R * (i / 6) * 1.15, R * (i / 6) * 0.62)
+        .fill({ color: '#6a4fd0', alpha: 0.030 });
+    }
+    // spiral arms — logarithmic, each traced as a tapering stroke
+    for (let arm = 0; arm < 2; arm++) {
+      const base = arm * Math.PI;
+      for (let pass = 0; pass < 3; pass++) {
+        const w = [16, 9, 4][pass];
+        const col = ['#4a3aa0', '#7a6ae0', '#cfc4ff'][pass];
+        const al = [0.16, 0.20, 0.26][pass];
+        g.moveTo(cx, cy);
+        for (let s = 1; s <= 26; s++) {
+          const f = s / 26;
+          const rr = 14 + f * R;
+          const aa = base + f * 3.1;
+          // flattened disc — the galaxy is seen at an angle, not face-on
+          g.lineTo(cx + Math.cos(aa) * rr, cy + Math.sin(aa) * rr * 0.54);
+        }
+        g.stroke({ width: w, color: col, alpha: al });
+      }
+    }
+    // bright star knots scattered along the arms
+    for (let i = 0; i < 40; i++) {
+      const f = 0.18 + (i % 13) / 13 * 0.82;
+      const aa = (i % 2) * Math.PI + f * 3.1 + ((i * 37) % 20 - 10) * 0.012;
+      const rr = 14 + f * R + ((i * 53) % 26 - 13);
+      g.circle(cx + Math.cos(aa) * rr, cy + Math.sin(aa) * rr * 0.54, 0.9 + (i % 3) * 0.5)
+        .fill({ color: i % 4 === 0 ? '#ffd9f0' : '#dfe6ff', alpha: 0.55 });
+    }
+    // core bulge
+    g.ellipse(cx, cy, 62, 34).fill({ color: '#b98adf', alpha: 0.20 });
+    g.ellipse(cx, cy, 38, 21).fill({ color: '#e6c8ff', alpha: 0.34 });
+    g.ellipse(cx, cy, 20, 11).fill({ color: '#fff4ff', alpha: 0.72 });
+    // dust lane cutting across the core
+    g.ellipse(cx - 6, cy + 4, 96, 7).fill({ color: '#1a0f30', alpha: 0.45 });
+  }
+
+  _drawGasGiant(g, cx, cy, R) {
+    g.circle(cx, cy, R * 1.55).fill({ color: '#ffb066', alpha: 0.05 });
+    // back half of the ring passes BEHIND the planet
+    g.ellipse(cx, cy, R * 1.95, R * 0.52).stroke({ width: 7, color: '#d9a35a', alpha: 0.42 });
+    g.ellipse(cx, cy, R * 2.25, R * 0.60).stroke({ width: 3, color: '#c08a4a', alpha: 0.24 });
+    g.circle(cx, cy, R).fill('#8a5228');
+    for (let bi = -4; bi <= 4; bi++) {
+      const off = bi * R * 0.108;
+      const bw = Math.sqrt(Math.max(0, R * R - off * off));
+      g.ellipse(cx, cy + off, bw, R * 0.062)
+        .fill({ color: bi % 2 === 0 ? '#e8a05a' : '#a85f2c', alpha: 0.42 });
+    }
+    // storm eye
+    g.ellipse(cx + R * 0.28, cy + R * 0.16, R * 0.22, R * 0.13).fill({ color: '#d2542c', alpha: 0.55 });
+    // reflected sunlight, not an internal lamp
+    g.circle(cx - R * 0.3, cy - R * 0.3, R * 0.5).fill({ color: '#ffd9a0', alpha: 0.13 });
+    g.circle(cx + R * 0.35, cy + R * 0.28, R * 0.66).fill({ color: '#3a1c08', alpha: 0.42 });
+    // front half of the ring crosses IN FRONT of the lower limb
+    g.ellipse(cx, cy + R * 0.03, R * 1.95, R * 0.52).stroke({ width: 4, color: '#f0c98a', alpha: 0.30 });
+  }
+
+  _drawMoon(g, cx, cy, R) {
+    g.circle(cx, cy, R * 1.6).fill({ color: '#cfd9e6', alpha: 0.05 });
+    g.circle(cx, cy, R).fill('#8a9199');
+    g.circle(cx - R * 0.33, cy - R * 0.28, R * 0.54).fill({ color: '#c7d0dc', alpha: 0.20 });
+    g.circle(cx + R * 0.28, cy + R * 0.22, R * 0.65).fill({ color: '#4a5058', alpha: 0.35 });
+    const craters = [[-0.19, 0.33, 0.15], [0.36, -0.13, 0.11], [0.04, 0.51, 0.085], [-0.43, -0.04, 0.075], [0.15, -0.42, 0.06], [-0.55, 0.35, 0.05]];
+    for (const [ox, oy, cr] of craters) {
+      g.circle(cx + ox * R, cy + oy * R, cr * R).fill({ color: '#767e8a', alpha: 0.7 });
+      g.circle(cx + ox * R - cr * R * 0.25, cy + oy * R - cr * R * 0.25, cr * R * 0.7).fill({ color: '#9aa4b2', alpha: 0.5 });
+    }
+  }
+
   // ---------------------------- GROUND / BG ------------------------------
   _drawGround(game) {
     const W = game.W, H = game.H, cx = game.cam.x, cy = game.cam.y;
@@ -1025,32 +1105,77 @@ void main() {
     // system was invisible even though it was drawing correctly.
     g.rect(cx - pad, cy - pad, W + pad * 2, H + pad * 2).fill({ color: `rgb(${br},${bg},${bb})`, alpha: 0.58 });
 
+    // Starfield: five parallax layers, and within each layer the stars are
+    // sorted into three brightness/size buckets by hash. Previously every
+    // star in a layer was the exact same dot at the exact same alpha, which
+    // is what made the sky read as flat noise — a real sky is mostly faint
+    // pinpricks with a scattering of obviously brighter ones. Buckets are
+    // filled as three batches per layer rather than per-star, so this is 15
+    // fill calls for the whole field (and the whole thing is cached until
+    // the camera moves past the pad anyway).
     const drift = t * 0.4;
-    const starGrid = 80;
+    const starGrid = 64;
     const layers = [
-      { speed: 0.05, size: 0.7, alpha: 0.35 + zoneT2 * 0.15 },
-      { speed: 0.12, size: 1.2, alpha: 0.50 + zoneT2 * 0.10 },
-      { speed: 0.20, size: 1.8, alpha: 0.70 + zoneT2 * 0.10 },
+      { speed: 0.03, size: 0.45, alpha: 0.26, dens: 2 },
+      { speed: 0.06, size: 0.7,  alpha: 0.38, dens: 3 },
+      { speed: 0.11, size: 1.0,  alpha: 0.52, dens: 4 },
+      { speed: 0.17, size: 1.45, alpha: 0.68, dens: 6 },
+      { speed: 0.24, size: 2.1,  alpha: 0.85, dens: 9 },
     ];
-    const starColor = `rgb(${200 + Math.floor(zoneT2 * 55)},${180 - Math.floor(zoneT2 * 80)},${255 - Math.floor(zoneT2 * 180)})`;
-    for (const layer of layers) {
+    // Slight colour spread: most stars cool white-blue, some warm.
+    const cool = `rgb(${198 + Math.floor(zoneT2 * 55)},${186 - Math.floor(zoneT2 * 80)},${255 - Math.floor(zoneT2 * 170)})`;
+    const warm = `rgb(255,${214 - Math.floor(zoneT2 * 40)},${176 - Math.floor(zoneT2 * 60)})`;
+    // Six buckets = 3 brightness tiers x cool/warm. Graphics fills every
+    // shape accumulated since the last fill() in one go, so stars have to be
+    // collected first and emitted bucket by bucket — interleaving them and
+    // filling at the end would paint the whole field in the first colour.
+    if (!this._starBuckets) {
+      this._starBuckets = Array.from({ length: 6 }, () => []);
+      this._starFlares = [];
+    }
+    const buckets = this._starBuckets, flares = this._starFlares;
+    for (const b of buckets) b.length = 0;
+    flares.length = 0;
+
+    for (let li = 0; li < layers.length; li++) {
+      const layer = layers[li];
       const ox = drift * layer.speed, oy = drift * layer.speed * 0.6;
       const sX = Math.floor((cx - pad - ox) / starGrid) * starGrid;
       const sY = Math.floor((cy - pad - oy) / starGrid) * starGrid;
-      let any = false;
       for (let sx = sX; sx < cx + W + pad + starGrid; sx += starGrid) {
         for (let sy = sY; sy < cy + H + pad + starGrid; sy += starGrid) {
           const h1 = ((sx * 1031) ^ (sy * 7919)) >>> 0;
           const h2 = ((sx * 7187) ^ (sy * 3301)) >>> 0;
           const h3 = ((sx * 2053) ^ (sy * 6271)) >>> 0;
-          if (h3 % 5 !== 0) continue;
+          if (h3 % 12 >= layer.dens) continue;
           const wx = sx + (h1 % starGrid) + ox;
           const wy = sy + (h2 % starGrid) + oy;
-          g.circle(wx, wy, layer.size);
-          any = true;
+          // Skewed toward the faint tier so bright stars stay special.
+          const m = h1 % 16;
+          const tier = m < 9 ? 0 : m < 14 ? 1 : 2;
+          const isWarm = (h2 % 9) === 0;
+          const r = layer.size * (tier === 0 ? 0.62 : tier === 1 ? 1.0 : 1.5);
+          buckets[tier * 2 + (isWarm ? 1 : 0)].push(wx, wy, r);
+          // The brightest stars in the two nearest layers get a small
+          // diffraction cross — the classic "this one is close" cue.
+          if (tier === 2 && layer.speed > 0.15 && (h3 % 5) === 0) {
+            flares.push(wx, wy, r * 4.2, isWarm ? 1 : 0, layer.alpha);
+          }
         }
       }
-      if (any) g.fill({ color: starColor, alpha: layer.alpha });
+    }
+    const tierAlpha = [0.42, 0.68, 0.95];
+    for (let bi = 0; bi < 6; bi++) {
+      const arr = buckets[bi];
+      if (!arr.length) continue;
+      for (let i = 0; i < arr.length; i += 3) g.circle(arr[i], arr[i + 1], arr[i + 2]);
+      g.fill({ color: (bi & 1) ? warm : cool, alpha: Math.min(1, tierAlpha[bi >> 1] + zoneT2 * 0.08) });
+    }
+    for (let i = 0; i < flares.length; i += 5) {
+      const fx2 = flares[i], fy2 = flares[i + 1], fl = flares[i + 2];
+      g.moveTo(fx2 - fl, fy2).lineTo(fx2 + fl, fy2)
+       .moveTo(fx2, fy2 - fl).lineTo(fx2, fy2 + fl)
+       .stroke({ width: 0.7, color: flares[i + 3] ? warm : cool, alpha: flares[i + 4] * 0.45 });
     }
 
     if (zoneT > 0.1) {
