@@ -1247,7 +1247,14 @@ void main() {
     const gf = this.gPlayerFront; gf.clear();
     const p = game.player;
     const aimAng = Math.atan2(p.aimY, p.aimX);
-    const sqx = 1 + p.squish * 0.25, sqy = 1 - p.squish * 0.18;
+    // Idle animation: a slow breathing scale pulse + gentle sway when
+    // standing still (dirX/dirY ~0), layered onto the existing squish/tilt
+    // "weight" system instead of a parallel one — same water-drop-simulator
+    // feel, just alive even when not actively moving.
+    const idleT = Math.hypot(p.dirX || 0, p.dirY || 0) < 0.08;
+    const breathe = idleT ? Math.sin((p.bob || 0) * 0.6) * 0.02 : 0;
+    const sway = idleT ? Math.sin((p.bob || 0) * 0.4) * 0.05 : 0;
+    const sqx = 1 + p.squish * 0.25 + breathe, sqy = 1 - p.squish * 0.18 - breathe * 0.6;
 
     // Shadow — offset directionally AWAY from the current merged light
     // (flashlight normally, muzzle-flash when firing) so it visibly reacts
@@ -1267,7 +1274,7 @@ void main() {
     g.ellipse(p.x + shOffX, p.y + shOffY, p.r * 0.9 * sqx * shElong, p.r * 0.32).fill({ color: '#000000', alpha: shDark });
 
     const r = p.r;
-    const bodyAng = p.tilt || 0;
+    const bodyAng = (p.tilt || 0) + sway;
     const localPts = [];
     // sample the teardrop bezier body outline as a polygon (approx)
     const bez = (t) => {
@@ -1304,6 +1311,24 @@ void main() {
       const [ex1, ey1] = rot(-2, -2, bodyAng), [ex2, ey2] = rot(3, -2, bodyAng);
       gf.circle(p.x + ex1, p.y + ey1, 1.6).fill('#ffd166');
       gf.circle(p.x + ex2, p.y + ey2, 1.6).fill('#ffd166');
+    }
+
+    // ===== Rank-unlocked cosmetics (see ProfilePanel) =====
+    const cos = game.cosmetics || {};
+    if (cos.headbandColor) {
+      gf.poly(rotPoly(p.x, p.y, bodyAng, [-r * 0.55, -r * 0.85, r * 0.55, -r * 0.85, r * 0.5, -r * 0.62, -r * 0.5, -r * 0.62]))
+        .fill(cos.headbandColor).stroke({ width: 1, color: '#000000', alpha: 0.4 });
+      const [knotX, knotY] = rot(r * 0.55, -r * 0.74, bodyAng);
+      gf.circle(p.x + knotX, p.y + knotY, 2.2).fill(cos.headbandColor);
+    }
+    if (cos.cigarOn) {
+      const cigarAng = bodyAng + 0.3;
+      gf.poly(rotPoly(p.x, p.y, cigarAng, [r * 0.35, -r * 0.16, r * 0.35 + 8, -r * 0.16 - 1, r * 0.35 + 8, -r * 0.16 + 1, r * 0.35, -r * 0.16 + 2]))
+        .fill('#5a4632');
+      const [tipX, tipY] = rot(r * 0.35 + 8, -r * 0.16, cigarAng);
+      const tipPulse = 0.5 + 0.5 * Math.sin(game.time * 6);
+      glow(gf, p.x + tipX, p.y + tipY, 3, '#ff6a1a', tipPulse * 1.4);
+      gf.circle(p.x + tipX, p.y + tipY, 1.2).fill(tipPulse > 0.5 ? '#ffb347' : '#ff6a1a');
     }
 
     // ===== Gun (rotated in aim direction) =====

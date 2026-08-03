@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Game } from '../game/engine';
 import { SKILL_INDEX, WEAPON_PARTS } from '../game/data_ext';
 import { STARTER_WEAPONS, PART_SLOT_INFO } from '../game/data_ext2';
+import { HEADBANDS } from '../game/data_ext';
 import { POE_INDEX, POE_ATTRS } from '../game/poe_tree';
 import { rollGearDrop } from '../game/gear';
 import { applyArtifactsToStats } from '../game/artifacts';
@@ -199,6 +200,10 @@ export default function GameScreen({ save, setSave, onExit, onRunEnd, mission })
       meta,
       attrs: save.attrs || {},
       weaponElements: save.weaponElements || {},
+      cosmetics: {
+        headbandColor: HEADBANDS.find(h => h.id === save.profile?.headband)?.color || null,
+        cigarOn: !!save.profile?.cigarOn,
+      },
       activePet: (save.pets || []).find(p => p.active) || null,
       unlockedEvos: save.unlockedEvos || [],
       skills: save.skills || {},

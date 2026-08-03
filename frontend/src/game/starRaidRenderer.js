@@ -101,7 +101,7 @@ export class StarRaidRenderer {
     // skill's "no hand-authored art" note; this delivers the same felt
     // effect of banking into a turn).
     const bank = p.bank * 0.5;
-    const shipColor = p.hit > 0 ? '#ffffff' : '#5fd6ff';
+    const shipColor = p.hit > 0 ? '#ffffff' : (game.shipColor || '#5fd6ff');
     const pts = [[0, -18], [-13, 12], [-6, 6], [0, 10], [6, 6], [13, 12]];
     const rp = pts.map(([lx, ly]) => {
       const c = Math.cos(bank), s = Math.sin(bank);
@@ -114,6 +114,7 @@ export class StarRaidRenderer {
     // actively thrusting (moving), tinted the ship's own color.
     this.engineGlow.visible = true;
     this.engineGlow.position.set(p.x - Math.sin(bank) * 14, p.y + Math.cos(bank) * 14);
+    this.engineGlow.tint = game.shipColor || '#5fd6ff';
     const thrust = Math.hypot(p.vx, p.vy) > 10 ? 1 : 0.5;
     this.engineGlow.width = this.engineGlow.height = 34 * thrust;
     this.engineGlow.alpha = 0.55 * thrust;

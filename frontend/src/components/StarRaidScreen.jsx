@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { StarRaidGame, STAGES, SHIP_UPGRADES, upgradeCost } from '../game/starRaidEngine';
 import { StarRaidRenderer } from '../game/starRaidRenderer';
+import { SHIP_COLORS } from '../game/data_ext';
 
 // ═══════════════════════════════════════════════════════════════════════
 // STAR RAID — "Patrol minigame" from spec (named to avoid colliding with
@@ -44,6 +45,7 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
     const game = new StarRaidGame(canvas, {
       shipLevels: sr.levels,
       stageIdx,
+      shipColor: SHIP_COLORS.find(c => c.id === save.profile?.shipColor)?.color || '#5fd6ff',
       callbacks: {
         onTick: (s) => setSnap(s),
         onGameOver: (s) => {

@@ -64,6 +64,7 @@ export class Game {
     // non-linear -33%/+33% curve that can't be expressed through the generic
     // linear meta-effects pipeline, so they read straight from here.
     this.weaponElements = opts.weaponElements || {}; // { weaponId: [elementId, ...] } — Weaponsmith
+    this.cosmetics = opts.cosmetics || {}; // { headbandColor, cigarOn } — see ProfilePanel rank unlocks
     this.callbacks = opts.callbacks || {};
     // Active pet in-game
     this.activePet = opts.activePet || null;
@@ -774,6 +775,19 @@ export class Game {
     const tiltTarget = moving ? Math.sin(moveAng - aimAng) * 0.35 * speedRel : 0;
     p.tilt += (tiltTarget - p.tilt) * Math.min(1, dt * 10);
     p.bob = (p.bob || 0) + dt * (moving ? 14 : 3);
+    // Idle cigar cosmetic (rank-unlocked, see ProfilePanel): puffs a soft
+    // drifting smoke particle every couple seconds while standing still.
+    if (!moving && this.cosmetics.cigarOn) {
+      this._cigarPuffT = (this._cigarPuffT || 0) - dt;
+      if (this._cigarPuffT <= 0) {
+        this._cigarPuffT = rand(1.6, 2.6);
+        const sm = this.parts.acquire();
+        const cigarAng = (p.tilt || 0) + 0.3;
+        sm.x = p.x + Math.cos(cigarAng) * p.r * 0.45; sm.y = p.y + Math.sin(cigarAng) * p.r * 0.45 - p.r * 0.15;
+        sm.vx = rand(-8, 8); sm.vy = -rand(18, 32);
+        sm.life = rand(1.2, 1.8); sm.max = sm.life; sm.color = '#cfd0d6'; sm.size = rand(2, 3.5); sm.type = 'ash';
+      }
+    }
     p.recoil = Math.max(0, (p.recoil || 0) - dt * 4);
     p._muzzleFlashT = Math.max(0, (p._muzzleFlashT || 0) - dt);
 

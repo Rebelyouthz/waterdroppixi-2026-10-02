@@ -52,6 +52,7 @@ export class StarRaidGame {
     this.canvas = canvas;
     this.opts = opts;
     this.callbacks = opts.callbacks || {};
+    this.shipColor = opts.shipColor || '#5fd6ff'; // ProfilePanel rank-unlocked cosmetic
     this.shipLevels = opts.shipLevels || {};
     this.stats = makeStats(this.shipLevels);
     this.stageIdx = clamp(opts.stageIdx || 0, 0, STAGES.length - 1);
