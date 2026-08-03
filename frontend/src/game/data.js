@@ -179,6 +179,46 @@ export const WEAPONS = {
     ],
   },
   // ===== NEW WEAPONS (unlock via Card Shop) =====
+  // Hand cannon: very few rounds, very slow, and each one hits like a truck
+  // and shoves what it hits. The counterweight to the fast manual weapons.
+  desertEagle: {
+    id: 'desertEagle', name: 'Desert Eagle', icon: '🦅', type: 'manual', behaviour: 'projectile',
+    desc: 'Seven rounds of absurd stopping power. Slow, loud, and it moves whatever it hits.',
+    base: {
+      damage: 62, fireRate: 1.7, projSpeed: 900, projSize: 7, projectiles: 1,
+      pierce: 1, magazine: 7, reloadTime: 1.5, knockback: 240, crit: 0.12,
+      spread: 0.02, color: '#ffd166',
+    },
+    levelUps: [
+      { stat: 'damage', mult: 1.24 },
+      { stat: 'magazine', add: 2 },
+      { stat: 'fireRate', mult: 1.16 },
+      { stat: 'pierce', add: 1 },
+      { stat: 'damage', mult: 1.3 },
+      { stat: 'crit', add: 0.06 },
+      { stat: 'damage', mult: 1.55, evolve: true },
+    ],
+  },
+  // Charge-and-loose. Slow cadence, no magazine to speak of, but the arrow
+  // punches through a whole line of enemies.
+  bow: {
+    id: 'bow', name: 'Tidewood Bow', icon: '🏹', type: 'manual', behaviour: 'projectile',
+    desc: 'Draws heavy and looses an arrow that runs a line clean through the crowd.',
+    base: {
+      damage: 34, fireRate: 1.4, projSpeed: 1150, projSize: 5, projectiles: 1,
+      pierce: 4, magazine: 1, reloadTime: 0.62, knockback: 60, crit: 0.15,
+      spread: 0.0, color: '#c8f0a0',
+    },
+    levelUps: [
+      { stat: 'pierce', add: 2 },
+      { stat: 'damage', mult: 1.25 },
+      { stat: 'fireRate', mult: 1.2 },
+      { stat: 'crit', add: 0.07 },
+      { stat: 'damage', mult: 1.3 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'damage', mult: 1.5, evolve: true },
+    ],
+  },
   // Directional lash in the aim direction — the genre-staple whip. Uses the
   // scythe path (behaviour 'aoe', not in RADIAL_AOE_WEAPONS) because that is
   // already a forward-arc sweep; what makes it a whip rather than a scythe is

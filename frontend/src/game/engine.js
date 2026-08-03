@@ -1348,7 +1348,9 @@ export class Game {
       switch (w.behaviour) {
         case 'projectile':
           stats._behaviour = w.behaviour;
-          if (w.type === 'manual') this.weaponManualPistol(stats, dt);
+          // Which manual weapon is in the character's hands, so the renderer
+          // can draw that specific model rather than one generic pistol.
+          if (w.type === 'manual') { this._heldWid = wid; this.weaponManualPistol(stats, dt); }
           else this.weaponAutoBolts(stats, dt);
           break;
         case 'shotgun':
@@ -1395,6 +1397,15 @@ export class Game {
       if (rs.autoDmgMult !== 1) s.damage = (s.damage || 0) * rs.autoDmgMult;
       if (rs.autoRateMult !== 1) s.fireRate = (s.fireRate || 0) * rs.autoRateMult;
       if (rs.autoAreaMult !== 1 && s.area) s.area = s.area * rs.autoAreaMult;
+    }
+    // Weapon Mastery at level 10. Past the seven authored levelUps a weapon
+    // was only getting a generic +10% damage per pick, so committing to one
+    // weapon stopped feeling like a decision. Ten is a real milestone.
+    if (lvl >= 10) {
+      s.damage = (s.damage || 0) * 1.35;
+      s.fireRate = (s.fireRate || 0) * 1.15;
+      s.pierce = (s.pierce || 0) + 1;
+      s._mastered = true;
     }
     // Tempo Engine's kill stacks land here so every weapon picks them up
     // uniformly, rather than having to touch each of the ten sites that read

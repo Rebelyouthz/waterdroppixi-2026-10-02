@@ -78,6 +78,93 @@ function buildArrowPixelGrid() {
 }
 const BOSS_ARROW_PIXELS = buildArrowPixelGrid();
 
+// ---- Held-weapon models ----------------------------------------------------
+// One entry per manual weapon. `parts` are local-space boxes drawn back to
+// front in the aim direction (+X is down the barrel, +Y is down), so adding a
+// weapon is a data entry rather than new drawing code. `muzzle` is how far
+// along +X the barrel ends, which the muzzle flash and hot-tip glow use.
+const WEAPON_MODELS = {
+  hydropistol: {
+    accent: '#6cb4ff', muzzle: 30, slide: [5, -5, 10, 2.8], slideColor: '#3a4658',
+    parts: [
+      [-6, -3, 8, 6, '#1f2632'], [-2, 3, 4, 6, '#0f141c'],
+      [2, -3, 14, 6, '#3a4658'], [8, 3, 4, 7, '#11161e'],
+      [4, -5, 9, 2, '#11161e'], [16, -1.6, 12, 3.2, '#2a313d'],
+      [27, -2.4, 2.5, 4.8, '#0a0d12'], [3, -0.6, 12, 1.2, '#6cb4ff', 0.85],
+    ],
+  },
+  // Heavy, slab-sided, obviously big. Long ported barrel and a fat slide.
+  desertEagle: {
+    accent: '#ffd166', muzzle: 36, slide: [4, -6, 15, 3.4], slideColor: '#6a5a3a',
+    parts: [
+      [-7, -4, 9, 8, '#2a2418'], [-4, 4, 5, 9, '#171207'],
+      [2, -4.6, 20, 9.2, '#8a7645'], [9, 4, 5, 8, '#171207'],
+      [4, -6.6, 15, 2.4, '#a8935c'], [22, -2.6, 13, 5.2, '#6a5a3a'],
+      [24, -3.4, 2, 1.6, '#171207'], [28, -3.4, 2, 1.6, '#171207'],
+      [34, -3.2, 2.6, 6.4, '#0d0a04'],
+      [3, -1.0, 17, 1.6, '#ffd166', 0.6],
+    ],
+  },
+  // Recurve bow — see the 'bow' branch in _drawHeldWeapon for the limbs and
+  // string; the boxes here are only the riser and grip.
+  bow: {
+    accent: '#c8a05a', muzzle: 20, kind: 'bow', limb: 15,
+    parts: [
+      [-1, -3.5, 5, 7, '#6b4a22'], [0, 3, 3, 6, '#3a2610'],
+      [4, -1.2, 7, 2.4, '#8a6a34'],
+    ],
+  },
+  daggers: {
+    accent: '#b9f0ff', muzzle: 22,
+    parts: [
+      [-4, -2, 7, 4, '#2a3038'], [2, -1.4, 15, 2.8, '#c8dbe8'],
+      [16, -0.9, 6, 1.8, '#eaf6ff'], [1, -3.2, 3, 6.4, '#4a5560'],
+    ],
+  },
+  flameburst: {
+    accent: '#ff7a1a', muzzle: 32,
+    parts: [
+      [-7, -3.6, 9, 7.2, '#3a201a'], [-3, 3, 4, 7, '#170b06'],
+      [2, -4, 16, 8, '#5a2c14'], [18, -3, 12, 6, '#7a3a18'],
+      [29, -3.6, 3, 7.2, '#1a0c04'], [3, -1, 14, 2, '#ff7a1a', 0.7],
+    ],
+  },
+  icespike: {
+    accent: '#8fe6ff', muzzle: 34,
+    parts: [
+      [-6, -3, 8, 6, '#1a2e38'], [-2, 3, 4, 6, '#0a161c'],
+      [2, -3.4, 15, 6.8, '#2a4a58'], [17, -2, 15, 4, '#3f6d80'],
+      [31, -2.6, 2.4, 5.2, '#0a161c'], [3, -0.8, 26, 1.6, '#8fe6ff', 0.75],
+    ],
+  },
+  sniperDrop: {
+    accent: '#4dffd4', muzzle: 46,
+    parts: [
+      [-9, -2.6, 11, 5.2, '#20262e'], [-4, 2.6, 4, 8, '#0d1116'],
+      [2, -3, 18, 6, '#2a3a44'], [6, -6.4, 12, 3, '#11161e'],
+      [20, -1.6, 22, 3.2, '#39505c'], [41, -2.2, 3, 4.4, '#0a0d12'],
+      [7, -7.6, 9, 1.6, '#4dffd4', 0.8],
+    ],
+  },
+  stormLance: {
+    accent: '#fff44d', muzzle: 40,
+    parts: [
+      [-7, -3, 9, 6, '#2a2a3a'], [-3, 3, 4, 7, '#12121c'],
+      [2, -3.4, 13, 6.8, '#3a3a55'], [15, -2.2, 20, 4.4, '#4a4a70'],
+      [34, -3.4, 3, 6.8, '#12121c'],
+      [4, -1, 29, 2, '#fff44d', 0.7],
+    ],
+  },
+  _default: {
+    accent: '#6cb4ff', muzzle: 30, slide: [5, -5, 10, 2.8], slideColor: '#3a4658',
+    parts: [
+      [-6, -3, 8, 6, '#1f2632'], [-2, 3, 4, 6, '#0f141c'],
+      [2, -3, 14, 6, '#3a4658'], [8, 3, 4, 7, '#11161e'],
+      [16, -1.6, 12, 3.2, '#2a313d'], [27, -2.4, 2.5, 4.8, '#0a0d12'],
+    ],
+  },
+};
+
 const PET_COLORS = {
   aquaSprite: '#5ba3ff', emberFairy: '#ff7a1a', shadowWisp: '#b362ff',
   stormHawk: '#ffe44d', lifeSprite: '#4dffd4',
@@ -1713,6 +1800,47 @@ void main() {
     return { angOff: 0.60 * (1 - f), pull: -1 * (1 - f), offX: 0, offY: -1 * (1 - f), hand: null, slide: 0, prog };
   }
 
+  // Draws whichever manual weapon is in hand. `parts` is a list of local-space
+  // boxes so a new weapon is a data entry rather than new drawing code, and
+  // `kind` covers the few silhouettes a box list cannot express.
+  // Returns the model's accent colour, which the muzzle glow uses.
+  _drawHeldWeapon(gf, model, gx, gy, ang, rl, p, game) {
+    const box = (lx, ly, lw, lh, color, alpha) => {
+      const shape = gf.poly(rotPoly(gx, gy, ang, [lx, ly, lx + lw, ly, lx + lw, ly + lh, lx, ly + lh]));
+      shape.fill(alpha != null ? { color, alpha } : color);
+    };
+    for (const [lx, ly, lw, lh, col, alpha] of model.parts) box(lx, ly, lw, lh, col, alpha);
+
+    if (model.kind === 'bow') {
+      // A bow is a curve and a string, not a box stack. The string draws back
+      // as the shot charges and snaps forward on release.
+      const draw = Math.max(0, Math.min(1, p.recoil * 2.6));
+      const limb = model.limb;
+      const tipA = rot(2, -limb, ang), tipB = rot(2, limb, ang);
+      const belly = rot(10, 0, ang);
+      gf.moveTo(gx + tipA[0], gy + tipA[1])
+        .quadraticCurveTo(gx + belly[0], gy + belly[1], gx + tipB[0], gy + tipB[1])
+        .stroke({ width: 2.6, color: model.accent });
+      const nock = rot(-2 - draw * 7, 0, ang);
+      gf.moveTo(gx + tipA[0], gy + tipA[1])
+        .lineTo(gx + nock[0], gy + nock[1])
+        .lineTo(gx + tipB[0], gy + tipB[1])
+        .stroke({ width: 1, color: '#e8e2d0', alpha: 0.85 });
+      if (draw > 0.05) {
+        const aTail = rot(-2 - draw * 7, 0, ang), aHead = rot(14, 0, ang);
+        gf.moveTo(gx + aTail[0], gy + aTail[1]).lineTo(gx + aHead[0], gy + aHead[1])
+          .stroke({ width: 1.6, color: '#cfd6de' });
+      }
+    }
+
+    // Slide travel from the reload pose lands on the model's own slide box.
+    if (rl.slide !== 0 && model.slide) {
+      const [sx, sy, sw, sh] = model.slide;
+      box(sx + rl.slide, sy, sw, sh, model.slideColor || '#3a4658');
+    }
+    return model.accent;
+  }
+
   // Two short arms from the shoulders to the grip. The character is a
   // waterdrop, so they are stubby capsules rather than jointed limbs — enough
   // to make the gun read as held rather than floating, which is what the
@@ -1846,31 +1974,18 @@ void main() {
     const recoil = -p.recoil * 4;
     const gx = p.x + Math.cos(aimDrawAng) * (recoil + rl.pull) + rl.offX;
     const gy = p.y + 1 + Math.sin(aimDrawAng) * (recoil + rl.pull) + rl.offY;
-    const owned = game.run.ownedWeapons;
-    let gunColor = '#3a4658', accentColor = '#6cb4ff';
-    if (owned.includes('voidBeam')) { gunColor = '#2a1a3a'; accentColor = '#b362ff'; }
-    else if (owned.includes('emberOrbs')) { gunColor = '#3a201a'; accentColor = '#ff7a1a'; }
-    else if (owned.includes('shotgun')) { gunColor = '#3a302a'; accentColor = '#ffd166'; }
-    else if (owned.includes('autoBolts')) { gunColor = '#2a3a44'; accentColor = '#4dffd4'; }
-
     // Arms go down BEFORE the gun so the hands read as gripping it, not
     // hovering in front of it.
     this._drawArms(gf, p, bodyAng, r, gx, gy, aimDrawAng, rl.hand);
 
-    const gunRect = (lx, ly, lw, lh, color) => gf.poly(rotPoly(gx, gy, aimDrawAng, [lx, ly, lx + lw, ly, lx + lw, ly + lh, lx, ly + lh])).fill(color);
-    gunRect(-6, -3, 8, 6, '#1f2632');
-    gunRect(-2, 3, 4, 6, '#0f141c');
-    gunRect(2, -3, 14, 6, gunColor);
-    gunRect(8, 3, 4, 7, '#11161e');
-    gunRect(4, -5, 9, 2, '#11161e');
-    const [sightX, sightY] = rot(8, -5.5, aimDrawAng);
-    gf.circle(gx + sightX, gy + sightY, 1.2).fill(accentColor);
-    gunRect(16, -1.6, 12, 3.2, '#2a313d');
-    gunRect(27, -2.4, 2.5, 4.8, '#0a0d12');
-    gf.poly(rotPoly(gx, gy, aimDrawAng, [3, -0.6, 15, -0.6, 15, 0.6, 3, 0.6])).fill({ color: accentColor, alpha: 0.85 });
+    // Every manual weapon draws its own model — the player used to hold one
+    // generic pistol whichever weapon was equipped, which made switching
+    // weapons invisible.
+    const model = WEAPON_MODELS[game._heldWid] || WEAPON_MODELS._default;
+    const accentColor = this._drawHeldWeapon(gf, model, gx, gy, aimDrawAng, rl, p, game);
 
     if (p.recoil > 0.05) {
-      const [mx, my] = rot(30, 0, aimDrawAng);
+      const [mx, my] = rot(model.muzzle, 0, aimDrawAng);
       // Small hot-tip glow at the barrel end (the real flash burst itself is
       // drawn additively in _drawLights as a baked starburst sprite).
       const muzzleR = 2 + p.recoil * 2.4;
