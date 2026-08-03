@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ENEMIES } from '../game/data';
 import { STARTER_WEAPONS, ACHIEVEMENTS } from '../game/data_ext2';
 import { rollGearDrop } from '../game/gear';
+import { rollRune } from '../game/runes';
 
 // ─── Eye of Horus badge SVG ───────────────────
 export function EyeBadge({ size = 14 }) {
@@ -27,11 +28,35 @@ export function EyeBadge({ size = 14 }) {
 }
 
 // ─── PATROL SYSTEM ────────────────────────────
+// Patrol payouts. Longer runs are worth more per hour, not just more in
+// total — otherwise there is no reason ever to send anything but the
+// shortest one and collect it repeatedly. `chance` entries are rolls rather
+// than guarantees, so a long patrol has something to hope for on top of its
+// floor.
 const PATROL_DEFS = [
-  { id:'scavenge', name:'Scavenge',  icon:'🔍', dur:60*60*1000,   rwd:{ gold:800 },            desc:'1h — Search ruins for gold & supplies.' },
-  { id:'explore',  name:'Explore',   icon:'🗺', dur:2*60*60*1000, rwd:{ gems:5 },              desc:'2h — Venture deep for rare gems.' },
-  { id:'hunt',     name:'Hunt',      icon:'⚔',  dur:3*60*60*1000, rwd:{ gear:true },            desc:'3h — Track enemies and return with gear.' },
-  { id:'void',     name:'Void Raid', icon:'💀', dur:4*60*60*1000, rwd:{ sp:8, gems:8, xp:400 }, desc:'4h — Raid the void — SP, gems & XP.' },
+  {
+    id: 'scavenge', name: 'Scavenge', icon: '🔍', dur: 60 * 60 * 1000,
+    rwd: { gold: 800, gearParts: 10, chance: [{ p: 0.30, petFood: 2 }] },
+    desc: '1h — Search the ruins for gold, scrap and salvage.',
+  },
+  {
+    id: 'explore', name: 'Explore', icon: '🗺', dur: 2 * 60 * 60 * 1000,
+    rwd: { gems: 5, gold: 900, gearParts: 22, chance: [{ p: 0.35, rune: true }, { p: 0.25, petFood: 3 }] },
+    desc: '2h — Venture deep. Gems, scrap, and sometimes a rune.',
+  },
+  {
+    id: 'hunt', name: 'Hunt', icon: '⚔', dur: 3 * 60 * 60 * 1000,
+    rwd: { gear: true, gold: 1400, gearParts: 38, slotCoins: 2, chance: [{ p: 0.45, rune: true }, { p: 0.30, egg: true }] },
+    desc: '3h — Track them down. Equipment, scrap, sometimes an egg.',
+  },
+  {
+    id: 'void', name: 'Void Raid', icon: '💀', dur: 4 * 60 * 60 * 1000,
+    rwd: {
+      sp: 8, gems: 8, xp: 400, gold: 2200, gearParts: 60, gachaTokens: 1,
+      chance: [{ p: 0.6, rune: true }, { p: 0.45, gear: true }, { p: 0.2, flux: 1 }],
+    },
+    desc: '4h — Raid the void. The best of everything, and Flux if you are lucky.',
+  },
 ];
 const MAX_PATROL = 3;
 
@@ -48,6 +73,7 @@ function pctDone(startMs, durMs) {
 
 export function PatrolPanel({ save, setSave }) {
   const [now, setNow] = useState(Date.now());
+  const [claimMsg, setClaimMsg] = useState('');
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 8000);
     return () => clearInterval(t);
@@ -91,17 +117,40 @@ export function PatrolPanel({ save, setSave }) {
     if (!m || m.status !== 'complete') return;
     const def = PATROL_DEFS.find(d => d.id === m.defId);
     let ns = { ...save };
-    const rwd = def.rwd;
-    if (rwd.gold)  ns.gold  = (ns.gold  || 0) + Math.round(rwd.gold  * petMult);
-    if (rwd.gems)  ns.gems  = (ns.gems  || 0) + Math.round(rwd.gems  * petMult);
-    if (rwd.sp)    ns.sp    = (ns.sp    || 0) + Math.round(rwd.sp    * petMult);
-    if (rwd.xp)    ns.profile = { ...ns.profile, xp: (ns.profile?.xp || 0) + Math.round(rwd.xp * petMult) };
-    if (rwd.gear) {
-      const item = rollGearDrop(m.durationMs / 1000);
-      ns.gearInventory = [...(ns.gearInventory || []), item];
+    const got = [];
+    // One place grants a reward line, so the guaranteed table and the chance
+    // rolls below cannot drift apart in what they support.
+    const grant = (rwd) => {
+      if (rwd.gold)      { ns.gold = (ns.gold || 0) + Math.round(rwd.gold * petMult); got.push(`★ ${Math.round(rwd.gold * petMult)}`); }
+      if (rwd.gems)      { ns.gems = (ns.gems || 0) + Math.round(rwd.gems * petMult); got.push(`💎 ${Math.round(rwd.gems * petMult)}`); }
+      if (rwd.sp)        { ns.sp = (ns.sp || 0) + Math.round(rwd.sp * petMult); got.push(`◆ ${Math.round(rwd.sp * petMult)}`); }
+      if (rwd.gearParts) { ns.gearParts = (ns.gearParts || 0) + Math.round(rwd.gearParts * petMult); got.push(`🔩 ${Math.round(rwd.gearParts * petMult)}`); }
+      if (rwd.slotCoins) { ns.slotCoins = (ns.slotCoins || 0) + rwd.slotCoins; got.push(`🎰 ${rwd.slotCoins}`); }
+      if (rwd.gachaTokens) { ns.gachaTokens = (ns.gachaTokens || 0) + rwd.gachaTokens; got.push(`🎫 ${rwd.gachaTokens}`); }
+      if (rwd.petFood)   { ns.petFood = (ns.petFood || 0) + rwd.petFood; got.push(`🍖 ${rwd.petFood}`); }
+      if (rwd.flux)      { ns.flux = (ns.flux || 0) + rwd.flux; got.push(`⚗ ${rwd.flux}`); }
+      if (rwd.xp)        { ns.profile = { ...ns.profile, xp: (ns.profile?.xp || 0) + Math.round(rwd.xp * petMult) }; got.push(`XP ${Math.round(rwd.xp * petMult)}`); }
+      if (rwd.gear)      { ns.gearInventory = [...(ns.gearInventory || []), rollGearDrop(m.durationMs / 1000)]; got.push('🪖 Equipment'); }
+      if (rwd.rune)      { ns.runeInventory = [...(ns.runeInventory || []), rollRune(ns.attrs?.luck || 0)]; got.push('🔮 Rune'); }
+      if (rwd.egg) {
+        const rarities = ['common', 'common', 'uncommon', 'rare'];
+        const types = ['aquaSprite', 'shadowWisp', 'emberFairy', 'stormHawk', 'lifeSprite'];
+        ns.petEggs = [...(ns.petEggs || []), {
+          id: `e_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+          rarity: rarities[(Math.random() * rarities.length) | 0],
+          type: types[(Math.random() * types.length) | 0],
+        }];
+        got.push('🥚 Egg');
+      }
+    };
+    grant(def.rwd);
+    for (const c of def.rwd.chance || []) {
+      if (Math.random() < c.p) grant(c);
     }
     ns.patrol = { missions: liveMissions.map(x => x.id === mId ? { ...x, status: 'claimed' } : x) };
     setSave(ns);
+    setClaimMsg(got.join('  ·  '));
+    setTimeout(() => setClaimMsg(''), 4200);
   };
 
   const cancelMission = (mId) => {
@@ -115,6 +164,7 @@ export function PatrolPanel({ save, setSave }) {
         <span className="patrol-slots">{active.length}/{MAX_PATROL} slots</span>
         {hasPet && <span className="patrol-pet-bonus">🐾 +20% reward (pet active)</span>}
       </div>
+      {claimMsg && <div className="patrol-claim-msg" data-testid="patrol-claim">{claimMsg}</div>}
 
       {/* Active missions */}
       {liveMissions.filter(m => m.status !== 'claimed').map(m => {
