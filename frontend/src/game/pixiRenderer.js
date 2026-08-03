@@ -718,10 +718,18 @@ void main() {
   // occasional shooting stars. Cached like the ground layer — rebuilt only
   // when the (slow) parallax-camera has drifted past a padded buffer.
   _drawDeepSpace(game) {
-    const W = game.W, H = game.H, cx = game.cam.x, cy = game.cam.y;
+    const W = game.W, H = game.H;
+    // Guard against a stray NaN/Infinity camera position (e.g. from some
+    // other bug) ever reaching the parallax math below — worst case this
+    // layer just freezes at its last good spot instead of feeding NaN into
+    // Graphics positions/hashing.
+    const cx = Number.isFinite(game.cam.x) ? game.cam.x : (this._lastCamX || 0);
+    const cy = Number.isFinite(game.cam.y) ? game.cam.y : (this._lastCamY || 0);
+    this._lastCamX = cx; this._lastCamY = cy;
 
-    // FAR: planets & moons (parallax 0.035 — feels light-years away)
-    const farF = 0.035, fx = cx * farF, fy = cy * farF;
+    // FAR: planets & moons (parallax 0.006 — reads as a fixed backdrop, only
+    // drifting a little even over a long pan, instead of visibly "following").
+    const farF = 0.006, fx = cx * farF, fy = cy * farF;
     if (!this._farCache || Math.abs(fx - this._farCache.x) > 140 || Math.abs(fy - this._farCache.y) > 140) {
       this._farCache = { x: fx, y: fy };
       const g = this.gDeepFar; g.clear();
