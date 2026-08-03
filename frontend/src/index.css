@@ -575,6 +575,45 @@ canvas#game, canvas.starraid-canvas {
   background: linear-gradient(180deg, #1a1228, #0e0816);
   flex-shrink: 0;
 }
+/* Frames the entire bar (avatar+name+rank+currencies) as one cohesive
+   plaque instead of a bare strip — a thin lit border + soft inner glow. */
+.camp-profile-bar-framed {
+  border: 1px solid var(--rune, #4dffd4aa);
+  border-bottom: 1px solid var(--rune, #4dffd4aa);
+  box-shadow: 0 0 0 1px #00000080, inset 0 0 22px rgba(77,255,212,0.06), 0 4px 14px rgba(0,0,0,0.5);
+  position: relative;
+  flex-wrap: wrap;
+}
+.camp-profile-id { cursor: pointer; display: flex; align-items: center; gap: 10px; }
+/* Avatar always gets a decorative ring, even with no cosmetic frame
+   unlocked yet — the unlocked PROFILE_FRAMES css/glow layers on top via
+   the --frame-css custom property + inline boxShadow. */
+.camp-avatar-frame {
+  width: 44px; height: 44px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  position: relative;
+  border: var(--frame-css, none);
+  background: radial-gradient(circle at 50% 35%, #23182f 0%, #0a0612 75%);
+}
+.camp-avatar-frame::before {
+  content: ''; position: absolute; inset: -3px; border-radius: 50%;
+  border: 1.5px solid rgba(77,255,212,0.5);
+  box-shadow: 0 0 8px rgba(77,255,212,0.35);
+  pointer-events: none;
+}
+.camp-avatar-icon { font-size: 24px; position: relative; z-index: 1; }
+/* Currencies laid out side by side as small pill chips, wraps on narrow
+   screens instead of stacking one-per-line. */
+.camp-currency-row {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+  font-family: 'VT323', monospace; font-size: 13px; color: var(--ink-dim);
+  max-width: 100%;
+}
+.camp-currency-chip {
+  background: #ffffff0a; border: 1px solid #ffffff18; border-radius: 4px;
+  padding: 3px 8px; white-space: nowrap;
+}
+.camp-currency-attr { border-color: #c890ff44; }
 .camp-tab-divider {
   height: 1px; background: #ffffff14; margin: 2px 0;
 }

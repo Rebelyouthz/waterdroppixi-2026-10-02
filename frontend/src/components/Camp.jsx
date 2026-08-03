@@ -140,14 +140,12 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStar
           </div>
         )}
         <div className="camp-sidebar">
-          <div className="camp-profile-bar">
-            <div onClick={() => setProfileOpen(true)} data-testid="camp-profile-open" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{
-                fontSize: 28, borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                width: 40, height: 40,
-                border: PROFILE_FRAMES.find(f => f.id === save.profile.frame)?.css || 'none',
+          <div className="camp-profile-bar camp-profile-bar-framed">
+            <div className="camp-profile-id" onClick={() => setProfileOpen(true)} data-testid="camp-profile-open">
+              <span className="camp-avatar-frame" style={{
+                '--frame-css': PROFILE_FRAMES.find(f => f.id === save.profile.frame)?.css || 'none',
                 boxShadow: PROFILE_FRAMES.find(f => f.id === save.profile.frame)?.glow || 'none',
-              }}>{avatar.icon}</span>
+              }}><span className="camp-avatar-icon">{avatar.icon}</span></span>
               <div>
                 <div style={{
                   fontSize: 14, fontWeight: 800,
@@ -160,15 +158,15 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStar
                 </div>
               </div>
             </div>
-            <div style={{ marginLeft: 'auto', fontFamily: 'VT323', color: 'var(--ink-dim)', fontSize: 13, lineHeight: 1.5, textAlign: 'right', position: 'relative' }}>
-              <div>★ {save.gold}</div>
-              <div style={{ color: '#4dffd4' }}>💎 {save.gems || 0}</div>
-              <div style={{ color: '#ffcc00' }}>🎰 {save.slotCoins || 0}</div>
-              <div style={{ color: '#4dff91' }}>🌿 {save.talentPoints || 0} TP</div>
-              <div>◆ {save.sp} SP</div>
-              <div style={{ color: '#ff9900' }}>🎫 {save.gachaTokens || 0} TOK</div>
-              <div className={attrFreePts > 0 ? 'camp-attr-pulse' : ''} style={{ color: '#c890ff', cursor: 'pointer' }}
-                data-testid="camp-attr-points" onClick={() => setAttrOpen(o => !o)}>⚡ {attrFreePts} ATTR {attrOpen ? '▲' : '▼'}</div>
+            <div className="camp-currency-row" style={{ marginLeft: 'auto', position: 'relative' }}>
+              <span className="camp-currency-chip">★ {save.gold}</span>
+              <span className="camp-currency-chip" style={{ color: '#4dffd4' }}>💎 {save.gems || 0}</span>
+              <span className="camp-currency-chip" style={{ color: '#ffcc00' }}>🎰 {save.slotCoins || 0}</span>
+              <span className="camp-currency-chip" style={{ color: '#4dff91' }}>🌿 {save.talentPoints || 0}</span>
+              <span className="camp-currency-chip">◆ {save.sp}</span>
+              <span className="camp-currency-chip" style={{ color: '#ff9900' }}>🎫 {save.gachaTokens || 0}</span>
+              <span className={`camp-currency-chip camp-currency-attr ${attrFreePts > 0 ? 'camp-attr-pulse' : ''}`} style={{ color: '#c890ff', cursor: 'pointer' }}
+                data-testid="camp-attr-points" onClick={() => setAttrOpen(o => !o)}>⚡ {attrFreePts} ATTR {attrOpen ? '▲' : '▼'}</span>
 
               {attrOpen && (<>
                 <div style={{ position: 'fixed', inset: 0, zIndex: 49 }} onClick={() => setAttrOpen(false)} />
