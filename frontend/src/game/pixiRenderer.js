@@ -626,13 +626,16 @@ void main() {
         // outside the gun/character silhouette instead of overlapping it.
         x: p.x + Math.cos(mAng) * 32, y: p.y + Math.sin(mAng) * 32,
         rgb: hexToRgb01(hex), hex,
-        radius: 210, ambient: (0.22 + 0.55 * mt) * WORLD_LIGHT, mt,
+        // Radius pulled in from 210 — was lighting up too far a radius per
+        // feedback; still bright at its core (ambient unchanged), just
+        // doesn't wash out such a wide area.
+        radius: 145, ambient: (0.22 + 0.55 * mt) * WORLD_LIGHT, mt,
       };
     }
     return {
       x: p.x + Math.cos(aimAng) * 32, y: p.y + Math.sin(aimAng) * 32,
       rgb: hexToRgb01('#fff3d0'), hex: '#fff3d0',
-      radius: 150, ambient: 0.16 * WORLD_LIGHT, mt: 0,
+      radius: 120, ambient: 0.16 * WORLD_LIGHT, mt: 0,
     };
   }
 
@@ -666,16 +669,17 @@ void main() {
       const { sprite, filter } = pool[idx++];
       const boltColor = pr.color || '#5fd6ff';
       const isHydro = pr._wid === 'hydropistol' || pr._wid === 'hydropistol_evo';
-      // Hydropistol's blue glow was bleeding too far onto enemies — cut its
-      // reach/strength specifically, per spec, while other weapons keep
-      // their full glow.
-      const light = { x: pr.x, y: pr.y, rgb: hexToRgb01(boltColor), radius: isHydro ? 22 : 34, ambient: 0.4 };
+      // Every weapon's bolt lights up in its OWN color — stronger than
+      // before (was reading as barely-there) but pulled to a tighter radius
+      // (was bleeding too far into a wide wash) so it reads as "bright but
+      // local to the bolt" instead of "faint but wide".
+      const light = { x: pr.x, y: pr.y, rgb: hexToRgb01(boltColor), radius: isHydro ? 20 : 26, ambient: 0.5 };
       sprite.visible = true;
       sprite.position.set(pr.x, pr.y);
-      const size = (pr.size || 6) * (isHydro ? 2.0 : 3.4);
+      const size = (pr.size || 6) * (isHydro ? 2.2 : 3.0);
       sprite.width = size; sprite.height = size;
       sprite.tint = boltColor;
-      sprite.alpha = isHydro ? 0.2 : 0.32;
+      sprite.alpha = isHydro ? 0.32 : 0.5;
       this._updateLitUniforms(filter, sprite, light);
     });
     for (let i = idx; i < pool.length; i++) pool[i].sprite.visible = false;
@@ -1232,10 +1236,13 @@ void main() {
         }
         game.projs.forEach(pr => {
           if (pr.friendly === false) return;
-          const rad = (pr.size || 6) * 9;
+          // Pulled the reach in (was *9) but hit harder (was *0.55) — a
+          // blue bolt should visibly light an enemy up blue right where it
+          // passes, not faintly tint everything in a wide radius.
+          const rad = (pr.size || 6) * 6;
           const pd = Math.hypot(e.x - pr.x, e.y - pr.y);
           if (pd >= rad) return;
-          const str = (1 - pd / rad) * 0.55;
+          const str = (1 - pd / rad) * 0.8;
           if (str > bestStrength) { bestStrength = str; bestHex = pr.color || '#5fd6ff'; }
         });
         // XP orbs / gold also cast a little light on nearby enemies — much
