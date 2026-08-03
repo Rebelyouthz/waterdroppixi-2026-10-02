@@ -1361,6 +1361,7 @@ export class Game {
   // ====== WEAPONS ======
   updateWeapons(dt) {
     const owned = this.run.ownedWeapons;
+    this._heldWidSet = false;
     for (const wid of owned) {
       const w = WEAPONS[wid];
       const lvl = this.run.weaponLvls[wid] || 0;
@@ -1377,7 +1378,13 @@ export class Game {
           stats._behaviour = w.behaviour;
           // Which manual weapon is in the character's hands, so the renderer
           // can draw that specific model rather than one generic pistol.
-          if (w.type === 'manual') { this._heldWid = wid; this.weaponManualPistol(stats, dt); }
+          // FIRST manual weapon owned, not the last one iterated — every
+          // manual weapon runs through weaponManualPistol each frame, so
+          // taking the last would make the held model flicker between them.
+          if (w.type === 'manual') {
+            if (!this._heldWidSet) { this._heldWid = wid; this._heldWidSet = true; }
+            this.weaponManualPistol(stats, dt);
+          }
           else this.weaponAutoBolts(stats, dt);
           break;
         case 'shotgun':

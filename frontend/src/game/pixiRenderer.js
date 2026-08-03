@@ -1800,6 +1800,34 @@ void main() {
     return { angOff: 0.60 * (1 - f), pull: -1 * (1 - f), offX: 0, offY: -1 * (1 - f), hand: null, slide: 0, prog };
   }
 
+  // Weapon swap. Picking up or evolving into a different manual weapon used
+  // to change what was in the character's hands between one frame and the
+  // next. The swap now takes a beat: the old weapon drops away and the new
+  // one comes up, which is also what makes the reload read correctly —
+  // you visibly bring up the gun that is about to be reloaded.
+  //
+  // Returns { model, angOff, pull, drop } to compose on top of the reload
+  // pose. During the first half the OLD model is still the one drawn.
+  _swapPose(heldWid, dt) {
+    if (this._lastHeldWid === undefined) this._lastHeldWid = heldWid;
+    if (heldWid !== this._lastHeldWid) {
+      this._swapFrom = this._lastHeldWid;
+      this._lastHeldWid = heldWid;
+      this._swapT = 0.34;
+    }
+    if (!this._swapT || this._swapT <= 0) {
+      return { wid: heldWid, angOff: 0, pull: 0, drop: 0 };
+    }
+    this._swapT = Math.max(0, this._swapT - dt);
+    const f = 1 - this._swapT / 0.34;          // 0 at swap start -> 1 done
+    if (f < 0.5) {
+      const k = f / 0.5;                        // old weapon drops away
+      return { wid: this._swapFrom, angOff: k * 1.15, pull: -k * 6, drop: k * 9 };
+    }
+    const k = (f - 0.5) / 0.5;                  // new weapon comes up
+    return { wid: heldWid, angOff: (1 - k) * 1.15, pull: -(1 - k) * 6, drop: (1 - k) * 9 };
+  }
+
   // Draws whichever manual weapon is in hand. `parts` is a list of local-space
   // boxes so a new weapon is a data entry rather than new drawing code, and
   // `kind` covers the few silhouettes a box list cannot express.
@@ -1968,12 +1996,16 @@ void main() {
     //   D  muzzle drops to about 5 o'clock and the slide is racked
     //   E  swing back up onto the target
     const rl = this._reloadPose(p);
-    const aimDrawAng = aimAng + rl.angOff;
+    // The swap pose composes on top: a weapon that is being brought up is
+    // still angled away, so a reload that starts the instant you switch
+    // reads as one continuous motion rather than two fighting each other.
+    const sw = this._swapPose(game._heldWid, game.dt || 0.016);
+    const aimDrawAng = aimAng + rl.angOff + sw.angOff;
 
     // ===== Gun (rotated in aim direction) =====
     const recoil = -p.recoil * 4;
-    const gx = p.x + Math.cos(aimDrawAng) * (recoil + rl.pull) + rl.offX;
-    const gy = p.y + 1 + Math.sin(aimDrawAng) * (recoil + rl.pull) + rl.offY;
+    const gx = p.x + Math.cos(aimDrawAng) * (recoil + rl.pull + sw.pull) + rl.offX;
+    const gy = p.y + 1 + Math.sin(aimDrawAng) * (recoil + rl.pull + sw.pull) + rl.offY + sw.drop;
     // Arms go down BEFORE the gun so the hands read as gripping it, not
     // hovering in front of it.
     this._drawArms(gf, p, bodyAng, r, gx, gy, aimDrawAng, rl.hand);
@@ -1981,7 +2013,7 @@ void main() {
     // Every manual weapon draws its own model — the player used to hold one
     // generic pistol whichever weapon was equipped, which made switching
     // weapons invisible.
-    const model = WEAPON_MODELS[game._heldWid] || WEAPON_MODELS._default;
+    const model = WEAPON_MODELS[sw.wid] || WEAPON_MODELS._default;
     const accentColor = this._drawHeldWeapon(gf, model, gx, gy, aimDrawAng, rl, p, game);
 
     if (p.recoil > 0.05) {
@@ -2054,10 +2086,12 @@ void main() {
         .stroke({ width: 1.5, color: '#ff7a1a', alpha: 0.67 });
     }
 
-    // orbit weapons
-    const orbitWeaponIds = ['emberOrbs', 'whirlwind', 'frostOrb'];
-    for (const wId of orbitWeaponIds) {
-      if (!game.run.ownedWeapons.includes(wId)) continue;
+    // Orbit weapons. Derived from the weapon table by behaviour rather than
+    // from a hardcoded id list — any orbit weapon added later (or evolved
+    // into) was previously invisible, spinning around dealing damage with
+    // nothing drawn. Same reason the drone loop below is derived too.
+    for (const wId of game.run.ownedWeapons) {
+      if (!WEAPONS[wId] || WEAPONS[wId].behaviour !== 'orbit') continue;
       const w = WEAPONS[wId];
       const lvl = game.run.weaponLvls[wId] || 0;
       const ws = game.computeWeaponStats ? game.computeWeaponStats(w || {}, lvl) : {};
@@ -2091,15 +2125,27 @@ void main() {
       }
     }
 
-    // Drone Squadron â€” small hovering bodies at whatever positions
-    // engine.js's weaponDrone computed this frame (see game._dronePositions).
-    if (game.run.ownedWeapons.includes('droneSquad') && game._dronePositions && game._dronePositions.droneSquad) {
-      for (const d of game._dronePositions.droneSquad) {
-        const bob = Math.sin(game.time * 4 + d.x * 0.05) * 3;
-        glow(gf, d.x, d.y + bob, 8, '#4dc4ff', 0.8);
-        gf.circle(d.x, d.y + bob, 6).fill('#1a2a3a');
-        gf.circle(d.x, d.y + bob, 6).stroke({ width: 1.5, color: '#4dc4ff', alpha: 0.9 });
-        gf.circle(d.x, d.y + bob, 2.4).fill({ color: '#bff0ff', alpha: 0.9 });
+    // Drones — small hovering bodies at whatever positions engine.js's
+    // weaponDrone computed this frame (see game._dronePositions). Keyed off
+    // whatever the engine actually populated, so every drone weapon draws,
+    // not just droneSquad.
+    if (game._dronePositions) {
+      for (const [wId, list] of Object.entries(game._dronePositions)) {
+        if (!list || !list.length || !game.run.ownedWeapons.includes(wId)) continue;
+        const dc = (WEAPONS[wId] && WEAPONS[wId].base && WEAPONS[wId].base.color) || '#4dc4ff';
+        for (let di = 0; di < list.length; di++) {
+          const d = list[di];
+          const bob = Math.sin(game.time * 4 + d.x * 0.05) * 3;
+          const dy = d.y + bob;
+          glow(gf, d.x, dy, 8, dc, 0.8);
+          // little hull + rotor blur, so a drone reads as a machine rather
+          // than as another glowing dot
+          gf.poly([d.x - 6, dy, d.x, dy - 5, d.x + 6, dy, d.x, dy + 5]).fill('#16222e');
+          gf.poly([d.x - 6, dy, d.x, dy - 5, d.x + 6, dy, d.x, dy + 5]).stroke({ width: 1.4, color: dc, alpha: 0.9 });
+          const spin = game.time * 22 + di;
+          gf.ellipse(d.x, dy - 5, 7, 1.4 + Math.abs(Math.sin(spin)) * 1.2).fill({ color: dc, alpha: 0.35 });
+          gf.circle(d.x, dy, 2.2).fill({ color: '#ffffff', alpha: 0.9 });
+        }
       }
     }
   }
