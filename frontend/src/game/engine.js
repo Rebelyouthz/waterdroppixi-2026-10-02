@@ -1754,7 +1754,9 @@ export class Game {
       this.run.stats.damageMult *= 1.15;
       label = '+15% DAMAGE (PERMANENT)';
     } else {
-      this._pendingGearDrop = { timeInRun: this.run.time, boss: true }; // guaranteed roll at boss-tier rarity odds
+      // Guaranteed gear drop (vs. the normal 8%-per-kill chance) at boosted
+      // boss-tier rarity odds (see gear.js rollGearDrop's isBoss param).
+      this._pendingGearDrop = { timeInRun: this.run.time, boss: true };
       label = 'BLESSED GEAR DROP';
     }
     Audio.levelUp();

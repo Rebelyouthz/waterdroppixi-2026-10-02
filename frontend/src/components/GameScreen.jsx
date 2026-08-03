@@ -223,7 +223,7 @@ export default function GameScreen({ save, setSave, onExit, onRunEnd, mission })
           if (gameRef.current && gameRef.current._pendingGearDrop) {
             const drop = gameRef.current._pendingGearDrop;
             gameRef.current._pendingGearDrop = null;
-            const item = rollGearDrop(drop.timeInRun);
+            const item = rollGearDrop(drop.timeInRun, !!drop.boss);
             const cur = initialSaveRef.current;
             initialSaveRef.current = { ...cur, gearInventory: [...(cur.gearInventory || []), item] };
           }

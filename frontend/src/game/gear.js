@@ -86,13 +86,19 @@ export function generateGearItem(slot, rarity) {
   };
 }
 
-// Generate a random item for a given time-in-run (later = higher rarity chance)
-export function rollGearDrop(timeInRun = 0) {
+// Generate a random item for a given time-in-run (later = higher rarity
+// chance). `isBoss` was accepted on the caller's drop-request object for a
+// while (killEnemy's boss-kill branch, Tidal Shrine) but never actually
+// reached this function or affected the roll — wired it up here so a boss
+// kill/shrine blessing really does roll better odds than a random mid-run
+// drop, instead of being functionally identical to one.
+export function rollGearDrop(timeInRun = 0, isBoss = false) {
   const r = Math.random();
   // Later in run → higher rarity chance
-  const bonusEpic = Math.min(0.04, timeInRun / 2000);
-  const bonusRare = Math.min(0.12, timeInRun / 800);
-  const bonusMythical = Math.min(0.01, timeInRun / 6000);
+  const bossBonus = isBoss ? 0.15 : 0;
+  const bonusEpic = Math.min(0.04, timeInRun / 2000) + bossBonus;
+  const bonusRare = Math.min(0.12, timeInRun / 800) + bossBonus;
+  const bonusMythical = Math.min(0.01, timeInRun / 6000) + (isBoss ? 0.01 : 0);
   let rarity;
   if (r < 0.002 + bonusMythical) rarity = 'mythical';
   else if (r < 0.012 + bonusEpic) rarity = 'legendary';
