@@ -50,6 +50,8 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
   const [showLb, setShowLb] = useState(false);
   const [spinning, setSpinning] = useState(false);
   const [spinResult, setSpinResult] = useState(null);
+  const [spinAngle, setSpinAngle] = useState(0);
+  const [winIdx, setWinIdx] = useState(null);
 
   const today = todayIdx();
   // Daily/weekly quest progress is keyed by quest id and never expired —
@@ -132,11 +134,31 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
   const week = weekIdx();
   const wquests = weeklyQuests(week);
   const canSpin = save.dailySpin?.day !== today;
+  const SLICE_N = SPIN_WHEEL_SLICES.length;
+  const SLICE_DEG = 360 / SLICE_N;
+
+  // The prize used to be decided independently of where the wheel stopped,
+  // so the pointer routinely came to rest on a slice that was not the one
+  // awarded. Roll first, then drive the rotation to land that exact slice
+  // under the pointer.
   const doSpin = () => {
     if (!canSpin || spinning) return;
+    const { index, slice } = rollSpinWheel();
+    // Slice i is centred at (i + 0.5) * SLICE_DEG clockwise from the top, so
+    // bringing it under the top pointer means rotating by the negative of
+    // that. Always add whole turns on top of the current angle so the wheel
+    // only ever accelerates forward, never snaps backwards.
+    const target = -((index + 0.5) * SLICE_DEG);
+    const turns = 5 + Math.floor(Math.random() * 2);
+    const next = spinAngle + turns * 360 + (((target - spinAngle) % 360) + 360) % 360;
+    setSpinAngle(next);
+    setSpinResult(null);
     setSpinning(true);
+    setWinIdx(index);
+
+    // Award only once the wheel has actually stopped — matches the animation
+    // duration in .spin-wheel-face.
     setTimeout(() => {
-      const { slice } = rollSpinWheel();
       const ns = { ...save, dailySpin: { day: today, spun: true } };
       if (slice.type === 'jackpot') { ns.gold = (ns.gold || 0) + 1500; ns.gems = (ns.gems || 0) + 10; }
       else if (slice.type === 'gold') ns.gold = (ns.gold || 0) + slice.amount;
@@ -147,7 +169,7 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
       setSave(ns);
       setSpinResult(slice);
       setSpinning(false);
-    }, 900);
+    }, 3400);
   };
 
   return (
@@ -300,13 +322,51 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
           {/* Daily Lucky Spin Wheel */}
           <div className="panel">
             <div className="panel-title">DAILY SPIN</div>
-            <div className={`spin-wheel ${spinning ? 'spinning' : ''}`} data-testid="spin-wheel">
-              {SPIN_WHEEL_SLICES.map((s, i) => (
-                <div key={s.id} className="spin-slice" style={{ transform: `rotate(${(i / SPIN_WHEEL_SLICES.length) * 360}deg)` }}>
-                  <span className="spin-slice-icon">{s.icon}</span>
+            <div className="spin-stage" data-testid="spin-wheel">
+              <div className="spin-pointer" aria-hidden />
+              <div className="spin-wheel-rim">
+                {/* rim lamps */}
+                {Array.from({ length: SLICE_N * 2 }).map((_, i) => (
+                  <span key={i} className={`spin-lamp ${spinning ? 'lit' : ''}`}
+                        style={{ transform: `rotate(${(i / (SLICE_N * 2)) * 360}deg) translateY(-92px)`, animationDelay: `${i * 0.06}s` }} />
+                ))}
+                <div
+                  className="spin-wheel-face"
+                  style={{
+                    transform: `rotate(${spinAngle}deg)`,
+                    background: `conic-gradient(${SPIN_WHEEL_SLICES.map((s, i) => {
+                      const from = i * SLICE_DEG, to = (i + 1) * SLICE_DEG;
+                      const c = s.type === 'jackpot' ? '#4a2c00'
+                        : s.type === 'gems' ? '#0e3340'
+                        : s.type === 'gold' ? '#3a2a08'
+                        : s.type === 'sp' ? '#241a3a'
+                        : i % 2 ? '#1a1228' : '#120c1e';
+                      return `${c} ${from}deg ${to}deg`;
+                    }).join(', ')})`,
+                  }}
+                >
+                  {/* spokes */}
+                  {SPIN_WHEEL_SLICES.map((s, i) => (
+                    <span key={`sp-${s.id}`} className="spin-spoke" style={{ transform: `rotate(${i * SLICE_DEG}deg)` }} />
+                  ))}
+                  {/* slice contents, centred in each wedge and kept upright */}
+                  {SPIN_WHEEL_SLICES.map((s, i) => (
+                    <div
+                      key={s.id}
+                      className={`spin-slice ${winIdx === i && !spinning && spinResult ? 'won' : ''} ${s.type === 'jackpot' ? 'jackpot' : ''}`}
+                      style={{ transform: `rotate(${(i + 0.5) * SLICE_DEG}deg)` }}
+                    >
+                      <span className="spin-slice-inner" style={{ transform: `rotate(${-(i + 0.5) * SLICE_DEG}deg)` }}>
+                        <span className="spin-slice-icon">{s.icon}</span>
+                        <span className="spin-slice-amt">
+                          {s.type === 'jackpot' ? 'JACKPOT' : s.amount}
+                        </span>
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-              <div className="spin-wheel-hub">🎡</div>
+                <div className="spin-wheel-hub"><span>🎡</span></div>
+              </div>
             </div>
             <button
               onClick={doSpin}
@@ -318,8 +378,11 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
               {spinning ? 'Spinning…' : canSpin ? '▸ SPIN THE WHEEL' : '✓ Spun Today'}
             </button>
             {spinResult && !spinning && (
-              <div className="spin-result" data-testid="spin-result">
-                {spinResult.type === 'jackpot' ? '🏆 JACKPOT! 1500★ + 10💎' : `${spinResult.icon} ${spinResult.label}`}
+              <div className={`spin-result ${spinResult.type === 'jackpot' ? 'jackpot' : ''}`} data-testid="spin-result">
+                <span className="spin-result-icon">{spinResult.type === 'jackpot' ? '🏆' : spinResult.icon}</span>
+                <span className="spin-result-label">
+                  {spinResult.type === 'jackpot' ? 'JACKPOT — 1500★ + 10💎' : spinResult.label}
+                </span>
               </div>
             )}
           </div>

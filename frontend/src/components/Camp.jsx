@@ -158,47 +158,55 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStar
                 </div>
               </div>
             </div>
-            <div className="camp-currency-row" style={{ marginLeft: 'auto', position: 'relative' }}>
+            {/* All currencies on ONE row — the row scrolls sideways rather
+                than wrapping, so the banner keeps a fixed height. */}
+            <div className="camp-currency-row">
               <span className="camp-currency-chip">★ {save.gold}</span>
               <span className="camp-currency-chip" style={{ color: '#4dffd4' }}>💎 {save.gems || 0}</span>
               <span className="camp-currency-chip" style={{ color: '#ffcc00' }}>🎰 {save.slotCoins || 0}</span>
               <span className="camp-currency-chip" style={{ color: '#4dff91' }}>🌿 {save.talentPoints || 0}</span>
               <span className="camp-currency-chip">◆ {save.sp}</span>
               <span className="camp-currency-chip" style={{ color: '#ff9900' }}>🎫 {save.gachaTokens || 0}</span>
-              <span className={`camp-currency-chip camp-currency-attr ${attrFreePts > 0 ? 'camp-attr-pulse' : ''}`} style={{ color: '#c890ff', cursor: 'pointer' }}
-                data-testid="camp-attr-points" onClick={() => setAttrOpen(o => !o)}>⚡ {attrFreePts} ATTR {attrOpen ? '▲' : '▼'}</span>
-
-              {attrOpen && (<>
-                <div style={{ position: 'fixed', inset: 0, zIndex: 49 }} onClick={() => setAttrOpen(false)} />
-                <div className="camp-attr-dropdown" data-testid="camp-attr-dropdown" onClick={(e) => e.stopPropagation()}>
-                  <div className="char-attr-header">
-                    <span>⚡ ATTRIBUTES</span>
-                    <span className={`char-attr-free ${attrFreePts > 0 ? 'has' : ''}`}>{attrFreePts} pt{attrFreePts === 1 ? '' : 's'} free</span>
-                  </div>
-                  <div className="char-attr-desc">Earned 1 per profile level (RANK). Permanent bonuses.</div>
-                  <div className="poe-attr-grid">
-                    {POE_ATTRS.map(a => {
-                      const cur = (save.attrs || {})[a.id] || 0;
-                      const canAdd = attrFreePts > 0;
-                      return (
-                        <div key={a.id} className="poe-attr-row" data-testid={`attr-${a.id}`}>
-                          <span className="poe-attr-icon" style={{ color: a.color }}>{a.icon}</span>
-                          <div className="poe-attr-info">
-                            <span className="poe-attr-name">{a.name}{a.curve ? ` (${cur}/${a.max})` : ''}</span>
-                            <span className="poe-attr-desc2">{a.desc}</span>
-                          </div>
-                          <div className="poe-attr-ctl">
-                            <span className="poe-attr-val">{cur}</span>
-                            <button className={`poe-attr-add ${canAdd ? '' : 'disabled'}`} onClick={() => buyAttr(a.id)}
-                              disabled={!canAdd} data-testid={`attr-add-${a.id}`}>+</button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </>)}
             </div>
+            <button
+              className={`camp-attr-toggle ${attrOpen ? 'open' : ''} ${attrFreePts > 0 ? 'camp-attr-pulse' : ''}`}
+              data-testid="camp-attr-points" onClick={() => setAttrOpen(o => !o)}>
+              ⚡ {attrFreePts} ATTR <span className="camp-attr-caret">{attrOpen ? '▲' : '▼'}</span>
+            </button>
+
+            {/* The panel expands the banner in-flow instead of floating above
+                it. As an absolutely-positioned dropdown it was being clipped
+                by .camp-sidebar's overflow:hidden, which is why only the top
+                sliver of it was ever visible. */}
+            {attrOpen && (
+              <div className="camp-attr-panel" data-testid="camp-attr-dropdown">
+                <div className="char-attr-header">
+                  <span>⚡ ATTRIBUTES</span>
+                  <span className={`char-attr-free ${attrFreePts > 0 ? 'has' : ''}`}>{attrFreePts} pt{attrFreePts === 1 ? '' : 's'} free</span>
+                </div>
+                <div className="char-attr-desc">Earned 1 per profile level (RANK). Permanent bonuses.</div>
+                <div className="poe-attr-grid">
+                  {POE_ATTRS.map(a => {
+                    const cur = (save.attrs || {})[a.id] || 0;
+                    const canAdd = attrFreePts > 0;
+                    return (
+                      <div key={a.id} className="poe-attr-row" data-testid={`attr-${a.id}`}>
+                        <span className="poe-attr-icon" style={{ color: a.color }}>{a.icon}</span>
+                        <div className="poe-attr-info">
+                          <span className="poe-attr-name">{a.name}{a.curve ? ` (${cur}/${a.max})` : ''}</span>
+                          <span className="poe-attr-desc2">{a.desc}</span>
+                        </div>
+                        <div className="poe-attr-ctl">
+                          <span className="poe-attr-val">{cur}</span>
+                          <button className={`poe-attr-add ${canAdd ? '' : 'disabled'}`} onClick={() => buyAttr(a.id)}
+                            disabled={!canAdd} data-testid={`attr-add-${a.id}`}>+</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
           <div className="camp-scroll-hint">↓ scroll for more ↓</div>
           <div className="camp-tabs-scroll">
