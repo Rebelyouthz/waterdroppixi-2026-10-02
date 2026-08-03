@@ -488,6 +488,23 @@ export const KILL_FX = {
   swipeAttack: 'bisect',    // cut clean in half
 };
 
+// Enemy-identity death FX — takes priority over KILL_FX (see engine.js
+// killEnemy). Gives visual variety by WHAT died, not just what killed it,
+// so e.g. slimes don't leave the same generic gib splat as everything else.
+export const ENEMY_KILL_FX = {
+  slime: 'ooze',
+  crystalite: 'crystallize',
+  soulshard: 'crystallize',
+  ghoul: 'decay',
+  bonewalker: 'decay',
+  voidspawn: 'decay',
+  necron: 'decay',
+  steelbrute: 'sparkExplode',
+  techsoldier: 'sparkExplode',
+  lightningbug: 'sparkExplode',
+  nanoswarm: 'sparkExplode',
+};
+
 // ---------- DAILY CHALLENGES ----------
 export const DAILY_CHALLENGE_POOL = [
   { id: 'dc_blitz',   name: 'Blitz Run',       icon: '⚡', desc: 'Survive 60 seconds',         duration: 60,  killGoal: 0, spawnMult: 2.2, rwd: { gold: 400, sp: 2 } },

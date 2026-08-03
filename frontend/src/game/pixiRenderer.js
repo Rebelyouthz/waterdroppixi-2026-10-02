@@ -1159,9 +1159,11 @@ void main() {
         if (e._wounds && e._wounds.length) {
           for (const w of e._wounds) {
             const wx = e.x + w.lx, wy = e.y + w.ly;
-            g.circle(wx, wy, w.size * 1.3).fill({ color: '#5a0710', alpha: 0.55 });
-            g.circle(wx, wy, w.size).fill({ color: '#2c0308', alpha: 0.85 });
-            g.circle(wx - w.size * 0.25, wy - w.size * 0.2, w.size * 0.32).fill({ color: '#8a1018', alpha: 0.7 });
+            // Softer/smaller than before — read as a wet wound patch, not a
+            // punched-out hole (a smaller dark core + a softer wet halo).
+            g.circle(wx, wy, w.size * 0.95).fill({ color: '#5a0710', alpha: 0.4 });
+            g.circle(wx, wy, w.size * 0.62).fill({ color: '#2c0308', alpha: 0.6 });
+            g.circle(wx - w.size * 0.2, wy - w.size * 0.16, w.size * 0.22).fill({ color: '#8a1018', alpha: 0.55 });
           }
         }
 

@@ -1,6 +1,6 @@
 // Waterdrop Survivor — Canvas 2D engine with pooling, twin-stick combat, juicy effects.
 import { WEAPONS, ENEMIES, STAT_CARDS, RARITY, rollRarity, waveAt, nextBossEvent, WEAPON_EVO_MAP, metaCost } from './data';
-import { ACTIVE_SKILLS, KILL_FX, ADVANCED_CARDS, ELEMENTS, getWeaponForkChoices } from './data_ext2';
+import { ACTIVE_SKILLS, KILL_FX, ENEMY_KILL_FX, ADVANCED_CARDS, ELEMENTS, getWeaponForkChoices } from './data_ext2';
 import { Audio } from './audio';
 import { PixiRenderer } from './pixiRenderer';
 
@@ -2291,7 +2291,11 @@ export class Game {
       }
     }
     this._inCascade = inCascade;
-    const fx = KILL_FX[s._lastHitWeapon] || 'gibs';
+    // Enemy identity overrides weapon-based FX when it has one (crystal foes
+    // shatter, undead/rot foes decay, metallic foes spark-explode, slimes
+    // ooze) — falls back to the old weapon-behaviour-based FX otherwise, so
+    // every enemy doesn't die the exact same "green splat" regardless of type.
+    const fx = ENEMY_KILL_FX[t.id] || KILL_FX[s._lastHitWeapon] || 'gibs';
     const finalBlood = e._lastHitColor || t.color;
     this.spawnBrutalKill(e.x, e.y, finalBlood, t.size, fx);
     Audio.kill();
@@ -2356,6 +2360,56 @@ export class Game {
       }
       this.spawnRing(x, y, size * 1.8, '#b362ff', 0.4);
       this.spawnRing(x, y, size * 0.8, '#ffffff', 0.25);
+    } else if (fx === 'crystallize') {
+      // Shatters into angular glassy shards instead of soft blood chunks.
+      for (let i = 0; i < Math.round(16 * cnt); i++) {
+        const pp = this.parts.acquire();
+        const a = Math.random() * TAU; const sp = rand(120, 380);
+        pp.x = x + rand(-3, 3); pp.y = y + rand(-3, 3);
+        pp.vx = Math.cos(a) * sp; pp.vy = Math.sin(a) * sp - rand(40, 140);
+        pp.life = rand(0.5, 0.9); pp.max = pp.life;
+        pp.color = i % 3 === 0 ? '#ffffff' : color;
+        pp.size = rand(2, 4.5); pp.type = 'chunk';
+      }
+      this.spawnRing(x, y, size * 1.1, '#ffffff', 0.35);
+      this.spawnRing(x, y, size * 0.6, color, 0.3);
+    } else if (fx === 'decay') {
+      // Crumbles into dust/ash and sinks — no violent blood spray, a quiet
+      // rot-and-collapse instead of a gib explosion.
+      for (let i = 0; i < Math.round(20 * cnt); i++) {
+        const pp = this.parts.acquire();
+        pp.x = x + rand(-size * 0.4, size * 0.4); pp.y = y + rand(-size * 0.4, size * 0.4);
+        pp.vx = rand(-30, 30); pp.vy = rand(-20, 60);
+        pp.life = rand(0.6, 1.2); pp.max = pp.life;
+        pp.color = i % 3 === 0 ? '#5a4a3a' : color;
+        pp.size = rand(1.5, 3.2); pp.type = 'spark';
+      }
+      this.spawnRing(x, y, size * 0.9, '#3a2a1a', 0.3);
+    } else if (fx === 'sparkExplode') {
+      // Metallic burst: bright white-hot sparks + a shockwave ring, minimal
+      // blood since these are steel/tech-bodied enemies.
+      for (let i = 0; i < Math.round(26 * cnt); i++) {
+        const pp = this.parts.acquire();
+        const a = Math.random() * TAU; const sp = rand(160, 460);
+        pp.x = x; pp.y = y;
+        pp.vx = Math.cos(a) * sp; pp.vy = Math.sin(a) * sp;
+        pp.life = rand(0.25, 0.55); pp.max = pp.life;
+        pp.color = i % 2 === 0 ? '#fff8d0' : color;
+        pp.size = rand(1.5, 3); pp.type = 'spark';
+      }
+      this.spawnRing(x, y, size * 1.3, '#fff8d0', 0.35);
+      this.cam.shake = Math.max(this.cam.shake, 4);
+    } else if (fx === 'ooze') {
+      // Slimes ooze/splash outward instead of leaving hard gib chunks.
+      for (let i = 0; i < Math.round(22 * cnt); i++) {
+        const pp = this.parts.acquire();
+        const a = Math.random() * TAU; const sp = rand(60, 260);
+        pp.x = x; pp.y = y;
+        pp.vx = Math.cos(a) * sp; pp.vy = Math.sin(a) * sp - rand(10, 60);
+        pp.life = rand(0.5, 1.1); pp.max = pp.life;
+        pp.color = color; pp.size = rand(2, 4.5); pp.type = 'blood';
+      }
+      this.spawnRing(x, y, size * 1.0, color, 0.3);
     } else if (fx === 'ash') {
       for (let i = 0; i < Math.round(14 * cnt); i++) {
         const pp = this.parts.acquire();
