@@ -2236,6 +2236,34 @@ void main() {
         if (cooled < 0.3 && p.size <= 3) {
           g.circle(p.x, p.y, p.size * 1.5).fill({ color: '#ffb347', alpha: (0.3 - cooled) * 0.9 });
         }
+      } else if (p.type === 'whip') {
+        // A lash, not a sweep: the cord snaps out along the aim vector with a
+        // curl to one side, straightens at full extension, then recoils. Drawn
+        // as a tapering chain of segments so it thins toward the tip the way
+        // a real whip does.
+        const t01 = 1 - a;
+        // out fast, hold, snap back — peaks around 70% of the lifetime
+        const ext = t01 < 0.55 ? Math.sin((t01 / 0.55) * Math.PI * 0.5) : 1 - ((t01 - 0.55) / 0.45) * 0.55;
+        const len = p.size * ext;
+        const ca = Math.cos(p._ang), sa = Math.sin(p._ang);
+        const curl = (p._curl || 1) * (1 - ext) * 0.9;
+        const SEG = 9;
+        let px2 = p.x, py2 = p.y;
+        for (let k = 1; k <= SEG; k++) {
+          const f = k / SEG;
+          const bow = Math.sin(f * Math.PI) * len * 0.22 * curl;
+          const nx2 = p.x + ca * len * f - sa * bow;
+          const ny2 = p.y + sa * len * f + ca * bow;
+          const w = (1 - f) * 5.5 + 1.1;
+          g.moveTo(px2, py2).lineTo(nx2, ny2)
+            .stroke({ width: w + 2, color: '#062634', alpha: a * 0.55, cap: 'round' });
+          g.moveTo(px2, py2).lineTo(nx2, ny2)
+            .stroke({ width: w, color: p.color, alpha: Math.min(1, a * 1.5), cap: 'round' });
+          px2 = nx2; py2 = ny2;
+        }
+        // cracking tip
+        g.circle(px2, py2, 3.4 * a + 1).fill({ color: '#ffffff', alpha: Math.min(1, a * 1.6) });
+        g.circle(px2, py2, 7 * a).fill({ color: p.color, alpha: a * 0.4 });
       } else if (p.type === 'wave') {
         // Expanding body of water: crest thins and fades as it grows, an
         // inner surge trails behind it, and foam speckles ride the leading

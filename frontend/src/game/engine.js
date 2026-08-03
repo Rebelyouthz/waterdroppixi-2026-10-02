@@ -1521,8 +1521,22 @@ export class Game {
         if (s.bleedDot) e._burn = Math.max(e._burn || 0, 2); // Bleed Field fork
       }
     });
-    // visual sweeping arc in aim direction
-    this.spawnArc(p.x, p.y, r, s.color, aimAng);
+    // Whips get a lash rather than the generic sweep arc — same hit shape,
+    // different read, so a whip build doesn't look like a scythe build.
+    if (s.whip) this.spawnWhip(p.x, p.y, r, s.color, aimAng);
+    else this.spawnArc(p.x, p.y, r, s.color, aimAng);
+  }
+
+  spawnWhip(x, y, len, color, ang) {
+    const w = this.parts.acquire();
+    w.x = x; w.y = y; w.vx = 0; w.vy = 0;
+    w.life = 0.22; w.max = 0.22;
+    w.color = color || '#4fd8ff'; w.size = len; w.type = 'whip';
+    w._ang = ang;
+    // Alternating curl so consecutive cracks mirror each other instead of
+    // replaying one identical shape.
+    this._whipFlip = !this._whipFlip;
+    w._curl = this._whipFlip ? 1 : -1;
   }
 
   weaponOrbit(s, dt) {
@@ -2550,7 +2564,7 @@ export class Game {
       // firing and dealing damage with nothing visible on screen.
       // Same story for 'wave' — its radius lives in _radius and its position
       // is the fixed epicentre, so it must not be integrated either.
-      if (p.type === 'lightning' || p.type === 'wave') {
+      if (p.type === 'lightning' || p.type === 'wave' || p.type === 'whip') {
         p.life -= dt;
         if (p.life <= 0) this.parts.release(p);
         return;

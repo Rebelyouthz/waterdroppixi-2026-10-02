@@ -17,6 +17,44 @@ import { ACHIEVEMENTS } from '../game/data_ext2';
 import { MissionsPanel, ChallengesPanel, AchievementsPanel, CardShopModal, ActiveLoadoutPanel, SettingsPanel, MapsPanel } from './CampPanels';
 import { Audio } from '../game/audio';
 
+// A number that rolls from its current displayed value to the new one rather
+// than snapping. Buying three upgrades in quick succession does NOT queue
+// three separate animations — each new target simply re-aims the roll from
+// wherever it currently is, so a burst of purchases reads as one continuous
+// climb. Duration scales with the size of the jump so +5 doesn't take as long
+// as +5000.
+function CountUp({ value, className }) {
+  const [shown, setShown] = useState(value);
+  const shownRef = useRef(value);
+  const raf = useRef(0);
+  const [dir, setDir] = useState(0);
+  useEffect(() => {
+    const from = shownRef.current;
+    if (from === value) return undefined;
+    setDir(value > from ? 1 : -1);
+    const start = performance.now();
+    const dur = Math.min(950, 240 + Math.abs(value - from) * 1.6);
+    const tick = (now) => {
+      const t = Math.min(1, (now - start) / dur);
+      const eased = 1 - Math.pow(1 - t, 3);
+      const v = Math.round(from + (value - from) * eased);
+      shownRef.current = v;
+      setShown(v);
+      if (t < 1) raf.current = requestAnimationFrame(tick);
+      else setTimeout(() => setDir(0), 320);
+    };
+    cancelAnimationFrame(raf.current);
+    raf.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf.current);
+  }, [value]);
+  return (
+    <span className={`countup${dir > 0 ? ' is-up' : dir < 0 ? ' is-down' : ''}${className ? ' ' + className : ''}`}>
+      {shown.toLocaleString('sv-SE')}
+      {dir !== 0 && <i className="countup-arrow">{dir > 0 ? '▲' : '▼'}</i>}
+    </span>
+  );
+}
+
 const openChest = (chestId) => {
   const c = CHESTS.find(x => x.id === chestId);
   return c ? rollChest(c, 0.5) : [];
@@ -75,6 +113,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStar
   const [codexSub, setCodexSub] = useState('codex');
 
   const popFeedback = (id) => { setPopCard(id); setTimeout(() => setPopCard(null), 550); };
+
 
   // Position-anchored "cha-ching" burst for meta upgrade purchases — appears
   // right above the button that was clicked instead of a generic top-of-
@@ -191,12 +230,12 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStar
             {/* All currencies on ONE row — the row scrolls sideways rather
                 than wrapping, so the banner keeps a fixed height. */}
             <div className="camp-currency-row">
-              <span className="camp-currency-chip">★ {save.gold}</span>
-              <span className="camp-currency-chip" style={{ color: '#4dffd4' }}>💎 {save.gems || 0}</span>
-              <span className="camp-currency-chip" style={{ color: '#ffcc00' }}>🎰 {save.slotCoins || 0}</span>
-              <span className="camp-currency-chip" style={{ color: '#4dff91' }}>🌿 {save.talentPoints || 0}</span>
-              <span className="camp-currency-chip">◆ {save.sp}</span>
-              <span className="camp-currency-chip" style={{ color: '#ff9900' }}>🎫 {save.gachaTokens || 0}</span>
+              <span className="camp-currency-chip">★ <CountUp value={save.gold} /></span>
+              <span className="camp-currency-chip" style={{ color: '#4dffd4' }}>💎 <CountUp value={save.gems || 0} /></span>
+              <span className="camp-currency-chip" style={{ color: '#ffcc00' }}>🎰 <CountUp value={save.slotCoins || 0} /></span>
+              <span className="camp-currency-chip" style={{ color: '#4dff91' }}>🌿 <CountUp value={save.talentPoints || 0} /></span>
+              <span className="camp-currency-chip">◆ <CountUp value={save.sp} /></span>
+              <span className="camp-currency-chip" style={{ color: '#ff9900' }}>🎫 <CountUp value={save.gachaTokens || 0} /></span>
             </div>
             <button
               className={`camp-attr-toggle ${attrOpen ? 'open' : ''} ${attrFreePts > 0 ? 'camp-attr-pulse' : ''}`}

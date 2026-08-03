@@ -809,9 +809,29 @@ canvas#game, canvas.starraid-canvas {
   padding-bottom: 1px;
 }
 .camp-currency-row::-webkit-scrollbar { display: none; }
+/* Shelf treatment: each chip is a lit recess rather than a flat pill. */
 .camp-currency-chip {
-  background: #ffffff0a; border: 1px solid #ffffff18; border-radius: 4px;
-  padding: 2px 6px; white-space: nowrap; flex: 0 0 auto;
+  background: linear-gradient(180deg, rgba(255,255,255,0.09) 0%, rgba(0,0,0,0.35) 100%);
+  border: 1px solid #ffffff20;
+  border-radius: 4px;
+  padding: 2px 7px; white-space: nowrap; flex: 0 0 auto;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), inset 0 -2px 4px rgba(0,0,0,0.45), 0 1px 2px rgba(0,0,0,0.5);
+}
+
+/* Rolling counters (see CountUp in Camp.jsx) */
+.countup { position: relative; transition: color 0.2s, text-shadow 0.2s; }
+.countup.is-up   { color: #6dff9e; text-shadow: 0 0 9px rgba(109,255,158,0.6); }
+.countup.is-down { color: #ff6a7a; text-shadow: 0 0 9px rgba(255,106,122,0.6); }
+.countup-arrow {
+  font-style: normal;
+  font-size: 0.62em;
+  margin-left: 2px;
+  vertical-align: 0.15em;
+  animation: countArrow 0.6s ease-out infinite;
+}
+@keyframes countArrow {
+  0%, 100% { opacity: 0.45; transform: translateY(0); }
+  50%      { opacity: 1; transform: translateY(-2px); }
 }
 
 /* Attribute toggle — sits under the avatar on the left, per the request

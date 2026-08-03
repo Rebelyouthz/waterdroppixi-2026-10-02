@@ -179,6 +179,24 @@ export const WEAPONS = {
     ],
   },
   // ===== NEW WEAPONS (unlock via Card Shop) =====
+  // Directional lash in the aim direction — the genre-staple whip. Uses the
+  // scythe path (behaviour 'aoe', not in RADIAL_AOE_WEAPONS) because that is
+  // already a forward-arc sweep; what makes it a whip rather than a scythe is
+  // the long, narrow reach, the fast cadence, and its own lash visual.
+  tideWhip: {
+    id: 'tideWhip', name: 'Tide Lash', icon: '🪢', type: 'auto', behaviour: 'aoe',
+    desc: 'Cracks a whip of hard water wherever you aim. Long reach, fast, hits everything in the lane.',
+    base: { damage: 19, fireRate: 2.1, range: 200, area: 190, knockback: 90, crit: 0.06, color: '#4fd8ff', whip: true },
+    levelUps: [
+      { stat: 'damage', mult: 1.22 },
+      { stat: 'area', mult: 1.14 },
+      { stat: 'fireRate', mult: 1.18 },
+      { stat: 'damage', mult: 1.3 },
+      { stat: 'area', mult: 1.16 },
+      { stat: 'fireRate', mult: 1.2 },
+      { stat: 'damage', mult: 1.5, evolve: true },
+    ],
+  },
   chainlightning: {
     id: 'chainlightning', name: 'Chain Lightning', icon: '⚡', type: 'auto', behaviour: 'beam', requireUnlock: true,
     desc: 'Arcing bolt that chains between up to 3 foes.',
