@@ -2752,7 +2752,13 @@ export class Game {
     // Elemental flavor (embers/ice/etc) is inferred from that same accent
     // color so it reads correctly per-weapon without needing every weapon
     // tagged yet (see the Elemental system backlog item).
-    if (!silent) this.spawnHitSparks(e.x, e.y, impactAccent, dmg, crit);
+    // Pass the incoming direction so sparks spray back along the shot rather
+    // than radiating evenly from the enemy's centre.
+    if (!silent) {
+      const idx = e.x - (ox ?? e.x), idy = e.y - (oy ?? e.y);
+      const il = Math.hypot(idx, idy) || 1;
+      this.spawnHitSparks(ox ?? e.x, oy ?? e.y, impactAccent, dmg, crit, idx / il, idy / il);
+    }
     if (e.hp <= 0) this.killEnemy(e);
   }
 
@@ -3071,20 +3077,27 @@ export class Game {
     return null;
   }
 
-  spawnHitSparks(x, y, color, dmg, isCrit) {
+  spawnHitSparks(x, y, color, dmg, isCrit, dirX, dirY) {
     const qualHi = this._qualityHigh !== false;
     const sparkColor = isCrit ? '#ffffff' : color;
-    const num = this.fxCount(isCrit ? 8 : 4);
+    const num = this.fxCount(isCrit ? 10 : 5);
     const elem = this._elementHintFor(color);
+    // Sparks throw BACK along the impact, in a cone, when we know which way
+    // the hit came from — that is what makes a hit read as directional
+    // rather than as a puff centred on the enemy.
+    const hasDir = dirX !== undefined && (dirX || dirY);
+    const back = hasDir ? Math.atan2(-dirY, -dirX) : 0;
+    const spread = isCrit ? 1.5 : 1.1;
     for (let i = 0; i < num; i++) {
       const pp = this.parts.acquire();
       pp.x = x; pp.y = y;
-      const a = Math.random() * TAU; const sp = rand(70, 170);
+      const a = hasDir ? back + rand(-spread, spread) : Math.random() * TAU;
+      const sp = rand(90, 240);
       pp.vx = Math.cos(a) * sp;
       // Fire embers drift/flick upward against gravity; ice shards fall
       // faster and settle; everything else is a neutral flat spark.
       pp.vy = elem === 'fire' ? Math.sin(a) * sp - rand(30, 70) : Math.sin(a) * sp;
-      pp.life = elem === 'ice' ? rand(0.14, 0.26) : rand(0.07, 0.15);
+      pp.life = elem === 'ice' ? rand(0.14, 0.26) : rand(0.07, 0.18);
       pp.max = pp.life; pp.color = sparkColor;
       pp.size = rand(0.8, isCrit ? 2.6 : 1.6); pp.type = 'spark';
     }
@@ -3261,7 +3274,11 @@ export class Game {
       const sp = rand(80, 260);
       p.vx = Math.cos(a) * sp; p.vy = Math.sin(a) * sp - rand(30, 120);
       p.life = rand(0.4, 0.9); p.max = p.life;
-      p.color = color; p.size = rand(1.2, 2.6);
+      // Droplets vary in size within a single spray. A spray of identically
+      // sized dots is the tell that gore is procedural; real spatter is a few
+      // fat drops among a lot of fine mist.
+      p.color = color;
+      p.size = i === 0 ? rand(2.4, 3.6) : rand(0.7, 1.9);
       p.type = 'blood';
     }
   }
@@ -3282,14 +3299,31 @@ export class Game {
     // Chunks are mostly enemy-colored flesh; one in four flashes the weapon's
     // impact-accent color instead of duplicating the enemy color, so the
     // gore still reads as "this weapon just hit" without turning blue/etc.
+    // Chunks fly along the hit direction in a cone rather than in a full
+    // circle. A piece torn off by an impact travels roughly the way the
+    // impact was going — spraying them evenly in every direction is what made
+    // gore read as a generic puff instead of something being torn away.
+    const away = Math.atan2(ny, nx);
     for (let i = 0; i < n; i++) {
       const p = this.parts.acquire();
       p.x = wx + rand(-3, 3); p.y = wy + rand(-3, 3);
-      const a = Math.random() * TAU; const sp = rand(60, 210);
+      const a = away + rand(-0.85, 0.85);
+      const sp = rand(90, 260);
       p.vx = Math.cos(a) * sp; p.vy = Math.sin(a) * sp - rand(20, 100);
       p.life = rand(0.4, 0.85); p.max = p.life;
       p.color = i % 4 === 0 ? (impactAccent || bc) : bc;
       p.size = rand(1.2, 2.6); p.type = 'chunk';
+    }
+    // A heavier hit tears off one genuinely large piece that tumbles and
+    // lands, so the gore has a size range instead of being uniform flecks.
+    if (stage >= 4 && Math.random() < 0.5) {
+      const big = this.parts.acquire();
+      big.x = wx; big.y = wy;
+      const a = away + rand(-0.5, 0.5);
+      big.vx = Math.cos(a) * rand(70, 160);
+      big.vy = Math.sin(a) * rand(70, 160) - rand(40, 110);
+      big.life = rand(0.8, 1.3); big.max = big.life;
+      big.color = bc; big.size = rand(3.2, 5.4); big.type = 'chunk';
     }
     this.spawnBlood(wx, wy, bc);
     const localAng = Math.atan2(ny, nx) + rand(-0.35, 0.35);
