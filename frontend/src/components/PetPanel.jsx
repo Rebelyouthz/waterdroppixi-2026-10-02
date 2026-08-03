@@ -35,11 +35,19 @@ export const PET_TYPES = [
   },
 ];
 
-const RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
+const RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythical'];
 const RARITY_COLORS = {
   common: '#9a8fa6', uncommon: '#4dff91', rare: '#4dc4ff',
-  epic: '#b362ff', legendary: '#ff7a1a',
+  epic: '#b362ff', legendary: '#ff7a1a', mythical: '#ff3146',
 };
+// Breeding: 2 Adult+ pets of the same species produce a new egg one
+// rarity tier above the HIGHER parent (capped at mythical) — a real
+// breeding system distinct from the egg-merge shortcut above (which only
+// combines still-unhatched eggs). Each parent needs a real-time cooldown
+// before breeding again so it can't be spammed.
+const BREED_MIN_LEVEL = 31; // Adult stage (see STAGES below)
+const BREED_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes
+const BREED_GEM_COST = { common: 80, uncommon: 160, rare: 350, epic: 800, legendary: 2000 };
 
 const STAGES = [
   { name: 'Newborn',  minLvl: 1,  icon: '🥚', sizeClass: 'pet-xs' },
@@ -77,12 +85,51 @@ function mergeEggs(eggs, rarity, petType) {
 }
 
 export default function PetPanel({ save, setSave, onClose }) {
-  const [view, setView] = useState('my_pets'); // 'my_pets' | 'shop' | 'eggs'
+  const [view, setView] = useState('my_pets'); // 'my_pets' | 'shop' | 'eggs' | 'breed'
+  const [breedPair, setBreedPair] = useState([]); // up to 2 pet ids
 
   const pets = save.pets || [];
   const eggs = save.petEggs || [];
   const gems = save.gems || 0;
   const petFood = save.petFood || 0;
+
+  // ----- Breeding -----
+  const canBreedPet = (pet) => pet.level >= BREED_MIN_LEVEL && (!pet.breedReadyAt || Date.now() >= pet.breedReadyAt);
+  const toggleBreedPick = (pet) => {
+    if (!canBreedPet(pet)) return;
+    setBreedPair(cur => {
+      if (cur.includes(pet.id)) return cur.filter(id => id !== pet.id);
+      if (cur.length >= 2) return cur;
+      const next = [...cur, pet.id];
+      // Only allow pairing same species — mirrors the egg-merge rule above.
+      if (next.length === 2) {
+        const a = pets.find(p => p.id === next[0]), b = pets.find(p => p.id === next[1]);
+        if (a && b && a.type !== b.type) return cur;
+      }
+      return next;
+    });
+  };
+  const breedResultRarity = () => {
+    if (breedPair.length !== 2) return null;
+    const a = pets.find(p => p.id === breedPair[0]), b = pets.find(p => p.id === breedPair[1]);
+    if (!a || !b) return null;
+    const idx = Math.max(RARITIES.indexOf(a.rarity), RARITIES.indexOf(b.rarity));
+    return RARITIES[Math.min(RARITIES.length - 1, idx + 1)];
+  };
+  const doBreed = () => {
+    if (breedPair.length !== 2) return;
+    const a = pets.find(p => p.id === breedPair[0]), b = pets.find(p => p.id === breedPair[1]);
+    if (!a || !b) return;
+    const resultRarity = breedResultRarity();
+    const cost = BREED_GEM_COST[a.rarity] || 80;
+    if (gems < cost) return;
+    const readyAt = Date.now() + BREED_COOLDOWN_MS;
+    const updPets = pets.map(p => (p.id === a.id || p.id === b.id) ? { ...p, breedReadyAt: readyAt } : p);
+    const newEgg = { id: Date.now() + '_' + Math.random().toString(36).slice(2), type: a.type, rarity: resultRarity };
+    setSave({ ...save, gems: gems - cost, pets: updPets, petEggs: [...eggs, newEgg] });
+    setBreedPair([]);
+    Audio.levelUp(); Audio.claimPing();
+  };
 
   // ----- Hatch egg -----
   const hatchEgg = (egg) => {
@@ -170,12 +217,12 @@ export default function PetPanel({ save, setSave, onClose }) {
 
         {/* Nav */}
         <div style={{ display:'flex', gap:4, padding:'8px 12px', background:'#060410', borderBottom:'1px solid #1a0a2e' }}>
-          {['my_pets','eggs','shop'].map(v => (
+          {['my_pets','eggs','breed','shop'].map(v => (
             <button key={v} onClick={() => setView(v)}
               style={{ fontFamily:'VT323', fontSize:14, letterSpacing:'0.15em', padding:'4px 14px',
                 background: view === v ? 'var(--rune)' : 'transparent',
                 border: `1px solid ${view===v?'var(--rune)':'#1a0a2e'}`, color: view===v?'#000':'var(--ink-dim)', borderRadius:2, cursor:'pointer' }}>
-              {v==='my_pets'?'MY PETS':v==='eggs'?`EGGS (${eggs.length})`:'SHOP'}
+              {v==='my_pets'?'MY PETS':v==='eggs'?`EGGS (${eggs.length})`:v==='breed'?'BREED':'SHOP'}
             </button>
           ))}
           <div style={{ marginLeft:'auto' }}>
@@ -284,6 +331,66 @@ export default function PetPanel({ save, setSave, onClose }) {
                       );
                     })}
                   </div>
+                </>
+              )}
+            </>
+          )}
+
+          {/* ── BREED ── */}
+          {view === 'breed' && (
+            <>
+              <div style={{ fontFamily:'VT323', color:'var(--ink-dim)', fontSize:14, marginBottom:12 }}>
+                Pick 2 Adult+ pets (Lv {BREED_MIN_LEVEL}+) of the same species. Breeding produces a new egg one rarity above your best parent — each parent needs {BREED_COOLDOWN_MS/60000} min to recover afterward.
+              </div>
+              {pets.filter(p => p.level >= BREED_MIN_LEVEL).length < 2 ? (
+                <div style={{ textAlign:'center', color:'var(--ink-dim)', fontFamily:'VT323', fontSize:16, padding:40 }}>
+                  Need at least 2 Adult+ pets. Feed your pets to level them up!
+                </div>
+              ) : (
+                <>
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))', gap:8, marginBottom: 14 }}>
+                    {pets.map(pet => {
+                      const def = PET_TYPES.find(p => p.id === pet.type);
+                      const rc = RARITY_COLORS[pet.rarity] || '#9a8fa6';
+                      const eligible = canBreedPet(pet);
+                      const picked = breedPair.includes(pet.id);
+                      const onCooldown = pet.breedReadyAt && Date.now() < pet.breedReadyAt;
+                      return (
+                        <div key={pet.id} data-testid={`breed-pick-${pet.id}`}
+                          onClick={() => toggleBreedPick(pet)}
+                          style={{
+                            background: picked ? `${rc}22` : '#0a0520', border: `1px solid ${picked ? rc : '#1a0a2e'}`,
+                            borderRadius: 6, padding: 10, textAlign: 'center', cursor: eligible ? 'pointer' : 'not-allowed',
+                            opacity: eligible ? 1 : 0.4,
+                          }}>
+                          <div style={{ fontSize: 26 }}>{def?.icon || '🐾'}</div>
+                          <div style={{ fontFamily: 'VT323', fontSize: 12, color: rc }}>{pet.rarity}</div>
+                          <div style={{ fontFamily: 'VT323', fontSize: 11, color: 'var(--ink-dim)' }}>{pet.name}</div>
+                          <div style={{ fontFamily: 'VT323', fontSize: 10, color: '#4dffd4' }}>Lv {pet.level}</div>
+                          {onCooldown && <div style={{ fontFamily: 'VT323', fontSize: 10, color: '#ff5566' }}>Resting…</div>}
+                          {picked && <div style={{ fontFamily: 'VT323', fontSize: 11, color: rc }}>✓ SELECTED</div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {breedPair.length === 2 && (() => {
+                    const a = pets.find(p => p.id === breedPair[0]);
+                    const resultRarity = breedResultRarity();
+                    const cost = BREED_GEM_COST[a?.rarity] || 80;
+                    const canAfford = gems >= cost;
+                    return (
+                      <div style={{ background: '#0a0520', border: `1px solid ${RARITY_COLORS[resultRarity]}`, borderRadius: 6, padding: 14, textAlign: 'center' }}>
+                        <div style={{ fontFamily: 'VT323', fontSize: 14, color: 'var(--ink-dim)' }}>Result egg rarity:</div>
+                        <div style={{ fontFamily: 'VT323', fontSize: 20, color: RARITY_COLORS[resultRarity], letterSpacing: '0.2em' }}>🥚 {resultRarity?.toUpperCase()}</div>
+                        <button onClick={doBreed} disabled={!canAfford} data-testid="breed-confirm"
+                          style={{ marginTop: 8, fontFamily: 'VT323', fontSize: 14, padding: '6px 16px',
+                            background: canAfford ? RARITY_COLORS[resultRarity] : '#1a0a2e',
+                            border: `1px solid ${RARITY_COLORS[resultRarity]}`, color: canAfford ? '#000' : '#666', cursor: canAfford ? 'pointer' : 'default' }}>
+                          BREED — 💎{cost}
+                        </button>
+                      </div>
+                    );
+                  })()}
                 </>
               )}
             </>
