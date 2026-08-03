@@ -176,6 +176,15 @@ export class PixiRenderer {
     this.dockStationText = new Text({ text: 'DOCK', style: this._textStyle(9, '#4dffe0', '#06121e', 3) });
     this.dockStationText.anchor.set(0.5); this.dockStationText.visible = false;
     this.world.addChild(this.dockStationText);
+    // Tidal Shrine — same z-band as the Dock Station, own layer since both
+    // can theoretically be up at once.
+    this.gTidalShrine = new Graphics(); this.world.addChild(this.gTidalShrine);
+    this.shrineLight = new Sprite(this.lightTex);
+    this.shrineLight.anchor.set(0.5); this.shrineLight.blendMode = 'add'; this.shrineLight.visible = false;
+    this.gLight.addChild(this.shrineLight);
+    this.shrineText = new Text({ text: 'SHRINE', style: this._textStyle(9, '#1fb6ff', '#06121e', 3) });
+    this.shrineText.anchor.set(0.5); this.shrineText.visible = false;
+    this.world.addChild(this.shrineText);
     this.gGems = new Graphics(); this.world.addChild(this.gGems);
     this.gEnemies = new Graphics(); this.world.addChild(this.gEnemies);
     this.gPlayer = new Graphics(); this.world.addChild(this.gPlayer);
@@ -489,6 +498,7 @@ void main() {
     this._drawGroundIllum(game);
     this._drawDecals(game);
     this._drawDockStation(game);
+    this._drawTidalShrine(game);
     this._drawGems(game);
     this._drawEnemies(game);
     this._drawEnemyTierTags(game);
@@ -1074,6 +1084,49 @@ void main() {
     this.dockStationLight.width = glowSize; this.dockStationLight.height = glowSize;
     this.dockStationLight.tint = activeColor;
     this.dockStationLight.alpha = 0.35 + st.progress * 0.35 + pulse * 0.05;
+  }
+
+  _drawTidalShrine(game) {
+    const g = this.gTidalShrine; g.clear();
+    const sh = game.tidalShrine;
+    if (!sh) {
+      this.shrineLight.visible = false;
+      this.shrineText.visible = false;
+      return;
+    }
+    const t = game.time;
+    const pulse = 0.5 + 0.5 * Math.sin(t * 2.4);
+    const channeling = sh.channelT > 0;
+    const activeColor = channeling ? '#ffffff' : '#1fb6ff';
+    const progress = sh.channelT / 10;
+
+    g.circle(sh.x, sh.y, sh.r * 1.2).fill({ color: '#04141c', alpha: 0.6 });
+    g.circle(sh.x, sh.y, sh.r).stroke({ width: 4, color: '#1fb6ff', alpha: 0.85 });
+    g.circle(sh.x, sh.y, sh.r * 0.65).stroke({ width: 2, color: '#7fd8ff', alpha: 0.5 });
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * TAU - t * 0.25;
+      g.circle(sh.x + Math.cos(a) * sh.r * 0.85, sh.y + Math.sin(a) * sh.r * 0.85, 3 + pulse).fill({ color: '#bff0ff', alpha: 0.5 });
+    }
+    g.circle(sh.x, sh.y, 10 + pulse * 3).fill({ color: activeColor, alpha: 0.8 });
+
+    if (progress > 0.001) {
+      const a0 = -Math.PI / 2, a1 = a0 + TAU * progress;
+      g.moveTo(sh.x + Math.cos(a0) * (sh.r + 12), sh.y + Math.sin(a0) * (sh.r + 12))
+        .arc(sh.x, sh.y, sh.r + 12, a0, a1)
+        .stroke({ width: 6, color: activeColor, alpha: 0.95 });
+    }
+
+    this.shrineText.visible = true;
+    this.shrineText.position.set(sh.x, sh.y - sh.r - 22);
+    this.shrineText.text = progress > 0.001 ? `SHRINE ${Math.round(progress * 100)}%` : 'TIDAL SHRINE';
+    this.shrineText.style.fill = activeColor;
+
+    this.shrineLight.visible = true;
+    this.shrineLight.position.set(sh.x, sh.y);
+    const glowSize = 110 + pulse * 24 + progress * 50;
+    this.shrineLight.width = glowSize; this.shrineLight.height = glowSize;
+    this.shrineLight.tint = activeColor;
+    this.shrineLight.alpha = 0.4 + progress * 0.35 + pulse * 0.05;
   }
 
   // ------------------------------- GEMS -----------------------------------

@@ -1,6 +1,6 @@
 // Waterdrop Survivor — Canvas 2D engine with pooling, twin-stick combat, juicy effects.
 import { WEAPONS, ENEMIES, STAT_CARDS, RARITY, rollRarity, waveAt, nextBossEvent, WEAPON_EVO_MAP, metaCost } from './data';
-import { ACTIVE_SKILLS, KILL_FX, ENEMY_KILL_FX, ADVANCED_CARDS, ELEMENTS, getWeaponForkChoices } from './data_ext2';
+import { ACTIVE_SKILLS, KILL_FX, ENEMY_KILL_FX, ADVANCED_CARDS, ELEMENTS, getWeaponForkChoices, WEAPON_SET_BONUSES } from './data_ext2';
 import { Audio } from './audio';
 import { PixiRenderer } from './pixiRenderer';
 
@@ -110,6 +110,7 @@ export class Game {
       ownedWeapons: opts.startWeapons || ['hydropistol'],
       weaponLvls: {},
       weaponForks: {}, // { weaponId: forkId } — level-5 evolution fork pick, see computeWeaponStats
+      setsUnlocked: new Set(), // Weapon Pairing Set Bonuses already granted this run, see tickCardFlags
       noHit: true,
       activeSkillUses: 0,
       stats: {
@@ -215,6 +216,17 @@ export class Game {
     // inside it fills a ring over time, then grants a random bonus.
     this.dockStation = null;
     this._nextDockStationAt = rand(35, 60);
+
+    // ===== ORIGINAL SYSTEM 3/3: Tidal Shrine Trials =====
+    // A rare, higher-stakes alternative to the Dock Station: channeling it
+    // requires standing still inside its radius for a full 10s WITHOUT
+    // leaving even once (leaving resets the channel to 0 instantly, unlike
+    // the Dock Station's gradual drain), while the shrine actively pulls in
+    // a small wave of enemies to pressure the player into defending it. A
+    // completed trial rolls from a much stronger reward pool than the Dock
+    // Station — real risk/reward, not just a passive fill-the-bar.
+    this.tidalShrine = null;
+    this._nextShrineAt = rand(150, 210);
 
     // Swipe-attack miniboss (swipeWarden): rare tanky elite, only killable
     // via a swipe attack while its guard is down. Starts appearing mid-run,
@@ -503,6 +515,7 @@ export class Game {
     this.updateDmgNums(dt);
     this.spawnWave(dt);
     this.updateDockStation(dt);
+    this.updateTidalShrine(dt);
     this._nextWardenAt -= dt;
     if (this._nextWardenAt <= 0) {
       let hasWarden = false;
@@ -651,6 +664,7 @@ export class Game {
         e._burnAcc = (e._burnAcc || 0) + dt;
         if (e._burnAcc >= 0.5) { e._burnAcc = 0; this.dealDamage(e, 6 * s.damageMult, false, 0, e.x, e.y, true); if (Math.random() < 0.5) this.spawnSpark(e.x, e.y, '#ff7a1a'); }
       }
+      if (e._comboCD > 0) e._comboCD -= dt; // Elemental Combo Reactions cooldown, see checkElementalCombo
     });
     // Stasis Beacon field — deployed by the 'beacon' active skill (castSkill)
     if (this._beaconT > 0) {
@@ -810,6 +824,21 @@ export class Game {
         this.spawnRing(p.x, p.y, r, '#b362ff', 0.4);
       }
       p._gravityKills = this.run.kills;
+    }
+    // ===== ORIGINAL SYSTEM 2/3: Weapon Pairing Set Bonuses =====
+    // Owning both weapons of a curated pair simultaneously unlocks a
+    // permanent (for this run) stat bonus, checked once per frame — cheap
+    // since the pool is only 5 entries and each is a simple .every() over
+    // a 2-element array.
+    for (const set of WEAPON_SET_BONUSES) {
+      if (this.run.setsUnlocked.has(set.id)) continue;
+      if (set.weapons.every(w => this.run.ownedWeapons.includes(w))) {
+        this.run.setsUnlocked.add(set.id);
+        set.apply(s);
+        this.spawnRing(p.x, p.y, 70, '#ffd166', 0.5);
+        this.spawnDamageNumber(p.x, p.y - 40, `SET: ${set.name}!`, '#ffd166', 16);
+        this.cam.shake = Math.max(this.cam.shake, 5);
+      }
     }
   }
 
@@ -1437,8 +1466,64 @@ export class Game {
   // the same _burn DoT tick as the Burn card, electric = the same
   // applyConductiveBounce chain as Conductive Rounds/Arc Tesla) rather than
   // building parallel systems.
+  // ===== ORIGINAL SYSTEM 1/3: Elemental Combo Reactions =====
+  // Landing a DIFFERENT element on a target that already has one active
+  // triggers a bonus reaction — rewards mixing elemental weapons/artifacts
+  // instead of each element just doing its own isolated thing. Gated by a
+  // short per-enemy cooldown so it can't refire every single hit while both
+  // effects happen to overlap for several seconds.
+  checkElementalCombo(e, incomingId) {
+    if ((e._comboCD || 0) > 0) return;
+    const has = {
+      fire: e._burn > 0, ice: e._slowT > 0,
+      poison: e._poisonStacks > 0, void: e._voidVulnT > 0,
+    };
+    has[incomingId] = false; // the incoming hit itself doesn't count as "already active"
+    const rs = this.run.stats;
+    if (incomingId === 'ice' && has.fire) {
+      // Shatter: the sudden thermal shock does a burst of bonus damage.
+      e._comboCD = 2;
+      this.dealDamage(e, 45 * rs.damageMult, false, 140, e.x, e.y, true);
+      this.spawnRing(e.x, e.y, e.t.size * 1.1, '#bff0ff', 0.4);
+      this.spawnDamageNumber(e.x, e.y - e.t.size * 0.6, 'SHATTER!', '#bff0ff', 15);
+    } else if (incomingId === 'fire' && has.ice) {
+      e._comboCD = 2;
+      this.dealDamage(e, 45 * rs.damageMult, false, 140, e.x, e.y, true);
+      this.spawnRing(e.x, e.y, e.t.size * 1.1, '#bff0ff', 0.4);
+      this.spawnDamageNumber(e.x, e.y - e.t.size * 0.6, 'SHATTER!', '#bff0ff', 15);
+    } else if (incomingId === 'electric' && has.poison) {
+      // Toxic Overload: detonates all banked poison stacks at once + spreads
+      // a stack to nearby foes instead of ticking out slowly.
+      e._comboCD = 2;
+      const stacks = e._poisonStacks || 1;
+      this.dealDamage(e, 10 * stacks * rs.damageMult, false, 0, e.x, e.y, true);
+      this.spawnRing(e.x, e.y, 90, '#7ad96b', 0.4);
+      this.spawnDamageNumber(e.x, e.y - e.t.size * 0.6, 'TOXIC OVERLOAD!', '#7ad96b', 15);
+      this.enemies.forEach(en => {
+        if (en === e || !en.alive) return;
+        if (dist2(en.x, en.y, e.x, e.y) <= 90 * 90) { en._poisonStacks = Math.min(8, (en._poisonStacks || 0) + 1); en._poisonT = 4; }
+      });
+    } else if (incomingId === 'fire' && has.poison) {
+      // Combustion: banked poison stacks convert into one big burn tick.
+      e._comboCD = 2;
+      const stacks = e._poisonStacks || 1;
+      e._poisonStacks = 0; e._poisonT = 0;
+      this.dealDamage(e, 14 * stacks * rs.damageMult, false, 60, e.x, e.y, true);
+      this.spawnRing(e.x, e.y, e.t.size * 1.0, '#ff7a1a', 0.4);
+      this.spawnDamageNumber(e.x, e.y - e.t.size * 0.6, 'COMBUSTION!', '#ff7a1a', 15);
+    } else if (incomingId === 'void' && (has.fire || has.ice || has.poison)) {
+      // Unstable Rift: void amplifies whatever other element is already
+      // active by extending the vulnerability window further.
+      e._comboCD = 2;
+      e._voidVulnT = 3.5; e._voidVulnMult = 1.6;
+      this.spawnRing(e.x, e.y, e.t.size * 1.2, '#b362ff', 0.5);
+      this.spawnDamageNumber(e.x, e.y - e.t.size * 0.6, 'UNSTABLE RIFT!', '#b362ff', 15);
+    }
+  }
+
   applyElementalEffect(e, elementId, dmg) {
     if (!e.alive) return;
+    this.checkElementalCombo(e, elementId);
     if (elementId === 'fire') {
       e._burn = Math.max(e._burn || 0, 3);
     } else if (elementId === 'ice') {
@@ -1603,6 +1688,82 @@ export class Game {
     this.spawnDamageNumber(st.x, st.y - 30, label, '#4dffe0', 15);
     this.dockStation = null;
     this._nextDockStationAt = rand(55, 95);
+  }
+
+  updateTidalShrine(dt) {
+    if (!this.tidalShrine) {
+      this._nextShrineAt -= dt;
+      if (this._nextShrineAt <= 0) this.spawnTidalShrine();
+      return;
+    }
+    const sh = this.tidalShrine;
+    const p = this.player;
+    const inRange = dist2(p.x, p.y, sh.x, sh.y) <= sh.r * sh.r;
+    if (inRange) {
+      sh.channelT += dt;
+      sh.summonCD -= dt;
+      if (sh.summonCD <= 0) {
+        // Pull in 2-3 enemies to actively pressure the channel — the risk
+        // half of the risk/reward, not just a passive timer.
+        sh.summonCD = 3;
+        const n = 2 + Math.floor(Math.random() * 2);
+        for (let i = 0; i < n; i++) {
+          const a = Math.random() * TAU;
+          const e = this.enemies.acquire();
+          e.x = sh.x + Math.cos(a) * (sh.r + 40); e.y = sh.y + Math.sin(a) * (sh.r + 40);
+          e.vx = 0; e.vy = 0; e.t = ENEMIES.ghoul;
+          e.maxHp = 40; e.hp = 40; e.hit = 0; e.cd = 0; e.dz = 0; e.kbX = 0; e.kbY = 0;
+          e.tier = this.bossesKilled + 1; e.speedMult = 1 + this.bossesKilled * 0.12;
+        }
+      }
+      if (sh.channelT >= 10) { this.completeTidalShrine(); return; }
+    } else if (sh.channelT > 0) {
+      // Leaving resets the channel instantly — real risk, unlike the Dock
+      // Station's forgiving gradual drain.
+      sh.channelT = 0;
+      this.spawnDamageNumber(sh.x, sh.y - 30, 'CHANNEL BROKEN!', '#ff3146', 16);
+    }
+  }
+
+  spawnTidalShrine() {
+    const p = this.player;
+    const ang = Math.random() * TAU;
+    const dist = Math.max(this.W, this.H) * (0.6 + Math.random() * 0.5);
+    const x = clamp(p.x + Math.cos(ang) * dist, 90, this.world.w - 90);
+    const y = clamp(p.y + Math.sin(ang) * dist, 90, this.world.h - 90);
+    this.tidalShrine = { x, y, r: 60, channelT: 0, summonCD: 3 };
+  }
+
+  completeTidalShrine() {
+    const sh = this.tidalShrine;
+    if (!sh) return;
+    const p = this.player;
+    const roll = Math.random();
+    let label = '';
+    if (roll < 0.30) {
+      // A guaranteed weapon-fork-tier choice screen, but as an EXTRA
+      // level-up card pick rather than gated behind reaching level 5.
+      this.levelUpQueue += 2;
+      label = '2 BONUS CARDS';
+    } else if (roll < 0.55) {
+      const heal = p.maxHp; // full heal, much stronger than Dock Station's 50%
+      p.hp = Math.min(p.maxHp, p.hp + heal);
+      p.shieldCharge = 1; p.shieldCD = 0;
+      label = 'FULL HEAL + SHIELD';
+    } else if (roll < 0.80) {
+      this.run.stats.damageMult *= 1.15;
+      label = '+15% DAMAGE (PERMANENT)';
+    } else {
+      this._pendingGearDrop = { timeInRun: this.run.time, boss: true }; // guaranteed roll at boss-tier rarity odds
+      label = 'BLESSED GEAR DROP';
+    }
+    Audio.levelUp();
+    this.cam.shake = Math.max(this.cam.shake, 10);
+    this.spawnRing(sh.x, sh.y, 120, '#1fb6ff', 0.6);
+    this.spawnRing(sh.x, sh.y, 70, '#ffffff', 0.4);
+    this.spawnDamageNumber(sh.x, sh.y - 40, 'SHRINE BLESSING: ' + label, '#1fb6ff', 16);
+    this.tidalShrine = null;
+    this._nextShrineAt = rand(150, 210);
   }
 
   spawnBoss(typeId) {

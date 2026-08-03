@@ -463,6 +463,26 @@ export function getWeaponForkChoices(weaponDef) {
   return WEAPON_FORK_TEMPLATES[weaponDef?.behaviour] || WEAPON_FORK_TEMPLATES.projectile;
 }
 
+// ===== ORIGINAL SYSTEM 3/3: Weapon Pairing Set Bonuses =====
+// Owning BOTH weapons of a curated pair simultaneously (even briefly)
+// permanently unlocks that pair's bonus for the rest of the run — same
+// "one-time, never revoked" convention as weapon evolution, so losing a
+// weapon later (e.g. it evolves into something else) doesn't strip the
+// bonus back out. Checked once per frame in engine.js's tickCardFlags via
+// run._setsUnlocked (a Set of pair ids already applied).
+export const WEAPON_SET_BONUSES = [
+  { id: 'set_frozenTide', weapons: ['hydropistol', 'icespike'], name: 'Frozen Tide', icon: '🧊',
+    desc: '+15% pierce, +10% crit', apply: (rs) => { rs.pierceBonus = (rs.pierceBonus || 0) + 1; rs.crit = (rs.crit || 0) + 0.10; } },
+  { id: 'set_steamOverload', weapons: ['flameburst', 'tidalHarpoon'], name: 'Steam Overload', icon: '💨',
+    desc: '+20% damage, +10% area', apply: (rs) => { rs.damageMult = (rs.damageMult || 1) * 1.20; rs.areaMult = (rs.areaMult || 1) * 1.10; } },
+  { id: 'set_twinStorms', weapons: ['stormLance', 'arcCaster'], name: 'Twin Storms', icon: '⚡',
+    desc: '+25% attack speed', apply: (rs) => { rs.fireRateMult = (rs.fireRateMult || 1) * 1.25; } },
+  { id: 'set_automatedWing', weapons: ['droneSquad', 'railgunArray'], name: 'Automated Wing', icon: '🛸',
+    desc: '+10% crit, +15% projectile speed (via bonus damage)', apply: (rs) => { rs.crit = (rs.crit || 0) + 0.10; rs.damageMult = (rs.damageMult || 1) * 1.10; } },
+  { id: 'set_ordnanceOverkill', weapons: ['cometLauncher', 'shrapnelMine'], name: 'Ordnance Overkill', icon: '💥',
+    desc: '+20% area, +15% damage', apply: (rs) => { rs.areaMult = (rs.areaMult || 1) * 1.20; rs.damageMult = (rs.damageMult || 1) * 1.15; } },
+];
+
 // ---------- ELEMENTAL ROUNDS (Weaponsmith) ----------
 // Assignable to manual/auto weapons' bullets (see engine.js fireProjectile/
 // applyElementalEffect). Each element reuses an existing combat mechanic
