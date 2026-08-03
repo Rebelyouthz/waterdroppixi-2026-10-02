@@ -4,6 +4,7 @@ import { RARITY } from '../game/data';
 const TYPE_BADGE = {
   'weapon-new': { icon: '⚔️', label: 'NEW WEAPON' },
   'weapon-upgrade': { icon: '⬆️', label: 'WEAPON UP' },
+  'weapon-fork': { icon: '🔀', label: 'EVOLUTION PATH' },
   'flag': { icon: '🔮', label: 'PASSIVE' },
   'stat': { icon: '📈', label: 'STAT BOOST' },
 };
@@ -23,6 +24,7 @@ function highlightDesc(desc) {
 
 // Dopamine-heavy level up modal: FORCE text, slot-machine card reveal, particles.
 export default function LevelUpModal({ choices, onPick, playerLevel }) {
+  const isFork = choices.length > 0 && choices[0].kind === 'weapon-fork';
   useEffect(() => {
     // play a small "ding" via WebAudio (no asset)
     try {
@@ -39,17 +41,17 @@ export default function LevelUpModal({ choices, onPick, playerLevel }) {
   }, []);
 
   return (
-    <div className="modal-overlay levelup-overlay" data-testid="levelup-modal">
+    <div className={`modal-overlay levelup-overlay${isFork ? ' is-fork' : ''}`} data-testid="levelup-modal">
       <div className="levelup">
         <div className="lvl-burst" aria-hidden>
           {Array.from({ length: 16 }).map((_, i) => (
             <span key={i} className="lvl-ray" style={{ transform: `rotate(${i * 22.5}deg)` }} />
           ))}
         </div>
-        <div className="levelup-title" data-testid="levelup-title">LEVEL UP!</div>
-        <div className="levelup-mega">LV {playerLevel}</div>
-        <div className="levelup-sub">⚡ choose your boon — luck shapes the offerings ⚡</div>
-        <div className="card-row">
+        <div className="levelup-title" data-testid="levelup-title">{isFork ? 'WEAPON EVOLUTION!' : 'LEVEL UP!'}</div>
+        <div className="levelup-mega">{isFork ? '🔀 CHOOSE ITS PATH' : `LV ${playerLevel}`}</div>
+        <div className="levelup-sub">{isFork ? '⚔️ this choice is permanent for the run — pick wisely ⚔️' : '⚡ choose your boon — luck shapes the offerings ⚡'}</div>
+        <div className={`card-row${isFork ? ' card-row-fork' : ''}`}>
           {choices.map((c, i) => {
             const r = RARITY[c.rarity] || RARITY.common;
             const badge = TYPE_BADGE[c.kind] || TYPE_BADGE.stat;
@@ -58,7 +60,7 @@ export default function LevelUpModal({ choices, onPick, playerLevel }) {
             return (
               <div
                 key={i}
-                className={`card ${r.cls}`}
+                className={`card ${r.cls}${isFork ? ' card-fork' : ''}`}
                 onClick={() => onPick(c)}
                 data-testid={`card-${i}`}
                 style={{ animationDelay: (i * 90) + 'ms' }}

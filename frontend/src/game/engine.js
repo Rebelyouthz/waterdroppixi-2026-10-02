@@ -1,6 +1,6 @@
 // Waterdrop Survivor — Canvas 2D engine with pooling, twin-stick combat, juicy effects.
 import { WEAPONS, ENEMIES, STAT_CARDS, RARITY, rollRarity, waveAt, nextBossEvent, WEAPON_EVO_MAP, metaCost } from './data';
-import { ACTIVE_SKILLS, KILL_FX, ADVANCED_CARDS, ELEMENTS } from './data_ext2';
+import { ACTIVE_SKILLS, KILL_FX, ADVANCED_CARDS, ELEMENTS, getWeaponForkChoices } from './data_ext2';
 import { Audio } from './audio';
 import { PixiRenderer } from './pixiRenderer';
 
@@ -105,6 +105,7 @@ export class Game {
       score: 0, multiplier: 1, maxMultiplier: 1,
       ownedWeapons: opts.startWeapons || ['hydropistol'],
       weaponLvls: {},
+      weaponForks: {}, // { weaponId: forkId } — level-5 evolution fork pick, see computeWeaponStats
       noHit: true,
       activeSkillUses: 0,
       stats: {
@@ -990,7 +991,7 @@ export class Game {
     for (const wid of owned) {
       const w = WEAPONS[wid];
       const lvl = this.run.weaponLvls[wid] || 0;
-      const stats = this.computeWeaponStats(w, lvl);
+      const stats = this.computeWeaponStats(w, lvl, wid);
       stats._wid = wid;
       stats._wlvl = lvl;
       // Weapon-dependent gore: whichever weapon is about to deal damage
@@ -1018,13 +1019,21 @@ export class Game {
     }
   }
 
-  computeWeaponStats(w, lvl) {
+  computeWeaponStats(w, lvl, wid) {
     const s = { ...w.base };
     for (let i = 0; i < lvl; i++) {
       const up = w.levelUps[i]; if (!up) break;
       if (up.mult != null) s[up.stat] = (s[up.stat] || 0) * up.mult;
       else if (up.add != null) s[up.stat] = (s[up.stat] || 0) + up.add;
       s._evolved = s._evolved || up.evolve === true;
+    }
+    // Level-5 evolution fork (see buildLevelUpChoices/applyCardChoice) —
+    // one chosen path per weapon per run, re-applied every time stats are
+    // computed since computeWeaponStats always rebuilds from w.base fresh.
+    const forkId = wid && this.run.weaponForks ? this.run.weaponForks[wid] : null;
+    if (forkId) {
+      const fork = getWeaponForkChoices(w).find(f => f.id === forkId);
+      if (fork) fork.apply(s);
     }
     return s;
   }
@@ -1073,7 +1082,7 @@ export class Game {
   tryReload() {
     const w = WEAPONS['hydropistol'];
     const lvl = this.run.weaponLvls['hydropistol'] || 0;
-    const s = this.computeWeaponStats(w, lvl);
+    const s = this.computeWeaponStats(w, lvl, 'hydropistol');
     this.startReload(s);
   }
 
@@ -1107,6 +1116,7 @@ export class Game {
       if (dist2(e.x, e.y, p.x, p.y) <= r * r) {
         const dmg = this.rollDamage(baseDmg); // per-enemy crit roll
         this.dealDamage(e, dmg.dmg, dmg.crit, s.knockback || 0, p.x, p.y);
+        if (s.bleedDot) e._burn = Math.max(e._burn || 0, 2); // Bleed Field fork
       }
     });
     // Visual ring
@@ -1135,6 +1145,7 @@ export class Game {
       if (Math.abs(da) <= Math.PI * 0.55) {
         const dmg = this.rollDamage(baseDmg); // per-enemy crit roll
         this.dealDamage(e, dmg.dmg, dmg.crit, s.knockback || 0, p.x, p.y);
+        if (s.bleedDot) e._burn = Math.max(e._burn || 0, 2); // Bleed Field fork
       }
     });
     // visual sweeping arc in aim direction
@@ -2507,6 +2518,25 @@ export class Game {
     const choices = [];
     const usedIds = new Set();
 
+    // Level-5 evolution fork: the instant any owned weapon's next pick would
+    // bring it to level 5, replace the WHOLE normal 3-card modal with a
+    // special 4-way fork screen for that one weapon (one fork per weapon per
+    // run — see run.weaponForks / computeWeaponStats / applyCardChoice).
+    const forkWeaponId = owned.find(id => (r.weaponLvls[id] || 0) === 4 && !r.weaponForks[id]);
+    if (forkWeaponId) {
+      const def = WEAPONS[forkWeaponId];
+      const forks = getWeaponForkChoices(def);
+      return forks.map(f => ({
+        kind: 'weapon-fork',
+        weaponId: forkWeaponId,
+        forkId: f.id,
+        icon: f.icon,
+        name: `${def.name}: ${f.name}`,
+        desc: f.desc,
+        rarity: 'epic',
+      }));
+    }
+
     // Weapon upgrade options (allow infinite stacking past list)
     const newWeaponIds = Object.keys(WEAPONS)
       .filter(id => !owned.includes(id))
@@ -2639,6 +2669,13 @@ export class Game {
     } else if (choice.kind === 'weapon-new') {
       r.ownedWeapons.push(choice.weaponId);
       r.weaponLvls[choice.weaponId] = 0;
+    } else if (choice.kind === 'weapon-fork') {
+      r.weaponForks[choice.weaponId] = choice.forkId;
+      r.weaponLvls[choice.weaponId] = Math.max(r.weaponLvls[choice.weaponId] || 0, 5);
+      this.spawnRing(this.player.x, this.player.y, 150, '#b362ff', 0.7);
+      this.cam.shake = 8;
+      if (!r.pickedPassives) r.pickedPassives = [];
+      r.pickedPassives.push({ icon: choice.icon || '🔀', name: choice.name || '' });
     } else if (choice.kind === 'stat') {
       const s = choice.statRef;
       const mult = choice.multiplier;

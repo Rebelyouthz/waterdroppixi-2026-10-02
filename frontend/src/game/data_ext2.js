@@ -390,6 +390,60 @@ export const MILESTONE_BAR = [
   { atLevel: 100,rwd: { gold: 50000, sp: 100, chest: 'annunaki' } },
 ];
 
+// ---------- WEAPON EVOLUTION FORKS (in-run, level 5) ----------
+// The moment any weapon (auto or manual) hits its 5th level-up pick, the
+// normal level-up modal is replaced ONCE by a special 4-way fork screen —
+// a build-defining branch, each option a real buff bundled with a real
+// tradeoff, so the choice matters. Templates are keyed by `behaviour`
+// (see WEAPONS[id].behaviour in data.js) rather than one bespoke set per
+// weapon id, so every current AND future weapon automatically gets a
+// flavorful fork without needing manual data entry per weapon. `apply`
+// mutates the already-computed per-frame stats object, same contract as
+// the levelUps array it effectively continues (see engine.js
+// computeWeaponStats + buildLevelUpChoices/applyCardChoice).
+export const WEAPON_FORK_TEMPLATES = {
+  projectile: [
+    { id: 'splinter', name: 'Splinter Rounds', icon: '💠', desc: '+2 projectiles per shot, but -45% damage each — spread the hurt thin.', apply: (s) => { s.projectiles = (s.projectiles || 1) + 2; s.damage = (s.damage || 0) * 0.55; } },
+    { id: 'overdrive', name: 'Overdrive Barrel', icon: '⏱️', desc: '+45% fire rate, but -35% magazine size — hoses down faster, empties sooner.', apply: (s) => { s.fireRate = (s.fireRate || 1) * 1.45; s.magazine = Math.max(1, Math.floor((s.magazine || 6) * 0.65)); } },
+    { id: 'siege', name: 'Siege Rounds', icon: '🗿', desc: '+90% damage, +3 pierce, but -30% projectile speed — a heavy punishing shot.', apply: (s) => { s.damage = (s.damage || 0) * 1.9; s.pierce = (s.pierce || 0) + 3; s.projSpeed = (s.projSpeed || 500) * 0.7; } },
+    { id: 'twinLinked', name: 'Twin-Linked', icon: '➕', desc: '+1 projectile, but +80% spread — more lead in the air, less precision.', apply: (s) => { s.projectiles = (s.projectiles || 1) + 1; s.spread = (s.spread || 0.02) * 1.8; } },
+  ],
+  shotgun: [
+    { id: 'wideSpread', name: 'Wide Spread', icon: '🌫️', desc: '+3 projectiles, but -40% damage each — blanket the room.', apply: (s) => { s.projectiles = (s.projectiles || 3) + 3; s.damage = (s.damage || 0) * 0.6; } },
+    { id: 'focusedCone', name: 'Focused Cone', icon: '🎯', desc: '-60% spread, +30% damage — a tighter, harder-hitting cone.', apply: (s) => { s.spread = (s.spread || 0.3) * 0.4; s.damage = (s.damage || 0) * 1.3; } },
+    { id: 'doubleTap', name: 'Double Tap', icon: '👉', desc: '+50% fire rate, but -30% magazine — rapid-fire blasts.', apply: (s) => { s.fireRate = (s.fireRate || 1) * 1.5; s.magazine = Math.max(1, Math.floor((s.magazine || 4) * 0.7)); } },
+    { id: 'overloadBlast', name: 'Overload Blast', icon: '💥', desc: '+80% damage, +100% knockback, but -35% fire rate — a devastating slow cannon.', apply: (s) => { s.damage = (s.damage || 0) * 1.8; s.knockback = (s.knockback || 40) * 2; s.fireRate = (s.fireRate || 1) * 0.65; } },
+  ],
+  aoe: [
+    { id: 'widerReach', name: 'Wider Reach', icon: '🌀', desc: '+55% area, but -35% damage — cover more ground per swing.', apply: (s) => { s.area = (s.area || 100) * 1.55; s.damage = (s.damage || 0) * 0.65; } },
+    { id: 'rapidCycleA', name: 'Rapid Cycle', icon: '⏱️', desc: '+45% fire rate, but -25% area — quicker, tighter hits.', apply: (s) => { s.fireRate = (s.fireRate || 1) * 1.45; s.area = (s.area || 100) * 0.75; } },
+    { id: 'devastation', name: 'Devastation', icon: '☄️', desc: '+95% damage, but -35% fire rate — one massive hit at a time.', apply: (s) => { s.damage = (s.damage || 0) * 1.95; s.fireRate = (s.fireRate || 1) * 0.65; } },
+    { id: 'bleedField', name: 'Bleed Field', icon: '🩸', desc: '+15% area and applies a bleed DoT, but -20% direct damage.', apply: (s) => { s.area = (s.area || 100) * 1.15; s.damage = (s.damage || 0) * 0.8; s.bleedDot = true; } },
+  ],
+  orbit: [
+    { id: 'swarmOrbs', name: 'Swarm Orbs', icon: '🔵', desc: '+2 orbiting bodies, but -40% damage each — a denser ring.', apply: (s) => { s.orbitCount = (s.orbitCount || 1) + 2; s.damage = (s.damage || 0) * 0.6; } },
+    { id: 'heavyOrbit', name: 'Heavy Orbit', icon: '🪐', desc: '+40% orbit radius, +30% damage — a slower, wider, harder ring.', apply: (s) => { s.orbitRadius = (s.orbitRadius || 80) * 1.4; s.damage = (s.damage || 0) * 1.3; } },
+    { id: 'blitzSpin', name: 'Blitz Spin', icon: '🌪️', desc: '+70% orbit speed, but -15% damage — a fast shredding blur.', apply: (s) => { s.orbitSpeed = (s.orbitSpeed || 2) * 1.7; s.damage = (s.damage || 0) * 0.85; } },
+    { id: 'gravityWell', name: 'Gravity Well', icon: '🕳️', desc: '-30% orbit radius, +60% area (pulls foes in tighter), +20% damage.', apply: (s) => { s.orbitRadius = (s.orbitRadius || 80) * 0.7; s.area = (s.area || 100) * 1.6; s.damage = (s.damage || 0) * 1.2; } },
+  ],
+  beam: [
+    { id: 'focusFire', name: 'Focus Fire', icon: '🔴', desc: '+90% damage, but -30% fire rate — a searing, slower ray.', apply: (s) => { s.damage = (s.damage || 0) * 1.9; s.fireRate = (s.fireRate || 1) * 0.7; } },
+    { id: 'rapidDischarge', name: 'Rapid Discharge', icon: '⚡', desc: '+55% fire rate, but -30% damage — zap constantly.', apply: (s) => { s.fireRate = (s.fireRate || 1) * 1.55; s.damage = (s.damage || 0) * 0.7; } },
+    { id: 'extendedRange', name: 'Extended Range', icon: '📡', desc: '+70% range, but -20% damage — reach across the whole arena.', apply: (s) => { s.range = (s.range || 320) * 1.7; s.damage = (s.damage || 0) * 0.8; } },
+    { id: 'overchargedCrit', name: 'Overcharged Core', icon: '💥', desc: '+30% crit chance, +25% damage — every hit threatens to burst.', apply: (s) => { s.crit = (s.crit || 0.05) + 0.3; s.damage = (s.damage || 0) * 1.25; } },
+  ],
+  chain: [
+    { id: 'longerChain', name: 'Longer Chain', icon: '🔗', desc: '+4 chain jumps, but -30% damage — the current spreads much further.', apply: (s) => { s.chainCount = (s.chainCount || 3) + 4; s.damage = (s.damage || 0) * 0.7; } },
+    { id: 'widerReach', name: 'Wider Reach', icon: '🌩️', desc: '+55% chain range, but -20% damage — bounces to targets far apart.', apply: (s) => { s.chainRange = (s.chainRange || 200) * 1.55; s.damage = (s.damage || 0) * 0.8; } },
+    { id: 'overcharged', name: 'Overcharged', icon: '⚡', desc: '+80% damage, but -30% fire rate — a punishing single strike.', apply: (s) => { s.damage = (s.damage || 0) * 1.8; s.fireRate = (s.fireRate || 1) * 0.7; } },
+    { id: 'rapidDischargeC', name: 'Rapid Discharge', icon: '🔌', desc: '+55% fire rate, but -1 chain jump — fires much faster, jumps less far.', apply: (s) => { s.fireRate = (s.fireRate || 1) * 1.55; s.chainCount = Math.max(1, (s.chainCount || 3) - 1); } },
+  ],
+};
+
+export function getWeaponForkChoices(weaponDef) {
+  return WEAPON_FORK_TEMPLATES[weaponDef?.behaviour] || WEAPON_FORK_TEMPLATES.projectile;
+}
+
 // ---------- ELEMENTAL ROUNDS (Weaponsmith) ----------
 // Assignable to manual/auto weapons' bullets (see engine.js fireProjectile/
 // applyElementalEffect). Each element reuses an existing combat mechanic
