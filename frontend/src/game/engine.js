@@ -510,6 +510,30 @@ export class Game {
       if (!hasWarden) { this.spawnEnemy('swipeWarden'); this._nextWardenAt = rand(120, 180); }
       else this._nextWardenAt = 8; // recheck soon rather than spawning a second one
     }
+    // Flying swarm burst — a handful of Sky Wisps drop in together every
+    // ~45-70s, same periodic-timer pattern as the Warden above.
+    this._nextSwarmAt = this._nextSwarmAt !== undefined ? this._nextSwarmAt - dt : rand(45, 70);
+    if (this._nextSwarmAt <= 0) {
+      this._nextSwarmAt = rand(45, 70);
+      const n = 4 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < n; i++) this.spawnEnemy('skyWisp');
+    }
+    // Iron Sentinel / Blight Weaver minibosses — independent timers so they
+    // don't always show up bundled with the Warden.
+    this._nextIronAt = this._nextIronAt !== undefined ? this._nextIronAt - dt : rand(150, 210);
+    if (this._nextIronAt <= 0) {
+      let has = false;
+      this.enemies.forEach(e => { if (e.alive && e.t && e.t.id === 'ironSentinel') has = true; });
+      if (!has) { this.spawnEnemy('ironSentinel'); this._nextIronAt = rand(150, 210); }
+      else this._nextIronAt = 10;
+    }
+    this._nextBlightAt = this._nextBlightAt !== undefined ? this._nextBlightAt - dt : rand(140, 200);
+    if (this._nextBlightAt <= 0) {
+      let has = false;
+      this.enemies.forEach(e => { if (e.alive && e.t && e.t.id === 'blightWeaver') has = true; });
+      if (!has) { this.spawnEnemy('blightWeaver'); this._nextBlightAt = rand(140, 200); }
+      else this._nextBlightAt = 10;
+    }
     this.tickCardFlags(dt);
     if (this.pet) this.updatePet(dt);
 
@@ -1641,7 +1665,8 @@ export class Game {
       const dx = p.x - e.x, dy = p.y - e.y;
       const d = Math.hypot(dx, dy) || 1;
       const nx = dx / d, ny = dy / d;
-      let spd = t.speed * slowMul * (e._slowT > 0 ? (e._slowMult || 1) : 1) * (e.speedMult || 1);
+      if (e._blightBuffT > 0) { e._blightBuffT -= dt; if (e._blightBuffT <= 0) e._blightSpeedBuff = 1; }
+      let spd = t.speed * slowMul * (e._slowT > 0 ? (e._slowMult || 1) : 1) * (e.speedMult || 1) * (e._blightSpeedBuff || 1);
       if (t.ai === 'ranged') {
         if (d < (t.shootRange || 320) - 50) spd = -spd * 0.6;
         else if (d < (t.shootRange || 320) + 20) spd = 0;
@@ -1875,6 +1900,31 @@ export class Game {
             // of the dash position we already set.
             spd = 0;
           }
+        }
+      }
+
+      // === Blight Weaver: support miniboss — periodically heals + speeds
+      // up nearby enemies, giving it a real reason to be prioritized/killed
+      // first instead of just being a reskinned regular chaser. ===
+      if (t.id === 'blightWeaver') {
+        e._weaveCD = (e._weaveCD !== undefined ? e._weaveCD : 5) - dt;
+        if (e._weaveCD <= 0) {
+          e._weaveCD = 5;
+          let buffed = 0;
+          this.enemies.forEach(en => {
+            if (en === e || !en.alive || en.t.boss) return;
+            if (dist2(en.x, en.y, e.x, e.y) <= 160 * 160) {
+              en.hp = Math.min(en.maxHp, en.hp + en.maxHp * 0.25);
+              // Separate multiplicative field from the tier-based e.speedMult
+              // (spawnEnemy) so repeated buffs refresh the duration instead of
+              // compounding 1.15x every 5s forever — decayed back to 1 in
+              // updateEnemies' per-enemy tick once _blightBuffT runs out.
+              en._blightSpeedBuff = 1.15;
+              en._blightBuffT = 6;
+              buffed++;
+            }
+          });
+          if (buffed > 0) this.spawnRing(e.x, e.y, 160, '#7ad96b', 0.35);
         }
       }
 

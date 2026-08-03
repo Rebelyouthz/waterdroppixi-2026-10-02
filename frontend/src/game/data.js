@@ -524,6 +524,24 @@ export const ENEMIES = {
     id: 'swipeWarden', name: 'Warden', size: 32, hp: 900, dmg: 42, speed: 40, color: '#ffb347',
     xp: 60, gold: 40, ai: 'chase', armor: 6, noKnockback: true,
   },
+  // Flying swarm — small, fast, spawns in bursts of ~5-6 at once via a
+  // dedicated periodic timer (see engine.js update()'s _nextSwarmAt), not
+  // the normal WAVE_TIMELINE pool, so it reads as a distinct "a swarm
+  // just dropped in" moment rather than blending into regular spawns.
+  skyWisp: {
+    id: 'skyWisp', name: 'Sky Wisp', size: 12, hp: 18, dmg: 9, speed: 155, color: '#9fe0ff',
+    xp: 3, gold: 1, ai: 'chase',
+  },
+  // Minibosses (rare elites, spawn periodically like swipeWarden — not
+  // tied to WAVE_TIMELINE boss slots).
+  ironSentinel: {
+    id: 'ironSentinel', name: 'Iron Sentinel', size: 36, hp: 1600, dmg: 60, speed: 26, color: '#778899',
+    xp: 90, gold: 70, ai: 'chase', noKnockback: true,
+  },
+  blightWeaver: {
+    id: 'blightWeaver', name: 'Blight Weaver', size: 26, hp: 620, dmg: 18, speed: 58, color: '#7ad96b',
+    xp: 80, gold: 60, ai: 'chase',
+  },
   // Bosses (HP doubled)
   bossOcular: {
     id: 'bossOcular', name: 'Eye of Horus', size: 90, hp: 2400, dmg: 26, speed: 165, color: '#ffd166',
