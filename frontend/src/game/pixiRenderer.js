@@ -1922,7 +1922,29 @@ void main() {
             .arc(p.x, p.y, rad, tipAng - 0.18, tipAng + 0.04).stroke({ width: 10 * a, color: '#ffffff', alpha: a * 0.7 });
         }
       } else if (p.type === 'spark') {
-        g.circle(p.x, p.y, p.size).fill({ color: p.color, alpha: a });
+        // Motion-stretched streak instead of a flat dot — a spark flying at
+        // 400px/s reads as a line, not a circle. Length scales with actual
+        // speed and collapses back to a round dot as it slows/dies, so slow
+        // embers still look like embers.
+        const spd = Math.hypot(p.vx, p.vy);
+        if (spd > 60) {
+          const stretch = Math.min(14, spd * 0.022);
+          const inv = 1 / spd;
+          const dx = p.vx * inv, dy = p.vy * inv;
+          const w = p.size * 0.85;
+          // Quad from the trailing tail to the leading head, widest at head.
+          g.poly([
+            p.x - dx * stretch - dy * w * 0.35, p.y - dy * stretch + dx * w * 0.35,
+            p.x + dx * p.size + -dy * w, p.y + dy * p.size + dx * w,
+            p.x + dx * (p.size + 1.5), p.y + dy * (p.size + 1.5),
+            p.x + dx * p.size + dy * w, p.y + dy * p.size - dx * w,
+            p.x - dx * stretch + dy * w * 0.35, p.y - dy * stretch - dx * w * 0.35,
+          ]).fill({ color: p.color, alpha: a * 0.9 });
+          // White-hot core on the leading edge while still bright/fast.
+          if (a > 0.5) g.circle(p.x + dx * p.size * 0.4, p.y + dy * p.size * 0.4, p.size * 0.45).fill({ color: '#ffffff', alpha: (a - 0.5) * 1.4 });
+        } else {
+          g.circle(p.x, p.y, p.size).fill({ color: p.color, alpha: a });
+        }
       } else if (p.type === 'ash') {
         // Level-up "water-to-ash": droplets cool from icy blue into grey
         // ash flecks as they drift up and burn out.
