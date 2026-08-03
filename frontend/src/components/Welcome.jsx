@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AVATARS, DAILY_REWARDS, accountXpToNext, dailyQuests, CHESTS, rollChest, weeklyQuests, weekIdx, rollSpinWheel, SPIN_WHEEL_SLICES } from '../game/data_ext';
 import { todayIdx, applyReward } from '../store';
 import { useAuth } from '../auth';
@@ -52,6 +52,21 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
   const [spinResult, setSpinResult] = useState(null);
 
   const today = todayIdx();
+  // Daily/weekly quest progress is keyed by quest id and never expired —
+  // since the quest pool is small (5 of 8 daily, 3 of 5 weekly), the same
+  // id reliably reappears on a later day/week and, without this reset,
+  // would show up permanently "already claimed" from the first time it was
+  // ever completed. Reset completed/claimed the moment the day/week index
+  // actually changes (checked once, not on every render).
+  useEffect(() => {
+    const day = todayIdx(); const wk = weekIdx();
+    let changed = false;
+    const ns = { ...save };
+    if (save.quests.day !== day) { ns.quests = { day, completed: {}, claimed: {} }; changed = true; }
+    if (save.weeklyQuests.week !== wk) { ns.weeklyQuests = { week: wk, completed: {}, claimed: {} }; changed = true; }
+    if (changed) setSave(ns);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const canClaim = save.daily.lastClaim !== today;
   const streakDay = (canClaim ? (save.daily.streak || 0) % 7 : ((save.daily.streak || 1) - 1) % 7) + 1;
   const claimableReward = DAILY_REWARDS[(streakDay - 1) % 7];
