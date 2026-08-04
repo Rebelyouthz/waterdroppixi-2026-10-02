@@ -2043,6 +2043,45 @@ void main() {
       }
     }
 
+    // Attachments. Drawn from the same local-space box helper as the weapon
+    // itself, so a socketed part sits ON the gun rather than floating near
+    // it. If you cannot see it, it is a stat, not a part — see
+    // game/attachments.js.
+    const att = game._attachLooks;
+    if (att) {
+      const m = model.muzzle;
+      if (att.barrel) {
+        const c = att.barrel.color;
+        if (att.barrel.look === 'long')   { box(m - 2, -1.8, 12, 3.6, '#2a313d'); box(m + 9, -2.4, 2, 4.8, c); }
+        if (att.barrel.look === 'short')  { box(m - 8, -2.6, 4, 5.2, c); }
+        if (att.barrel.look === 'ported') { box(m - 9, -3.2, 8, 1.4, c); box(m - 9, 1.8, 8, 1.4, c); }
+      }
+      if (att.optic) {
+        const c = att.optic.color;
+        if (att.optic.look === 'dot')   { box(4, -8.4, 6, 3.2, '#11161e'); box(5.5, -9.6, 3, 1.6, c); }
+        if (att.optic.look === 'scope') { box(2, -9.6, 15, 4.4, '#11161e'); box(15, -9.2, 2, 3.6, c); box(3, -10.6, 3, 1.4, '#2a313d'); }
+        if (att.optic.look === 'wide')  { box(3, -8.0, 11, 2.6, '#11161e'); box(3, -8.8, 11, 1.0, c); }
+      }
+      if (att.magazine) {
+        const c = att.magazine.color;
+        if (att.magazine.look === 'drum')  { box(-5, 3, 10, 11, '#2a313d'); box(-3.5, 5, 7, 7, c); }
+        if (att.magazine.look === 'short') { box(-4, 3, 6, 6, c); }
+        if (att.magazine.look === 'belt')  { for (let i = 0; i < 5; i++) box(-6 - i * 3, 4 + i * 1.6, 2.4, 2.4, c); }
+      }
+      if (att.underbarrel) {
+        const c = att.underbarrel.color;
+        if (att.underbarrel.look === 'grip')    { box(11, 2.6, 3.4, 8, c); }
+        if (att.underbarrel.look === 'bipod')   { box(m - 10, 2.6, 1.6, 7, c); box(m - 4, 2.6, 1.6, 7, c); }
+        if (att.underbarrel.look === 'bayonet') { box(m - 2, -0.8, 13, 1.8, c); }
+      }
+      if (att.coating) {
+        // A wash tints the whole weapon rather than adding geometry.
+        for (const [lx, ly, lw, lh] of model.parts.map(p => p)) {
+          box(lx, ly, lw, lh, att.coating.color, 0.22);
+        }
+      }
+    }
+
     // Slide travel from the reload pose lands on the model's own slide box.
     if (rl.slide !== 0 && model.slide) {
       const [sx, sy, sw, sh] = model.slide;

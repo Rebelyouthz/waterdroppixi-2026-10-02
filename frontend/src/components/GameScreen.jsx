@@ -9,6 +9,7 @@ import { applyArtifactsToStats } from '../game/artifacts';
 import { applyRunesToStats } from '../game/runes';
 import { Audio } from '../game/audio';
 import { petStageMult } from './PetPanel';
+import { attachmentLooks } from '../game/attachments';
 import HUD from './HUD';
 import LevelUpModal from './LevelUpModal';
 import GameOver from './GameOverScreen';
@@ -210,6 +211,11 @@ export default function GameScreen({ save, setSave, onExit, onRunEnd, mission })
       meta,
       attrs: save.attrs || {},
       weaponElements: save.weaponElements || {},
+      saveRef: save,   // weapon attachments read the socket map + inventory
+      // Resolved once per run rather than per frame — attachments cannot
+      // change mid-run, and the renderer should not be searching an inventory
+      // sixty times a second.
+      attachFor: (wid) => attachmentLooks(save, wid),
       cosmetics: {
         headbandColor: HEADBANDS.find(h => h.id === save.profile?.headband)?.color || null,
         cigarOn: !!save.profile?.cigarOn,

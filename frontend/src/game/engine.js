@@ -1,6 +1,7 @@
 // Waterdrop Survivor — Canvas 2D engine with pooling, twin-stick combat, juicy effects.
 import { WEAPONS, ENEMIES, STAT_CARDS, RARITY, rollRarity, waveAt, nextBossEvent, WEAPON_EVO_MAP, metaCost } from './data';
 import { ACTIVE_SKILLS, KILL_FX, ENEMY_KILL_FX, ADVANCED_CARDS, ELEMENTS, getWeaponForkChoices, WEAPON_SET_BONUSES, WEAPON_UPGRADE_NAMES } from './data_ext2';
+import { applyAttachments } from './attachments';
 import { Audio } from './audio';
 import { PixiRenderer } from './pixiRenderer';
 
@@ -142,6 +143,12 @@ export class Game {
     // linear meta-effects pipeline, so they read straight from here.
     this.weaponElements = opts.weaponElements || {}; // { weaponId: [elementId, ...] } — Weaponsmith
     this.cosmetics = opts.cosmetics || {}; // { headbandColor, cigarOn } — see ProfilePanel rank unlocks
+    // Read-only view of the save, for systems whose data is too structured to
+    // flatten into the meta-key pipeline — currently just weapon attachments,
+    // which need the socket map AND the attachment inventory together.
+    this.saveRef = opts.saveRef || null;
+    this.attachFor = opts.attachFor || null;
+    this._attachLooks = null;
     this.callbacks = opts.callbacks || {};
     // Active pet in-game
     this.activePet = opts.activePet || null;
@@ -1411,7 +1418,16 @@ export class Game {
           // manual weapon runs through weaponManualPistol each frame, so
           // taking the last would make the held model flicker between them.
           if (w.type === 'manual') {
-            if (!this._heldWidSet) { this._heldWid = wid; this._heldWidSet = true; }
+            if (!this._heldWidSet) {
+              if (wid !== this._heldWid) {
+                this._heldWid = wid;
+                // Resolved on change only — attachments cannot change during
+                // a run, so the renderer should not search an inventory
+                // sixty times a second for them.
+                this._attachLooks = this.attachFor ? this.attachFor(wid) : null;
+              }
+              this._heldWidSet = true;
+            }
             this.weaponManualPistol(stats, dt);
           }
           else this.weaponAutoBolts(stats, dt);
@@ -1478,6 +1494,9 @@ export class Game {
     // Tempo is: one place, every weapon.
     const wf = this.weatherFireRate();
     if (wf !== 1) s.fireRate = (s.fireRate || 0) * wf;
+    // Attachments last of all, so a barrel that says "+16% damage" means 16%
+    // of everything else you have already built on this weapon.
+    if (wid) applyAttachments(this.saveRef, wid, s);
     return s;
   }
 

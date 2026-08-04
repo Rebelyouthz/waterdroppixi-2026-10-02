@@ -106,6 +106,8 @@ export const DEFAULT_SAVE = {
   // Waterdrop Clicker. `drops` is spendable inside the clicker only; `total`
   // is lifetime production, which is what the milestone ladder pays against.
   clicker: { drops: 0, total: 0, buildings: {}, clickLvl: 0, claimed: {}, lastMs: 0 },
+  attachInventory: [],       // found weapon attachments (see game/attachments.js)
+  weaponAttach: {},          // { weaponId: { barrel|optic|magazine|underbarrel|coating: attachId } }
   base: {},                  // building id -> level (see game/base.js)
   gearParts: 0,              // spent to level equipment 1..10 (see game/gear.js)
   probe: {},                 // Astro Prospector probe upgrade levels
@@ -176,6 +178,8 @@ export function loadSave() {
     s.flux = s.flux || 0;
     s.clicker = { ...DEFAULT_SAVE.clicker, ...(s.clicker || {}) };
     if (!s.clicker.lastMs) s.clicker.lastMs = Date.now();
+    s.attachInventory = s.attachInventory || [];
+    s.weaponAttach = s.weaponAttach || {};
     s.base = s.base || {};
     s.gearParts = s.gearParts || 0;
     // Gear predating the levelling system has no level. Treating a missing

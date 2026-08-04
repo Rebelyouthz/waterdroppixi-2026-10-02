@@ -3,6 +3,7 @@ import { ENEMIES } from '../game/data';
 import { STARTER_WEAPONS, ACHIEVEMENTS } from '../game/data_ext2';
 import { rollGearDrop } from '../game/gear';
 import { rollRune } from '../game/runes';
+import { rollAttachment } from '../game/attachments';
 import { patrolSlots, patrolRewardMult } from '../game/base';
 import CardBattle from './CardBattle';
 
@@ -43,19 +44,19 @@ const PATROL_DEFS = [
   },
   {
     id: 'explore', name: 'Explore', icon: '🗺', dur: 2 * 60 * 60 * 1000,
-    rwd: { gems: 5, gold: 900, gearParts: 22, chance: [{ p: 0.35, rune: true }, { p: 0.25, petFood: 3 }] },
+    rwd: { gems: 5, gold: 900, gearParts: 22, chance: [{ p: 0.35, rune: true }, { p: 0.25, petFood: 3 }, { p: 0.25, attach: true }] },
     desc: '2h — Venture deep. Gems, scrap, and sometimes a rune.',
   },
   {
     id: 'hunt', name: 'Hunt', icon: '⚔', dur: 3 * 60 * 60 * 1000,
-    rwd: { gear: true, gold: 1400, gearParts: 38, slotCoins: 2, chance: [{ p: 0.45, rune: true }, { p: 0.30, egg: true }] },
+    rwd: { gear: true, gold: 1400, gearParts: 38, slotCoins: 2, chance: [{ p: 0.45, rune: true }, { p: 0.30, egg: true }, { p: 0.40, attach: true }] },
     desc: '3h — Track them down. Equipment, scrap, sometimes an egg.',
   },
   {
     id: 'void', name: 'Void Raid', icon: '💀', dur: 4 * 60 * 60 * 1000,
     rwd: {
       sp: 8, gems: 8, xp: 400, gold: 2200, gearParts: 60, gachaTokens: 1,
-      chance: [{ p: 0.6, rune: true }, { p: 0.45, gear: true }, { p: 0.2, flux: 1 }],
+      chance: [{ p: 0.6, rune: true }, { p: 0.45, gear: true }, { p: 0.2, flux: 1 }, { p: 0.55, attach: true }],
     },
     desc: '4h — Raid the void. The best of everything, and Flux if you are lucky.',
   },
@@ -149,6 +150,7 @@ export function PatrolPanel({ save, setSave }) {
       if (rwd.xp)        { ns.profile = { ...ns.profile, xp: (ns.profile?.xp || 0) + Math.round(rwd.xp * petMultF) }; got.push(`XP ${Math.round(rwd.xp * petMultF)}`); }
       if (rwd.gear)      { ns.gearInventory = [...(ns.gearInventory || []), rollGearDrop(m.durationMs / 1000)]; got.push('🪖 Equipment'); }
       if (rwd.rune)      { ns.runeInventory = [...(ns.runeInventory || []), rollRune(ns.attrs?.luck || 0)]; got.push('🔮 Rune'); }
+      if (rwd.attach)    { ns.attachInventory = [...(ns.attachInventory || []), rollAttachment(ns.attrs?.luck || 0)]; got.push('🔩 Attachment'); }
       if (rwd.egg) {
         const rarities = ['common', 'common', 'uncommon', 'rare'];
         const types = ['aquaSprite', 'shadowWisp', 'emberFairy', 'stormHawk', 'lifeSprite'];

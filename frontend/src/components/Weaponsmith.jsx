@@ -6,6 +6,14 @@ import { RUNE_RARITY_COLORS, RUNE_RARITIES, getRuneMergeGroups, mergeRunes, roll
 import { mergeChance, FLUX_PER_MERGE_MAX } from '../game/forge';
 import { Audio } from '../game/audio';
 import GameIcon, { ICONS } from './GameIcon';
+import { ATTACH_SLOTS, ATTACH_SLOT_INFO, ATTACH_RARITY_COLORS } from '../game/attachments';
+
+// Short labels for the stats an attachment moves.
+const ATC_STAT = {
+  damage: 'damage', fireRate: 'fire rate', projSpeed: 'velocity',
+  magazine: 'magazine', reload: 'reload time', accuracy: 'accuracy',
+  crit: 'crit', knockback: 'knockback', spreadAdd: 'spread',
+};
 
 const PART_RAR_CLS = { common: 'r-common', magic: 'r-magic', rare: 'r-rare', epic: 'r-epic', legendary: 'r-legendary', mythical: 'r-mythical' };
 
@@ -39,6 +47,20 @@ export default function Weaponsmith({ save, setSave, onClose }) {
   const unsocketRune = () => { const wr = { ...weaponRunes }; delete wr[wid]; setSave({ ...save, weaponRunes: wr }); };
   // Same gamble as gear (see game/forge.js): the merge can fail and takes 2
   // of the 3 with it. Flux is burned whether or not it lands.
+  // ---- Attachments ----
+  const attInv = save.attachInventory || [];
+  const wAtt = (save.weaponAttach || {})[wid] || {};
+  const [attSlot, setAttSlot] = useState(null);
+  const fitAttachment = (slot, attId) => {
+    const cur = { ...(save.weaponAttach || {}) };
+    const forWeapon = { ...(cur[wid] || {}) };
+    if (attId) forWeapon[slot] = attId; else delete forWeapon[slot];
+    cur[wid] = forWeapon;
+    setSave({ ...save, weaponAttach: cur });
+    setAttSlot(null);
+    Audio.claimPing();
+  };
+
   const [runeFlux, setRuneFlux] = useState(0);
   const [forgeMsg, setForgeMsg] = useState('');
   const doMergeRunes = (stat, rarity) => {
@@ -328,6 +350,60 @@ export default function Weaponsmith({ save, setSave, onClose }) {
               })() : <div style={{ color: 'var(--ink-dim)', fontFamily: 'VT323', fontSize: 13 }}>— empty socket —</div>}
             </div>
           )}
+
+          {/* Attachments — five sockets on every weapon, each a trade. */}
+          <div className="atc-block">
+            <div className="atc-head">
+              <span>🔩 ATTACHMENTS</span>
+              <span className="atc-sub">{attInv.length} in stock</span>
+            </div>
+            <div className="atc-slots">
+              {ATTACH_SLOTS.map(slot => {
+                const info = ATTACH_SLOT_INFO[slot];
+                const fitted = attInv.find(a => a.id === (wAtt[slot]));
+                return (
+                  <button key={slot}
+                          className={`atc-slot${fitted ? ' filled' : ''}${attSlot === slot ? ' open' : ''}`}
+                          style={{ '--ac': fitted ? ATTACH_RARITY_COLORS[fitted.rarity] : '#ffffff22' }}
+                          onClick={() => setAttSlot(attSlot === slot ? null : slot)}
+                          data-testid={`atc-slot-${slot}`}>
+                    <GameIcon name={info.icon} tone={fitted ? ATTACH_RARITY_COLORS[fitted.rarity] : '#5a6a7a'} size={22} />
+                    <span className="atc-slot-name">{info.name}</span>
+                    <span className="atc-slot-fit">{fitted ? fitted.name : '— empty —'}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {attSlot && (
+              <div className="atc-picker">
+                <div className="atc-picker-head">{ATTACH_SLOT_INFO[attSlot].desc}</div>
+                {wAtt[attSlot] && (
+                  <button className="atc-opt atc-clear" onClick={() => fitAttachment(attSlot, null)}>
+                    ✕ Remove fitted part
+                  </button>
+                )}
+                {attInv.filter(a => a.slot === attSlot).length === 0 && (
+                  <div className="atc-empty">Nothing for this slot yet — they drop from patrols and the Prospector.</div>
+                )}
+                {attInv.filter(a => a.slot === attSlot).map(a => (
+                  <button key={a.id} className="atc-opt" style={{ '--ac': ATTACH_RARITY_COLORS[a.rarity] }}
+                          onClick={() => fitAttachment(attSlot, a.id)}>
+                    <span className="atc-opt-name">{a.name}</span>
+                    <span className="atc-opt-mods">
+                      {Object.entries(a.mods).map(([k, v]) => (
+                        <i key={k} className="up">+{Math.round(v * 100)}% {ATC_STAT[k] || k}</i>
+                      ))}
+                      {Object.entries(a.cost).map(([k, v]) => (
+                        <i key={k} className="down">{k === 'reload' ? '+' : '−'}{Math.round(Math.abs(v) * 100)}% {ATC_STAT[k] || k}</i>
+                      ))}
+                      {a.element && <i className="elem">{a.element} rounds</i>}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           {runeMergeGroups.length > 0 && (
             <div style={{ marginBottom: 16 }}>
