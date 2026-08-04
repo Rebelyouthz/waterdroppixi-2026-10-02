@@ -13,6 +13,7 @@ import { mergeChance, FLUX_PER_MERGE_MAX } from '../game/forge';
 import { forgeBonus } from '../game/base';
 import { Audio } from '../game/audio';
 import { heroBodyPath, HERO_RIG, HERO_COLORS } from '../game/heroShape';
+import { COMPANIONS, isRescued } from '../game/companions';
 
 // The paperdoll figure. Same silhouette and rig as the in-game hero, drawn
 // as SVG instead of into a canvas. R is in viewBox units.
@@ -487,6 +488,11 @@ export default function GearPanel({ save, setSave }) {
       {tab === 'merge' && (
         <div className="gear-forge">
           <div className="gear-forge-title">FORGE — Merge 3 of same type &amp; rarity → chance at higher rarity</div>
+          {isRescued(save, 'mira') && (
+            <div className="npc-host-line" style={{ '--nc': COMPANIONS.mira.color }}>
+              "{COMPANIONS.mira.homeLine}" <i>— Mira</i>
+            </div>
+          )}
           <div className="forge-flux-bar">
             <span className="forge-flux-label">⚗ FLUX CATALYST</span>
             <div className="forge-flux-pips">

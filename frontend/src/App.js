@@ -18,6 +18,7 @@ import { rollRune } from './game/runes';
 import { rewardTier, rollCampaignChest, nextCampaignNode, nodeToMission, REWARD_TIERS } from './game/campaign';
 import { PET_TYPES } from './components/PetPanel';
 import ToastHost from './components/ToastHost';
+import { pushToast } from './game/toastBus';
 
 function AppInner() {
   const [view, setView] = useState(null);
@@ -168,6 +169,18 @@ function AppInner() {
       // Reaching or beating the guardian is the whole point of a node — the
       // dopamine crash-swell belongs here, not on a generic chest tier.
       if (tier >= 2) Audio.rewardFanfare();
+
+      // Companion rescue — requires the node actually cleared AND the
+      // companion still alive at the end. A player death fails the whole
+      // run, same as everything else that would have been banked from it;
+      // the companion going down mid-fight fails just the rescue, node
+      // clear still pays out normally.
+      if (result.victory && mission.companion && result.companionNpc && result.companionNpc.alive) {
+        const cid = mission.companion.id;
+        ns.companions = { ...(ns.companions || {}), [cid]: { rescued: true } };
+        pushToast({ tone: 'legendary', icon: 'heart', title: `${mission.companion.name} rescued`, text: mission.companion.homeLine });
+        Audio.rewardFanfare();
+      }
     }
 
     if (result.victory && mission && mission.id && mission.id.startsWith('m_')) {

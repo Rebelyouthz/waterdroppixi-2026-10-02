@@ -11,6 +11,7 @@ import { Audio } from '../game/audio';
 import { petStageMult } from './PetPanel';
 import { attachmentLooks } from '../game/attachments';
 import { pushToast } from '../game/toastBus';
+import { isRescued } from '../game/companions';
 import HUD from './HUD';
 import LevelUpModal from './LevelUpModal';
 import GameOver from './GameOverScreen';
@@ -219,6 +220,10 @@ export default function GameScreen({ save, setSave, onExit, onRunEnd, mission })
       // Campaign node: hold-out time before the map's guardian arrives.
       bossAt: mission ? (mission.bossAt || 0) : 0,
       bossId: mission ? (mission.bossId || null) : null,
+      // Only spawn the companion if this node has one AND they haven't
+      // already been rescued — a node replayed after the fact is just the
+      // node, not a repeat rescue.
+      rescueCompanion: (mission && mission.companion && !isRescued(save, mission.companion.id)) ? mission.companion : null,
       stage: mission ? null : null,
       challenge: mission && mission.isChallenge ? mission.mod : null,
       tutorialMode: isTutorial,

@@ -10,6 +10,8 @@
 // system and nothing else. A building that hands out generic stats is just a
 // meta-upgrade wearing a hat, and then the base is decoration.
 
+import { companionDefenceBonus } from './companions';
+
 export const BUILDINGS = {
   hangar: {
     id: 'hangar', name: 'Hangar', icon: 'drone', accent: '#5fd6ff', max: 10,
@@ -97,9 +99,13 @@ export function raidHullMult(save) {
 // first wave arrives.
 export function defenceStart(save) {
   const l = buildingLevel(save, 'rampart');
+  // Bram (the rescued companion whose role is Base Defence — see
+  // game/companions.js) adds on top of the Rampart rather than replacing
+  // it, same as every other bonus source in this file stacks.
+  const bonus = companionDefenceBonus(save);
   return {
-    coreMax: 100 + l * 12,
-    scrap: 90 + l * 15,
+    coreMax: 100 + l * 12 + bonus.coreMax,
+    scrap: 90 + l * 15 + bonus.scrap,
     freeTowers: l >= 8 ? 2 : l >= 4 ? 1 : 0,
   };
 }

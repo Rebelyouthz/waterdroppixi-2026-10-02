@@ -192,6 +192,20 @@ export class Game {
     // Player
     this.player = this.createPlayer();
 
+    // A companion found and rescued in the storyline (see game/companions.js).
+    // Spawned as a second, defendable body — not player-controlled, takes
+    // gentle contact damage from nearby enemies, and comes home with you if
+    // still alive when the node clears.
+    this.companionNpc = null;
+    if (opts.rescueCompanion) {
+      const c = opts.rescueCompanion;
+      this.companionNpc = {
+        id: c.id, name: c.name, build: c.build, color: c.color, colorDeep: c.colorDeep,
+        x: this.player.x + 150, y: this.player.y, r: 13,
+        hp: 120, maxHp: 120, alive: true, hit: 0,
+      };
+    }
+
     // Stats / run state
     this.run = {
       time: 0, kills: 0, level: 1, xp: 0, xpToNext: 16, gold: 0,
@@ -544,6 +558,11 @@ export class Game {
       level: this.run.level, xp: this.run.xp, xpToNext: this.run.xpToNext,
       kills: this.run.kills, gold: this.run.gold,
       gearParts: this.run.gearParts || 0,
+      // Companion rescue — see game/companions.js. null when this node has
+      // none; otherwise the HUD shows a small "PROTECT [NAME]" bar.
+      companionNpc: this.companionNpc
+        ? { name: this.companionNpc.name, hp: this.companionNpc.hp, maxHp: this.companionNpc.maxHp, alive: this.companionNpc.alive }
+        : null,
       // Campaign HUD: how long until the guardian, and whether it is up.
       campaignBossAt: this.campaignBossAt || 0,
       campaignBossUp: !!(this._campaignBoss && this._campaignBoss.alive),
@@ -648,6 +667,7 @@ export class Game {
     this.updateBossArrow(dt);
     this.updateWeapons(dt);
     this.updateEnemies(dt);
+    this.updateCompanion(dt);
     this.updateProjs(dt);
     this.updateEProjs(dt);
     this.updateParts(dt);
@@ -2170,6 +2190,34 @@ export class Game {
     this.cam.shake = 18;
     this.cam.slowmo = 0.6;
     this.spawnDamageNumber(p.x, p.y - 60, t.name.toUpperCase() + '!', t.color || '#fff');
+  }
+
+  // The companion is not player-controlled and doesn't fight back — the
+  // objective is purely "clear the crowd around them before they go down".
+  // Contact damage is deliberately gentler than the player's own (0.4x,
+  // unmitigated by armor/dodge since they have none) so losing them reads
+  // as a real failure to clear the area in time, not an unwinnable timer.
+  updateCompanion(dt) {
+    const c = this.companionNpc;
+    if (!c || !c.alive) return;
+    c.hit = Math.max(0, c.hit - dt);
+    const R = c.r + this._maxEnemyR + 4;
+    let dmg = 0;
+    this.enemyGrid.query(c.x, c.y, R, (e) => {
+      if (!e.alive) return;
+      const d2 = dist2(e.x, e.y, c.x, c.y);
+      const touchR = c.r + (e.t?.size || 12) * 0.5;
+      if (d2 <= touchR * touchR) dmg += (e.t?.dmg || 6) * 0.4 * dt;
+    });
+    if (dmg > 0) {
+      c.hp = Math.max(0, c.hp - dmg);
+      c.hit = 0.15;
+      if (c.hp <= 0) {
+        c.alive = false;
+        this.spawnDamageNumber(c.x, c.y - 20, `${c.name} DOWN`, '#ff5566', 16);
+        Audio.hit();
+      }
+    }
   }
 
   updateEnemies(dt) {

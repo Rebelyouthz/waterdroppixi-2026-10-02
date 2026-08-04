@@ -4833,3 +4833,54 @@ canvas#game, canvas.starraid-canvas {
   .joy-stats { bottom: 96px; gap: 7px; }
   .joy-stat-bar { width: 44px; }
 }
+
+/* ============================================
+   COMPANION RESCUE HUD
+   ============================================ */
+.hud-companion {
+  position: fixed; top: 42px; left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 4px 14px; z-index: 1400; pointer-events: none;
+  font-family: 'VT323', monospace;
+  background: linear-gradient(180deg, rgba(122,217,107,0.14), rgba(0,0,0,0.5));
+  border: 1px solid rgba(122,217,107,0.4);
+}
+.hud-companion-label { font-size: 10px; letter-spacing: 0.22em; color: #c8ffc0; }
+.hud-companion-bar {
+  width: 140px; height: 5px; background: #05080ea0; border: 1px solid #ffffff20;
+  overflow: hidden;
+}
+.hud-companion-bar i {
+  display: block; height: 100%; background: linear-gradient(90deg, #4dff91, #b6ffd2);
+  box-shadow: 0 0 8px #4dff9188; transition: width 0.25s ease;
+}
+.hud-companion.down { border-color: #ff5566; background: linear-gradient(180deg, rgba(255,85,102,0.18), rgba(0,0,0,0.5)); }
+.hud-companion.down .hud-companion-label { color: #ffb3bb; }
+.hud-companion.down .hud-companion-bar i { background: #55424a; box-shadow: none; }
+
+/* ============================================
+   COMPANIONS — visible at the base once rescued
+   ============================================ */
+.base-companions { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.base-comp {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 10px; background: #ffffff06; border: 1px solid #ffffff14;
+  opacity: 0.5;
+}
+.base-comp.here { opacity: 1; border-color: var(--cc); background: color-mix(in srgb, var(--cc) 10%, transparent); }
+.base-comp-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: #3a3a3a; flex: 0 0 auto;
+}
+.base-comp.here .base-comp-dot { background: var(--cc); box-shadow: 0 0 8px var(--cc); }
+.base-comp-name { font-family: 'VT323', monospace; font-size: 14px; color: var(--ink); }
+.base-comp.here .base-comp-name { color: var(--cc); }
+.base-comp-role { font-size: 9.5px; color: var(--ink-dim); letter-spacing: 0.04em; }
+
+.npc-host-line {
+  font-family: 'VT323', monospace; font-size: 13px; font-style: italic;
+  color: var(--nc, #cfe6ff); letter-spacing: 0.02em; line-height: 1.4;
+  padding: 6px 10px; margin-bottom: 10px;
+  background: color-mix(in srgb, var(--nc, #7cd6ff) 8%, transparent);
+  border-left: 2px solid var(--nc, #7cd6ff);
+}
+.npc-host-line i { font-style: normal; opacity: 0.7; }

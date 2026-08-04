@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { BUILDINGS, buildingLevel, buildingCost } from '../game/base';
+import { COMPANION_LIST, isRescued } from '../game/companions';
 import { Audio } from '../game/audio';
 import GameIcon from './GameIcon';
 
@@ -38,6 +39,23 @@ export default function BasePanel({ save, setSave, onOpen, onClose }) {
           <button className="prosp-close" onClick={onClose}>✕</button>
         </div>
         {toast && <div className="base-toast">{toast}</div>}
+
+        {/* Companions found in the storyline stand here once rescued —
+            silent otherwise, since a slot for someone you haven't met yet
+            would just read as a locked feature rather than a person. */}
+        <div className="base-companions" data-testid="base-companions">
+          {COMPANION_LIST.map(c => {
+            const has = isRescued(save, c.id);
+            return (
+              <div key={c.id} className={`base-comp${has ? ' here' : ''}`} style={{ '--cc': c.color }}
+                   title={has ? c.bio : 'Not yet found.'}>
+                <span className="base-comp-dot" />
+                <span className="base-comp-name">{has ? c.name : '???'}</span>
+                <span className="base-comp-role">{has ? c.title : 'somewhere in the story'}</span>
+              </div>
+            );
+          })}
+        </div>
 
         <div className="base-grid">
           {Object.values(BUILDINGS).map(b => {

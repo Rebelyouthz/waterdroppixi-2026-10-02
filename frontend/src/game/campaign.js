@@ -11,6 +11,7 @@
 // is why the old nodes all felt the same regardless of length.
 
 import { MAP_STAGES } from './data_ext2';
+import { companionForNode } from './companions';
 
 // Which boss closes each map. Ordered so a map's finale escalates with how
 // far into the story it sits.
@@ -117,6 +118,9 @@ export function nodeToMission(node) {
     bossId: MAP_BOSS[node.mapId] || 'bossOcular',
     spawnMult: node.spawnMult || 1,
     enemyMix: node.enemyMix,
+    // If this node is where a companion is found, the run spawns them as a
+    // defendable second body — see engine.js's rescueCompanion.
+    companion: companionForNode(node.id),
     node,
   };
 }

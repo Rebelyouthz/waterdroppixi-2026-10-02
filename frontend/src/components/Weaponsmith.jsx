@@ -7,6 +7,7 @@ import { mergeChance, FLUX_PER_MERGE_MAX } from '../game/forge';
 import { Audio } from '../game/audio';
 import GameIcon, { ICONS } from './GameIcon';
 import { ATTACH_SLOTS, ATTACH_SLOT_INFO, ATTACH_RARITY_COLORS } from '../game/attachments';
+import { COMPANIONS, isRescued } from '../game/companions';
 
 // Short labels for the stats an attachment moves.
 const ATC_STAT = {
@@ -148,6 +149,11 @@ export default function Weaponsmith({ save, setSave, onClose }) {
           <div className="forge-gold">★ {save.gold}</div>
           <button onClick={onClose} style={{ padding: '6px 12px', fontSize: 12 }}>✕</button>
         </div>
+        {isRescued(save, 'finn') && (
+          <div className="npc-host-line" style={{ '--nc': COMPANIONS.finn.color }}>
+            "{COMPANIONS.finn.homeLine}" <i>— Finn</i>
+          </div>
+        )}
 
         <div className="gear-tabs" style={{ marginBottom: 12 }}>
           {/* Three axes, and they must not sound like each other:

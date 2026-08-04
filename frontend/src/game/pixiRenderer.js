@@ -305,6 +305,9 @@ export class PixiRenderer {
     // exactly where the old flat body fill used to be.
     this.world.addChild(this.playerBodySprite);
     this.gPlayerFront = new Graphics(); this.world.addChild(this.gPlayerFront);
+    // A rescuable companion (see game/companions.js) — its own layer, drawn
+    // right after the player, same z-band as the pet.
+    this.gCompanion = new Graphics(); this.world.addChild(this.gCompanion);
     this.gPet = new Graphics(); this.world.addChild(this.gPet);
     this.petLevelText = new Text({ text: '', style: this._textStyle(6, '#fff') });
     this.petLevelText.anchor.set(0.5); this.world.addChild(this.petLevelText);
@@ -667,6 +670,7 @@ void main() {
     this._drawEnemies(game);
     this._drawEnemyTierTags(game);
     this._drawPlayer(game);
+    if (game.companionNpc) this._drawCompanion(game);
     if (game.pet) this._drawPet(game);
     this._drawProjectiles(game);
     this._drawLitHydroProjectiles(game);
@@ -2394,6 +2398,39 @@ void main() {
   }
 
   // -------------------------------- PET ------------------------------------
+  // A rescuable companion (see game/companions.js). Reuses the hero's own
+  // silhouette (heroHalfPoints) rather than new art, but scaled per build —
+  // "stout" wide and low, "slender" narrow and tall — so it reads as a
+  // different person, not a recolored copy of the player.
+  _drawCompanion(game) {
+    const g = this.gCompanion; g.clear();
+    const c = game.companionNpc;
+    if (!c.alive) {
+      // A dim marker where they fell — the rescue failed, but the ground
+      // still remembers it happened, same as the player's own corpse marks.
+      g.circle(c.x, c.y, c.r * 0.8).fill({ color: '#3a3a3a', alpha: 0.35 });
+      return;
+    }
+    const [sqx, sqy] = c.build === 'slender' ? [0.75, 1.25] : [1.35, 0.85];
+    const half = heroHalfPoints(c.r, 8);
+    const localPts = [];
+    for (let i = 0; i < half.length; i += 2) localPts.push(half[i], half[i + 1]);
+    for (let i = half.length - 2; i >= 0; i -= 2) localPts.push(-half[i], half[i + 1]);
+    const pts = scalePts(localPts, sqx, sqy);
+    const poly = [];
+    for (let i = 0; i < pts.length; i += 2) poly.push(c.x + pts[i], c.y + pts[i + 1]);
+
+    g.ellipse(c.x, c.y + c.r * 0.95, c.r * 0.85 * sqx, c.r * 0.3).fill({ color: '#000000', alpha: 0.4 });
+    // A brief hit flash reuses the same white-tint convention the player's
+    // own p.hit uses, so getting shot at reads the same way on either body.
+    const fillColor = c.hit > 0 ? '#ffffff' : c.color;
+    g.poly(poly).fill({ color: fillColor, alpha: 0.94 }).stroke({ width: 2, color: c.colorDeep || '#06121e' });
+    g.ellipse(c.x - c.r * 0.3, c.y - c.r * 0.4, 2.2, 3.4).fill({ color: '#ffffff', alpha: 0.75 });
+    // Low-hp glow — same "something is wrong" read the player's own hp-low
+    // vignette gives, localized to their body instead of the whole screen.
+    if (c.hp / c.maxHp < 0.35) glow(g, c.x, c.y, c.r * 1.4, '#ff5566', 0.8);
+  }
+
   _drawPet(game) {
     const g = this.gPet; g.clear();
     const pet = game.pet;

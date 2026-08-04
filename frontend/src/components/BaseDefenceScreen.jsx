@@ -3,6 +3,7 @@ import {
   TOWERS, LANES, buildWave, waveReward, towerStats, towerUpgradeCost, defenceBuff,
 } from '../game/basedefence';
 import { defenceStart } from '../game/base';
+import { COMPANIONS, isRescued } from '../game/companions';
 import { Audio } from '../game/audio';
 import GameIcon from './GameIcon';
 
@@ -309,6 +310,11 @@ export default function BaseDefenceScreen({ save, setSave, onClose }) {
           <span className="bd-stat">⚙ <b>{ui.scrap}</b></span>
           <button className="prosp-close" onClick={finish}>✕</button>
         </div>
+        {isRescued(save, 'bram') && (
+          <div className="npc-host-line" style={{ '--nc': COMPANIONS.bram.color }}>
+            "{COMPANIONS.bram.homeLine}" <i>— Bram</i>
+          </div>
+        )}
 
         <canvas ref={canvasRef} className="bd-canvas" onClick={placeAt} data-testid="bd-canvas" />
 

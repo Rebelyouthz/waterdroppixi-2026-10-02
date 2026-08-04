@@ -67,6 +67,12 @@ export default function HUD({ snap, isTutorial }) {
           </span>
         </div>
       )}
+      {snap.companionNpc && (
+        <div className={`hud-companion${!snap.companionNpc.alive ? ' down' : ''}`} data-testid="hud-companion">
+          <span className="hud-companion-label">{snap.companionNpc.alive ? `PROTECT ${snap.companionNpc.name.toUpperCase()}` : `${snap.companionNpc.name.toUpperCase()} DOWN`}</span>
+          <div className="hud-companion-bar"><i style={{ width: `${Math.max(0, (snap.companionNpc.hp / snap.companionNpc.maxHp) * 100)}%` }} /></div>
+        </div>
+      )}
       {/* Boss bar ABOVE the main hud — fixed, full width centered at very top */}
       {snap.bossActive && (
         <div className="hud-boss-bar" data-testid="hud-boss-bar">
