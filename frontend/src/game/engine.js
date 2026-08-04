@@ -292,6 +292,12 @@ export class Game {
     this._levelUpFlash = 0;
     this._levelUpTextTimer = 0;
     this._levelUpTextPos = null;
+    // A slower-burning timer than _levelUpFlash (which is a quick whole-
+    // screen wash) — this one drives an energy fill rising bottom-to-top
+    // over the player's own body in pixiRenderer's _drawPlayer, so a
+    // level-up reads as the character visibly charging up, not just a
+    // screen flash. See LEVEL_UP_SHIELD_DUR below.
+    this._levelUpShieldT = 0;
     this._lightningFlash = 0;
     // Boss-specific kill tracking
     this._necroKilled = false;
@@ -698,6 +704,7 @@ export class Game {
     this._bossDeathFlash = Math.max(0, this._bossDeathFlash - dt * 2.5);
     this._critPunch      = Math.max(0, this._critPunch - dt * 5);
     this._levelUpFlash   = Math.max(0, this._levelUpFlash - dt * 4);
+    this._levelUpShieldT = Math.max(0, (this._levelUpShieldT || 0) - dt);
     this._levelUpTextTimer = Math.max(0, (this._levelUpTextTimer || 0) - dt);
     this._lightningFlash = Math.max(0, (this._lightningFlash || 0) - dt * 6);
     this._tierBannerT = Math.max(0, (this._tierBannerT || 0) - dt);
@@ -3376,6 +3383,7 @@ export class Game {
     this.cam.slowmo = 0.3;
     this.cam.shake = 10;
     this._levelUpFlash = 1.0;
+    this._levelUpShieldT = 0.85; // must match the duration read in pixiRenderer's _drawPlayer
     this._levelUpTextTimer = 1.4;
     Audio.levelUp();
     // BIG level-up blast — visual + KNOCKBACK + small damage

@@ -109,6 +109,27 @@ export default function HUD({ snap, isTutorial }) {
         </div>
       )}
 
+      {/* Compact HP/XP/score readout, styled and positioned like the combo
+          meter above it — down where the thumbs and eyes already are during
+          play, not just up in the corner header where it's easy to stop
+          noticing once the action starts. */}
+      <div className="joy-stats" data-testid="joy-stats">
+        <div className="joy-stat hp">
+          <span className="joy-stat-label">HP</span>
+          <div className="joy-stat-bar"><i style={{ width: `${Math.max(0, hpPct)}%` }} /></div>
+          <span className="joy-stat-val">{Math.ceil(snap.hp)}</span>
+        </div>
+        <div className="joy-stat xp">
+          <span className="joy-stat-label">XP</span>
+          <div className="joy-stat-bar"><i style={{ width: `${Math.max(0, xpPct)}%` }} /></div>
+          <span className="joy-stat-val">Lv{snap.level}</span>
+        </div>
+        <div className="joy-stat score">
+          <span className="joy-stat-label">SCORE</span>
+          <span className="joy-stat-val big">{(snap.score || 0).toLocaleString()}</span>
+        </div>
+      </div>
+
       <div className="weapon-strip">
         <div style={{ display: 'flex', gap: 8 }}>
           {snap.weapons.map(w => (

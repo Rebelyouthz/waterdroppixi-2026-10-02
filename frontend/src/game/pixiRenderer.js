@@ -2188,6 +2188,28 @@ void main() {
       gf.circle(p.x + ex2, p.y + ey2, 1.6).fill('#ffd166');
     }
 
+    // Level-up: an energy fill rising bottom-to-top over the body, like the
+    // waterdrop is visibly charging up rather than just flashing the
+    // screen (that's _levelUpFlash, drawn separately as a full-screen
+    // wash) — the duration here (0.85) must match where engine.js sets
+    // _levelUpShieldT.
+    if (game._levelUpShieldT > 0) {
+      const dur = 0.85;
+      const t = game._levelUpShieldT;
+      const prog = Math.min(1, 1 - t / dur);           // 0 at start, 1 once fully risen
+      const fadeOut = Math.min(1, t / (dur * 0.22));    // holds, then fades in the last ~fifth
+      const bodyTop = p.y - r * 1.2, bodyBottom = p.y + r * 1.05;
+      const fillY = bodyBottom - prog * (bodyBottom - bodyTop);
+      const halfW = r * 0.8;
+      const fillH = bodyBottom - fillY;
+      if (fillH > 1) {
+        gf.rect(p.x - halfW, fillY, halfW * 2, fillH).fill({ color: '#8fffe0', alpha: 0.24 * fadeOut });
+      }
+      // Bright leading edge — the crest of the rising energy.
+      gf.ellipse(p.x, fillY, halfW * 1.05, 4.5).fill({ color: '#ffffff', alpha: 0.8 * fadeOut });
+      glow(gf, p.x, fillY, r * 0.95, '#ffd166', 1.5 * fadeOut);
+    }
+
     // ===== Rank-unlocked cosmetics (see ProfilePanel) =====
     const cos = game.cosmetics || {};
     if (cos.headbandColor) {

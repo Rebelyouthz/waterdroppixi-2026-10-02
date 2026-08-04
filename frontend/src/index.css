@@ -4799,3 +4799,37 @@ canvas#game, canvas.starraid-canvas {
   .toast-host { top: auto; bottom: 90px; right: 8px; left: 8px; max-width: none; align-items: flex-end; }
   .toast-item { width: min(320px, 100%); }
 }
+
+/* ============================================
+   JOY STATS — compact HP/XP/score readout near the joysticks
+   ============================================ */
+.joy-stats {
+  position: fixed; left: 50%; bottom: 108px; transform: translateX(-50%);
+  display: flex; gap: 10px; align-items: center;
+  pointer-events: none; z-index: 5;
+}
+.joy-stat { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.joy-stat-label {
+  font-family: 'VT323', monospace; font-size: 10px; letter-spacing: 0.25em;
+  opacity: 0.75;
+}
+.joy-stat.hp .joy-stat-label { color: #ff8a8a; }
+.joy-stat.xp .joy-stat-label { color: #6dff9e; }
+.joy-stat.score .joy-stat-label { color: #ffd166; }
+.joy-stat-bar {
+  width: 58px; height: 5px; background: #05080ea0;
+  border: 1px solid #ffffff20; overflow: hidden;
+}
+.joy-stat-bar i { display: block; height: 100%; transition: width 0.2s ease; }
+.joy-stat.hp .joy-stat-bar i { background: linear-gradient(90deg, #ff3146, #ff8a8a); box-shadow: 0 0 8px #ff314688; }
+.joy-stat.xp .joy-stat-bar i { background: linear-gradient(90deg, #4dffd4, #b6ffec); box-shadow: 0 0 8px #4dffd488; }
+.joy-stat-val {
+  font-family: 'VT323', monospace; font-size: 12px; color: #fff;
+  text-shadow: 0 0 6px #000;
+}
+.joy-stat-val.big { font-size: 15px; color: #ffd166; text-shadow: 0 0 10px #ffd16688; }
+
+@media (max-width: 480px) {
+  .joy-stats { bottom: 96px; gap: 7px; }
+  .joy-stat-bar { width: 44px; }
+}
