@@ -204,6 +204,24 @@ export class PixiRenderer {
     // feel genuinely far away instead of locked to the foreground.
     this.deepSpace = new Container(); this.zoomRoot.addChild(this.deepSpace);
     this.gDeepFar = new Graphics(); this.deepSpace.addChild(this.gDeepFar);
+    // Starfield lives HERE, in the parallax backdrop, not inside `world`.
+    // Drawn into the world it sat behind the ground wash and moved 1:1 with
+    // the camera, which is why it read as no stars and no depth. Five layers,
+    // each with its own parallax factor.
+    this.gStarLayers = [];
+    this._starLayerDefs = [
+      { f: 0.05, count: 190, size: 0.55, alpha: 0.34, cell: 900 },
+      { f: 0.10, count: 150, size: 0.85, alpha: 0.48, cell: 820 },
+      { f: 0.17, count: 110, size: 1.25, alpha: 0.62, cell: 760 },
+      { f: 0.26, count: 70,  size: 1.75, alpha: 0.80, cell: 700 },
+      { f: 0.38, count: 34,  size: 2.5,  alpha: 1.00, cell: 640 },
+    ];
+    for (let i = 0; i < this._starLayerDefs.length; i++) {
+      const g = new Graphics();
+      this.deepSpace.addChild(g);
+      this.gStarLayers.push(g);
+    }
+    this._starLayerCache = this._starLayerDefs.map(() => null);
     // Guaranteed galaxy/planet/moon. Each gets its OWN layer so it can carry
     // its own parallax factor and its own autonomous drift â€” as one shared
     // layer they could only ever move as a rigid sheet, which is why the sky
@@ -238,8 +256,10 @@ export class PixiRenderer {
     // when it lands on something â€” a darker, higher-contrast base gives
     // the dynamic point lights (see WORLD_LIGHT below) more room to read.
     this._gradeFilter = new ColorMatrixFilter();
-    this._gradeFilter.brightness(0.90, true);
-    this._gradeFilter.contrast(0.60, true);
+    this._gradeFilter.brightness(0.95, true);
+    // Pulled back from 0.60. Combined with the enemy light-blend this was
+    // crushing enemy colours toward white at the top end.
+    this._gradeFilter.contrast(0.54, true);
     this._gradeFilter.saturate(0.06, true);
     this.world.filters = [
       new AdvancedBloomFilter({ threshold: 0.6, bloomScale: 0.75, brightness: 1.0, blur: 3, quality: 2 }),
@@ -915,7 +935,9 @@ void main() {
     // both: bodies now sit at safely-inside-frame fractions, and 0.03 gives
     // real, visible drift over a normal play session (not the 0.006-0.018
     // range tried earlier, which was correcting the wrong variable).
-    const farF = 0.03, fx = cx * farF, fy = cy * farF;
+    // 0.03 barely moved at all; the gas needs to visibly drift past to read
+    // as a layer rather than as a texture painted on the screen.
+    const farF = 0.14, fx = cx * farF, fy = cy * farF;
     if (!this._farCache || Math.abs(fx - this._farCache.x) > 140 || Math.abs(fy - this._farCache.y) > 140) {
       this._farCache = { x: fx, y: fy };
       const g = this.gDeepFar; g.clear();
@@ -925,18 +947,25 @@ void main() {
       // are coming in as authored sprite art and two competing looks in one
       // sky reads worse than either alone. What is left on this layer is
       // diffuse gas: far, faint, no hard silhouette to clash with a sprite.
-      const gasPalette = ['#2a4f7a', '#5a2a6e', '#1f5a5a', '#6e2a44'];
+      const gasPalette = ['#2a5f9a', '#6a2a8e', '#1f7a6a', '#8e2a54', '#3a4a9a', '#8a5a1a'];
       for (let gx = sX; gx < fx + W + pad; gx += cell) {
         for (let gy = sY; gy < fy + H + pad; gy += cell) {
           const h = ((gx * 92821) ^ (gy * 68917)) >>> 0;
-          if (h % 3 !== 0) continue;
+          if (h % 2 !== 0) continue;
           const px = gx + (h % cell), py = gy + ((h >> 6) % cell);
-          const size = 150 + (h % 260);
+          const size = 190 + (h % 320);
           const col = gasPalette[h % gasPalette.length];
-          // layered falloff, deliberately soft-edged
-          for (let li = 5; li >= 1; li--) {
-            g.ellipse(px, py, size * (li / 5), size * (li / 5) * (0.5 + ((h >> 3) % 5) * 0.08))
-              .fill({ color: col, alpha: 0.022 });
+          // A second, offset colour on each cloud so the gas has internal
+          // variation instead of being one flat tint fading out.
+          const col2 = gasPalette[(h >> 4) % gasPalette.length];
+          const squash = 0.42 + ((h >> 3) % 5) * 0.09;
+          for (let li = 6; li >= 1; li--) {
+            g.ellipse(px, py, size * (li / 6), size * (li / 6) * squash)
+              .fill({ color: col, alpha: 0.030 });
+          }
+          for (let li = 4; li >= 1; li--) {
+            g.ellipse(px + size * 0.22, py - size * 0.12, size * (li / 6) * 0.7, size * (li / 6) * squash * 0.7)
+              .fill({ color: col2, alpha: 0.026 });
           }
         }
       }
@@ -954,6 +983,8 @@ void main() {
     // of camera movement it got recentered back to the same on-screen spot,
     // capping its visible drift to a small radius forever. Now it drifts
     // continuously and will genuinely leave frame on a long pan.
+    this._drawStarLayers(W, H, cx, cy);
+
     if (!this._heroBodiesDrawn) {
       this._heroBodiesDrawn = true;
       this._buildHeroBodies(W, H);
@@ -1068,11 +1099,74 @@ void main() {
     // Depth is sold by three cues disagreeing with each other: parallax
     // factor (how much camera movement shifts it), autonomous drift (so the
     // sky lives even when the player stands still) and haze (layer alpha).
+    // Parallax factors were far too small — at 0.016 the galaxy shifted 16px
+    // for a thousand pixels of camera movement, which does not read as
+    // parallax at all, it reads as being glued to the screen. These are the
+    // values that actually make the sky feel like it is behind the world.
     this._heroBodies = [
-      { g: this.gHeroGalaxy, bx: W * 0.52, by: H * 0.34, f: 0.016, driftX: -2.6, driftY: 0.7, pad: 460, alpha: 0.80 },
-      { g: this.gHeroStar,   bx: W * 0.24, by: H * 0.62, f: 0.042, driftX:  3.6, driftY: -0.9, pad: 240, alpha: 0.88 },
+      { g: this.gHeroGalaxy, bx: W * 0.52, by: H * 0.34, f: 0.10, driftX: -2.6, driftY: 0.7, pad: 460, alpha: 0.80 },
+      { g: this.gHeroStar,   bx: W * 0.24, by: H * 0.62, f: 0.18, driftX:  3.6, driftY: -0.9, pad: 240, alpha: 0.88 },
     ];
     for (const b of this._heroBodies) b.g.alpha = b.alpha;
+  }
+
+  // Five independent star layers in the parallax backdrop. Each is a hashed
+  // infinite grid rebuilt only when its own scroll offset has moved past a
+  // padded buffer, so a slow layer redraws almost never.
+  //
+  // Colour and brightness vary within a layer as well as between them: a sky
+  // of identical dots at one alpha is exactly what reads as flat noise.
+  _drawStarLayers(W, H, cx, cy) {
+    const pad = 200;
+    for (let li = 0; li < this._starLayerDefs.length; li++) {
+      const def = this._starLayerDefs[li];
+      const g = this.gStarLayers[li];
+      const ox = cx * def.f, oy = cy * def.f;
+      const cache = this._starLayerCache[li];
+      const moved = !cache || Math.abs(ox - cache.x) > pad * 0.5 || Math.abs(oy - cache.y) > pad * 0.5;
+      if (moved) {
+        this._starLayerCache[li] = { x: ox, y: oy };
+        g.clear();
+        const cell = def.cell;
+        const perCell = Math.max(1, Math.round(def.count / 6));
+        const sX = Math.floor((ox - pad) / cell) * cell;
+        const sY = Math.floor((oy - pad) / cell) * cell;
+        // Three brightness tiers per layer, skewed toward faint, plus a warm
+        // minority — collected first because Graphics fills everything
+        // accumulated since the last fill() in one go.
+        const tiers = [[], [], [], [], [], []];
+        const flares = [];
+        for (let gx2 = sX; gx2 < ox + W + pad; gx2 += cell) {
+          for (let gy2 = sY; gy2 < oy + H + pad; gy2 += cell) {
+            for (let k = 0; k < perCell; k++) {
+              const h = ((gx2 * 73856093) ^ (gy2 * 19349663) ^ (k * 83492791)) >>> 0;
+              const sx2 = gx2 + (h % cell);
+              const sy2 = gy2 + ((h >> 9) % cell);
+              const m = (h >> 3) & 15;
+              const tier = m < 9 ? 0 : m < 14 ? 1 : 2;
+              const warm = ((h >> 7) & 7) === 0;
+              const r = def.size * (tier === 0 ? 0.6 : tier === 1 ? 1 : 1.55);
+              tiers[tier * 2 + (warm ? 1 : 0)].push(sx2, sy2, r);
+              if (tier === 2 && def.f > 0.2 && ((h >> 11) & 3) === 0) flares.push(sx2, sy2, r * 4.2, warm ? 1 : 0);
+            }
+          }
+        }
+        const cool = '#cfe6ff', warmC = '#ffd9b0';
+        const tierA = [0.42, 0.7, 1.0];
+        for (let bi = 0; bi < 6; bi++) {
+          const arr = tiers[bi];
+          if (!arr.length) continue;
+          for (let i = 0; i < arr.length; i += 3) g.circle(arr[i], arr[i + 1], arr[i + 2]);
+          g.fill({ color: (bi & 1) ? warmC : cool, alpha: def.alpha * tierA[bi >> 1] });
+        }
+        for (let i = 0; i < flares.length; i += 4) {
+          const fx = flares[i], fy = flares[i + 1], fl = flares[i + 2];
+          g.moveTo(fx - fl, fy).lineTo(fx + fl, fy).moveTo(fx, fy - fl).lineTo(fx, fy + fl)
+            .stroke({ width: 0.8, color: flares[i + 3] ? warmC : cool, alpha: def.alpha * 0.45 });
+        }
+      }
+      g.position.set(-ox, -oy);
+    }
   }
 
   _drawDwarfStar(g, cx, cy) {
@@ -1183,81 +1277,14 @@ void main() {
     // (planets/moons/nebula/galaxy) behind `world` actually bleeds through
     // instead of being 100% hidden â€” this was the reason the whole parallax
     // system was invisible even though it was drawing correctly.
-    g.rect(cx - pad, cy - pad, W + pad * 2, H + pad * 2).fill({ color: `rgb(${br},${bg},${bb})`, alpha: 0.58 });
+    // Pulled down from 0.58: with the starfield and gas now BEHIND this wash
+    // rather than inside it, every point of opacity here is directly taken
+    // out of how much sky you can see.
+    g.rect(cx - pad, cy - pad, W + pad * 2, H + pad * 2).fill({ color: `rgb(${br},${bg},${bb})`, alpha: 0.44 });
 
-    // Starfield: five parallax layers, and within each layer the stars are
-    // sorted into three brightness/size buckets by hash. Previously every
-    // star in a layer was the exact same dot at the exact same alpha, which
-    // is what made the sky read as flat noise â€” a real sky is mostly faint
-    // pinpricks with a scattering of obviously brighter ones. Buckets are
-    // filled as three batches per layer rather than per-star, so this is 15
-    // fill calls for the whole field (and the whole thing is cached until
-    // the camera moves past the pad anyway).
-    const drift = t * 0.4;
-    const starGrid = 64;
-    const layers = [
-      { speed: 0.03, size: 0.45, alpha: 0.26, dens: 2 },
-      { speed: 0.06, size: 0.7,  alpha: 0.38, dens: 3 },
-      { speed: 0.11, size: 1.0,  alpha: 0.52, dens: 4 },
-      { speed: 0.17, size: 1.45, alpha: 0.68, dens: 6 },
-      { speed: 0.24, size: 2.1,  alpha: 0.85, dens: 9 },
-    ];
-    // Slight colour spread: most stars cool white-blue, some warm.
-    const cool = `rgb(${198 + Math.floor(zoneT2 * 55)},${186 - Math.floor(zoneT2 * 80)},${255 - Math.floor(zoneT2 * 170)})`;
-    const warm = `rgb(255,${214 - Math.floor(zoneT2 * 40)},${176 - Math.floor(zoneT2 * 60)})`;
-    // Six buckets = 3 brightness tiers x cool/warm. Graphics fills every
-    // shape accumulated since the last fill() in one go, so stars have to be
-    // collected first and emitted bucket by bucket â€” interleaving them and
-    // filling at the end would paint the whole field in the first colour.
-    if (!this._starBuckets) {
-      this._starBuckets = Array.from({ length: 6 }, () => []);
-      this._starFlares = [];
-    }
-    const buckets = this._starBuckets, flares = this._starFlares;
-    for (const b of buckets) b.length = 0;
-    flares.length = 0;
-
-    for (let li = 0; li < layers.length; li++) {
-      const layer = layers[li];
-      const ox = drift * layer.speed, oy = drift * layer.speed * 0.6;
-      const sX = Math.floor((cx - pad - ox) / starGrid) * starGrid;
-      const sY = Math.floor((cy - pad - oy) / starGrid) * starGrid;
-      for (let sx = sX; sx < cx + W + pad + starGrid; sx += starGrid) {
-        for (let sy = sY; sy < cy + H + pad + starGrid; sy += starGrid) {
-          const h1 = ((sx * 1031) ^ (sy * 7919)) >>> 0;
-          const h2 = ((sx * 7187) ^ (sy * 3301)) >>> 0;
-          const h3 = ((sx * 2053) ^ (sy * 6271)) >>> 0;
-          if (h3 % 12 >= layer.dens) continue;
-          const wx = sx + (h1 % starGrid) + ox;
-          const wy = sy + (h2 % starGrid) + oy;
-          // Skewed toward the faint tier so bright stars stay special.
-          const m = h1 % 16;
-          const tier = m < 9 ? 0 : m < 14 ? 1 : 2;
-          const isWarm = (h2 % 9) === 0;
-          const r = layer.size * (tier === 0 ? 0.62 : tier === 1 ? 1.0 : 1.5);
-          buckets[tier * 2 + (isWarm ? 1 : 0)].push(wx, wy, r);
-          // The brightest stars in the two nearest layers get a small
-          // diffraction cross â€” the classic "this one is close" cue.
-          if (tier === 2 && layer.speed > 0.15 && (h3 % 5) === 0) {
-            flares.push(wx, wy, r * 4.2, isWarm ? 1 : 0, layer.alpha);
-          }
-        }
-      }
-    }
-    const tierAlpha = [0.42, 0.68, 0.95];
-    for (let bi = 0; bi < 6; bi++) {
-      const arr = buckets[bi];
-      if (!arr.length) continue;
-      for (let i = 0; i < arr.length; i += 3) g.circle(arr[i], arr[i + 1], arr[i + 2]);
-      g.fill({ color: (bi & 1) ? warm : cool, alpha: Math.min(1, tierAlpha[bi >> 1] + zoneT2 * 0.08) });
-    }
-    for (let i = 0; i < flares.length; i += 5) {
-      const fx2 = flares[i], fy2 = flares[i + 1], fl = flares[i + 2];
-      g.moveTo(fx2 - fl, fy2).lineTo(fx2 + fl, fy2)
-       .moveTo(fx2, fy2 - fl).lineTo(fx2, fy2 + fl)
-       .stroke({ width: 0.7, color: flares[i + 3] ? warm : cool, alpha: flares[i + 4] * 0.45 });
-    }
-
+    // (The starfield used to be drawn here, inside `world`. It sat behind the
+    // ground wash and moved 1:1 with the camera, so it read as neither stars
+    // nor depth. It lives in the parallax backdrop now — see _drawStarLayers.)
     if (zoneT > 0.1) {
       const pulseA = 0.03 + Math.sin(t * 0.4) * 0.01;
       const nebGrid = 320;
@@ -1495,8 +1522,13 @@ void main() {
         // enemy's own identity color always stays dominant (max 45% mix).
         let bestStrength = 0, bestHex = null, bestIsProj = false;
         if (L) {
+          // The idle flashlight is warm white, so mixing much of it into an
+          // enemy turns a green slime grey-white even when nothing is being
+          // fired at it. Its ambient contribution is now nearly nothing —
+          // the light only really asserts itself during the muzzle flash
+          // (L.mt), which is the moment it is supposed to.
           const ld = Math.hypot(e.x - L.x, e.y - L.y);
-          const str = Math.max(0, 1 - ld / L.radius) * (0.35 + L.mt * 0.5);
+          const str = Math.max(0, 1 - ld / L.radius) * (0.06 + L.mt * 0.34);
           if (str > bestStrength) { bestStrength = str; bestHex = L.hex; }
         }
         // Broadphase instead of scanning every projectile per enemy â€” see
@@ -1512,13 +1544,17 @@ void main() {
           const pd = Math.hypot(e.x - pr.x, e.y - pr.y);
           if (pd >= rad) return;
           const f = 1 - pd / rad;
-          const str = f * f * 1.6;
+          const str = f * f * 1.0;
           if (str > bestStrength) { bestStrength = str; bestHex = pr.color || '#5fd6ff'; bestIsProj = true; }
         });
         // Gems no longer light anything â€” XP/gold orbs read as faceted
         // crystals now (see _drawGems), and the old wide pickup glow was
         // washing enemy colours out in loot-heavy moments.
-        const mixCap = bestIsProj ? 0.78 : 0.45;  // a bullet's own colour is allowed to dominate harder than ambient
+        // A bullet's own colour may push harder than ambient light, but not
+        // far enough to overwrite the enemy's identity — the whole point of
+        // an enemy having a colour is that you can tell what it is. Ambient
+        // is kept very low so an unlit enemy simply looks like itself.
+        const mixCap = bestIsProj ? 0.46 : 0.16;
         let litColor = (bestHex && bestStrength > 0.03) ? mixHex(t.color, bestHex, Math.min(mixCap, bestStrength)) : t.color;
 
         // Wind-up tell. A melee enemy about to strike plants, rocks back and

@@ -1862,7 +1862,11 @@ export class Game {
     e.x = x; e.y = y; e.vx = 0; e.vy = 0;
     e.t = t;
     const scale = 1 + this.run.time / 240; // gradual scale
-    e.dmgMult = 1 + this.bossesKilled * 2.0; // ~3x after boss 1, scales hard
+    // Damage grows with time as well as boss kills. Before, an enemy spawned
+    // at minute one and an enemy spawned at minute nine hit for exactly the
+    // same amount until a boss died, so the mid-game had no pressure curve at
+    // all — you simply out-geared it and stopped being in danger.
+    e.dmgMult = (1 + this.run.time / 200) * (1 + this.bossesKilled * 1.6);
     if (SQUARE_ENEMY_TYPES.has(typeId)) e.dmgMult *= 2.5; // brute/charger/necron/steelbrute hit harder
     // Tier escalation (task: T1..T5+, one boss kill = one tier up, keeps
     // climbing indefinitely for a long endless). Speed/HP grow WITH the
@@ -2303,8 +2307,8 @@ export class Game {
           if (e._moltT <= 0) {
             e._molting = false; e._moltCD = 9;
             this.spawnRing(e.x, e.y, t.size * 1.4, '#8a3fd4', 0.5);
-            if (dist2(e.x, e.y, p.x, p.y) <= (t.size * 1.4) ** 2 && p.iframes <= 0 && Math.random() > this.run.stats.dodge) {
-              p.hp -= Math.max(1, t.dmg * (e.dmgMult || 1) * 0.6 - this.run.stats.armor);
+            if (dist2(e.x, e.y, p.x, p.y) <= (t.size * 1.4) ** 2 && p.iframes <= 0 && !this.rollDodge()) {
+              p.hp -= this.mitigate(t.dmg * (e.dmgMult || 1) * 0.6);
               p.hit = 0.15; p.iframes = 0.3;
             }
           }
@@ -2429,9 +2433,9 @@ export class Game {
           this.spawnRing(p.x, p.y, 40, '#4dffd4', 0.4);
           this.spawnDamageNumber(p.x, p.y - 10, 'BLOCK', '#4dffd4');
           this.cam.shake = Math.max(this.cam.shake, 3);
-        } else if (Math.random() > this.run.stats.dodge) {
+        } else if (!this.rollDodge()) {
           const f = this.run.stats.flags || {};
-          const dmg = Math.max(1, t.dmg * (e.dmgMult || 1) - this.run.stats.armor);
+          const dmg = this.mitigate(t.dmg * (e.dmgMult || 1));
           // Reflect
           if (f.reflect) { this.dealDamage(e, dmg * 0.3, false, 0, p.x, p.y, true); }
           // Grit damage reduction
@@ -2440,7 +2444,11 @@ export class Game {
           if (f.grit) p._gritT = this.run.time + 2;
           this.run.noHit = false;
           p.hit = 0.15;
-          p.iframes = 0.5;
+          // Half a second of invulnerability per contact meant a wall of
+          // enemies could only ever land two hits a second no matter how
+          // many of them were touching you. Standing in a crowd should hurt
+          // roughly in proportion to the crowd.
+          p.iframes = 0.32;
           if (p._reflectTimer > 0) { this.dealDamage(e, dmg * 0.6, true, 0, p.x, p.y, true); }
           this.cam.shake = Math.max(this.cam.shake, 5);
           this.spawnHitBurst(p.x, p.y, '#b51d28', 18);
@@ -2578,8 +2586,8 @@ export class Game {
       ep.life -= dt;
       if (ep.life <= 0) { this.eprojs.release(ep); return; }
       if (dist2(ep.x, ep.y, p.x, p.y) <= (p.r + ep.size) * (p.r + ep.size) && p.iframes <= 0) {
-        if (Math.random() > this.run.stats.dodge) {
-          const dmg = Math.max(1, ep.dmg - this.run.stats.armor);
+        if (!this.rollDodge()) {
+          const dmg = this.mitigate(ep.dmg);
           p.hp -= dmg;
           p.hit = 0.12;
           p.iframes = 0.3;
@@ -2632,8 +2640,8 @@ export class Game {
           // standing in the ring when it lands (see Tidebreaker AI below).
           const pl = this.player;
           if (dist2(pl.x, pl.y, p.x, p.y) <= p._radius * p._radius && pl.iframes <= 0) {
-            if (Math.random() > this.run.stats.dodge) {
-              const dmg = Math.max(1, p._dmg - this.run.stats.armor);
+            if (!this.rollDodge()) {
+              const dmg = this.mitigate(p._dmg);
               pl.hp -= dmg; pl.hit = 0.15; pl.iframes = 0.3;
               this.cam.shake = Math.max(this.cam.shake, 14);
               this.spawnHitBurst(pl.x, pl.y, '#1fb6ff', 20);
@@ -3263,6 +3271,27 @@ export class Game {
     }
     // brief iframes for safety
     p.iframes = Math.max(p.iframes, 0.6);
+  }
+
+  // ---- Player damage mitigation ------------------------------------------
+  // Armour used to be a FLAT subtraction: max(1, dmg - armor). Once armour
+  // exceeded an enemy's damage — which happens quickly once a few pieces of
+  // gear are equipped — literally everything in the game hit for exactly 1,
+  // and you could stand still in a crowd indefinitely. That is the single
+  // biggest reason the game stopped being able to kill you.
+  //
+  // It is a percentage curve now, with diminishing returns and a hard ceiling,
+  // so armour is always worth having and never turns damage off.
+  mitigate(raw) {
+    const armor = Math.max(0, this.run.stats.armor || 0);
+    const reduction = Math.min(0.70, armor / (armor + 26));
+    return Math.max(1, raw * (1 - reduction));
+  }
+
+  // Dodge is capped for the same reason — stacked far enough it was a
+  // blanket immunity rather than a stat.
+  rollDodge() {
+    return Math.random() < Math.min(0.45, this.run.stats.dodge || 0);
   }
 
   // Refills the enemy broadphase and tracks the largest enemy radius on
