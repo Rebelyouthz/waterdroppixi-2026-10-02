@@ -4,6 +4,7 @@ import { STARTER_WEAPONS, ACHIEVEMENTS } from '../game/data_ext2';
 import { rollGearDrop } from '../game/gear';
 import { rollRune } from '../game/runes';
 import { patrolSlots, patrolRewardMult } from '../game/base';
+import CardBattle from './CardBattle';
 
 // ─── Eye of Horus badge SVG ───────────────────
 export function EyeBadge({ size = 14 }) {
@@ -75,6 +76,7 @@ function pctDone(startMs, durMs) {
 export function PatrolPanel({ save, setSave }) {
   const [now, setNow] = useState(Date.now());
   const [claimMsg, setClaimMsg] = useState('');
+  const [encounter, setEncounter] = useState(null);
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 8000);
     return () => clearInterval(t);
@@ -115,24 +117,36 @@ export function PatrolPanel({ save, setSave }) {
     setSave({ ...save, patrol: { missions: [...missions, newM] } });
   };
 
-  const claimMission = (mId) => {
+  // Roughly half of completed patrols run into something on the way back.
+  // Rolled at CLAIM time rather than at send time so the outcome cannot be
+  // predicted and re-rolled by cancelling and re-sending the mission.
+  const claimMission = (mId, lootMult = null) => {
     const m = liveMissions.find(x => x.id === mId);
     if (!m || m.status !== 'complete') return;
     const def = PATROL_DEFS.find(d => d.id === m.defId);
+    if (lootMult === null && Math.random() < 0.5) {
+      const tier = PATROL_DEFS.indexOf(def);
+      setEncounter({ missionId: mId, tier: Math.max(0, tier) });
+      return;
+    }
+    const mult = lootMult ?? 1;
     let ns = { ...save };
     const got = [];
     // One place grants a reward line, so the guaranteed table and the chance
     // rolls below cannot drift apart in what they support.
+    // Encounter outcome scales the whole haul, so a fight you won is visible
+    // in every line of the payout rather than as a separate bonus.
+    const petMultF = petMult * mult;
     const grant = (rwd) => {
-      if (rwd.gold)      { ns.gold = (ns.gold || 0) + Math.round(rwd.gold * petMult); got.push(`★ ${Math.round(rwd.gold * petMult)}`); }
-      if (rwd.gems)      { ns.gems = (ns.gems || 0) + Math.round(rwd.gems * petMult); got.push(`💎 ${Math.round(rwd.gems * petMult)}`); }
-      if (rwd.sp)        { ns.sp = (ns.sp || 0) + Math.round(rwd.sp * petMult); got.push(`◆ ${Math.round(rwd.sp * petMult)}`); }
-      if (rwd.gearParts) { ns.gearParts = (ns.gearParts || 0) + Math.round(rwd.gearParts * petMult); got.push(`🔩 ${Math.round(rwd.gearParts * petMult)}`); }
+      if (rwd.gold)      { ns.gold = (ns.gold || 0) + Math.round(rwd.gold * petMultF); got.push(`★ ${Math.round(rwd.gold * petMultF)}`); }
+      if (rwd.gems)      { ns.gems = (ns.gems || 0) + Math.round(rwd.gems * petMultF); got.push(`💎 ${Math.round(rwd.gems * petMultF)}`); }
+      if (rwd.sp)        { ns.sp = (ns.sp || 0) + Math.round(rwd.sp * petMultF); got.push(`◆ ${Math.round(rwd.sp * petMultF)}`); }
+      if (rwd.gearParts) { ns.gearParts = (ns.gearParts || 0) + Math.round(rwd.gearParts * petMultF); got.push(`🔩 ${Math.round(rwd.gearParts * petMultF)}`); }
       if (rwd.slotCoins) { ns.slotCoins = (ns.slotCoins || 0) + rwd.slotCoins; got.push(`🎰 ${rwd.slotCoins}`); }
       if (rwd.gachaTokens) { ns.gachaTokens = (ns.gachaTokens || 0) + rwd.gachaTokens; got.push(`🎫 ${rwd.gachaTokens}`); }
       if (rwd.petFood)   { ns.petFood = (ns.petFood || 0) + rwd.petFood; got.push(`🍖 ${rwd.petFood}`); }
       if (rwd.flux)      { ns.flux = (ns.flux || 0) + rwd.flux; got.push(`⚗ ${rwd.flux}`); }
-      if (rwd.xp)        { ns.profile = { ...ns.profile, xp: (ns.profile?.xp || 0) + Math.round(rwd.xp * petMult) }; got.push(`XP ${Math.round(rwd.xp * petMult)}`); }
+      if (rwd.xp)        { ns.profile = { ...ns.profile, xp: (ns.profile?.xp || 0) + Math.round(rwd.xp * petMultF) }; got.push(`XP ${Math.round(rwd.xp * petMultF)}`); }
       if (rwd.gear)      { ns.gearInventory = [...(ns.gearInventory || []), rollGearDrop(m.durationMs / 1000)]; got.push('🪖 Equipment'); }
       if (rwd.rune)      { ns.runeInventory = [...(ns.runeInventory || []), rollRune(ns.attrs?.luck || 0)]; got.push('🔮 Rune'); }
       if (rwd.egg) {
@@ -168,6 +182,21 @@ export function PatrolPanel({ save, setSave }) {
         {hasPet && <span className="patrol-pet-bonus">🐾 +20% reward (pet active)</span>}
       </div>
       {claimMsg && <div className="patrol-claim-msg" data-testid="patrol-claim">{claimMsg}</div>}
+      {encounter && (
+        <CardBattle
+          pet={(save.pets || []).find(p => p.active) || null}
+          tier={encounter.tier}
+          onDone={(mult, roundsWon) => {
+            const id = encounter.missionId;
+            setEncounter(null);
+            claimMission(id, mult);
+            setTimeout(() => setClaimMsg(m => `${roundsWon}/3 rounds — ${Math.round(mult * 100)}% haul  ·  ${m}`), 0);
+          }}
+          // Walking away forfeits the fight but not the patrol: you still get
+          // the losing share rather than losing hours of waiting outright.
+          onClose={() => { const id = encounter.missionId; setEncounter(null); claimMission(id, 0.35); }}
+        />
+      )}
 
       {/* Active missions */}
       {liveMissions.filter(m => m.status !== 'claimed').map(m => {

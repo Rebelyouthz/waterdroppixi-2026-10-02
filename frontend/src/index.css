@@ -2840,6 +2840,69 @@ canvas#game, canvas.starraid-canvas {
 .base-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 .base-btn.maxlbl { flex: 1; text-align: center; color: #4dff91; border-color: #4dff9144; background: #4dff9114; }
 
+/* ============================================================
+   PATROL ENCOUNTER — card battle
+   ============================================================ */
+.cb-panel {
+  width: min(520px, 94vw);
+  background: linear-gradient(180deg, #14101c 0%, #06040a 100%);
+  border: 2px solid #b362ff55;
+  box-shadow: 0 20px 60px #000d, inset 0 0 50px rgba(179,98,255,0.06);
+  padding: 16px;
+}
+.cb-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.cb-title {
+  font-family: 'Cinzel', serif; font-weight: 900; font-size: 19px;
+  letter-spacing: 0.16em; color: #e8d4ff;
+  text-shadow: 0 0 16px rgba(179,98,255,0.4);
+}
+.cb-score { margin-left: auto; display: flex; gap: 5px; }
+.cb-pip { width: 13px; height: 13px; border: 1px solid #ffffff26; background: #ffffff08; }
+.cb-pip.win { background: #4dff91; border-color: #4dff91; box-shadow: 0 0 8px #4dff9188; }
+.cb-pip.loss { background: #ff5566; border-color: #ff5566; box-shadow: 0 0 8px #ff556688; }
+
+.cb-board {
+  display: flex; align-items: center; justify-content: space-around;
+  padding: 12px 0 14px;
+}
+.cb-side { text-align: center; }
+.cb-side-label {
+  font-family: 'VT323', monospace; font-size: 11px; letter-spacing: 0.24em;
+  color: #6d5f82; margin-bottom: 5px;
+}
+.cb-card {
+  width: 78px; height: 104px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1.5px solid #ffffff22;
+  background: linear-gradient(160deg, rgba(30,20,48,0.95), rgba(8,5,14,0.95));
+  box-shadow: inset 0 0 22px rgba(0,0,0,0.7);
+  transition: transform 0.25s, border-color 0.25s, box-shadow 0.25s;
+}
+.cb-card.shown { transform: translateY(-4px) scale(1.04); }
+.cb-card-foe.shown { border-color: #ff5566; box-shadow: 0 0 20px rgba(255,85,102,0.35); }
+.cb-card-you.shown { border-color: #4dc4ff; box-shadow: 0 0 20px rgba(77,196,255,0.35); }
+.cb-power { font-family: 'VT323', monospace; font-size: 34px; color: #f2eaff; }
+.cb-vs {
+  font-family: 'VT323', monospace; font-size: 15px; letter-spacing: 0.18em;
+  color: #b362ff; text-shadow: 0 0 12px rgba(179,98,255,0.5);
+}
+.cb-hint { font-family: 'VT323', monospace; font-size: 13px; color: var(--ink-dim); margin-bottom: 8px; text-align: center; }
+
+.cb-hand { display: grid; grid-template-columns: repeat(auto-fit, minmax(88px, 1fr)); gap: 7px; }
+.cb-hand-card {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 9px 6px; cursor: pointer;
+  background: linear-gradient(160deg, rgba(26,20,42,0.95), rgba(7,5,12,0.95));
+  border: 1px solid #ffffff1c;
+  transition: border-color 0.14s, transform 0.08s, box-shadow 0.14s;
+}
+.cb-hand-card:not(:disabled):hover { border-color: #b362ff; box-shadow: 0 0 16px rgba(179,98,255,0.3); }
+.cb-hand-card:not(:disabled):active { transform: scale(0.97); }
+.cb-hand-card:disabled { opacity: 0.4; cursor: not-allowed; }
+.cb-hand-name { font-family: 'VT323', monospace; font-size: 13px; color: #e8dcff; letter-spacing: 0.06em; }
+.cb-hand-power { font-family: 'VT323', monospace; font-size: 21px; color: #ffd166; line-height: 1; }
+.cb-hand-desc { font-size: 9.5px; color: #6d5f82; text-align: center; line-height: 1.25; }
+
 /* ── Star Raid mode picker ────────────────────────────────────── */
 .raid-modes { display: flex; gap: 7px; margin-bottom: 10px; }
 .raid-mode {
