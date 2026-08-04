@@ -2783,6 +2783,157 @@ canvas#game, canvas.starraid-canvas {
 .raid-card-lvl i.on { background: #5fd6ff; box-shadow: 0 0 6px #5fd6ff; }
 
 /* ============================================================
+   WATERDROP CLICKER — THE WELL
+   ============================================================ */
+.clk-panel {
+  width: min(560px, 95vw); max-height: 92vh; overflow-y: auto;
+  background: linear-gradient(180deg, #071824 0%, #04080f 100%);
+  border: 2px solid #4dc4ff44;
+  box-shadow: 0 20px 60px #000d, inset 0 0 60px rgba(77,196,255,0.05);
+  padding: 16px;
+}
+.clk-head { display: flex; align-items: center; margin-bottom: 10px; }
+.clk-title {
+  flex: 1;
+  font-family: 'Cinzel', serif; font-weight: 900; font-size: 20px;
+  letter-spacing: 0.16em; color: #bfe8ff;
+  text-shadow: 0 0 18px rgba(95,214,255,0.4);
+}
+.clk-readout { text-align: center; margin-bottom: 10px; }
+.clk-drops {
+  font-family: 'VT323', monospace; font-size: 40px; line-height: 1;
+  color: #eaf9ff; text-shadow: 0 0 20px rgba(95,214,255,0.5);
+}
+.clk-drops span { font-size: 14px; margin-left: 8px; color: var(--ink-dim); letter-spacing: 0.2em; }
+.clk-rate { font-family: 'VT323', monospace; font-size: 14px; color: #7fc4e8; letter-spacing: 0.06em; }
+
+/* The well: a lit shaft you tap. */
+.clk-well {
+  position: relative;
+  width: 168px; height: 168px; margin: 6px auto 14px;
+  border-radius: 50%;
+  cursor: pointer;
+  background: radial-gradient(circle at 50% 32%, #17506e 0%, #071c2c 62%, #03080f 100%);
+  box-shadow:
+    inset 0 8px 22px rgba(0,0,0,0.85),
+    inset 0 -3px 0 rgba(255,255,255,0.05),
+    0 0 34px rgba(77,196,255,0.22);
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  overflow: hidden;
+  transition: transform 0.07s;
+}
+.clk-well:active { transform: scale(0.97); }
+.clk-well-ring {
+  position: absolute; inset: 6px;
+  border-radius: 50%;
+  border: 2px solid rgba(120,210,255,0.35);
+  box-shadow: inset 0 0 18px rgba(77,196,255,0.25);
+}
+/* concentric ripples travelling outward */
+.clk-well-water { position: absolute; inset: 0; }
+.clk-well-water i {
+  position: absolute; left: 50%; top: 58%;
+  width: 10px; height: 10px; margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(140,225,255,0.5);
+  animation: clkRipple 3.2s linear infinite;
+}
+.clk-well-water i:nth-child(2) { animation-delay: 1.07s; }
+.clk-well-water i:nth-child(3) { animation-delay: 2.14s; }
+@keyframes clkRipple {
+  0%   { transform: scale(0.4); opacity: 0; }
+  20%  { opacity: 0.8; }
+  100% { transform: scale(11); opacity: 0; }
+}
+.clk-well-drop {
+  position: absolute; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 46px;
+  filter: drop-shadow(0 0 14px rgba(95,214,255,0.7));
+  animation: clkBob 2.4s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes clkBob {
+  0%, 100% { transform: translate(-50%, -52%) scale(1, 1); }
+  50%      { transform: translate(-50%, -46%) scale(1.05, 0.95); }
+}
+.clk-splash {
+  position: absolute;
+  font-family: 'VT323', monospace; font-size: 17px; color: #d8f6ff;
+  text-shadow: 0 0 8px rgba(95,214,255,0.9);
+  pointer-events: none;
+  animation: clkSplash 0.78s ease-out forwards;
+}
+@keyframes clkSplash {
+  0%   { opacity: 1; transform: translate(-50%, -50%) scale(0.7); }
+  100% { opacity: 0; transform: translate(-50%, -190%) scale(1.15); }
+}
+
+/* Milestone ladder */
+.clk-mile {
+  border: 1px solid #ffffff18; background: #ffffff06;
+  padding: 9px 11px; margin-bottom: 12px;
+}
+.clk-mile-head {
+  display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  font-family: 'VT323', monospace; font-size: 13px; color: var(--ink-dim);
+}
+.clk-mile-next { color: #7fc4e8; }
+.clk-mile-track { height: 6px; background: #00000088; margin: 6px 0; border: 1px solid #ffffff12; }
+.clk-mile-fill {
+  height: 100%; background: linear-gradient(90deg, #2d6f8f, #7cd6ff);
+  box-shadow: 0 0 10px #7cd6ff88; transition: width 0.4s;
+}
+.clk-claim {
+  width: 100%; margin: 6px 0 4px; padding: 8px;
+  font-family: 'VT323', monospace; font-size: 15px; letter-spacing: 0.14em;
+  cursor: pointer; color: #fff3c4;
+  background: linear-gradient(180deg, rgba(255,209,102,0.22), rgba(0,0,0,0.3));
+  border: 1px solid #ffd166;
+  box-shadow: 0 0 18px rgba(255,209,102,0.35);
+  animation: attrPulse 1.4s ease-in-out infinite;
+}
+.clk-mile-list { display: flex; gap: 4px; flex-wrap: wrap; }
+.clk-mile-pip {
+  width: 17px; height: 17px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'VT323', monospace; font-size: 11px;
+  border: 1px solid #ffffff1c; background: #ffffff06; color: #6a7f92;
+}
+.clk-mile-pip.done { border-color: #4dff9166; color: #4dff91; background: #4dff9114; }
+.clk-mile-pip.ready { border-color: #ffd166; color: #ffd166; background: #ffd16622; animation: attrPulse 1s ease-in-out infinite; }
+
+/* Shop */
+.clk-shop { display: flex; flex-direction: column; gap: 7px; }
+.clk-buy {
+  display: grid;
+  grid-template-columns: 30px 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 1px 10px;
+  align-items: center;
+  padding: 8px 11px;
+  text-align: left; cursor: pointer;
+  background: linear-gradient(160deg, rgba(18,42,60,0.9), rgba(5,12,20,0.9));
+  border: 1px solid #ffffff1a;
+  transition: border-color 0.14s, background 0.14s, transform 0.08s;
+}
+.clk-buy .game-icon { grid-row: 1 / 3; }
+.clk-buy:not(:disabled):hover { border-color: #4dc4ff88; background: linear-gradient(160deg, rgba(26,60,84,0.95), rgba(6,14,24,0.95)); }
+.clk-buy:not(:disabled):active { transform: scale(0.99); }
+.clk-buy:disabled { opacity: 0.42; cursor: not-allowed; }
+.clk-buy.far { opacity: 0.22; }
+.clk-buy-name { font-family: 'VT323', monospace; font-size: 16px; color: #eaf7ff; }
+.clk-buy-name i { font-style: normal; color: #7fc4e8; font-size: 13px; margin-left: 5px; }
+.clk-buy-desc { grid-column: 2; font-size: 11px; color: var(--ink-dim); line-height: 1.25; }
+.clk-buy-rate { grid-column: 3; grid-row: 1; font-family: 'VT323', monospace; font-size: 13px; color: #4dff91; }
+.clk-buy-cost { grid-column: 3; grid-row: 2; font-family: 'VT323', monospace; font-size: 14px; color: #ffd166; }
+.clk-buy-tap { grid-template-columns: 1fr auto; }
+.clk-buy-tap .clk-buy-name { grid-column: 1; }
+.clk-buy-tap .clk-buy-desc { grid-column: 1; }
+.clk-buy-tap .clk-buy-cost { grid-column: 2; grid-row: 1 / 3; }
+
+/* ============================================================
    ASTRO PROSPECTOR
    ============================================================ */
 .prosp-panel {

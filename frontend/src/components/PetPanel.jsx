@@ -223,26 +223,8 @@ export default function PetPanel({ save, setSave, onClose }) {
     Audio.levelUp(); Audio.claimPing();
   };
 
-  // ----- Hatch egg (legacy direct hatch, kept for any code path that still
-  // grants a pet straight from an egg) -----
-  const hatchEgg = (egg) => {
-    const petDef = PET_TYPES.find(p => p.id === egg.type);
-    if (!petDef) return;
-    const name = `${petDef.name} (${egg.rarity})`;
-    const newPet = {
-      id: Date.now() + '_' + Math.random().toString(36).slice(2),
-      type: egg.type,
-      rarity: egg.rarity,
-      level: 1,
-      xp: 0,
-      stage: 'Newborn',
-      active: pets.length === 0,
-      name,
-    };
-    const newEggs = eggs.filter(e => e.id !== egg.id);
-    setSave({ ...save, pets: [...pets, newPet], petEggs: newEggs });
-    Audio.levelUp();
-  };
+  // (The old direct egg->pet hatch lived here. Every egg goes through the
+  // incubator now, so it had no callers left — see incubate/hatchFromSlot.)
 
   // ----- Feed pet -----
   const feedPet = (pet) => {

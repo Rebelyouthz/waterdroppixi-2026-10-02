@@ -103,6 +103,9 @@ export const DEFAULT_SAVE = {
   // nobody can name is a currency that does nothing.
   cores: 0,
   flux: 0,
+  // Waterdrop Clicker. `drops` is spendable inside the clicker only; `total`
+  // is lifetime production, which is what the milestone ladder pays against.
+  clicker: { drops: 0, total: 0, buildings: {}, clickLvl: 0, claimed: {}, lastMs: 0 },
   gearParts: 0,              // spent to level equipment 1..10 (see game/gear.js)
   probe: {},                 // Astro Prospector probe upgrade levels
   prospectBlueprints: 0,     // sealed data cores, spent to unlock unique cards
@@ -170,6 +173,8 @@ export function loadSave() {
     s.incubatorSlots = s.incubatorSlots || DEFAULT_SAVE.incubatorSlots;
     s.cores = s.cores || 0;
     s.flux = s.flux || 0;
+    s.clicker = { ...DEFAULT_SAVE.clicker, ...(s.clicker || {}) };
+    if (!s.clicker.lastMs) s.clicker.lastMs = Date.now();
     s.gearParts = s.gearParts || 0;
     // Gear predating the levelling system has no level. Treating a missing
     // level as 1 in the readers would work, but writing it once here means
@@ -280,11 +285,45 @@ export function tickIdle(save, nowMs = Date.now()) {
     };
   }
 
+  // Waterdrop Clicker production. Uses its OWN lastMs rather than the shared
+  // lastTickMs, because the clicker screen settles itself every frame while
+  // open — sharing one timestamp would let one of the two consumers reset it
+  // and silently swallow the other's elapsed time.
+  const cl = save.clicker;
+  if (cl) {
+    const rate = clickerRate(cl);
+    const last = cl.lastMs || now;
+    const elapsed = Math.max(0, Math.min(IDLE_CAP_MS, now - last));
+    if (rate > 0 && elapsed >= 1000) {
+      const gained = rate * (elapsed / 1000);
+      const ns = touch();
+      ns.clicker = {
+        ...cl,
+        drops: (cl.drops || 0) + gained,
+        total: (cl.total || 0) + gained,
+        lastMs: now,
+      };
+    } else if (!cl.lastMs) {
+      const ns = touch();
+      ns.clicker = { ...cl, lastMs: now };
+    }
+  }
+
   if (changed || !save.lastTickMs) {
     const ns = touch();
     ns.lastTickMs = now;
   }
   return s;
+}
+
+// Duplicated deliberately from game/clicker.js's dropsPerSec: store.js is
+// imported by nearly everything, and having it pull in a gameplay module for
+// one loop would drag that module into every bundle that touches the save.
+function clickerRate(cl) {
+  const RATES = { condenser: 1, net: 5, trap: 22, aquifer: 100, coil: 480, engine: 2400 };
+  let rate = 0;
+  for (const [id, n] of Object.entries(cl.buildings || {})) rate += (RATES[id] || 0) * n;
+  return rate;
 }
 
 export function saveLocal(data) {

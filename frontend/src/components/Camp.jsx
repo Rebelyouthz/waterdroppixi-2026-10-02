@@ -13,6 +13,8 @@ import CampaignPanel from './CampaignPanel';
 import PetPanel from './PetPanel';
 import ProspectorScreen from './ProspectorScreen';
 import { nextCampaignNode } from '../game/campaign';
+import ClickerScreen from './ClickerScreen';
+import { pendingMilestones } from '../game/clicker';
 import GearPanel from './GearPanel';
 import { BattlePassPanel, CodexPanel, PatrolPanel, EyeBadge } from './MetaFeatures';
 import { ACHIEVEMENTS } from '../game/data_ext2';
@@ -78,6 +80,8 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
   const [talentOpen, setTalentOpen] = useState(false);
   const [petOpen, setPetOpen] = useState(false);
   const [prospectorOpen, setProspectorOpen] = useState(false);
+  const [clickerOpen, setClickerOpen] = useState(false);
+  const clickerReady = pendingMilestones(save.clicker).length;
   const [profileOpen, setProfileOpen] = useState(false);
   const [attrOpen, setAttrOpen] = useState(false);
   // The attribute panel escapes the sidebar entirely. Both an absolutely
@@ -296,6 +300,9 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
             <button className={`camp-tab ${tab === 'stats' ? 'active' : ''}`} onClick={() => setTab('stats')} data-testid="tab-stats">📊 STATS</button>
             <button className={`camp-tab ${tab === 'starraid' ? 'active' : ''}`} onClick={() => setTab('starraid')} data-testid="tab-starraid">🚀 STAR RAID</button>
             <button className="camp-tab" onClick={() => setProspectorOpen(true)} data-testid="tab-prospector">⛏ PROSPECTOR</button>
+            <button className="camp-tab" onClick={() => setClickerOpen(true)} data-testid="tab-clicker" style={{ position: 'relative' }}>
+              💧 THE WELL {clickerReady > 0 && <EyeBadge />}
+            </button>
             <div className="camp-tab-divider" />
             <button className="camp-tab" onClick={() => setCharacterOpen(true)} data-testid="tab-character">👤 CHARACTER</button>
             <button className="camp-tab" onClick={() => setPetOpen(true)} data-testid="tab-pets">🐾 PETS</button>
@@ -502,6 +509,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
       {talentOpen && <TalentTree save={save} setSave={setSave} onClose={() => setTalentOpen(false)} />}
       {petOpen && <PetPanel save={save} setSave={setSave} onClose={() => setPetOpen(false)} />}
       {prospectorOpen && <ProspectorScreen save={save} setSave={setSave} onClose={() => setProspectorOpen(false)} />}
+      {clickerOpen && <ClickerScreen save={save} setSave={setSave} onClose={() => setClickerOpen(false)} />}
       {profileOpen && <ProfilePanel save={save} setSave={setSave} onClose={() => setProfileOpen(false)} />}
       {save.pendingLevelUp && (
         <LevelUpOverlay save={save} onCollect={() => {
