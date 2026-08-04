@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import {
   GEAR_SLOTS, GEAR_SLOT_ICONS, GEAR_SLOT_NAMES,
   GEAR_RARITIES, GEAR_RARITY_COLORS, getMergeGroups, getPendingMergeGroups, mergeItems, generateGearItem,
-  GEAR_MAX_LEVEL, gearLevelCost, gearStatValue, gearHasSocket
+  GEAR_MAX_LEVEL, gearLevelCost, gearStatValue, gearHasSocket,
+  GEAR_SETS, GEAR_SET_IDS, itemSet, equippedSetCounts
 } from '../game/gear';
 import {
   ARTIFACT_SLOT_COUNT, ARTIFACT_RARITY_COLORS, rollArtifact
@@ -103,6 +104,8 @@ export default function GearPanel({ save, setSave }) {
   const gearRunes = save.gearRunes || {};
   const socketGearRune = (slot, runeId) => setSave({ ...save, gearRunes: { ...gearRunes, [slot]: runeId } });
   const unsocketGearRune = (slot) => { const gr = { ...gearRunes }; delete gr[slot]; setSave({ ...save, gearRunes: gr }); };
+
+  const setCounts = equippedSetCounts(save);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 1600); };
 
@@ -255,7 +258,7 @@ export default function GearPanel({ save, setSave }) {
                       <span className="gear-slot-icon" style={{ color: GEAR_RARITY_COLORS[item.rarity] }}>
                         {GEAR_SLOT_ICONS[slot]}
                       </span>
-                      <span className="gear-slot-stat">{fmtVal(item.stat, item.val)}</span>
+                      <span className="gear-slot-stat">{fmtVal(item.stat, gearStatValue(item))}</span>
                     </>
                   ) : (
                     <span className="gear-slot-empty-icon" style={{ opacity: 0.25 }}>
@@ -287,8 +290,16 @@ export default function GearPanel({ save, setSave }) {
                     <div key={item.id} className={`gear-popover-row ${eq[popoverSlot] === item.id ? 'eq' : ''}`}
                       style={{ '--rc': GEAR_RARITY_COLORS[item.rarity] }}
                       onClick={() => equipItem(item)}>
-                      <span className="gear-popover-name">{item.name}</span>
-                      <span className="gear-popover-stat">{fmtVal(item.stat, item.val)} {STAT_LABELS[item.stat]}</span>
+                      <span className="gear-popover-name">
+                        {item.name}
+                        {/* The set tag is on the row you choose FROM — a set
+                            list you can only read after equipping cannot
+                            influence which piece you equip. */}
+                        {(() => { const st = GEAR_SETS[itemSet(item)]; return st
+                          ? <i className="gear-set-tag" style={{ '--sc': st.accent }}>{st.icon} {st.name}</i>
+                          : null; })()}
+                      </span>
+                      <span className="gear-popover-stat">{fmtVal(item.stat, gearStatValue(item))} {STAT_LABELS[item.stat]}</span>
                       {item.secondary && <span className="gear-popover-armor">+{item.secondary.val} armor</span>}
                       {eq[popoverSlot] === item.id && <span className="gear-popover-badge">EQ</span>}
                     </div>
@@ -335,13 +346,41 @@ export default function GearPanel({ save, setSave }) {
                 <div key={slot} className="gear-stat-row" style={{ color: GEAR_RARITY_COLORS[item.rarity] }}>
                   <span>{GEAR_SLOT_ICONS[slot]}</span>
                   <span>{item.name}</span>
-                  <span>{fmtVal(item.stat, item.val)} {STAT_LABELS[item.stat]}</span>
+                  <span>{fmtVal(item.stat, gearStatValue(item))} {STAT_LABELS[item.stat]}</span>
                 </div>
               );
             })}
             {Object.keys(eq).length === 0 && (
               <div style={{ color:'#4a3a6e', fontSize:11, marginTop:8 }}>No items equipped. Find gear during runs!</div>
             )}
+          </div>
+
+          {/* Sets. Shown for every set you own a piece of, not only the ones
+              already paying — the whole value of a set list is telling you
+              you are one piece away. */}
+          <div className="gear-sets" data-testid="gear-sets">
+            <div className="gear-stats-title">SET BONUSES</div>
+            {GEAR_SET_IDS.filter(id => (setCounts[id] || 0) > 0).length === 0 && (
+              <div style={{ color:'#4a3a6e', fontSize:11, marginTop:6 }}>
+                Every piece belongs to a set. Equip two of the same one to start it.
+              </div>
+            )}
+            {GEAR_SET_IDS.map(id => {
+              const n = setCounts[id] || 0;
+              if (n === 0) return null;
+              const set = GEAR_SETS[id];
+              return (
+                <div key={id} className="gset-row" style={{ '--sc': set.accent }}>
+                  <span className="gset-icon">{set.icon}</span>
+                  <span className="gset-name">{set.name}</span>
+                  <span className="gset-count">{n}/4</span>
+                  <div className="gset-tiers">
+                    <div className={`gset-tier${n >= 2 ? ' on' : ''}`}><b>2</b> {set.t2.label}</div>
+                    <div className={`gset-tier${n >= 4 ? ' on' : ''}`}><b>4</b> {set.t4.label}</div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -420,7 +459,7 @@ export default function GearPanel({ save, setSave }) {
               <div className="gear-detail-rarity" style={{ color: GEAR_RARITY_COLORS[selected.rarity] }}>
                 {selected.rarity.toUpperCase()} {GEAR_SLOT_NAMES[selected.slot]}
               </div>
-              <div className="gear-detail-stat">{fmtVal(selected.stat, selected.val)} {STAT_LABELS[selected.stat]}</div>
+              <div className="gear-detail-stat">{fmtVal(selected.stat, gearStatValue(selected))} {STAT_LABELS[selected.stat]}</div>
               <div className="gear-detail-btns">
                 {eq[selected.slot] !== selected.id && (
                   <button className="gear-btn equip" onClick={() => equipItem(selected)} data-testid="gear-equip-btn">

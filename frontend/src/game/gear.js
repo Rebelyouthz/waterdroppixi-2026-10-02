@@ -130,6 +130,10 @@ export function generateGearItem(slot, rarity) {
     secondary,
     level:  1,
     socket,
+    // Which gear set this piece belongs to. Rolled flat rather than weighted
+    // by slot: a set that could only ever appear on three slots could never
+    // reach its 4-piece tier.
+    set:    GEAR_SET_IDS[Math.floor(Math.random() * GEAR_SET_IDS.length)],
     name:   `${pre} ${suf}`,
   };
 }
@@ -161,6 +165,95 @@ export function rollGearDrop(timeInRun = 0, isBoss = false) {
   return generateGearItem(slot, rarity);
 }
 
+// ---- Gear sets -------------------------------------------------------------
+// The equipment-side answer to weapon synergies. Same idea, different shape:
+// weapons pair, gear accumulates. A set pays at 2 pieces and again at 4, so
+// a half-committed set is still worth something and a full one is worth
+// deliberately turning down a better single item for.
+//
+// Set bonuses use the same stat names buildMetaEffects already understands,
+// so nothing new has to be plumbed through to the engine.
+export const GEAR_SETS = {
+  tidewalker: {
+    id: 'tidewalker', name: 'Tidewalker', icon: '🌊', accent: '#4fd8ff',
+    t2: { label: '+8% move speed', apply: (r) => { r.mspd += 0.08; } },
+    t4: { label: '+8% dodge, +15% pickup range', apply: (r) => { r.dodge += 0.08; r.pickup += 0.15; } },
+  },
+  bulwark: {
+    id: 'bulwark', name: 'Bulwark', icon: '🛡', accent: '#9fb3c8',
+    t2: { label: '+22 max HP', apply: (r) => { r.maxHp += 22; } },
+    t4: { label: '+7 armour, +0.4 regen', apply: (r) => { r.armor += 7; r.regen += 0.4; } },
+  },
+  marksman: {
+    id: 'marksman', name: "Marksman's Kit", icon: '🎯', accent: '#ffd166',
+    t2: { label: '+6% crit', apply: (r) => { r.crit += 0.06; } },
+    t4: { label: '+30% crit damage, +8% headshot', apply: (r) => { r.critd += 0.30; r.headshot += 0.08; } },
+  },
+  prospector: {
+    id: 'prospector', name: "Prospector's Rig", icon: '⛏', accent: '#c8f0a0',
+    t2: { label: '+12% gold', apply: (r) => { r.gold += 0.12; } },
+    t4: { label: '+14% XP, +1 luck', apply: (r) => { r.xp += 0.14; r.luck += 1; } },
+  },
+  voidtouched: {
+    id: 'voidtouched', name: 'Voidtouched', icon: '🔮', accent: '#b362ff',
+    t2: { label: '+7% damage', apply: (r) => { r.dmg += 0.07; } },
+    t4: { label: '+18% boss damage, +1 pierce', apply: (r) => { r.bossDmg += 0.18; r.pierce += 1; } },
+  },
+};
+export const GEAR_SET_IDS = Object.keys(GEAR_SETS);
+
+// Which set a piece belongs to. New drops carry `set` explicitly. Items that
+// predate the system get one derived from their id, which is stable (the
+// same item always resolves to the same set) and spreads evenly — the
+// alternative was leaving every existing inventory outside the system, which
+// would have made it invisible to exactly the players who have the most gear.
+export function itemSet(item) {
+  if (!item) return null;
+  if (item.set) return item.set;
+  let h = 0;
+  const s = String(item.id || '');
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return GEAR_SET_IDS[Math.abs(h) % GEAR_SET_IDS.length];
+}
+
+// How many equipped pieces each set has. Only equipped pieces count —
+// a set bonus you get from the stash would make the stash the build.
+export function equippedSetCounts(save) {
+  const inv = save.gearInventory || [];
+  const eq = save.gearEquipped || {};
+  const counts = {};
+  for (const slot of GEAR_SLOTS) {
+    const item = inv.find(x => x.id === eq[slot]);
+    if (!item) continue;
+    const sid = itemSet(item);
+    counts[sid] = (counts[sid] || 0) + 1;
+  }
+  return counts;
+}
+
+// [{ set, count, tiers: ['t2','t4'] }] for everything currently paying out.
+export function activeGearSets(save) {
+  const counts = equippedSetCounts(save);
+  const out = [];
+  for (const sid of Object.keys(counts)) {
+    const set = GEAR_SETS[sid];
+    if (!set) continue;
+    const count = counts[sid];
+    const tiers = [];
+    if (count >= 2) tiers.push('t2');
+    if (count >= 4) tiers.push('t4');
+    if (tiers.length) out.push({ set, count, tiers });
+  }
+  return out;
+}
+
+export function applyGearSetsToStats(save, result) {
+  for (const { set, tiers } of activeGearSets(save)) {
+    for (const t of tiers) set[t].apply(result);
+  }
+  return result;
+}
+
 // Apply gear stats to buildMetaEffects result
 export function applyGearToStats(save, result) {
   const inv = save.gearInventory || [];
@@ -180,6 +273,7 @@ export function applyGearToStats(save, result) {
     else result[stat] = val;
     if (item.secondary) result.armor = (result.armor || 0) + gearSecondaryValue(item);
   }
+  applyGearSetsToStats(save, result);
   return result;
 }
 

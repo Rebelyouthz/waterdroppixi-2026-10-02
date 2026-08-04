@@ -4,7 +4,7 @@ import { SKILL_INDEX, WEAPON_PARTS } from '../game/data_ext';
 import { ACTIVE_SKILLS } from '../game/data_ext2';
 import { HEADBANDS } from '../game/data_ext';
 import { POE_INDEX, POE_ATTRS } from '../game/poe_tree';
-import { rollGearDrop } from '../game/gear';
+import { rollGearDrop, applyGearToStats } from '../game/gear';
 import { applyArtifactsToStats } from '../game/artifacts';
 import { applyRunesToStats } from '../game/runes';
 import { Audio } from '../game/audio';
@@ -126,19 +126,12 @@ function buildMetaEffects(save) {
   // end of computeWeaponStats instead, per weapon, not as global meta.
 
   // Apply new gear system items
-  const gearInv = save.gearInventory || [];
-  const gearEq  = save.gearEquipped  || {};
-  for (const slot of ['helmet','chest','arms','legs','boots','ring','amulet']) {
-    const itemId = gearEq[slot];
-    if (!itemId) continue;
-    const item = gearInv.find(x => x.id === itemId);
-    if (!item) continue;
-    const { stat, val } = item;
-    if (stat === 'maxHp') result.maxHp += val;
-    else if (result[stat] !== undefined) result[stat] += val;
-    else result[stat] = val;
-    if (item.secondary) result.armor += item.secondary.val;
-  }
+  // This used to be an inline copy of applyGearToStats that read `item.val`
+  // directly — which meant gear LEVELS did nothing in a run. The whole gear
+  // parts economy was being spent on a number the engine never saw.
+  // applyGearToStats scales by level (gearStatValue) and applies set
+  // bonuses, and it is the only place that knows how, so call it.
+  applyGearToStats(save, result);
   applyArtifactsToStats(save, result);
   applyRunesToStats(save, result);
 
