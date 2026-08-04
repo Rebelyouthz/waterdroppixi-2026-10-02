@@ -70,9 +70,37 @@ export const RAID_CARDS = [
   { id: 'scavenger',  name: 'Scavenger Rig',  icon: '🔍', max: 4, desc: () => '+25% scrap and XP from wrecks',         apply: (s) => { s.loot += 0.25; } },
 ];
 
-function makeStats(shipLevels) {
+// Hull roster. Three genuinely different ships rather than one ship with
+// sliders — every entry gives up something real for what it gains, so
+// picking one is a decision about how you want to fly rather than a straight
+// upgrade you buy once and never revisit.
+export const SHIPS = {
+  skiff: {
+    id: 'skiff', name: 'Tide Skiff', cost: 0,
+    desc: 'The one everybody learns on. No strengths, no holes.',
+    mods: {},
+  },
+  interceptor: {
+    id: 'interceptor', name: 'Needle', cost: 140,
+    desc: 'Twice the reflexes, half the hull. You do not get hit, or you die.',
+    mods: { speed: 1.42, fireRate: 1.28, maxHp: 0.62, dmg: 0.86 },
+  },
+  gunship: {
+    id: 'gunship', name: 'Bulwark', cost: 300,
+    desc: 'An extra cannon bolted on and the damage to justify it. Turns like a barn.',
+    mods: { dmg: 1.30, speed: 0.86, guns: 1 },
+  },
+  hauler: {
+    id: 'hauler', name: 'Dredger', cost: 460,
+    desc: 'Built to survive and to hoover. Slow, and it does not care.',
+    mods: { maxHp: 1.85, magnetR: 2.4, loot: 1.35, speed: 0.76, fireRate: 0.88 },
+  },
+};
+
+function makeStats(shipLevels, shipId) {
   const lv = shipLevels || {};
-  return {
+  const m = (SHIPS[shipId] || SHIPS.skiff).mods || {};
+  const base = {
     dmg: 10 * (1 + (lv.dmg || 0) * SHIP_UPGRADES.dmg.perLevel),
     fireRate: 3.2 * (1 + (lv.atks || 0) * SHIP_UPGRADES.atks.perLevel),
     maxHp: 30 + (lv.hp || 0) * SHIP_UPGRADES.hp.perLevel,
@@ -85,6 +113,13 @@ function makeStats(shipLevels) {
     homing: 0,
     loot: 1,
   };
+  // Hull modifiers are multipliers, except `guns`, which is a flat extra
+  // barrel — a 1.3x on a value of 1 would round to nothing.
+  for (const [k, v] of Object.entries(m)) {
+    if (k === 'guns') base.guns += v;
+    else base[k] = (base[k] || 0) * v;
+  }
+  return base;
 }
 
 export class StarRaidGame {
@@ -97,7 +132,8 @@ export class StarRaidGame {
     this.callbacks = opts.callbacks || {};
     this.shipColor = opts.shipColor || '#5fd6ff'; // ProfilePanel rank-unlocked cosmetic
     this.shipLevels = opts.shipLevels || {};
-    this.stats = makeStats(this.shipLevels);
+    this.shipId = SHIPS[opts.shipId] ? opts.shipId : 'skiff';
+    this.stats = makeStats(this.shipLevels, this.shipId);
     this.stageIdx = clamp(opts.stageIdx || 0, 0, STAGES.length - 1);
     this.stage = STAGES[this.stageIdx];
 

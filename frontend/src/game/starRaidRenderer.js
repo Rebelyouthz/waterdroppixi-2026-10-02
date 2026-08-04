@@ -366,15 +366,36 @@ export class StarRaidRenderer {
     const shipColor = hit ? '#ffffff' : (game.shipColor || '#5fd6ff');
     const dark = hit ? '#ffffff' : '#0a2033';
 
-    // main hull (points up: local -Y is forward)
-    this._hull(g, p.x, p.y, bank, [
-      0, -20, -6, -6, -15, 4, -13, 13, -5, 8, 0, 12, 5, 8, 13, 13, 15, 4, 6, -6,
-    ], shipColor, dark, 2);
+    // Hull shape follows the ship you actually chose — a roster where every
+    // hull looks the same is a roster you cannot see.
+    const HULLS = {
+      // long, thin, swept right back
+      interceptor: [0, -25, -4, -8, -11, 6, -9, 15, -3, 9, 0, 13, 3, 9, 9, 15, 11, 6, 4, -8],
+      // wide and blunt with squared shoulders and outboard gun pods
+      gunship: [0, -17, -9, -8, -19, -2, -18, 9, -10, 7, -5, 14, 5, 14, 10, 7, 18, 9, 19, -2, 9, -8],
+      // fat, slab-sided cargo body
+      hauler: [0, -15, -11, -9, -16, 2, -14, 15, 14, 15, 16, 2, 11, -9],
+      skiff: [0, -20, -6, -6, -15, 4, -13, 13, -5, 8, 0, 12, 5, 8, 13, 13, 15, 4, 6, -6],
+    };
+    const hull = HULLS[game.shipId] || HULLS.skiff;
+    this._hull(g, p.x, p.y, bank, hull, shipColor, dark, 2);
     // canopy
     this._hull(g, p.x, p.y, bank, [0, -14, -4, -4, 0, 0, 4, -4], '#d8fbff');
-    // wing stripes
-    this._hull(g, p.x, p.y, bank, [-13, 4, -8, 4, -7, 11, -12, 11], dark);
-    this._hull(g, p.x, p.y, bank, [13, 4, 8, 4, 7, 11, 12, 11], dark);
+
+    if (game.shipId === 'gunship') {
+      // outboard cannons, which is what the extra barrel looks like
+      for (const side of [-1, 1]) {
+        this._hull(g, p.x, p.y, bank, [side * 13, -6, side * 17, -6, side * 17, 6, side * 13, 6], dark);
+        this._hull(g, p.x, p.y, bank, [side * 14, -14, side * 16, -14, side * 16, -5, side * 14, -5], '#9fb4c8');
+      }
+    } else if (game.shipId === 'hauler') {
+      // cargo ribs
+      for (const y of [-4, 1, 6]) this._hull(g, p.x, p.y, bank, [-14, y, 14, y, 14, y + 1.6, -14, y + 1.6], dark);
+    } else {
+      // wing stripes
+      this._hull(g, p.x, p.y, bank, [-13, 4, -8, 4, -7, 11, -12, 11], dark);
+      this._hull(g, p.x, p.y, bank, [13, 4, 8, 4, 7, 11, 12, 11], dark);
+    }
 
     if (p.iframes > 0) {
       // shield bubble flickers while invulnerable

@@ -1,8 +1,14 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { StarRaidGame, STAGES, SHIP_UPGRADES, upgradeCost } from '../game/starRaidEngine';
+import { StarRaidGame, STAGES, SHIP_UPGRADES, upgradeCost, SHIPS } from '../game/starRaidEngine';
 import { StarRaidRenderer } from '../game/starRaidRenderer';
 import { SHIP_COLORS } from '../game/data_ext';
 import { rollRune } from '../game/runes';
+
+// Readable names for the hull modifier keys shown in the hangar.
+const MOD_LABELS = {
+  speed: 'thrust', fireRate: 'fire rate', maxHp: 'hull',
+  dmg: 'damage', magnetR: 'pickup range', loot: 'scrap',
+};
 
 // ═══════════════════════════════════════════════════════════════════════
 // STAR RAID — "Patrol minigame" from spec (named to avoid colliding with
@@ -49,6 +55,7 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
     const canvas = canvasRef.current;
     const game = new StarRaidGame(canvas, {
       shipLevels: sr.levels,
+      shipId: sr.shipId || 'skiff',
       stageIdx,
       shipColor: SHIP_COLORS.find(c => c.id === save.profile?.shipColor)?.color || '#5fd6ff',
       callbacks: {
@@ -161,6 +168,17 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
     setSave({ ...save, starRaid: { ...sr, scrap: sr.scrap - cost, levels: { ...sr.levels, [id]: lvl + 1 } } });
   };
 
+  // Buying a hull also flies it — nobody buys a ship and then leaves it in
+  // the hangar, and making that a second click is friction for its own sake.
+  const buyShip = (s) => {
+    if ((sr.scrap || 0) < s.cost) return;
+    setSave({
+      ...save,
+      starRaid: { ...sr, scrap: sr.scrap - s.cost, ships: { ...(sr.ships || {}), [s.id]: true }, shipId: s.id },
+    });
+  };
+  const selectShip = (id) => setSave({ ...save, starRaid: { ...sr, shipId: id } });
+
   if (screen === 'menu') {
     return (
       <div className="modal-overlay">
@@ -206,9 +224,44 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
     return (
       <div className="modal-overlay">
         <div className="menu" style={{ maxWidth: 520, width: '92vw', padding: 24 }} data-testid="starraid-shop-panel">
-          <div className="title">🔧 SHIP UPGRADES</div>
+          <div className="title">🔧 HANGAR</div>
           <div style={{ fontFamily: 'VT323', color: '#ffd166', margin: '6px 0 14px' }}>⚙ Scrap: {sr.scrap || 0}</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: '50vh', overflowY: 'auto' }}>
+
+          {/* Hull roster. Upgrades below apply to whichever hull is flown, so
+              switching never throws away what you have spent. */}
+          <div className="raid-hangar">
+            {Object.values(SHIPS).map(s => {
+              const owned = s.cost === 0 || (sr.ships || {})[s.id];
+              const active = (sr.shipId || 'skiff') === s.id;
+              const afford = (sr.scrap || 0) >= s.cost;
+              return (
+                <div key={s.id} className={`raid-hull${active ? ' active' : ''}${owned ? '' : ' locked'}`}>
+                  <div className="raid-hull-name">{s.name}</div>
+                  <div className="raid-hull-desc">{s.desc}</div>
+                  <div className="raid-hull-mods">
+                    {Object.entries(s.mods).length === 0
+                      ? <span className="mod-neutral">baseline</span>
+                      : Object.entries(s.mods).map(([k, v]) => (
+                        <span key={k} className={k === 'guns' || v > 1 ? 'mod-up' : 'mod-down'}>
+                          {k === 'guns' ? `+${v} cannon` : `${v > 1 ? '+' : ''}${Math.round((v - 1) * 100)}% ${MOD_LABELS[k] || k}`}
+                        </span>
+                      ))}
+                  </div>
+                  {owned ? (
+                    <button className="gear-btn equip" disabled={active} onClick={() => selectShip(s.id)}>
+                      {active ? '✓ IN USE' : 'FLY THIS'}
+                    </button>
+                  ) : (
+                    <button className="gear-btn equip" disabled={!afford} style={{ opacity: afford ? 1 : 0.4 }}
+                            onClick={() => buyShip(s)}>BUY ({s.cost} ⚙)</button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={{ fontFamily: 'VT323', color: 'var(--accent-2)', letterSpacing: '0.16em', margin: '14px 0 6px' }}>UPGRADES</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: '34vh', overflowY: 'auto' }}>
             {Object.entries(SHIP_UPGRADES).map(([id, u]) => {
               const lvl = sr.levels[id] || 0;
               const maxed = lvl >= u.max;
