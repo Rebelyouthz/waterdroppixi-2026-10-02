@@ -228,6 +228,7 @@ export class PixiRenderer {
     // read as a painted backdrop. Drawn once, never re-cached, so nothing
     // ever snaps back to centre. See _drawDeepSpace.
     this.gHeroGalaxy = new Graphics(); this.deepSpace.addChild(this.gHeroGalaxy);
+    this.gHeroWorld  = new Graphics(); this.deepSpace.addChild(this.gHeroWorld);
     this.gHeroStar   = new Graphics(); this.deepSpace.addChild(this.gHeroStar);
     this._heroBodiesDrawn = false;
     // Real shader-driven nebula cloud (fbm noise + uTime color drift) sitting
@@ -1094,6 +1095,7 @@ void main() {
   // than as an object: a galaxy and a dwarf star.
   _buildHeroBodies(W, H) {
     this._drawGalaxy(this.gHeroGalaxy, 0, 0);
+    this._drawDistantWorld(this.gHeroWorld, 0, 0, 108);
     this._drawDwarfStar(this.gHeroStar, 0, 0);
 
     // Depth is sold by three cues disagreeing with each other: parallax
@@ -1105,6 +1107,7 @@ void main() {
     // values that actually make the sky feel like it is behind the world.
     this._heroBodies = [
       { g: this.gHeroGalaxy, bx: W * 0.52, by: H * 0.34, f: 0.10, driftX: -2.6, driftY: 0.7, pad: 460, alpha: 0.80 },
+      { g: this.gHeroWorld,  bx: W * 0.74, by: H * 0.26, f: 0.14, driftX: -4.2, driftY: 1.1, pad: 340, alpha: 0.92 },
       { g: this.gHeroStar,   bx: W * 0.24, by: H * 0.62, f: 0.18, driftX:  3.6, driftY: -0.9, pad: 240, alpha: 0.88 },
     ];
     for (const b of this._heroBodies) b.g.alpha = b.alpha;
@@ -1131,10 +1134,14 @@ void main() {
         const perCell = Math.max(1, Math.round(def.count / 6));
         const sX = Math.floor((ox - pad) / cell) * cell;
         const sY = Math.floor((oy - pad) / cell) * cell;
-        // Three brightness tiers per layer, skewed toward faint, plus a warm
-        // minority — collected first because Graphics fills everything
-        // accumulated since the last fill() in one go.
-        const tiers = [[], [], [], [], [], []];
+        // Three brightness tiers x three spectral colours. Stars are not all
+        // one white — a real field runs blue-white through yellow to a few
+        // dim reds, and that spread is most of what stops it reading as
+        // scattered pixels. Collected into buckets first because Graphics
+        // fills everything accumulated since the last fill() in one go.
+        const STAR_COLS = ['#cfe6ff', '#ffe9c4', '#ffb9a8'];
+        const tiers = [[], [], [], [], [], [], [], [], []];  // tier*3 + colour
+        const sparkles = [];   // bright 4-point stars, drawn per-star
         const flares = [];
         for (let gx2 = sX; gx2 < ox + W + pad; gx2 += cell) {
           for (let gy2 = sY; gy2 < oy + H + pad; gy2 += cell) {
@@ -1144,29 +1151,135 @@ void main() {
               const sy2 = gy2 + ((h >> 9) % cell);
               const m = (h >> 3) & 15;
               const tier = m < 9 ? 0 : m < 14 ? 1 : 2;
-              const warm = ((h >> 7) & 7) === 0;
+              // Colour skewed hard toward blue-white; warm and red are the
+              // minority that makes the majority read as a colour at all.
+              const cm = (h >> 7) & 15;
+              const col = cm < 11 ? 0 : cm < 14 ? 1 : 2;
               const r = def.size * (tier === 0 ? 0.6 : tier === 1 ? 1 : 1.55);
-              tiers[tier * 2 + (warm ? 1 : 0)].push(sx2, sy2, r);
-              if (tier === 2 && def.f > 0.2 && ((h >> 11) & 3) === 0) flares.push(sx2, sy2, r * 4.2, warm ? 1 : 0);
+              // The brightest stars in the nearer layers get a real 4-point
+              // shape instead of a dot, which is what makes size variation
+              // read as different KINDS of star rather than just bigger dots.
+              if (tier === 2 && def.f > 0.14 && ((h >> 13) & 1) === 0) {
+                sparkles.push(sx2, sy2, r, col);
+              } else {
+                tiers[tier * 3 + col].push(sx2, sy2, r);
+              }
+              if (tier === 2 && def.f > 0.2 && ((h >> 11) & 3) === 0) flares.push(sx2, sy2, r * 4.2, col);
             }
           }
         }
-        const cool = '#cfe6ff', warmC = '#ffd9b0';
         const tierA = [0.42, 0.7, 1.0];
-        for (let bi = 0; bi < 6; bi++) {
+        for (let bi = 0; bi < 9; bi++) {
           const arr = tiers[bi];
           if (!arr.length) continue;
           for (let i = 0; i < arr.length; i += 3) g.circle(arr[i], arr[i + 1], arr[i + 2]);
-          g.fill({ color: (bi & 1) ? warmC : cool, alpha: def.alpha * tierA[bi >> 1] });
+          g.fill({ color: STAR_COLS[bi % 3], alpha: def.alpha * tierA[(bi / 3) | 0] });
+        }
+        // 4-point stars: a tapered diamond on each axis, so they have a
+        // silhouette rather than being a fatter circle.
+        for (let i = 0; i < sparkles.length; i += 4) {
+          const sx2 = sparkles[i], sy2 = sparkles[i + 1], r = sparkles[i + 2], col = sparkles[i + 3];
+          const L = r * 3.2, wdt = r * 0.5;
+          g.poly([sx2, sy2 - L, sx2 + wdt, sy2, sx2, sy2 + L, sx2 - wdt, sy2]);
+          g.poly([sx2 - L, sy2, sx2, sy2 - wdt, sx2 + L, sy2, sx2, sy2 + wdt]);
+          g.fill({ color: STAR_COLS[col], alpha: def.alpha });
+          g.circle(sx2, sy2, r * 0.85).fill({ color: '#ffffff', alpha: def.alpha * 0.9 });
         }
         for (let i = 0; i < flares.length; i += 4) {
           const fx = flares[i], fy = flares[i + 1], fl = flares[i + 2];
           g.moveTo(fx - fl, fy).lineTo(fx + fl, fy).moveTo(fx, fy - fl).lineTo(fx, fy + fl)
-            .stroke({ width: 0.8, color: flares[i + 3] ? warmC : cool, alpha: def.alpha * 0.45 });
+            .stroke({ width: 0.8, color: STAR_COLS[flares[i + 3]], alpha: def.alpha * 0.45 });
         }
       }
       g.position.set(-ox, -oy);
     }
+  }
+
+  // A habitable world, far enough away to be a marble. Its whole job is to be
+  // the one thing in the sky that is obviously LIT — everything else out
+  // there glows on its own, so a body with a day side, a terminator and a
+  // night side is what gives the scene a sense of a light source at all.
+  //
+  // The sun sits behind it, deliberately: a full disc would blow out the
+  // frame, but an occluded one gives a rim of hard light and a bloom around
+  // the limb for free, which is far more attractive than the star itself.
+  _drawDistantWorld(g, cx, cy, R) {
+    // Light comes from up and slightly right, behind the planet.
+    const lx = 0.62, ly = -0.78;
+    const sunX = cx + lx * R * 1.06, sunY = cy + ly * R * 1.06;
+
+    // --- the sun behind, drawn first so the planet occludes its core ---
+    for (let i = 7; i >= 1; i--) {
+      g.circle(sunX, sunY, R * 0.30 * i).fill({ color: '#ffe9b0', alpha: 0.020 });
+    }
+    g.circle(sunX, sunY, R * 0.30).fill({ color: '#fff6dc', alpha: 0.55 });
+    g.circle(sunX, sunY, R * 0.17).fill({ color: '#ffffff', alpha: 0.85 });
+    // sun glare — two long streaks and a couple of ghosts down the axis
+    for (const [len, w, a] of [[R * 3.4, 1.6, 0.22], [R * 1.5, 3.2, 0.12]]) {
+      g.moveTo(sunX - lx * len, sunY - ly * len).lineTo(sunX + lx * len, sunY + ly * len)
+        .stroke({ width: w, color: '#ffeec4', alpha: a });
+      g.moveTo(sunX + ly * len * 0.55, sunY - lx * len * 0.55)
+        .lineTo(sunX - ly * len * 0.55, sunY + lx * len * 0.55)
+        .stroke({ width: w * 0.7, color: '#ffeec4', alpha: a * 0.6 });
+    }
+    for (const [t, r, a] of [[-0.45, 0.10, 0.10], [-0.85, 0.16, 0.07], [-1.3, 0.07, 0.06]]) {
+      g.circle(sunX + lx * R * 2.4 * t, sunY + ly * R * 2.4 * t, R * r)
+        .fill({ color: '#ffe0a0', alpha: a });
+    }
+
+    // --- atmosphere halo ---
+    for (let i = 5; i >= 1; i--) {
+      g.circle(cx, cy, R * (1 + i * 0.055)).fill({ color: '#6fc8ff', alpha: 0.035 });
+    }
+
+    // --- ocean body ---
+    g.circle(cx, cy, R).fill('#12406e');
+    // deep/shallow banding so the sea is not one flat blue
+    g.ellipse(cx, cy - R * 0.35, R * 0.92, R * 0.30).fill({ color: '#1a5c96', alpha: 0.55 });
+    g.ellipse(cx, cy + R * 0.42, R * 0.86, R * 0.26).fill({ color: '#0c2f52', alpha: 0.5 });
+
+    // --- land: a few blobby continents, hand-placed so they read as
+    // landmasses rather than as noise ---
+    const LAND = [
+      [-0.34, -0.30, 0.30, 0.20], [-0.10, -0.05, 0.22, 0.30],
+      [0.30, -0.42, 0.20, 0.13], [0.26, 0.22, 0.30, 0.18],
+      [-0.46, 0.34, 0.18, 0.12], [0.02, 0.55, 0.24, 0.11],
+    ];
+    for (const [ox, oy, rx, ry] of LAND) {
+      g.ellipse(cx + ox * R, cy + oy * R, rx * R, ry * R).fill({ color: '#2f7a45', alpha: 0.92 });
+      g.ellipse(cx + ox * R - rx * R * 0.18, cy + oy * R - ry * R * 0.22, rx * R * 0.5, ry * R * 0.42)
+        .fill({ color: '#48965a', alpha: 0.7 });
+    }
+    // polar caps
+    g.ellipse(cx, cy - R * 0.88, R * 0.44, R * 0.16).fill({ color: '#dff2ff', alpha: 0.8 });
+    g.ellipse(cx, cy + R * 0.90, R * 0.36, R * 0.13).fill({ color: '#dff2ff', alpha: 0.7 });
+
+    // --- cloud bands, offset from the land so they read as above it ---
+    for (const [ox, oy, rx, ry, a] of [
+      [-0.20, -0.52, 0.42, 0.10, 0.30], [0.24, -0.12, 0.36, 0.09, 0.26],
+      [-0.30, 0.16, 0.40, 0.09, 0.24], [0.10, 0.44, 0.34, 0.08, 0.20],
+    ]) {
+      g.ellipse(cx + ox * R, cy + oy * R, rx * R, ry * R).fill({ color: '#ffffff', alpha: a });
+    }
+
+    // --- terminator ---
+    // Each shadow disc is offset FURTHER than it is shrunk, so successive
+    // layers stack up on the night limb and thin out toward the middle.
+    // Equal-sized offset discs would all still cover the centre and simply
+    // darken the whole planet evenly, which is a flat disc, not a sphere.
+    for (const [off, rad, a] of [[0.30, 0.98, 0.16], [0.52, 0.88, 0.20], [0.72, 0.72, 0.26]]) {
+      g.circle(cx - lx * R * off, cy - ly * R * off, R * rad)
+        .fill({ color: '#02060f', alpha: a });
+    }
+
+    // --- lit limb: a hard crescent of daylight where the sun clips the edge ---
+    g.circle(cx + lx * R * 0.10, cy + ly * R * 0.10, R * 0.985)
+      .stroke({ width: R * 0.06, color: '#ffe9c0', alpha: 0.55 });
+    g.circle(cx + lx * R * 0.05, cy + ly * R * 0.05, R * 1.0)
+      .stroke({ width: R * 0.022, color: '#ffffff', alpha: 0.75 });
+    // atmospheric scatter along the lit edge
+    g.circle(cx + lx * R * 0.02, cy + ly * R * 0.02, R * 1.045)
+      .stroke({ width: R * 0.05, color: '#8fd6ff', alpha: 0.30 });
   }
 
   _drawDwarfStar(g, cx, cy) {
