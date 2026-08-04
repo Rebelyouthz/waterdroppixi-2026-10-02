@@ -326,12 +326,27 @@ export default function MobileControls({
 
   // Charge = how far the ability has recovered, 0..1. This is what drives
   // the dial's light: dark at 0, full brightness + pulse at 1.
+  // LEFT dial's ring = dash cooldown (dash fires off a left-stick swipe, so
+  // its dial is where that cooldown belongs). RIGHT dial's ring = the
+  // right-side active skill's cooldown — the same number its pod already
+  // draws as a needle gauge, mirrored onto the whole ring so the two read
+  // as one instrument instead of two things that happen to agree.
+  // Swipe-attack (right-stick melee) keeps the ring as a fallback only when
+  // no skill is slotted on the right — it used to own this ring outright
+  // and has no other readout anywhere, so silently dropping it here would
+  // have made it invisible whenever a skill isn't equipped there.
   const dashCharge  = !dashReady ? 0
     : dashCD <= 0 ? 1
     : Math.max(0, Math.min(1, 1 - dashCD / (dashMaxCD || 2.4)));
+  const rightSkill = activeSkills[1];
+  const rightSkillCharge = rightSkill
+    ? (rightSkill.cd <= 0 ? 1 : Math.max(0, Math.min(1, 1 - rightSkill.cd / (rightSkill.maxCd || 1))))
+    : null;
   const swipeCharge = !swipeAttackUnlocked ? 0
     : swipeAttackCD <= 0 ? 1
     : Math.max(0, Math.min(1, 1 - swipeAttackCD / (swipeAttackMaxCD || 1.1)));
+  const rightCharge = rightSkillCharge !== null ? rightSkillCharge : swipeCharge;
+  const rightArmed  = rightSkillCharge !== null ? true : swipeAttackUnlocked;
 
   // Exactly one skill per dial, seated in a housing moulded into the top of
   // the bezel — the way a dashboard binnacle holds a gauge. Two actives is
@@ -381,8 +396,8 @@ export default function MobileControls({
 
   return (
     <>
-      <JoyDial side="left"  accent="#4dffd4" charge={dashCharge}  armed={dashReady}           active={leftVis.active}  origin={origin.left} />
-      <JoyDial side="right" accent="#ff9632" charge={swipeCharge} armed={swipeAttackUnlocked} active={rightVis.active} origin={origin.right} />
+      <JoyDial side="left"  accent="#4dffd4" charge={dashCharge}  armed={dashReady}  active={leftVis.active}  origin={origin.left} />
+      <JoyDial side="right" accent="#ff9632" charge={rightCharge} armed={rightArmed} active={rightVis.active} origin={origin.right} />
 
       {/* Knobs — water-bead caps that ride the dial they belong to */}
       <div className="static-knob static-knob-left"  data-testid="joy-knob-left"
