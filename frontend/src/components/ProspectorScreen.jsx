@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   PROBE_UPGRADES, probeCost, probeStats, PROSPECT_CARDS,
   hazardChance, rollLayer, oreYield, rollCardBonus,
@@ -9,6 +9,13 @@ import { Audio } from '../game/audio';
 // Astro Prospector. A dive is entirely client-side state — only banking
 // writes to the save, which is also what makes "lose it all" mean something.
 export default function ProspectorScreen({ save, setSave, onClose }) {
+  // Same in-game/Star Atlas playlist as a run — swapped back to menu music
+  // on close, same convention GameScreen uses.
+  useEffect(() => {
+    Audio.swapToGameMusic();
+    return () => Audio.swapToMenuMusic();
+  }, []);
+
   const [tab, setTab] = useState('dive'); // 'dive' | 'probe' | 'cards'
   const levels = save.probe || {};
   const stats = probeStats(levels);
@@ -49,14 +56,12 @@ export default function ProspectorScreen({ save, setSave, onClose }) {
       if (next.hull <= 0) {
         next.over = true;
         entry.text = `${layer.label} — probe lost`;
-        Audio.hit();
-      } else {
-        Audio.hit();
       }
+      Audio.hazardAlarm();
     } else if (layer.type === 'flux') {
       next.flux += layer.amount;
       entry = { d: depth, icon: '⚗', text: `${layer.label} +${layer.amount} Flux`, cls: 'good' };
-      Audio.claimPing();
+      Audio.oreFound();
     } else if (layer.type === 'blueprint') {
       next.blueprints += 1;
       entry = { d: depth, icon: '💠', text: 'Sealed data core recovered', cls: 'great' };
@@ -72,7 +77,7 @@ export default function ProspectorScreen({ save, setSave, onClose }) {
         text: got < raw ? `${layer.label} +${got} Cores (bay full, ${raw - got} spilled)` : `${layer.label} +${got} Cores`,
         cls: got < raw ? 'warn' : 'good',
       };
-      Audio.click();
+      Audio.dig();
     }
 
     let logEntries = [entry, ...dive.log];

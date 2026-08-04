@@ -11,6 +11,11 @@ import { Audio } from '../game/audio';
 import GameIcon from './GameIcon';
 
 export default function ClickerScreen({ save, setSave, onClose }) {
+  useEffect(() => {
+    Audio.swapToGameMusic();
+    return () => Audio.swapToMenuMusic();
+  }, []);
+
   const cl = save.clicker || { drops: 0, total: 0, buildings: {}, clickLvl: 0, claimed: {} };
   // The Well building multiplies production. Applied here rather than baked
   // into the stored rate so levelling the building takes effect immediately
@@ -59,7 +64,7 @@ export default function ClickerScreen({ save, setSave, onClose }) {
       gain,
     }]);
     setTimeout(() => setSplashes(s => s.filter(x => x.id !== id)), 780);
-    Audio.click();
+    Audio.clickerTap();
   };
 
   const buy = (def) => {

@@ -164,6 +164,9 @@ function AppInner() {
       }
       if (result.victory) ns.mapProgress = { ...(ns.mapProgress || {}), [mission.node.id]: true };
       setCampaignPayout({ tier, node: mission.node, chests });
+      // Reaching or beating the guardian is the whole point of a node — the
+      // dopamine crash-swell belongs here, not on a generic chest tier.
+      if (tier >= 2) Audio.rewardFanfare();
     }
 
     if (result.victory && mission && mission.id && mission.id.startsWith('m_')) {

@@ -611,6 +611,9 @@ const _LASERS = [0,45,90,135,180,225,270,315];
 function LevelUpOverlay({ save, onCollect }) {
   const r = save.pendingLevelUp;
   const av = AVATARS[save.profile.avatar] || AVATARS[0];
+  // The rising, gritty "rank up" fanfare plays once, the moment the overlay
+  // itself appears — the dramatic beat is the reveal, not the collect tap.
+  useEffect(() => { Audio.rankUp(); }, []);
   return (
     <div className="lu-overlay" data-testid="levelup-overlay">
       {_CF.map((c,i) => <div key={i} className="lu-confetti" style={{left:`${c.l}%`,animationDelay:`${c.d}s`,background:c.c}} />)}

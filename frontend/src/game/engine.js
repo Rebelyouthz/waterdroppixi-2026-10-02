@@ -1539,7 +1539,7 @@ export class Game {
       }
       p.mag -= 1;
       this.cam.shake = Math.max(this.cam.shake, 1.4);
-      Audio.shoot();
+      Audio.shoot(s._wid, s._behaviour);
       this.spawnMuzzle(p.x + p.aimX * 18, p.y + p.aimY * 18, ang, s.color);
       if (p.mag <= 0) this.startReload(s);
     }
@@ -1551,6 +1551,11 @@ export class Game {
     p.reloading = true;
     p.reloadT = (s.reloadTime || 1.0) * this.run.stats.reloadMult;
     p.reloadTotal = p.reloadT; // full duration, so the renderer can compute progress without weapon lookups
+    // One sequence, scheduled against the SAME phase fractions pixiRenderer's
+    // _reloadPose uses (0.20 mag drops, 0.66 fresh mag seats, 0.74-0.86 the
+    // rack), so the mag-drop thunk, the seat click and the slide rack land
+    // on the actual animation beats instead of being one generic beep.
+    Audio.reloadSequence(p.reloadTotal * 1000);
     p._reloadMag = (s.magazine || 12) + this.run.stats.magBonus; // capacity, for the revolver-cylinder notch count
     p._reloadWid = s._wid || null; // which weapon is reloading, so the renderer picks the right visual
     // The spent magazine is a real object thrown to the ground rather than a
@@ -1612,6 +1617,7 @@ export class Game {
     // Visual ring
     this.spawnRing(p.x, p.y, r, s.color, 0.5);
     this.cam.shake = Math.max(this.cam.shake, 3);
+    Audio.shoot(s._wid, s._behaviour);
   }
 
   weaponScythe(s, dt) {
@@ -1640,8 +1646,8 @@ export class Game {
     });
     // Whips get a lash rather than the generic sweep arc — same hit shape,
     // different read, so a whip build doesn't look like a scythe build.
-    if (s.whip) this.spawnWhip(p.x, p.y, r, s.color, aimAng);
-    else this.spawnArc(p.x, p.y, r, s.color, aimAng);
+    if (s.whip) { this.spawnWhip(p.x, p.y, r, s.color, aimAng); Audio.whipCrack(); }
+    else { this.spawnArc(p.x, p.y, r, s.color, aimAng); Audio.shoot(s._wid, s._behaviour); }
   }
 
   spawnWhip(x, y, len, color, ang) {
@@ -1673,7 +1679,14 @@ export class Game {
       this.enemies.forEach(e => {
         if (dist2(e.x, e.y, ox, oy) <= ar * ar) {
           this.dealDamage(e, tickDmg, false, 0, ox, oy, true);
-          if (Math.random() < 0.2) this.spawnSpark(e.x, e.y, s.color);
+          if (Math.random() < 0.2) {
+            this.spawnSpark(e.x, e.y, s.color);
+            // Orbit weapons never "fire" once — they're continuously live —
+            // so this ambient tick is the only sound they get, gated the
+            // same way the spark itself is, plus Audio.impact's own
+            // throttle underneath.
+            Audio.impact('orbit');
+          }
         }
       });
     }
@@ -1688,6 +1701,9 @@ export class Game {
     }
     p.beamCD = 1 / fr;
     const t = this.nearestEnemy(p.x, p.y, s.range || 320);
+    // A beam ticks many times a second while attached — a sound per tick
+    // would be a wall of noise, so this only plays on a NEW lock-on.
+    if (t && t !== p._beamTarget) Audio.beamAcquire(s._wid);
     p._beamTarget = t || null;
     if (t) {
       const dmg = this.rollDamage(s.damage * rs.damageMult);
@@ -1712,13 +1728,17 @@ export class Game {
     warn._radius = (s.area || 90) * rs.areaMult;
     warn._fallFrom = -420 + rand(-60, 60); // sky height above target
     warn._fallOffX = rand(-80, 80);         // angle from sky
+    // Whistle-in now, boom lands ~420ms later — see meteorWhistleBoom in
+    // audio.js, which already carries that same delay internally so the
+    // sound and the visual fall land together.
+    Audio.shoot(s._wid, s._behaviour);
   }
 
   weaponShotgun(s, dt) {
     const p = this.player; const rs = this.run.stats;
     if (p.reloading) {
       p.reloadT -= dt;
-      if (p.reloadT <= 0) { p.reloading = false; p.mag = (s.magazine || 6) + rs.magBonus; Audio.reload(); }
+      if (p.reloadT <= 0) { p.reloading = false; p.mag = (s.magazine || 6) + rs.magBonus; }
       return;
     }
     p.shootCD -= dt;
@@ -1736,7 +1756,7 @@ export class Game {
       }
       p.mag -= 1;
       this.cam.shake = Math.max(this.cam.shake, 3);
-      Audio.shoot();
+      Audio.shoot(s._wid, s._behaviour);
       this.spawnMuzzle(p.x + p.aimX * 22, p.y + p.aimY * 22, baseAng, s.color);
       if (p.mag <= 0) this.startReload(s);
     }
@@ -1843,7 +1863,12 @@ export class Game {
     this.checkElementalCombo(e, elementId);
     if (elementId === 'fire') {
       e._burn = Math.max(e._burn || 0, 3);
+      Audio.burn();
     } else if (elementId === 'ice') {
+      // Only chime the FIRST time this enemy chills, not every re-application
+      // while it's already slowed — a burst of frost hits would otherwise
+      // stack a wall of identical chimes.
+      if (!(e._slowT > 0)) Audio.freeze();
       e._slowT = Math.max(e._slowT || 0, 1.5);
       e._slowMult = 0.5;
     } else if (elementId === 'electric') {
@@ -2776,7 +2801,7 @@ export class Game {
           p.vy += 420 * dt;
           p._rot = (p._rot || 0) + (p._rotSpd || 0) * dt;
           if (p._restY === undefined) p._restY = p.y + rand(12, 30);
-          if (p.y >= p._restY && p.vy > 0) { p._settled = true; p.y = p._restY; }
+          if (p.y >= p._restY && p.vy > 0) { p._settled = true; p.y = p._restY; Audio.casingLand(); }
         }
       }
       p.life -= dt;
@@ -2806,8 +2831,15 @@ export class Game {
         g.y += (dy / Math.max(d, 0.001)) * pull * dt;
       }
       if (d < p.r + 6) {
-        if (g.xp > 0) { this.addXp(g.xp); Audio.xpPing(Math.min(1, this.run.xp / this.run.xpToNext)); }
-        if (g.gold > 0) this.run.gold += g.gold;
+        if (g.xp > 0) {
+          this.addXp(g.xp);
+          // Same size tiers _drawGems uses for the crystal's own scale (see
+          // pixiRenderer.js) — a big drop should sound like a bigger moment,
+          // not just look like one.
+          const orbSize = g.xp <= 2 ? 1 : g.xp <= 6 ? 1.3 : g.xp <= 15 ? 1.7 : 2.2;
+          Audio.xpPing(Math.min(1, this.run.xp / this.run.xpToNext), orbSize);
+        }
+        if (g.gold > 0) { this.run.gold += g.gold; Audio.gold(g.gold); }
         if (g.heart > 0) {
           const heal = Math.min(5 + (this.run.stats?.heartHeal || 0), p.maxHp - p.hp);
           p.hp = Math.min(p.maxHp, p.hp + heal);
@@ -2843,6 +2875,7 @@ export class Game {
     if (!e.t.boss && s.headshot > 0 && Math.random() < s.headshot) { dmg = e.hp + 1; head = true; }
     s._lastHitDmg = dmg; s._lastHitWeapon = s._behaviour || 'projectile';
     if (crit) { Audio.crit(); this._critPunch = Math.min(0.22, this._critPunch + 0.18); }
+    else if (!silent) Audio.impact(s._behaviour); // silent hits are per-frame DoT ticks — see orbit/beam
     if ((s.flags || {}).burnDoT) e._burn = Math.max(e._burn || 0, 3);
     if ((s.flags || {}).vampire && !silent) {
       const vAmt = s.vampireAmt || 0.001;
@@ -3056,7 +3089,7 @@ export class Game {
     const fx = ENEMY_KILL_FX[t.id] || KILL_FX[s._lastHitWeapon] || 'gibs';
     const finalBlood = e._lastHitColor || t.color;
     this.spawnBrutalKill(e.x, e.y, finalBlood, t.size, fx);
-    Audio.kill();
+    Audio.kill(t.size, !!t.boss);
     // Ground mark where the body fell — was a body-sized (0.85x) flat pool
     // that read as "the enemy went flat and is lying here", which the user
     // explicitly disliked ("de gillar ja inte") in favor of the body just
@@ -3100,6 +3133,7 @@ export class Game {
     if (t.boss) {
       this._pendingGearDrop = { timeInRun: this.run.time, boss: true };
       this.cam.shake = 18; this.cam.slowmo = 0.5;
+      Audio.boss();
       this.bossesKilled += 1; this.bossActive = null;
       this._tierBannerT = 3.4; // "TIER N NOW ACTIVATED" banner, see snapshot()/HUD
       // Massive boss death rings
@@ -3851,6 +3885,7 @@ export class Game {
 
     this.dealDamage(first, dmg.dmg, dmg.crit, 30, p.x, p.y);
     this.cam.shake = Math.max(this.cam.shake, 6);
+    Audio.shoot(s._wid, s._behaviour);
     this._lightningFlash = Math.max(this._lightningFlash || 0, 0.16);
 
     // Initial bolt: player → first target
@@ -3904,6 +3939,7 @@ export class Game {
             damage: s.damage, projSpeed: s.projSpeed || 520, projSize: s.projSize || 5,
             color: s.color, pierce: s.pierce || 0, crit: s.crit, _behaviour: 'drone', _wid: wid,
           }, true, 0);
+          Audio.shoot(wid, 'drone');
         } else {
           cds[i] = 0.2; // no target yet — check again soon rather than stalling the cooldown
         }

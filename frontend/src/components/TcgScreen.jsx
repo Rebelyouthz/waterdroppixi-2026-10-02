@@ -82,23 +82,24 @@ export default function TcgScreen({ save, setSave, onClose }) {
       foeType, foeLevel, foeStageMult: petStageMult(foeLevel),
     }));
     setResult(null);
-    Audio.click();
+    Audio.cardShuffle();
   };
 
   const playCard = (card) => {
     if (!battle || battle.over || resolving) return;
     if (card && card.cost > battle.you.energy) return;
     setResolving(true);
-    Audio.click();
+    Audio.cardLay();
     setTimeout(() => {
       const next = resolveTurn(battle, card);
       setBattle(next);
       setResolving(false);
+      Audio.cardFlip();
       if (next.over) {
         setResult(next.winner);
         if (next.winner === 'you') {
           setSave(s => ({ ...s, petFood: (s.petFood || 0) + 3 }));
-          Audio.levelUp();
+          Audio.rewardFanfare();
         } else {
           Audio.hit();
         }

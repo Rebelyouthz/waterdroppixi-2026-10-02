@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { CARD_TYPES, buildHand, buildFoe, resolveRound, lootShare } from '../game/cardbattle';
 import { Audio } from '../game/audio';
 import GameIcon from './GameIcon';
@@ -15,11 +15,14 @@ export default function CardBattle({ pet, tier, onDone, onClose }) {
   const [log, setLog] = useState([]);
   const [reveal, setReveal] = useState(null);   // { mine, theirs, won }
 
+  useEffect(() => { Audio.cardShuffle(); }, []);
+
   const play = (card) => {
     if (reveal || round >= foe.length) return;
     const res = resolveRound(card, foe[round].power, { lostLast, petLevel: pet?.level || 0 });
     setReveal(res);
-    Audio.click();
+    Audio.cardLay();
+    setTimeout(() => Audio.cardFlip(), 90);
     setTimeout(() => {
       const nextWon = won + (res.won ? 1 : 0);
       setWon(nextWon);
