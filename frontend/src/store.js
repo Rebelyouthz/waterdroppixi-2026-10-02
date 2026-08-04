@@ -117,6 +117,10 @@ export const DEFAULT_SAVE = {
   // The Path — the guided walk through every system. See game/path.js.
   pathClaimed: {},           // stepId -> true
   pathMerges: 0,             // merge attempts, so a FAILED merge still counts
+  // Pet TCG — found in Astro Prospector and the Clicker, decked out per pet
+  // in PetPanel, fought in TcgBattleScreen. See game/petTcg.js.
+  tcgCardInventory: [],      // owned card instances
+  tcgDecks: {},              // { petId: [cardId, ...] } — up to DECK_SIZE each
   gearParts: 0,              // spent to level equipment 1..10 (see game/gear.js)
   probe: {},                 // Astro Prospector probe upgrade levels
   prospectBlueprints: 0,     // sealed data cores, spent to unlock unique cards

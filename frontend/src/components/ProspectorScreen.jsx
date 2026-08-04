@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import {
   PROBE_UPGRADES, probeCost, probeStats, PROSPECT_CARDS,
-  hazardChance, rollLayer, oreYield,
+  hazardChance, rollLayer, oreYield, rollCardBonus,
 } from '../game/prospector';
+import { rollCard } from '../game/petTcg';
 import { Audio } from '../game/audio';
 
 // Astro Prospector. A dive is entirely client-side state — only banking
@@ -21,7 +22,7 @@ export default function ProspectorScreen({ save, setSave, onClose }) {
 
   const startDive = () => {
     setDive({
-      depth: 0, hull: stats.hull, cores: 0, flux: 0, blueprints: 0,
+      depth: 0, hull: stats.hull, cores: 0, flux: 0, blueprints: 0, tcgCards: [],
       log: [], next: null, over: false, spilled: false,
     });
     Audio.click();
@@ -74,7 +75,16 @@ export default function ProspectorScreen({ save, setSave, onClose }) {
       Audio.click();
     }
 
-    next.log = [entry, ...dive.log].slice(0, 40);
+    let logEntries = [entry, ...dive.log];
+    // A card can turn up ALONGSIDE ore/flux/a relic — only a hazard blocks
+    // it, since a cave-in is the one outcome that pre-empts everything else
+    // this layer could have held.
+    if (layer.type !== 'hazard' && rollCardBonus(depth)) {
+      const card = rollCard(save.attrs?.luck || 0);
+      next.tcgCards = [...next.tcgCards, card];
+      logEntries = [{ d: depth, icon: '🃏', text: 'A sealed card case — logged for later', cls: 'great' }, ...logEntries];
+    }
+    next.log = logEntries.slice(0, 40);
     if (!next.over) next.next = peek(depth);
     setDive(next);
   };
@@ -86,6 +96,7 @@ export default function ProspectorScreen({ save, setSave, onClose }) {
       cores: (save.cores || 0) + dive.cores,
       flux: (save.flux || 0) + dive.flux,
       prospectBlueprints: (save.prospectBlueprints || 0) + dive.blueprints,
+      tcgCardInventory: [...(save.tcgCardInventory || []), ...dive.tcgCards],
     };
     setSave(ns);
     setDive(null);
@@ -163,7 +174,7 @@ export default function ProspectorScreen({ save, setSave, onClose }) {
                 <div className="prosp-status">
                   <div className="prosp-stat"><span>DEPTH</span><b>{dive.depth}</b></div>
                   <div className="prosp-stat"><span>HULL</span><b className={dive.hull <= 1 ? 'crit' : ''}>{'▮'.repeat(Math.max(0, dive.hull))}{'▯'.repeat(Math.max(0, stats.hull - dive.hull))}</b></div>
-                  <div className="prosp-stat"><span>CARRYING</span><b>◈ {dive.cores}{dive.flux > 0 && ` · ⚗ ${dive.flux}`}{dive.blueprints > 0 && ` · 💠 ${dive.blueprints}`}</b></div>
+                  <div className="prosp-stat"><span>CARRYING</span><b>◈ {dive.cores}{dive.flux > 0 && ` · ⚗ ${dive.flux}`}{dive.blueprints > 0 && ` · 💠 ${dive.blueprints}`}{dive.tcgCards.length > 0 && ` · 🃏 ${dive.tcgCards.length}`}</b></div>
                 </div>
 
                 <div className="prosp-bay">
@@ -189,7 +200,7 @@ export default function ProspectorScreen({ save, setSave, onClose }) {
                         ⛏ DIG DEEPER
                         <span className="prosp-risk">{nextHazard}% hazard</span>
                       </button>
-                      <button className="prosp-btn bank" onClick={bank} disabled={dive.cores + dive.flux + dive.blueprints === 0} data-testid="prosp-bank">
+                      <button className="prosp-btn bank" onClick={bank} disabled={dive.cores + dive.flux + dive.blueprints + dive.tcgCards.length === 0} data-testid="prosp-bank">
                         ✓ BANK HAUL
                       </button>
                       <button className="prosp-btn ghost" onClick={abandon}>Abandon</button>

@@ -19,6 +19,7 @@ import ClickerScreen from './ClickerScreen';
 import BasePanel from './BasePanel';
 import BaseDefenceScreen from './BaseDefenceScreen';
 import PathPanel from './PathPanel';
+import TcgScreen from './TcgScreen';
 import { pendingMilestones } from '../game/clicker';
 import GearPanel from './GearPanel';
 import { BattlePassPanel, CodexPanel, PatrolPanel, EyeBadge } from './MetaFeatures';
@@ -84,6 +85,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
   const [characterOpen, setCharacterOpen] = useState(false);
   const [talentOpen, setTalentOpen] = useState(false);
   const [petOpen, setPetOpen] = useState(false);
+  const [tcgOpen, setTcgOpen] = useState(false);
   const [prospectorOpen, setProspectorOpen] = useState(false);
   const [clickerOpen, setClickerOpen] = useState(false);
   const [baseOpen, setBaseOpen] = useState(false);
@@ -562,7 +564,8 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
       {settingsOpen && <SettingsPanel save={save} setSave={setSave} onClose={() => setSettingsOpen(false)} onReset={handleReset} />}
       {characterOpen && <CharacterPanel save={save} setSave={setSave} onClose={() => setCharacterOpen(false)} />}
       {talentOpen && <TalentTree save={save} setSave={setSave} onClose={() => setTalentOpen(false)} />}
-      {petOpen && <PetPanel save={save} setSave={setSave} onClose={() => setPetOpen(false)} />}
+      {petOpen && <PetPanel save={save} setSave={setSave} onClose={() => setPetOpen(false)} onOpenTcg={() => setTcgOpen(true)} />}
+      {tcgOpen && <TcgScreen save={save} setSave={setSave} onClose={() => setTcgOpen(false)} />}
       {prospectorOpen && <ProspectorScreen save={save} setSave={setSave} onClose={() => setProspectorOpen(false)} />}
       {clickerOpen && <ClickerScreen save={save} setSave={setSave} onClose={() => setClickerOpen(false)} />}
       {baseOpen && <BasePanel save={save} setSave={setSave} onOpen={enterBuilding} onClose={() => setBaseOpen(false)} />}

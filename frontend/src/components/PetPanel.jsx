@@ -97,7 +97,7 @@ function mergeEggs(eggs, rarity, petType) {
   return newEggs;
 }
 
-export default function PetPanel({ save, setSave, onClose }) {
+export default function PetPanel({ save, setSave, onClose, onOpenTcg }) {
   const [view, setView] = useState('my_pets'); // 'my_pets' | 'shop' | 'eggs' | 'breed'
   const [breedPair, setBreedPair] = useState([]); // up to 2 pet ids
   // Drives the incubator countdowns. A second is fine — these are 15-100
@@ -304,7 +304,13 @@ export default function PetPanel({ save, setSave, onClose }) {
               {v==='my_pets'?'MY PETS':v==='eggs'?`EGGS (${eggs.length})`:v==='breed'?'BREED':'SHOP'}
             </button>
           ))}
-          <div style={{ marginLeft:'auto' }}>
+          <div style={{ marginLeft:'auto', display:'flex', gap:6 }}>
+            {onOpenTcg && (
+              <button onClick={onOpenTcg} data-testid="pet-open-tcg" style={{ fontFamily:'VT323', fontSize:13, padding:'4px 12px',
+                background:'#1a0a2e', border:'1px solid #ff7a1a55', color:'#ffb380', cursor:'pointer' }}>
+                ⚔ CARDS &amp; BATTLE
+              </button>
+            )}
             <button onClick={buyFood} disabled={gems < 50} style={{ fontFamily:'VT323', fontSize:13, padding:'4px 12px',
               background:'#1a0a2e', border:'1px solid #4dffd455', color:'#4dffd4', cursor:'pointer' }}>
               💎50 → 🍖×5

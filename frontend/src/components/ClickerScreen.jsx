@@ -5,6 +5,7 @@ import {
   CLICKER_MILESTONES, fmtDrops,
 } from '../game/clicker';
 import { rollRune } from '../game/runes';
+import { rollCard } from '../game/petTcg';
 import { clickerRateMult } from '../game/base';
 import { Audio } from '../game/audio';
 import GameIcon from './GameIcon';
@@ -96,6 +97,11 @@ export default function ClickerScreen({ save, setSave, onClose }) {
         const runes = [...(ns.runeInventory || [])];
         for (let i = 0; i < r.rune; i++) runes.push(rollRune(ns.attrs?.luck || 0));
         ns.runeInventory = runes;
+      }
+      if (r.tcgCard) {
+        const cards = [...(ns.tcgCardInventory || [])];
+        for (let i = 0; i < r.tcgCard; i++) cards.push(rollCard(ns.attrs?.luck || 0));
+        ns.tcgCardInventory = cards;
       }
       claimed[m.at] = true;
     }

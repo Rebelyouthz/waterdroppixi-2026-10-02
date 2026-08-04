@@ -90,3 +90,11 @@ export function rollLayer(depth, hasLockedCards) {
 export function oreYield(depth, drillMult) {
   return Math.max(1, Math.round((2 + depth * 1.35) * drillMult));
 }
+
+// A dive is also one of the two places a TCG card can drop (see
+// game/petTcg.js) — checked separately from rollLayer rather than folded
+// into it, since a card can turn up on TOP of an ore/flux layer instead of
+// replacing it (a hazard is the only outcome that pre-empts everything).
+export function rollCardBonus(depth) {
+  return Math.random() < Math.min(0.18, 0.06 + depth * 0.01);
+}

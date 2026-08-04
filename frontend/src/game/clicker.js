@@ -55,10 +55,10 @@ export const CLICKER_MILESTONES = [
   { at: 10000,         reward: { gold: 900, gearParts: 15 },        label: '900 gold + 15 parts' },
   { at: 60000,         reward: { gems: 3, slotCoins: 2 },           label: '3 gems + 2 coins' },
   { at: 300000,        reward: { sp: 2, gearParts: 40 },            label: '2 SP + 40 parts' },
-  { at: 1500000,       reward: { gachaTokens: 1 },                  label: '1 gacha token' },
+  { at: 1500000,       reward: { gachaTokens: 1, tcgCard: 1 },      label: '1 gacha token + a TCG card' },
   { at: 8000000,       reward: { rune: 1, gems: 6 },                label: 'a rune + 6 gems' },
-  { at: 40000000,      reward: { sp: 6, gachaTokens: 2 },           label: '6 SP + 2 tokens' },
-  { at: 200000000,     reward: { flux: 2, rune: 1 },                label: '2 Flux + a rune' },
+  { at: 40000000,      reward: { sp: 6, gachaTokens: 2, tcgCard: 2 }, label: '6 SP + 2 tokens + 2 TCG cards' },
+  { at: 200000000,     reward: { flux: 2, rune: 1, tcgCard: 3 },    label: '2 Flux + a rune + 3 TCG cards' },
 ];
 
 export function pendingMilestones(clicker) {
