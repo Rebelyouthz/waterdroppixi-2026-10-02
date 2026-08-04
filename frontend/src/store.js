@@ -114,6 +114,9 @@ export const DEFAULT_SAVE = {
   // run consumes.
   defenceBest: 0,            // most waves ever held
   defenceBuff: null,         // { waves, dmg, armor, gold, label } | null
+  // The Path — the guided walk through every system. See game/path.js.
+  pathClaimed: {},           // stepId -> true
+  pathMerges: 0,             // merge attempts, so a FAILED merge still counts
   gearParts: 0,              // spent to level equipment 1..10 (see game/gear.js)
   probe: {},                 // Astro Prospector probe upgrade levels
   prospectBlueprints: 0,     // sealed data cores, spent to unlock unique cards
@@ -462,6 +465,9 @@ export function applyReward(save, reward, openChest) {
   if (reward.gems)      save.gems      = (save.gems      || 0) + reward.gems;
   if (reward.slotCoins) save.slotCoins = (save.slotCoins || 0) + reward.slotCoins;
   if (reward.petFood)   save.petFood   = (save.petFood   || 0) + reward.petFood;
+  if (reward.gearParts) save.gearParts = (save.gearParts || 0) + reward.gearParts;
+  if (reward.flux)      save.flux      = (save.flux      || 0) + reward.flux;
+  if (reward.cores)     save.cores     = (save.cores     || 0) + reward.cores;
   if (reward.type === 'gold')  save.gold      = (save.gold      || 0) + reward.amount;
   if (reward.type === 'sp')    save.sp        = (save.sp        || 0) + reward.amount;
   if (reward.type === 'gems')  save.gems      = (save.gems      || 0) + reward.amount;

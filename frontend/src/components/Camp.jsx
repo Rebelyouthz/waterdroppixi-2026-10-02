@@ -13,9 +13,11 @@ import CampaignPanel from './CampaignPanel';
 import PetPanel from './PetPanel';
 import ProspectorScreen from './ProspectorScreen';
 import { nextCampaignNode } from '../game/campaign';
+import { currentStep } from '../game/path';
 import ClickerScreen from './ClickerScreen';
 import BasePanel from './BasePanel';
 import BaseDefenceScreen from './BaseDefenceScreen';
+import PathPanel from './PathPanel';
 import { pendingMilestones } from '../game/clicker';
 import GearPanel from './GearPanel';
 import { BattlePassPanel, CodexPanel, PatrolPanel, EyeBadge } from './MetaFeatures';
@@ -96,7 +98,27 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
     if (id === 'patrolPost') { setTab('patrol'); return; }
     if (id === 'rampart') { setDefenceOpen(true); return; }
   };
+  // The Path's "take me there" button. Every destination it can name has to
+  // land somewhere real — a step that sends you nowhere is worse than no
+  // step at all — so this is deliberately exhaustive rather than defaulting.
+  const pathGo = (dest) => {
+    switch (dest) {
+      case 'story':    if (storyNode && onStory) onStory(); break;
+      case 'gear':     setTab('gear'); break;
+      case 'smith':    setForgeOpen(true); break;
+      case 'base':     setBaseOpen(true); break;
+      case 'defence':  setDefenceOpen(true); break;
+      case 'prospect': setProspectorOpen(true); break;
+      case 'patrol':   setTab('patrol'); break;
+      case 'starraid': if (onStarRaid) onStarRaid(); break;
+      default: setTab('cards');
+    }
+  };
   const clickerReady = pendingMilestones(save.clicker).length;
+  // Badge the Campaign tab when the current Path step is collectable — the
+  // one thing the player is being guided toward should not need hunting for.
+  const pathStep = currentStep(save);
+  const pathReady = !!pathStep && pathStep.check(save);
   const [profileOpen, setProfileOpen] = useState(false);
   const [attrOpen, setAttrOpen] = useState(false);
   // The attribute panel escapes the sidebar entirely. Both an absolutely
@@ -311,7 +333,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
                 <span className="camp-story-go">▸</span>
               </button>
             )}
-            <button className={`camp-tab ${tab==='campaign'?'active':''}`} onClick={() => setTab('campaign')} data-testid="tab-campaign">📜 CAMPAIGN</button>
+            <button className={`camp-tab ${tab==='campaign'?'active':''}`} onClick={() => setTab('campaign')} data-testid="tab-campaign" style={{position:'relative'}}>📜 CAMPAIGN {pathReady && <EyeBadge/>}</button>
             <button className={`camp-tab ${tab === 'stats' ? 'active' : ''}`} onClick={() => setTab('stats')} data-testid="tab-stats">📊 STATS</button>
             <button className={`camp-tab ${tab === 'starraid' ? 'active' : ''}`} onClick={() => setTab('starraid')} data-testid="tab-starraid">🚀 STAR RAID</button>
             <button className="camp-tab" onClick={() => setBaseOpen(true)} data-testid="tab-base">🏛 THE BASE</button>
@@ -397,6 +419,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
                 <button className={`gear-tab ${campaignSub === 'missions' ? 'active' : ''}`} onClick={() => setCampaignSub('missions')} data-testid="tab-missions">📋 MISSIONS</button>
                 <button className={`gear-tab ${campaignSub === 'challenges' ? 'active' : ''}`} onClick={() => setCampaignSub('challenges')} data-testid="tab-challenges">🏆 CHALLENGES</button>
               </div>
+              {campaignSub === 'campaign' && <PathPanel save={save} setSave={setSave} onGo={pathGo} />}
               {campaignSub === 'campaign' && <CampaignPanel save={save} setSave={setSave} />}
               {campaignSub === 'maps' && <MapsPanel save={save} setSave={setSave} onStart={(cfg) => onMission(cfg)} />}
               {campaignSub === 'missions' && <MissionsPanel save={save} setSave={setSave} onStart={onMission} />}

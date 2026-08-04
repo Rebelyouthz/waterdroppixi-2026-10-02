@@ -148,7 +148,14 @@ export default function GearPanel({ save, setSave }) {
     const { inventory: newInv, newItem, result } =
       mergeItems(inv, candidates.slice(0, 3).map(x => x.id), spend, forgeBonus(save));
     if (!result || result.atMax) return;
-    setSave({ ...save, gearInventory: newInv, flux: (save.flux || 0) - spend });
+    // pathMerges counts ATTEMPTS, not successes — The Path's forge step asks
+    // you to take the gamble, and losing it is the lesson.
+    setSave({
+      ...save,
+      gearInventory: newInv,
+      flux: (save.flux || 0) - spend,
+      pathMerges: (save.pathMerges || 0) + 1,
+    });
     if (result.ok) {
       showToast(`✦ SUCCESS → ${newItem?.name} [${newItem?.rarity?.toUpperCase()}]`);
       Audio.levelUp();

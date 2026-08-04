@@ -69,7 +69,12 @@ export default function Weaponsmith({ save, setSave, onClose }) {
     const spend = Math.max(0, Math.min(FLUX_PER_MERGE_MAX, runeFlux, save.flux || 0));
     const { inventory: newInv, newItem, result } = mergeRunes(runeInv, ids, spend);
     if (!result || result.atMax) return;
-    setSave({ ...save, runeInventory: newInv, flux: (save.flux || 0) - spend });
+    setSave({
+      ...save,
+      runeInventory: newInv,
+      flux: (save.flux || 0) - spend,
+      pathMerges: (save.pathMerges || 0) + 1,
+    });
     if (result.ok) {
       setForgeMsg(`✦ SUCCESS → ${newItem.name}`);
       Audio.levelUp();
