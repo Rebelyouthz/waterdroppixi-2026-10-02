@@ -457,16 +457,26 @@ canvas#game, canvas.starraid-canvas {
   background: linear-gradient(180deg, rgba(255,255,255,0.22), rgba(255,255,255,0.02));
   transform-origin: 50% 0;
 }
+/* Each slice is a full-size box rotated about the wheel centre, with its
+   content pinned to the top edge so the rotation carries it around the rim.
+   align-items MUST be flex-start: with the default `stretch` the inner
+   element becomes full height, so its own transform-origin lands on the
+   wheel centre and the counter-rotation that keeps the label upright
+   instead undoes the slice rotation entirely — which is what stacked every
+   icon on top of each other at 12 o'clock. */
 .spin-slice {
   position: absolute; inset: 0;
-  display: flex; justify-content: center;
+  display: flex; justify-content: center; align-items: flex-start;
   pointer-events: none;
 }
 .spin-slice-inner {
   display: flex; flex-direction: column; align-items: center; gap: 1px;
   margin-top: 13px;
+  transform-origin: 50% 50%;
 }
 .spin-slice-icon { font-size: 19px; filter: drop-shadow(0 1px 3px #000); line-height: 1; }
+.spin-slice-inner .game-icon { filter: drop-shadow(0 1px 3px rgba(0,0,0,0.9)); }
+.spin-result-icon .game-icon { filter: drop-shadow(0 0 8px currentColor); }
 .spin-slice-amt {
   font-family: 'VT323', monospace; font-size: 10px; letter-spacing: 0.04em;
   color: rgba(255,255,255,0.72); text-shadow: 0 1px 2px #000;
@@ -650,6 +660,17 @@ canvas#game, canvas.starraid-canvas {
   font-size: 40px;
   filter: drop-shadow(0 0 10px var(--rar));
 }
+/* Drawn weapon glyph in the medallion. Tilted very slightly and lifted off
+   the plate so the portrait reads as a relief rather than a flat sticker. */
+.card-glyph {
+  filter: drop-shadow(0 2px 3px rgba(0,0,0,0.8)) drop-shadow(0 0 9px var(--rar));
+  transform: rotate(-8deg);
+}
+.game-icon { display: block; }
+/* Weapon picker + header in the smith */
+.forge-wch .game-icon { margin: 0 auto 2px; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.8)); }
+.forge-wch.sel .game-icon { filter: drop-shadow(0 0 8px currentColor) drop-shadow(0 1px 3px #000); }
+.forge-name { display: flex; align-items: center; gap: 8px; }
 .card-name { font-family: 'Cinzel', serif; font-weight: 800; font-size: 18px; color: var(--ink); text-align: center; }
 .card-desc { font-family: 'VT323', monospace; font-size: 18px; color: var(--ink-dim); text-align: center; line-height: 1.2; }
 .card-desc b { color: var(--rar); font-weight: 700; }
@@ -2575,12 +2596,14 @@ canvas#game, canvas.starraid-canvas {
    rim at 12 o'clock, chamfered to match the bezel facets. Ring centre
    is at bottom:133, bezel radius 62 → pod centre bottom:195, and the
    pod is 44px so bottom:173 / inset 68px. */
-/* Seated at 12 o'clock on the bezel, in a housing moulded into the plate —
-   the way a dashboard binnacle holds a gauge. JS positions it from its
-   dial's origin, so it travels with a relocated stick. */
+/* ── Active-skill console ──────────────────────────────────────────
+   A screen set into a moulded surround at the top of the dial — the way a
+   gauge sits in a dashboard binnacle, or a headrest display. Deliberately
+   NOT a round button: a circle stuck on top of a ring reads as bolted on,
+   a rectangle recessed into the bezel reads as built for it. */
 .joy-pod {
   position: fixed;
-  width: 44px; height: 44px;
+  width: 62px; height: 46px;
   z-index: 9002;
   padding: 0;
   border: 0;
@@ -2588,64 +2611,95 @@ canvas#game, canvas.starraid-canvas {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   touch-action: none;
-  --pod-charge: 360deg;
   --pod-accent: #4dffd4;
-  filter: saturate(0.35) brightness(0.72);
+  filter: saturate(0.4) brightness(0.7);
   transition: filter 0.18s ease, transform 0.09s ease, left 0.16s ease-out, top 0.16s ease-out;
 }
 .joy-pod-left  { --pod-accent: #4dffd4; }
 .joy-pod-right { --pod-accent: #ff9632; }
+.joy-pod.ready { filter: none; }
+.joy-pod:active { transform: translateY(1px) scale(0.97); }
 
-/* The collar that ties the pod into the bezel instead of leaving it a
-   button floating above a ring. */
+/* Surround: wider at the top, tapering into the bezel at the bottom, so it
+   grows out of the dial rather than sitting on it. */
 .joy-pod-housing {
   position: absolute;
-  left: -7px; right: -7px; top: -5px; bottom: -11px;
-  clip-path: polygon(50% 0, 88% 12%, 100% 42%, 88% 74%, 62% 100%, 38% 100%, 12% 74%, 0 42%, 12% 12%);
-  background: linear-gradient(180deg, rgba(30,52,74,0.92) 0%, rgba(8,16,28,0.86) 62%, rgba(8,16,28,0) 100%);
-  border-top: 1px solid rgba(255,255,255,0.10);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.55);
-}
-.joy-pod.ready { filter: none; }
-.joy-pod:active { transform: scale(0.9); }
-
-/* Charge arc — same "light builds up" language as the dial bezel. */
-.joy-pod-arc {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: conic-gradient(var(--pod-accent) var(--pod-charge), rgba(0,0,0,0.55) 0);
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 4px));
-          mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 4px));
-  transition: background 0.12s linear;
-}
-.joy-pod.ready .joy-pod-arc {
-  filter: drop-shadow(0 0 6px var(--pod-accent));
-  animation: joy-breathe 2.1s ease-in-out infinite;
-}
-
-/* Chamfered face so the pod reads as machined hardware, not a bubble. */
-.joy-pod-face {
-  position: absolute;
-  inset: 5px;
-  display: flex; align-items: center; justify-content: center;
-  clip-path: polygon(50% 0, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
+  left: -6px; right: -6px; top: -4px; bottom: -8px;
+  clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 30%, 88% 100%, 12% 100%, 0 30%);
   background:
-    linear-gradient(165deg, rgba(28,48,70,0.95) 0%, rgba(8,16,28,0.95) 70%);
-  box-shadow: inset 0 1px 3px rgba(255,255,255,0.12);
+    linear-gradient(180deg, rgba(46,72,98,0.98) 0%, rgba(18,30,46,0.98) 45%, rgba(8,14,24,0.92) 100%);
+  border-top: 1px solid rgba(255,255,255,0.16);
+  box-shadow: 0 5px 14px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.10);
 }
-.joy-pod.ready .joy-pod-face {
-  background: linear-gradient(165deg, rgba(34,66,88,0.95) 0%, rgba(10,22,34,0.95) 70%);
+.joy-pod-screw {
+  position: absolute; top: 5px;
+  width: 3px; height: 3px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #8c9bab, #2b3644);
+  box-shadow: 0 1px 1px rgba(0,0,0,0.8);
 }
-.joy-pod-icon { font-size: 17px; line-height: 1; }
+.joy-pod-screw-l { left: 6px; }
+.joy-pod-screw-r { right: 6px; }
+
+/* The screen itself — inset, dark, faintly curved, with a scanline sheen. */
+.joy-pod-screen {
+  position: absolute;
+  left: 6px; right: 6px; top: 5px; bottom: 11px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 5px / 7px;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 50% 18%, rgba(120,190,230,0.14) 0%, rgba(4,10,18,0.98) 72%);
+  box-shadow:
+    inset 0 0 0 1px rgba(0,0,0,0.85),
+    inset 0 2px 7px rgba(0,0,0,0.9),
+    inset 0 -1px 0 rgba(255,255,255,0.06);
+}
+.joy-pod.ready .joy-pod-screen {
+  box-shadow:
+    inset 0 0 0 1px rgba(0,0,0,0.85),
+    inset 0 2px 7px rgba(0,0,0,0.9),
+    inset 0 0 16px color-mix(in srgb, var(--pod-accent) 30%, transparent),
+    0 0 14px color-mix(in srgb, var(--pod-accent) 35%, transparent);
+}
+/* Travelling sheen across the glass — reads as a screen rather than a hole. */
+.joy-pod-scan {
+  position: absolute; inset: 0;
+  background: linear-gradient(115deg, transparent 38%, rgba(255,255,255,0.14) 48%, transparent 58%);
+  transform: translateX(-100%);
+}
+.joy-pod.ready .joy-pod-scan { animation: podScan 3.4s ease-in-out infinite; }
+@keyframes podScan {
+  0%, 72% { transform: translateX(-100%); }
+  100%    { transform: translateX(100%); }
+}
+
+/* Charge bar along the console's bottom lip. */
+.joy-pod-bar {
+  position: absolute;
+  left: 8px; right: 8px; bottom: 3px; height: 3px;
+  background: rgba(0,0,0,0.7);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.07);
+  overflow: hidden;
+}
+.joy-pod-bar i {
+  display: block; height: 100%;
+  background: var(--pod-accent);
+  box-shadow: 0 0 7px var(--pod-accent);
+  transition: width 0.12s linear;
+}
+.joy-pod-icon {
+  font-size: 19px; line-height: 1; position: relative; z-index: 2;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--pod-accent) 60%, transparent));
+}
 .joy-pod-cd {
   position: absolute;
   bottom: 1px; left: 0; right: 0;
   text-align: center;
   font-family: 'VT323', monospace;
-  font-size: 11px;
-  color: rgba(255,255,255,0.9);
-  text-shadow: 0 0 4px #000;
+  font-size: 12px;
+  color: color-mix(in srgb, var(--pod-accent) 75%, #ffffff);
+  text-shadow: 0 0 5px #000;
+  z-index: 2;
 }
 
 /* ============================================================

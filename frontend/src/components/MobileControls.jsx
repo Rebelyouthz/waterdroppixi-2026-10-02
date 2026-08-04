@@ -28,7 +28,10 @@ const DIAL = 176;         // SVG viewBox size, so half of it is the layout radiu
 const BEZEL_R = 62;       // SVG radius the charge arc is stroked on (also the pod seat radius)
 const BEZEL_C = 2 * Math.PI * BEZEL_R;
 const KNOB_R = 26;
-const POD_R = 22;
+// The skill console is a wide screen seated in the bezel's top edge, not a
+// round button — see .joy-pod in index.css.
+const POD_W = 62;
+const POD_H = 46;
 
 // Resting position each dial returns to when untouched. The dials are
 // dynamic — they relocate to wherever the thumb lands — but they still need
@@ -350,18 +353,27 @@ export default function MobileControls({
         title={sk.name}
         style={{
           '--pod-charge': `${charge * 360}deg`,
-          left: `${c.x - POD_R}px`,
-          top: `${c.y - BEZEL_R - POD_R + 6}px`,
+          left: `${c.x - POD_W / 2}px`,
+          top: `${c.y - BEZEL_R - POD_H + 16}px`,
         }}
         onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); onActiveSkill(skillIdx); }}
         onClick={(e) => { e.stopPropagation(); onActiveSkill(skillIdx); }}
       >
-        {/* housing collar — the part that is moulded into the bezel */}
-        <span className="joy-pod-housing" aria-hidden />
-        <span className="joy-pod-arc" aria-hidden />
-        <span className="joy-pod-face">
+        {/* Console housing: a screen set into a moulded surround, the way a
+            gauge sits in a dashboard binnacle — not a round button stuck on
+            top of a ring. */}
+        <span className="joy-pod-housing" aria-hidden>
+          <i className="joy-pod-screw joy-pod-screw-l" />
+          <i className="joy-pod-screw joy-pod-screw-r" />
+        </span>
+        <span className="joy-pod-screen">
           <span className="joy-pod-icon">{sk.icon || skillIdx + 1}</span>
+          <span className="joy-pod-scan" aria-hidden />
           {!ready && <span className="joy-pod-cd">{sk.cd >= 10 ? Math.ceil(sk.cd) : sk.cd.toFixed(1)}</span>}
+        </span>
+        {/* charge bar along the bottom lip of the console */}
+        <span className="joy-pod-bar" aria-hidden>
+          <i style={{ width: `${charge * 100}%` }} />
         </span>
       </button>
     );

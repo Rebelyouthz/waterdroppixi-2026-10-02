@@ -5,6 +5,7 @@ import { ELEMENTS, STARTER_WEAPONS, PART_SLOTS, PART_SLOT_INFO, STAT_DISPLAY } f
 import { RUNE_RARITY_COLORS, RUNE_RARITIES, getRuneMergeGroups, mergeRunes, rollRune } from '../game/runes';
 import { mergeChance, FLUX_PER_MERGE_MAX } from '../game/forge';
 import { Audio } from '../game/audio';
+import GameIcon, { ICONS } from './GameIcon';
 
 const PART_RAR_CLS = { common: 'r-common', magic: 'r-magic', rare: 'r-rare', epic: 'r-epic', legendary: 'r-legendary', mythical: 'r-mythical' };
 
@@ -146,12 +147,20 @@ export default function Weaponsmith({ save, setSave, onClose }) {
           <div className="forge-weapons">
             {Object.keys(WEAPONS).map(id => (
               <div key={id} className={`forge-wch ${wid === id ? 'sel' : ''}`} onClick={() => setWid(id)} data-testid={`forge-weapon-${id}`}>
-                <div style={{ fontSize: 28 }}>{WEAPONS[id].icon}</div>
+                {/* Drawn glyph in the weapon's own colour, so the picker
+                    reads as a rack of distinct weapons rather than a row of
+                    emoji that render differently on every device. */}
+                {ICONS[id]
+                  ? <GameIcon name={id} size={30} />
+                  : <div style={{ fontSize: 28 }}>{WEAPONS[id].icon}</div>}
                 <div style={{ fontSize: 11 }}>{WEAPONS[id].name}</div>
               </div>
             ))}
           </div>
-          <div className="forge-name">{w.icon} {w.name}</div>
+          <div className="forge-name">
+            {ICONS[wid] ? <GameIcon name={wid} size={26} /> : <span>{w.icon}</span>}
+            <span>{w.name}</span>
+          </div>
           <div className="forge-desc">{w.desc}</div>
           <div className="forge-parts">
             {Object.entries(WEAPON_PARTS).map(([pk, part]) => {

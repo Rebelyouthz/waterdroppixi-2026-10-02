@@ -79,12 +79,34 @@ function AppInner() {
     };
     settle();
     const t = setInterval(settle, 10000);
+    // iOS Safari ignores user-scalable=no in the viewport meta, so a pinch or
+    // a double-tap still zooms the whole page — which during a run means the
+    // canvas scales out from under the joysticks. These are the only two
+    // paths left, and neither is ever a wanted gesture here.
+    const killGesture = (e) => e.preventDefault();
+    let lastTap = 0;
+    const killDoubleTap = (e) => {
+      const now = Date.now();
+      if (now - lastTap < 320) e.preventDefault();
+      lastTap = now;
+    };
+    document.addEventListener('gesturestart', killGesture, { passive: false });
+    document.addEventListener('gesturechange', killGesture, { passive: false });
+    document.addEventListener('dblclick', killGesture, { passive: false });
+    document.addEventListener('touchend', killDoubleTap, { passive: false });
     // Coming back from a backgrounded tab is exactly when a lot of offline
     // time has just elapsed, so settle immediately rather than waiting out
     // the interval.
     const onVis = () => { if (!document.hidden) settle(); };
     document.addEventListener('visibilitychange', onVis);
-    return () => { clearInterval(t); document.removeEventListener('visibilitychange', onVis); };
+    return () => {
+      clearInterval(t);
+      document.removeEventListener('visibilitychange', onVis);
+      document.removeEventListener('gesturestart', killGesture);
+      document.removeEventListener('gesturechange', killGesture);
+      document.removeEventListener('dblclick', killGesture);
+      document.removeEventListener('touchend', killDoubleTap);
+    };
   }, []);
 
   const onRunEnd = (result, newSave, mission) => {

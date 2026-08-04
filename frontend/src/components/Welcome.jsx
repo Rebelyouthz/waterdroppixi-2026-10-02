@@ -3,6 +3,7 @@ import { AVATARS, DAILY_REWARDS, accountXpToNext, dailyQuests, CHESTS, rollChest
 import { todayIdx, applyReward } from '../store';
 import { useAuth } from '../auth';
 import LeaderboardPanel from './LeaderboardPanel';
+import GameIcon from './GameIcon';
 
 const openChest = (chestId) => {
   const chest = CHESTS.find(c => c.id === chestId);
@@ -357,7 +358,7 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
                       style={{ transform: `rotate(${(i + 0.5) * SLICE_DEG}deg)` }}
                     >
                       <span className="spin-slice-inner" style={{ transform: `rotate(${-(i + 0.5) * SLICE_DEG}deg)` }}>
-                        <span className="spin-slice-icon">{s.icon}</span>
+                        <GameIcon name={s.type === 'jackpot' ? 'jackpot' : s.type} size={22} />
                         <span className="spin-slice-amt">
                           {s.type === 'jackpot' ? 'JACKPOT' : s.amount}
                         </span>
@@ -379,7 +380,9 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
             </button>
             {spinResult && !spinning && (
               <div className={`spin-result ${spinResult.type === 'jackpot' ? 'jackpot' : ''}`} data-testid="spin-result">
-                <span className="spin-result-icon">{spinResult.type === 'jackpot' ? '🏆' : spinResult.icon}</span>
+                <span className="spin-result-icon">
+                  <GameIcon name={spinResult.type === 'jackpot' ? 'jackpot' : spinResult.type} size={30} />
+                </span>
                 <span className="spin-result-label">
                   {spinResult.type === 'jackpot' ? 'JACKPOT — 1500★ + 10💎' : spinResult.label}
                 </span>

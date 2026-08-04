@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { RARITY } from '../game/data';
+import GameIcon, { ICONS } from './GameIcon';
 
 const TYPE_BADGE = {
   'weapon-new': { icon: '⚔️', label: 'NEW WEAPON' },
@@ -90,7 +91,13 @@ export default function LevelUpModal({ choices, onPick, playerLevel }) {
                 {c.isEvolve && <div className="card-evo-badge">✦ EVOLUTION</div>}
                 <div className="card-shine" />
                 <div className="card-portrait">
-                  <div className="card-icon">{c.icon}</div>
+                  {/* Weapon cards get their own drawn glyph, tinted by the
+                      card's rarity so the art and the frame agree. Anything
+                      without one keeps its emoji rather than rendering a
+                      wrong-looking stand-in. */}
+                  {c.weaponId && ICONS[c.weaponId]
+                    ? <GameIcon name={c.weaponId} tone={r.color} size={44} className="card-glyph" />
+                    : <div className="card-icon">{c.icon}</div>}
                 </div>
                 <div className="card-type-badge">
                   <span>{badge.icon}</span><span>{c.isEvolve ? 'EVOLVE' : badge.label}</span>
