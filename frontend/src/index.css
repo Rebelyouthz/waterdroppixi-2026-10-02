@@ -2840,6 +2840,24 @@ canvas#game, canvas.starraid-canvas {
 .base-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 .base-btn.maxlbl { flex: 1; text-align: center; color: #4dff91; border-color: #4dff9144; background: #4dff9114; }
 
+/* ── Star Raid mode picker ────────────────────────────────────── */
+.raid-modes { display: flex; gap: 7px; margin-bottom: 10px; }
+.raid-mode {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 9px 4px; cursor: pointer;
+  background: linear-gradient(170deg, rgba(16,32,50,0.9), rgba(5,10,18,0.9));
+  border: 1px solid #ffffff1c;
+  transition: border-color 0.14s, box-shadow 0.14s, transform 0.08s;
+}
+.raid-mode:hover { border-color: #5fd6ff88; }
+.raid-mode:active { transform: scale(0.98); }
+.raid-mode.active {
+  border-color: #5fd6ff;
+  box-shadow: 0 0 18px rgba(95,214,255,0.32), inset 0 0 18px rgba(95,214,255,0.08);
+}
+.raid-mode-icon { font-size: 20px; line-height: 1; }
+.raid-mode-label { font-family: 'VT323', monospace; font-size: 12.5px; letter-spacing: 0.08em; color: #cfe6ff; }
+
 /* ── Star Raid hangar ─────────────────────────────────────────── */
 .raid-hangar { display: flex; flex-direction: column; gap: 8px; }
 .raid-hull {

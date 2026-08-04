@@ -3775,7 +3775,7 @@ export class Game {
       const lvl = r.weaponLvls[id] || 0;
       const def = WEAPONS[id];
       if (!def) continue;
-      const upg = lvl < def.levelUps.length ? def.levelUps[lvl] : { stat: 'damage', mult: 1.10 };
+      const upg = lvl < def.levelUps.length ? def.levelUps[lvl] : this.fallbackUpgrade(def, lvl);
       const evoId = upg?.evolve ? WEAPON_EVO_MAP[id] : null;
       const evoDef = evoId ? WEAPONS[evoId] : null;
       const evoText = evoDef ? ` → ${evoDef.name}` : '';
@@ -3862,6 +3862,31 @@ export class Game {
     if (upg.mult != null) return '+' + Math.round((upg.mult - 1) * 100) + '% ' + label;
     if (upg.add != null) return '+' + upg.add + ' ' + label;
     return '...';
+  }
+
+  // What a weapon gains past its authored levelUps list.
+  //
+  // This used to be a flat +10% damage forever, which is the reason a weapon
+  // stopped feeling like it was growing the moment it ran out of designed
+  // levels: every card looked identical and the numbers barely moved. It now
+  // cycles through the stats that actually change how a weapon plays, with a
+  // projectile added every fifth step, and the damage steps grow slowly with
+  // level so a late pick is worth taking.
+  fallbackUpgrade(def, lvl) {
+    const over = lvl - def.levelUps.length;   // 0 on the first fallback pick
+    const cycle = over % 5;
+    const grow = 1 + Math.floor(over / 5) * 0.03;   // steps get bigger over time
+    switch (cycle) {
+      case 0: return { stat: 'damage', mult: 1.14 * grow };
+      case 1: return { stat: 'fireRate', mult: 1.10 * grow };
+      case 2: return { stat: 'damage', mult: 1.16 * grow };
+      // Area weapons grow their area; everything else gains pierce, because
+      // "+1 pierce" on a shockwave means nothing.
+      case 3: return def.base.area != null
+        ? { stat: 'area', mult: 1.12 * grow }
+        : { stat: 'pierce', add: 1 };
+      default: return { stat: 'projectiles', add: 1 };
+    }
   }
 
   // Weapon-specific vocabulary for a stat, falling back to the generic name.

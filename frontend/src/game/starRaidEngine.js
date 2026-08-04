@@ -133,6 +133,7 @@ export class StarRaidGame {
     this.shipColor = opts.shipColor || '#5fd6ff'; // ProfilePanel rank-unlocked cosmetic
     this.shipLevels = opts.shipLevels || {};
     this.shipId = SHIPS[opts.shipId] ? opts.shipId : 'skiff';
+    this.endless = !!opts.endless;
     this.stats = makeStats(this.shipLevels, this.shipId);
     // Hangar building: a flat multiplier on hull and damage, applied after
     // the ship's own modifiers so it scales whatever you chose to fly.
@@ -288,16 +289,24 @@ export class StarRaidGame {
 
   updateSpawns(dt) {
     if (this.bossSpawned) return;
-    if (this.time >= this.stage.duration) {
+    // Endless has no stage end and no boss gate — it just keeps getting
+    // harder until it kills you, which is what makes "how far did you get"
+    // the only currency the mode trades in.
+    if (!this.endless && this.time >= this.stage.duration) {
       this.spawnBoss();
       return;
     }
     this.spawnT -= dt;
     if (this.spawnT <= 0) {
-      this.spawnT = 1 / (this.stage.spawnRate * (1 + this.time / 90));
+      const ramp = this.endless ? (1 + this.time / 55) : (1 + this.time / 90);
+      this.spawnT = 1 / (this.stage.spawnRate * ramp);
       const kind = pickKind();
       const K = ENEMY_KINDS[kind];
-      const hp = K.hp * this.stage.enemyHpMult;
+      // Endless scales enemy health with elapsed time on top of the stage
+      // multiplier, so a long run genuinely gets dangerous rather than just
+      // busier.
+      const endlessHp = this.endless ? (1 + this.time / 70) : 1;
+      const hp = K.hp * this.stage.enemyHpMult * endlessHp;
       this.enemies.push({
         x: rand(30, this.W - 30), y: -24, r: K.r,
         hp, maxHp: hp,

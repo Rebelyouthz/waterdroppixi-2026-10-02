@@ -4,6 +4,13 @@ import { StarRaidRenderer } from '../game/starRaidRenderer';
 import { SHIP_COLORS } from '../game/data_ext';
 import { rollRune } from '../game/runes';
 import { raidHullMult } from '../game/base';
+import { todayIdx } from '../store';
+
+// Endless mode: one artifact token per this many in-run levels, capped per
+// day. A per-run cap would still reward restarting; a daily one means the
+// only way to earn more is to get FURTHER, which is the point.
+const ENDLESS_LEVELS_PER_TOKEN = 6;
+const ENDLESS_DAILY_CAP = 3;
 
 // Readable names for the hull modifier keys shown in the hangar.
 const MOD_LABELS = {
@@ -58,6 +65,7 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
       shipLevels: sr.levels,
       shipId: sr.shipId || 'skiff',
       hullMult: raidHullMult(save),   // Hangar building
+      endless: mode === 'endless',
       stageIdx,
       shipColor: SHIP_COLORS.find(c => c.id === save.profile?.shipColor)?.color || '#5fd6ff',
       callbacks: {
@@ -74,9 +82,24 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
               else gotToken = true;
             }
           }
+          // Endless: the deeper you get, the more you bring back — but the
+          // count is capped PER DAY, not per run. Uncapped it would just be a
+          // matter of replaying the same first two minutes over and over,
+          // which is exactly the farm the whole mode is supposed to avoid.
+          if (mode === 'endless') {
+            const today = todayIdx();
+            const day = newSr.endlessDay === today ? newSr : { ...newSr, endlessDay: today, endlessTokens: 0 };
+            const earned = Math.floor(s.level / ENDLESS_LEVELS_PER_TOKEN);
+            const room = Math.max(0, ENDLESS_DAILY_CAP - (day.endlessTokens || 0));
+            const give = Math.min(earned, room);
+            Object.assign(newSr, day, { endlessTokens: (day.endlessTokens || 0) + give });
+            if (give > 0) gotToken = true;
+            newSr._endlessGiven = give;
+          }
           const newSave = {
             ...save, starRaid: newSr,
-            gachaTokens: (save.gachaTokens || 0) + (gotToken ? 1 : 0),
+            gachaTokens: (save.gachaTokens || 0)
+              + (mode === 'endless' ? (newSr._endlessGiven || 0) : (gotToken ? 1 : 0)),
             runeInventory: gotRune ? [...(save.runeInventory || []), gotRune] : (save.runeInventory || []),
           };
           setSave(newSave);
@@ -202,14 +225,30 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
               );
             })}
           </div>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-            <button className={`go-btn ${mode === 'artifact' ? 'go-btn-retry' : 'go-btn-ghost'}`} style={{ flex: 1 }}
-              onClick={() => setMode('artifact')} data-testid="starraid-mode-artifact">🔶 Artifact Run</button>
-            <button className={`go-btn ${mode === 'rune' ? 'go-btn-retry' : 'go-btn-ghost'}`} style={{ flex: 1 }}
-              onClick={() => setMode('rune')} data-testid="starraid-mode-rune">🔮 Rune Run</button>
+          <div className="raid-modes">
+            {[
+              ['artifact', '🔶', 'Artifact Run'],
+              ['rune', '🔮', 'Rune Run'],
+              ['endless', '∞', 'Endless'],
+            ].map(([m, ic, label]) => (
+              <button key={m} className={`raid-mode${mode === m ? ' active' : ''}`}
+                      onClick={() => setMode(m)} data-testid={`starraid-mode-${m}`}>
+                <span className="raid-mode-icon">{ic}</span>
+                <span className="raid-mode-label">{label}</span>
+              </button>
+            ))}
           </div>
           <div style={{ fontFamily: 'VT323', color: 'var(--ink-dim)', fontSize: 12, marginBottom: 10 }}>
-            Clearing the final stage in this mode awards {mode === 'rune' ? 'a Rune' : 'a Gacha Token'}.
+            {mode === 'endless' ? (
+              <>
+                No stage end — fly until you die. One artifact token per {ENDLESS_LEVELS_PER_TOKEN} levels
+                reached, up to {ENDLESS_DAILY_CAP} per day
+                {' '}({sr.endlessDay === todayIdx() ? (sr.endlessTokens || 0) : 0}/{ENDLESS_DAILY_CAP} claimed today).
+                Getting further is the only way to earn more.
+              </>
+            ) : (
+              <>Clearing the final stage in this mode awards {mode === 'rune' ? 'a Rune' : 'a Gacha Token'}.</>
+            )}
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
             <button className="go-btn go-btn-ghost" onClick={onExit} data-testid="starraid-exit">↩ Camp</button>
