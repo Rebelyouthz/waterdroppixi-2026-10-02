@@ -2945,7 +2945,6 @@ canvas#game, canvas.starraid-canvas {
   box-shadow: 0 0 18px color-mix(in srgb, var(--mc, #5fd6ff) 32%, transparent),
               inset 0 0 18px color-mix(in srgb, var(--mc, #5fd6ff) 8%, transparent);
 }
-.raid-mode-icon { font-size: 20px; line-height: 1; }
 .raid-mode-label { font-family: 'VT323', monospace; font-size: 12.5px; letter-spacing: 0.08em; color: #cfe6ff; }
 
 /* ── Star Raid hangar ─────────────────────────────────────────── */

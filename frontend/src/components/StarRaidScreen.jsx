@@ -7,6 +7,9 @@ import { raidHullMult } from '../game/base';
 import { todayIdx } from '../store';
 import GameIcon from './GameIcon';
 
+// Keep this the same length as STAGES (starRaidEngine.js) — a stage past
+// index 2 silently reuses 'meteor' rather than erroring, since there's
+// nothing at render time to flag a missing entry.
 const STAGE_ICON = ['meteor', 'bolt', 'orb'];
 const MODE_ACCENT = { artifact: '#ffb84d', rune: '#b362ff', endless: '#4dffd4' };
 
@@ -222,7 +225,10 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
           </div>
 
           <div className="raid-currency-row">
-            <span className="raid-currency-chip"><GameIcon name="coin" size={16} tone="#ffd166" /> {sr.scrap || 0} Scrap</span>
+            {/* '⚙', not a coin icon — Scrap uses this glyph everywhere else on
+                this screen (run HUD, upgrade cost, hull cost), and 'coin' is
+                already Gold's icon elsewhere in the game (see GameIcon.jsx). */}
+            <span className="raid-currency-chip">⚙ {sr.scrap || 0} Scrap</span>
           </div>
 
           <div className="raid-section-label">STAGE</div>
@@ -290,7 +296,10 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
             <div className="raid-menu-title">🔧 HANGAR</div>
           </div>
           <div className="raid-currency-row">
-            <span className="raid-currency-chip"><GameIcon name="coin" size={16} tone="#ffd166" /> {sr.scrap || 0} Scrap</span>
+            {/* '⚙', not a coin icon — Scrap uses this glyph everywhere else on
+                this screen (run HUD, upgrade cost, hull cost), and 'coin' is
+                already Gold's icon elsewhere in the game (see GameIcon.jsx). */}
+            <span className="raid-currency-chip">⚙ {sr.scrap || 0} Scrap</span>
           </div>
 
           {/* Hull roster. Upgrades below apply to whichever hull is flown, so
