@@ -873,11 +873,14 @@ canvas#game, canvas.starraid-canvas {
 .camp-attr-toggle.open { background: #c890ff22; border-color: #c890ffaa; }
 .camp-attr-caret { font-size: 10px; opacity: 0.8; }
 
-/* Rolls out IN FRONT of the profile frame. It was tried as an absolutely
-   positioned dropdown and then as an in-flow block; both get clipped, because
-   .camp-sidebar sets overflow:hidden and the framed plaque is a hard edge
-   inside it — hence the "only about 1cm shows" report. position:fixed with a
-   measured offset (see Camp.jsx) escapes every ancestor. */
+/* Rendered via a React portal straight into document.body (see Camp.jsx) —
+   NOT a descendant of .camp-sidebar in the DOM. It has to be: .camp-sidebar
+   is a flex item with its own z-index, which makes it a stacking context,
+   and .camp-main (a later sibling, same z-index) painted over the whole
+   thing regardless of what z-index this panel used, because that contest
+   never reached this element in the first place. position:fixed alone does
+   NOT escape an ancestor's stacking context, only its layout/overflow —
+   that's why the previous position:fixed-only attempt still failed. */
 .camp-attr-panel {
   z-index: 60;
   overflow-y: auto;

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { META_UPGRADES, metaCost } from '../game/data';
 import { MILESTONES, AVATARS, CHESTS, rollChest, getRank, RANK_TITLES, PROFILE_FRAMES, NAME_COLORS } from '../game/data_ext';
 import ProfilePanel from './ProfilePanel';
@@ -288,11 +289,25 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
               ⚡ {attrFreePts} ATTR <span className="camp-attr-caret">{attrOpen ? '▲' : '▼'}</span>
             </button>
 
-            {/* The panel expands the banner in-flow instead of floating above
-                it. As an absolutely-positioned dropdown it was being clipped
-                by .camp-sidebar's overflow:hidden, which is why only the top
-                sliver of it was ever visible. */}
-            {attrOpen && (
+            {/* Third attempt at this panel, and the first two both failed for
+                the same underlying reason despite trying opposite fixes.
+                Absolute-dropdown and in-flow-block got clipped by
+                .camp-sidebar's overflow:hidden. Plain position:fixed (attempt
+                two) escapes that clip, but NOT the real cause: .camp-sidebar
+                is a flex item with z-index:1, which makes it establish its
+                own stacking context — and position:fixed does not exempt a
+                descendant from its nearest ancestor's stacking context, only
+                from normal layout/clipping. .camp-main is a SIBLING flex item
+                with the same z-index:1 but later in DOM, so it paints over
+                the ENTIRE .camp-sidebar stacking context, panel included, no
+                matter how high the panel's own z-index is set — a z-index
+                only wins fights against siblings within its own stacking
+                context, and .camp-main was never in this one.
+                The fix is to not be a descendant of .camp-sidebar at all:
+                render straight into document.body via a portal, so no
+                ancestor's stacking context (now or from any future CSS
+                change in the sidebar) can trap it again. */}
+            {attrOpen && createPortal(
               <div className="camp-attr-panel" data-testid="camp-attr-dropdown" style={attrPanelStyle}>
                 <div className="char-attr-header">
                   <span>⚡ ATTRIBUTES</span>
@@ -319,7 +334,8 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
                     );
                   })}
                 </div>
-              </div>
+              </div>,
+              document.body
             )}
           </div>
           <div className="camp-scroll-hint">↓ scroll for more ↓</div>
