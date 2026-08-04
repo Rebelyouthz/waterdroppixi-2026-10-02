@@ -1741,6 +1741,39 @@ void main() {
           }
         }
 
+        // Variant markings. Each has to be readable at a glance in a crowd,
+        // so they are silhouette-level rather than surface detail.
+        if (e.variant === 'armored' && e._shell > 0) {
+          // Plate segments around the body, thinning as the shell wears down.
+          const frac = Math.max(0, Math.min(1, e._shell / (e.maxHp * 0.35)));
+          const plates = 8;
+          for (let pi = 0; pi < plates; pi++) {
+            const a0 = (pi / plates) * TAU + game.time * 0.25;
+            const a1 = a0 + TAU / plates * 0.66;
+            g.moveTo(e.x + Math.cos(a0) * s * 0.62, e.y + Math.sin(a0) * s * 0.62)
+              .arc(e.x, e.y, s * 0.62, a0, a1)
+              .stroke({ width: 2.4 * frac + 0.8, color: '#9fb4c8', alpha: 0.35 + frac * 0.5 });
+          }
+        } else if (e.variant === 'volatile') {
+          // Pulsing hot core — the faster it beats, the closer you are to it
+          // going off, because it beats faster as its health drops.
+          const urgency = 1 + (1 - e.hp / e.maxHp) * 3;
+          const pulse = 0.5 + 0.5 * Math.sin(game.time * 6 * urgency + e.x);
+          g.circle(e.x, e.y, s * 0.28 * (0.7 + pulse * 0.5))
+            .fill({ color: '#ff7a1a', alpha: 0.35 + pulse * 0.45 });
+          g.circle(e.x, e.y, s * 0.62).stroke({ width: 1.4, color: '#ff7a1a', alpha: 0.2 + pulse * 0.35 });
+        } else if (e.variant === 'leeching') {
+          // Tendrils reaching outward, and a halo while the pulse is close.
+          const near = e._leechCD < 0.4;
+          for (let ti = 0; ti < 5; ti++) {
+            const ta = (ti / 5) * TAU + game.time * 0.9;
+            const tl = s * (0.6 + Math.sin(game.time * 3 + ti) * 0.14);
+            g.moveTo(e.x, e.y).lineTo(e.x + Math.cos(ta) * tl, e.y + Math.sin(ta) * tl)
+              .stroke({ width: 1.6, color: '#7ad96b', alpha: near ? 0.75 : 0.35 });
+          }
+          if (near) g.circle(e.x, e.y, s * 0.8).stroke({ width: 2, color: '#7ad96b', alpha: 0.5 });
+        }
+
         // Status overlays, on top of the marks so a frozen enemy reads as
         // frozen even when it is riddled with holes.
         if (e._slowT > 0) {

@@ -8,6 +8,31 @@ const TAU = Math.PI * 2;
 // Heavy "square" melee enemies — hit noticeably harder than the rest of the
 // roster once the first boss is down, on top of the general post-boss scaling.
 const SQUARE_ENEMY_TYPES = new Set(['brute', 'charger', 'necron', 'steelbrute']);
+
+// Enemy variants. Prefixes applied to EXISTING types rather than new enemy
+// models — they change how a wave has to be played far more than another
+// silhouette would, for a fraction of the work. Deliberately three, each
+// answering a different question:
+//   armored  — "can you burst it?"    (rewards single big hits)
+//   volatile — "where are you standing?" (punishes hugging the pack)
+//   leeching — "what do you kill first?" (rewards target priority)
+const VARIANTS = {
+  armored:  { id: 'armored',  name: 'Armored',  color: '#9fb4c8' },
+  volatile: { id: 'volatile', name: 'Volatile', color: '#ff7a1a' },
+  leeching: { id: 'leeching', name: 'Leeching', color: '#7ad96b' },
+};
+const VARIANT_IDS = Object.keys(VARIANTS);
+
+// Weather fronts. A run is ten minutes in one open field; weather is the
+// cheapest way to make minute eight play differently from minute two without
+// adding enemies. Each one is a genuine trade rather than a pure buff, so a
+// front changes how you play instead of just how fast you clear.
+export const WEATHER = {
+  rain:  { id: 'rain',  name: 'RAINFALL',   color: '#5fb8ff', desc: '+25% fire rate · you see less' },
+  drought: { id: 'drought', name: 'DROUGHT', color: '#ffb04d', desc: 'They move faster · gold runs richer' },
+  storm: { id: 'storm', name: 'ION STORM',  color: '#c8a0ff', desc: 'Lightning strikes at random — it does not care who' },
+};
+const WEATHER_IDS = Object.keys(WEATHER);
 // 'aoe'-behaviour weapons that pulse radially around the player (reuse
 // weaponShockwave) rather than sweeping a directional arc in the aim
 // direction (weaponScythe, the default for 'aoe').
@@ -523,6 +548,9 @@ export class Game {
       bossHp: this.bossActive ? this.bossActive.hp : 0,
       bossMaxHp: this.bossActive ? this.bossActive.maxHp : 0,
       bossName: this.bossActive ? this.bossActive.t.name : '',
+      weather: this._weather || null,
+      weatherT: this._weatherT || 0,
+      weatherBanner: this._weatherBannerT || 0,
       dashCD: this.player.dashCD,
       // Max is reported alongside the remaining time so the joystick dial can
       // draw an accurate 0..1 charge arc — it can't derive it, the dash CD is
@@ -593,6 +621,7 @@ export class Game {
 
     this._updateFxBudget();
     this._updateProspectorFlags(dt);
+    this._updateWeather(dt);
 
     // Rebuild the enemy broadphase before anything queries it this frame.
     // Enemies spawned later in the frame (spawnWave) land in it next frame —
@@ -1445,6 +1474,10 @@ export class Game {
     // uniformly, rather than having to touch each of the ten sites that read
     // fireRateMult.
     if (this._tempoStacks) s.fireRate = (s.fireRate || 0) * this.tempoMult();
+    // Rain quickens everything you fire. Applied here for the same reason
+    // Tempo is: one place, every weapon.
+    const wf = this.weatherFireRate();
+    if (wf !== 1) s.fireRate = (s.fireRate || 0) * wf;
     return s;
   }
 
@@ -1892,6 +1925,22 @@ export class Game {
     e._lunging = false; e._lungeT = 0;
     if (e._marks) e._marks.length = 0;
     e._burn = 0; e._slowT = 0; e._poisonT = 0; e._poisonStacks = 0;
+
+    // Variant roll. Nothing is varianted in the opening minute — the first
+    // wave should teach the base enemy before it starts teaching exceptions.
+    e.variant = null; e._shell = 0; e._leechCD = 0;
+    const vChance = Math.min(0.30, Math.max(0, (this.run.time - 60) / 900) + this.bossesKilled * 0.05);
+    if (!t.boss && Math.random() < vChance) {
+      e.variant = VARIANT_IDS[(Math.random() * VARIANT_IDS.length) | 0];
+      if (e.variant === 'armored') {
+        // The shell is a damage pool, not a hit count: a big single hit should
+        // crack it, which is the whole point of the variant.
+        e._shell = e.maxHp * 0.35;
+        e.maxHp = Math.floor(e.maxHp * 1.15);
+        e.hp = e.maxHp;
+      }
+      if (e.variant === 'leeching') e._leechCD = rand(1.5, 3);
+    }
   }
 
   // ====== DOCK STATION ======
@@ -2102,11 +2151,32 @@ export class Game {
         if (e._decoy <= 0) this.killEnemy(e);
         return;
       }
+      // Leeching: periodically heals nearby wounded enemies. Cheap on its
+      // own, brutal in a pack — which is exactly the "kill that one first"
+      // decision it exists to create.
+      if (e.variant === 'leeching') {
+        e._leechCD -= dt;
+        if (e._leechCD <= 0) {
+          e._leechCD = 2.2;
+          const R = 150;
+          let healed = 0;
+          this.enemyGrid.query(e.x, e.y, R + this._maxEnemyR, other => {
+            if (healed >= 4 || !other.alive || other === e) return;
+            if (other.hp >= other.maxHp) return;
+            if (dist2(other.x, other.y, e.x, e.y) > R * R) return;
+            other.hp = Math.min(other.maxHp, other.hp + other.maxHp * 0.08);
+            healed++;
+            this.spawnSpark(other.x, other.y, '#7ad96b');
+          });
+          if (healed > 0) this.spawnRing(e.x, e.y, R * 0.5, '#7ad96b', 0.28);
+        }
+      }
+
       const dx = p.x - e.x, dy = p.y - e.y;
       const d = Math.hypot(dx, dy) || 1;
       const nx = dx / d, ny = dy / d;
       if (e._blightBuffT > 0) { e._blightBuffT -= dt; if (e._blightBuffT <= 0) e._blightSpeedBuff = 1; }
-      let spd = t.speed * slowMul * (e._slowT > 0 ? (e._slowMult || 1) : 1) * (e.speedMult || 1) * (e._blightSpeedBuff || 1);
+      let spd = t.speed * slowMul * (e._slowT > 0 ? (e._slowMult || 1) : 1) * (e.speedMult || 1) * (e._blightSpeedBuff || 1) * this.weatherEnemySpeed();
       if (t.ai === 'ranged') {
         if (d < (t.shootRange || 320) - 50) spd = -spd * 0.6;
         else if (d < (t.shootRange || 320) + 20) spd = 0;
@@ -2756,6 +2826,20 @@ export class Game {
       const vAmt = s.vampireAmt || 0.001;
       this.player.hp = Math.min(this.player.maxHp, this.player.hp + dmg * vAmt);
     }
+    // Armored: the shell soaks damage at half rate until it breaks. Absorbed
+    // damage is not wasted — half of it still reaches the body — so chipping
+    // works, it is just much worse than one big hit.
+    if (e._shell > 0) {
+      const soak = Math.min(e._shell, dmg);
+      e._shell -= soak;
+      dmg -= soak * 0.5;
+      if (e._shell <= 0) {
+        e._shell = 0;
+        this.spawnRing(e.x, e.y, e.t.size * 0.9, '#9fb4c8', 0.35);
+        this.spawnDamageNumber(e.x, e.y - e.t.size * 0.6, 'SHELL BROKEN', '#9fb4c8', 13);
+        for (let i = 0; i < this.fxCount(8); i++) this.spawnSpark(e.x, e.y, '#9fb4c8');
+      }
+    }
     e.hp -= dmg;
     e.hit = 0.08;
     // Progressive gore: every 10% HP lost peels a new chunk of flesh off, right
@@ -2847,6 +2931,28 @@ export class Game {
     this.run.kills += 1;
     this.run.comboCount += 1;
     this.run.comboTimer = 1.8;
+
+    // Volatile: goes off on death, hurting enemies AND the player. The
+    // player half is what makes it a positioning problem rather than a free
+    // chain reaction.
+    if (e.variant === 'volatile') {
+      const R = t.size * 2.6;
+      const blast = t.dmg * 1.6;
+      this.spawnRing(e.x, e.y, R, '#ff7a1a', 0.5);
+      this.spawnHitBurst(e.x, e.y, '#ff7a1a', 22);
+      this.cam.shake = Math.max(this.cam.shake, 6);
+      this.enemyGrid.query(e.x, e.y, R + this._maxEnemyR, other => {
+        if (!other.alive || other === e) return;
+        if (dist2(other.x, other.y, e.x, e.y) > R * R) return;
+        this.dealDamage(other, blast, false, 120, e.x, e.y, true);
+      });
+      const pl = this.player;
+      if (pl.iframes <= 0 && dist2(pl.x, pl.y, e.x, e.y) <= R * R && !this.rollDodge()) {
+        pl.hp -= this.mitigate(blast * 0.7);
+        pl.hit = 0.15; pl.iframes = 0.4;
+        this.run.noHit = false;
+      }
+    }
 
     // ---- Prospector uniques that trigger on a kill ----
     const pf = s.flags || {};
@@ -2947,7 +3053,7 @@ export class Game {
     if (Math.random() < 0.6) {
       const g = this.gems.acquire();
       g.x = e.x + rand(-8, 8); g.y = e.y + rand(-8, 8); g.t = 0;
-      g.gold = Math.max(1, Math.floor(t.gold * s.goldMult));
+      g.gold = Math.max(1, Math.floor(t.gold * s.goldMult * this.weatherGold()));
       g.xp = 0; g.heart = 0;
     }
     // Rare heart drop — heals 5 HP base (upgradeable via m_heal meta)
@@ -3417,6 +3523,56 @@ export class Game {
     if (e._wounds.length > 24) e._wounds.shift();
     this.pushBloodDecal({ x: wx, y: wy, r: 3 + stage * 0.55, a: 0.5, bornAt: this.time, color: bc });
   }
+
+  // Weather. Global rather than a moving zone: a zone means a per-entity
+  // containment test every frame for every enemy, and the readability cost of
+  // "am I in it?" is not worth what it buys over "it is raining".
+  _updateWeather(dt) {
+    if (this._weather) {
+      this._weatherT -= dt;
+      if (this._weatherT <= 0) { this._weather = null; return; }
+      if (this._weather === 'storm') {
+        this._stormCD = (this._stormCD || 0) - dt;
+        if (this._stormCD <= 0) {
+          this._stormCD = rand(0.8, 1.6);
+          // Strikes land near the player, not on them — the threat is where
+          // you are standing, which you can do something about.
+          const p = this.player;
+          const a = Math.random() * TAU, d = rand(60, 260);
+          const sx = p.x + Math.cos(a) * d, sy = p.y + Math.sin(a) * d;
+          this.spawnLightning(sx, sy - 260, sx, sy, '#c8a0ff');
+          this.spawnRing(sx, sy, 54, '#c8a0ff', 0.35);
+          this.cam.shake = Math.max(this.cam.shake, 4);
+          const R = 58;
+          this.enemyGrid.query(sx, sy, R + this._maxEnemyR, e => {
+            if (!e.alive || dist2(e.x, e.y, sx, sy) > R * R) return;
+            this.dealDamage(e, 55 * this.run.stats.damageMult, false, 90, sx, sy, false, '#c8a0ff');
+          });
+          if (p.iframes <= 0 && dist2(p.x, p.y, sx, sy) <= R * R && !this.rollDodge()) {
+            p.hp -= this.mitigate(18);
+            p.hit = 0.15; p.iframes = 0.4; this.run.noHit = false;
+          }
+        }
+      }
+      return;
+    }
+    this._nextWeatherAt = (this._nextWeatherAt === undefined ? rand(70, 110) : this._nextWeatherAt) - dt;
+    if (this._nextWeatherAt <= 0) {
+      this._weather = WEATHER_IDS[(Math.random() * WEATHER_IDS.length) | 0];
+      this._weatherT = rand(26, 40);
+      this._nextWeatherAt = rand(70, 110);
+      this._weatherBannerT = 2.6;
+      this.cam.shake = Math.max(this.cam.shake, 5);
+    }
+    this._weatherBannerT = Math.max(0, (this._weatherBannerT || 0) - dt);
+  }
+
+  // Multipliers the rest of the engine reads, so weather never mutates the
+  // run's own stats — a temporary effect that writes into permanent state is
+  // a temporary effect that eventually forgets to undo itself.
+  weatherFireRate() { return this._weather === 'rain' ? 1.25 : 1; }
+  weatherEnemySpeed() { return this._weather === 'drought' ? 1.22 : 1; }
+  weatherGold() { return this._weather === 'drought' ? 1.5 : 1; }
 
   // Per-frame upkeep for the Astro Prospector unique cards that need it.
   // Kept in one place rather than scattered through update(), so the set of

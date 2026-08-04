@@ -27,8 +27,27 @@ export default function HUD({ snap, isTutorial }) {
     ? Math.max(0, snap.campaignBossAt - snap.time)
     : null;
 
+  const WEATHER_INFO = {
+    rain:    { name: 'RAINFALL',  color: '#5fb8ff', desc: '+25% fire rate · reduced visibility' },
+    drought: { name: 'DROUGHT',   color: '#ffb04d', desc: 'They move faster · gold runs richer' },
+    storm:   { name: 'ION STORM', color: '#c8a0ff', desc: 'Lightning strikes at random' },
+  };
+  const wx = snap.weather ? WEATHER_INFO[snap.weather] : null;
+
   return (
     <>
+      {/* Front announcement, then a small persistent tag while it lasts. */}
+      {wx && snap.weatherBanner > 0 && (
+        <div className="hud-weather-banner" style={{ '--wc': wx.color }} data-testid="hud-weather-banner">
+          <span className="hud-wx-name">{wx.name}</span>
+          <span className="hud-wx-desc">{wx.desc}</span>
+        </div>
+      )}
+      {wx && snap.weatherBanner <= 0 && (
+        <div className="hud-weather-tag" style={{ '--wc': wx.color }}>
+          {wx.name} · {Math.ceil(snap.weatherT)}s
+        </div>
+      )}
       {guardianIn !== null && (
         <div className={`hud-guardian${guardianIn <= 20 ? ' imminent' : ''}`} data-testid="hud-guardian">
           <span className="hud-guardian-label">GUARDIAN IN</span>

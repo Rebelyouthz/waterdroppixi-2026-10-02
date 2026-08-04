@@ -3228,6 +3228,33 @@ canvas#game, canvas.starraid-canvas {
   animation: spinResultIn 0.4s cubic-bezier(.2,.9,.3,1.5) both;
 }
 
+/* ── Weather fronts ───────────────────────────────────────────── */
+.hud-weather-banner {
+  position: fixed; top: 18%; left: 50%; transform: translateX(-50%);
+  text-align: center; z-index: 2100; pointer-events: none;
+  animation: tierBannerIn 0.5s cubic-bezier(.2,.9,.3,1.4) both;
+}
+.hud-wx-name {
+  display: block;
+  font-family: 'Cinzel', serif; font-weight: 900;
+  font-size: clamp(24px, 5vw, 42px); letter-spacing: 0.18em;
+  color: var(--wc);
+  text-shadow: 0 0 26px var(--wc), 0 3px 10px #000;
+}
+.hud-wx-desc {
+  display: block; margin-top: 3px;
+  font-family: 'VT323', monospace; font-size: 14px; letter-spacing: 0.12em;
+  color: rgba(255,255,255,0.72);
+}
+.hud-weather-tag {
+  position: fixed; top: 40px; right: 12px; z-index: 1400;
+  font-family: 'VT323', monospace; font-size: 12px; letter-spacing: 0.14em;
+  padding: 2px 9px; pointer-events: none;
+  color: var(--wc);
+  background: rgba(0,0,0,0.45);
+  border: 1px solid color-mix(in srgb, var(--wc) 45%, transparent);
+}
+
 /* ── Campaign guardian countdown ──────────────────────────────── */
 .hud-guardian {
   position: fixed; top: 6px; left: 50%; transform: translateX(-50%);
