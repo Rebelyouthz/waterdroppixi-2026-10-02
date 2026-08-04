@@ -4884,3 +4884,81 @@ canvas#game, canvas.starraid-canvas {
   border-left: 2px solid var(--nc, #7cd6ff);
 }
 .npc-host-line i { font-style: normal; opacity: 0.7; }
+
+/* ============================================
+   EXPLORATION
+   ============================================ */
+.expl-launch {
+  display: block; width: 100%; text-align: left; margin-bottom: 14px;
+  padding: 10px 14px; cursor: pointer;
+  font-family: 'VT323', monospace; font-size: 14px; letter-spacing: 0.03em;
+  color: #cfe6ff; background: linear-gradient(120deg, #10202c, #0a0612);
+  border: 1px solid #7cd6ff44; border-left: 3px solid #7cd6ff;
+}
+.expl-launch:hover { background: linear-gradient(120deg, #16303f, #0a0612); border-color: #7cd6ff88; }
+
+.expl-panel { max-width: 640px; }
+
+.expl-path { position: relative; height: 64px; margin: 10px 0 18px; }
+.expl-track {
+  position: absolute; left: 12px; right: 12px; top: 28px; height: 3px;
+  background: #ffffff14; overflow: hidden;
+}
+.expl-track i { display: block; height: 100%; background: linear-gradient(90deg, #4dffd4, #7cd6ff); transition: width 0.1s linear; }
+.expl-node {
+  position: absolute; top: 12px;
+  width: 30px; height: 30px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: #0a0612; border: 2px solid #3a2a5e;
+  transform: translateX(-50%);
+}
+.expl-node:nth-child(1) { left: 0%; } .expl-node:nth-child(2) { left: 20%; }
+.expl-node:nth-child(3) { left: 40%; } .expl-node:nth-child(4) { left: 60%; }
+.expl-node:nth-child(5) { left: 80%; } .expl-node:nth-child(6) { left: 100%; }
+.expl-node.t-trainer { border-color: #ffd166; }
+.expl-node.t-encounter { border-color: #ff7a1a; }
+.expl-node.t-loot { border-color: #4dc4ff; }
+.expl-node.done { opacity: 0.4; }
+.expl-node.current { box-shadow: 0 0 14px currentColor; animation: explPulse 1s ease-in-out infinite; }
+@keyframes explPulse { 0%, 100% { transform: translateX(-50%) scale(1); } 50% { transform: translateX(-50%) scale(1.12); } }
+.expl-walker {
+  position: absolute; top: -6px; transform: translateX(-50%);
+  font-size: 22px; transition: left 0.08s linear; z-index: 2;
+  filter: drop-shadow(0 0 6px #7cd6ff88);
+}
+.expl-walker-pet { position: absolute; right: -8px; bottom: -4px; font-size: 12px; font-style: normal; }
+
+.expl-status {
+  text-align: center; font-family: 'VT323', monospace; font-size: 15px;
+  color: var(--ink-dim); letter-spacing: 0.15em; padding: 20px 0;
+}
+
+.expl-popup {
+  text-align: center; padding: 20px; animation: toastIn 0.3s ease both;
+}
+.expl-popup-icon { display: block; margin-bottom: 6px; }
+.expl-popup-title { font-family: 'VT323', monospace; font-size: 17px; color: #cfe6ff; }
+.expl-popup-text { font-size: 13px; color: #ffd166; margin-top: 4px; }
+
+.expl-trainer {
+  padding: 14px; background: linear-gradient(150deg, color-mix(in srgb, var(--tc) 10%, #0a0612), #0a0612 70%);
+  border: 1px solid var(--tc);
+}
+.expl-trainer-name { font-family: 'VT323', monospace; font-size: 19px; color: var(--tc); letter-spacing: 0.05em; }
+.expl-trainer-name i { font-style: normal; opacity: 0.7; font-size: 13px; margin-left: 6px; }
+.expl-trainer-line { font-size: 12px; font-style: italic; color: var(--ink-dim); margin: 4px 0 12px; }
+.expl-sub { font-family: 'VT323', monospace; font-size: 13px; color: var(--ink); margin-bottom: 8px; letter-spacing: 0.04em; }
+.expl-stakes, .expl-prizes, .expl-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.expl-stake, .expl-prize {
+  font-family: 'VT323', monospace; font-size: 13px; padding: 8px 12px; cursor: pointer;
+  background: #ffffff08; border: 1px solid #ffffff24; color: var(--ink);
+}
+.expl-stake:hover, .expl-prize:hover { background: #ffffff14; }
+.expl-stake.risky { border-color: #ff5566; color: #ffb3bb; }
+
+.expl-done { text-align: center; padding: 24px 10px; }
+.expl-done-title {
+  font-family: 'VT323', monospace; font-size: 24px; letter-spacing: 0.15em;
+  color: #4dffd4; text-shadow: 0 0 14px #4dffd488; margin-bottom: 10px;
+}
+.expl-done-haul { font-family: 'VT323', monospace; font-size: 15px; color: #ffd166; margin-bottom: 16px; }

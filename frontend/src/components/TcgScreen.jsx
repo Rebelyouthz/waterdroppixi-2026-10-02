@@ -1,48 +1,16 @@
 import React, { useState } from 'react';
 import {
-  CARD_RARITY_COLORS, DECK_SIZE, DECK_MIN,
+  DECK_SIZE, DECK_MIN,
   resolveCard, deckIsValid, initBattle, resolveTurn, rollPracticeFoeDeck,
 } from '../game/petTcg';
 import { PET_TYPES, petStageMult } from './PetPanel';
 import { Audio } from '../game/audio';
-import GameIcon from './GameIcon';
-
-const KIND_LABEL = { strike: 'Strike', guard: 'Guard', drain: 'Drain', heal: 'Heal', rally: 'Rally', overload: 'Overload' };
-
-// Same colours pixiRenderer.js already uses for these pet types (its
-// PET_LIGHT_COLORS) — the type wheel needs to be readable AT A GLANCE on a
-// card, and reusing the palette the pet already wears elsewhere means a
-// player doesn't have to learn a second colour language for the same thing.
-const TYPE_TAG = {
-  aquaSprite: { label: 'AQUA',   color: '#5ba3ff' },
-  emberFairy: { label: 'EMBER',  color: '#ff7a1a' },
-  shadowWisp: { label: 'SHADOW', color: '#b362ff' },
-  stormHawk:  { label: 'STORM',  color: '#ffe44d' },
-  lifeSprite: { label: 'LIFE',   color: '#4dffd4' },
-};
-
-function CardFace({ card, onClick, disabled, small }) {
-  const rc = CARD_RARITY_COLORS[card.rarity];
-  const tt = TYPE_TAG[card.type];
-  return (
-    <button className={`tcg-card${small ? ' small' : ''}`} style={{ '--rc': rc }}
-            onClick={onClick} disabled={disabled} data-testid={`tcg-card-${card.id}`}>
-      <div className="tcg-card-top">
-        <GameIcon name={card.icon} size={small ? 18 : 24} tone={rc} />
-        <span className="tcg-card-cost">{card.cost}</span>
-      </div>
-      <div className="tcg-card-name">{card.name}</div>
-      <div className="tcg-card-kind">{KIND_LABEL[card.kind]}</div>
-      <div className="tcg-card-power">{card.kind === 'rally' ? `+${Math.round(card.power * 100)}%` : Math.round(card.power)}</div>
-      {tt && <span className="tcg-card-type" style={{ '--tc': tt.color }}>{tt.label}</span>}
-    </button>
-  );
-}
+import TcgBoard, { CardFace } from './TcgBoard';
 
 // Pet TCG. Three tabs: the collection you've pulled from Prospector/Clicker,
 // the deck you build per pet from it, and a practice battle to actually
-// play with what you built. No wagering here yet — that lands with the
-// Exploration mode and its NPC trainers, on top of this same engine.
+// play with what you built. Wagering lives in Exploration's trainer nodes,
+// on top of this same engine (see game/exploration.js, ExplorationScreen).
 export default function TcgScreen({ save, setSave, onClose }) {
   const [tab, setTab] = useState('deck'); // 'cards' | 'deck' | 'battle'
   const inventory = save.tcgCardInventory || [];
@@ -51,9 +19,8 @@ export default function TcgScreen({ save, setSave, onClose }) {
 
   const [deckPetId, setDeckPetId] = useState(pets[0]?.id || null);
   const [battlePetId, setBattlePetId] = useState(pets[0]?.id || null);
-  const [battle, setBattle] = useState(null);   // live petTcg state, or null
+  const [battle, setBattle] = useState(null);   // live petTcg state, or null — battle.over/battle.winner drive the result panel
   const [resolving, setResolving] = useState(false);
-  const [result, setResult] = useState(null);   // 'you' | 'foe' | 'draw' | null
 
   const resolved = inventory.map(resolveCard).sort((a, b) => a.type.localeCompare(b.type) || b.power - a.power);
   const deckPet = pets.find(p => p.id === deckPetId);
@@ -81,7 +48,6 @@ export default function TcgScreen({ save, setSave, onClose }) {
       foeDeckIds: foeDeck.deckIds, foeCardInventory: foeDeck.cardInventory,
       foeType, foeLevel, foeStageMult: petStageMult(foeLevel),
     }));
-    setResult(null);
     Audio.cardShuffle();
   };
 
@@ -96,7 +62,6 @@ export default function TcgScreen({ save, setSave, onClose }) {
       setResolving(false);
       Audio.cardFlip();
       if (next.over) {
-        setResult(next.winner);
         if (next.winner === 'you') {
           setSave(s => ({ ...s, petFood: (s.petFood || 0) + 3 }));
           Audio.rewardFanfare();
@@ -195,59 +160,19 @@ export default function TcgScreen({ save, setSave, onClose }) {
                         onClick={startBattle} data-testid="tcg-start-battle">
                   ▶ PRACTICE BATTLE
                 </button>
-                <div className="tcg-deck-hint">Wins earn your pet a treat. A synthetic opponent for now — trainer battles with real stakes come with Exploration.</div>
+                <div className="tcg-deck-hint">Wins earn your pet a treat. A synthetic opponent for now — trainer battles with real stakes live in Exploration.</div>
               </>
             ) : (
-              <div className="tcg-board">
-                <div className="tcg-side">
-                  <div className="tcg-side-label">
-                    {battlePet?.name || 'YOU'}
-                    {TYPE_TAG[battle.you.type] && <span className="tcg-card-type" style={{ '--tc': TYPE_TAG[battle.you.type].color }}>{TYPE_TAG[battle.you.type].label}</span>}
+              <TcgBoard
+                battle={battle} yourName={battlePet?.name} resolving={resolving}
+                onPlayCard={playCard} onPass={passTurn}
+                resultChildren={(
+                  <div className="tcg-result-actions">
+                    <button className="prosp-btn go" onClick={startBattle} data-testid="tcg-rematch">↻ AGAIN</button>
+                    <button className="prosp-btn ghost" onClick={() => setBattle(null)}>Back to decks</button>
                   </div>
-                  <div className="tcg-hpbar"><i style={{ width: `${(battle.you.hp / battle.you.maxHp) * 100}%` }} /></div>
-                  <div className="tcg-hptext">{Math.ceil(battle.you.hp)}/{battle.you.maxHp}{battle.you.shield > 0 && ` · 🛡${Math.round(battle.you.shield)}`}</div>
-                  <div className="tcg-energy">{Array.from({ length: battle.you.maxEnergy }).map((_, i) => (
-                    <i key={i} className={i < battle.you.energy ? 'on' : ''} />
-                  ))}</div>
-                </div>
-                <div className="tcg-vs">TURN {battle.turn}</div>
-                <div className="tcg-side">
-                  <div className="tcg-side-label">
-                    {PET_TYPES.find(t => t.id === battle.foe.type)?.name || 'FOE'}
-                    {TYPE_TAG[battle.foe.type] && <span className="tcg-card-type" style={{ '--tc': TYPE_TAG[battle.foe.type].color }}>{TYPE_TAG[battle.foe.type].label}</span>}
-                  </div>
-                  <div className="tcg-hpbar foe"><i style={{ width: `${(battle.foe.hp / battle.foe.maxHp) * 100}%` }} /></div>
-                  <div className="tcg-hptext">{Math.ceil(battle.foe.hp)}/{battle.foe.maxHp}{battle.foe.shield > 0 && ` · 🛡${Math.round(battle.foe.shield)}`}</div>
-                </div>
-
-                <div className="tcg-log">
-                  {battle.log.map((l, i) => (
-                    <div key={i} className={`tcg-log-row ${l.who}`}>{l.who === 'you' ? '▸' : '◂'} {l.text}</div>
-                  ))}
-                </div>
-
-                {result ? (
-                  <div className={`tcg-result ${result}`}>
-                    <div className="tcg-result-title">
-                      {result === 'you' ? 'VICTORY' : result === 'foe' ? 'DEFEAT' : 'DRAW'}
-                    </div>
-                    <div className="tcg-result-actions">
-                      <button className="prosp-btn go" onClick={startBattle} data-testid="tcg-rematch">↻ AGAIN</button>
-                      <button className="prosp-btn ghost" onClick={() => setBattle(null)}>Back to decks</button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="tcg-hand">
-                      {battle.you.hand.map(c => (
-                        <CardFace key={c.id} card={c} disabled={resolving || c.cost > battle.you.energy}
-                                  onClick={() => playCard(c)} />
-                      ))}
-                    </div>
-                    <button className="prosp-btn ghost" disabled={resolving} onClick={passTurn} data-testid="tcg-pass">Pass turn</button>
-                  </>
                 )}
-              </div>
+              />
             )}
           </div>
         )}

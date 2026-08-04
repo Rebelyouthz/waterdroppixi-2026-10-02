@@ -20,6 +20,7 @@ import BasePanel from './BasePanel';
 import BaseDefenceScreen from './BaseDefenceScreen';
 import PathPanel from './PathPanel';
 import TcgScreen from './TcgScreen';
+import ExplorationScreen from './ExplorationScreen';
 import { pendingMilestones } from '../game/clicker';
 import GearPanel from './GearPanel';
 import { BattlePassPanel, CodexPanel, PatrolPanel, EyeBadge } from './MetaFeatures';
@@ -86,6 +87,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
   const [talentOpen, setTalentOpen] = useState(false);
   const [petOpen, setPetOpen] = useState(false);
   const [tcgOpen, setTcgOpen] = useState(false);
+  const [explorationOpen, setExplorationOpen] = useState(false);
   const [prospectorOpen, setProspectorOpen] = useState(false);
   const [clickerOpen, setClickerOpen] = useState(false);
   const [baseOpen, setBaseOpen] = useState(false);
@@ -448,6 +450,9 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
           {tab === 'patrol' && (
             <>
               <div className="camp-header"><h1>Patrol</h1><div className="camp-header-sub">Send on missions while you're away · Active pet gives +20% reward</div></div>
+              <button className="expl-launch" onClick={() => setExplorationOpen(true)} data-testid="explore-launch">
+                🧭 EXPLORE — a short, active walk. Loot, a fight, and one trainer worth wagering on.
+              </button>
               <PatrolPanel save={save} setSave={setSave} />
             </>
           )}
@@ -566,6 +571,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
       {talentOpen && <TalentTree save={save} setSave={setSave} onClose={() => setTalentOpen(false)} />}
       {petOpen && <PetPanel save={save} setSave={setSave} onClose={() => setPetOpen(false)} onOpenTcg={() => setTcgOpen(true)} />}
       {tcgOpen && <TcgScreen save={save} setSave={setSave} onClose={() => setTcgOpen(false)} />}
+      {explorationOpen && <ExplorationScreen save={save} setSave={setSave} onClose={() => setExplorationOpen(false)} />}
       {prospectorOpen && <ProspectorScreen save={save} setSave={setSave} onClose={() => setProspectorOpen(false)} />}
       {clickerOpen && <ClickerScreen save={save} setSave={setSave} onClose={() => setClickerOpen(false)} />}
       {baseOpen && <BasePanel save={save} setSave={setSave} onOpen={enterBuilding} onClose={() => setBaseOpen(false)} />}
