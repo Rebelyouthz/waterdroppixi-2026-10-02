@@ -17,6 +17,7 @@ import { rollGearDrop } from './game/gear';
 import { rollRune } from './game/runes';
 import { rewardTier, rollCampaignChest, nextCampaignNode, nodeToMission, REWARD_TIERS } from './game/campaign';
 import { PET_TYPES } from './components/PetPanel';
+import ToastHost from './components/ToastHost';
 
 function AppInner() {
   const [view, setView] = useState(null);
@@ -351,10 +352,11 @@ function AppInner() {
         }}
         onStarRaid={() => setView('starraid')} />
       {showPaywall && <PaywallModal onClose={() => setShowPaywall(false)} />}
+      <ToastHost />
     </>);
   }
   if (view === 'starraid') {
-    return (<StarRaidScreen save={save} setSave={setSave} onExit={() => setView('camp')} />);
+    return (<><StarRaidScreen save={save} setSave={setSave} onExit={() => setView('camp')} /><ToastHost /></>);
   }
   if (view === 'game') {
     return (<>
@@ -365,6 +367,7 @@ function AppInner() {
           else if (where === 'menu') setView('welcome');
           else setView(where);
         }} />
+      <ToastHost />
       {missionReward && <MissionReveal rewards={missionReward} onClose={() => { setMissionReward(null); setView('camp'); }} />}
       {campaignPayout && (
         <div className="modal-overlay" data-testid="campaign-payout">

@@ -1,17 +1,41 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { Audio } from '../game/audio';
 
 const fmt = (t) => {
   const m = Math.floor(t / 60); const s = Math.floor(t % 60);
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 };
 
-export default function GameOver({ result, extras, onCamp, onRetry, onMenu }) {
+// Profile XP is a flat 200-per-rank ladder — same number the profile bar
+// and the rank-up overlay both already use (see Camp.jsx) — so the bar
+// drawn here always agrees with what those show, never a second formula
+// that could drift from them.
+const XP_PER_RANK = 200;
+
+export default function GameOver({ result, extras, save, onCamp, onRetry, onMenu }) {
   const ex = extras || {};
+  const beforeXp = (save?.profile?.xp || 0) % XP_PER_RANK;
+  const gainedXp = ex.xpGained || 0;
+  // Animates the bar filling from where the profile WAS to where it ends up
+  // after this run's XP lands, instead of snapping straight to the result —
+  // the fill itself is the "you earned this" moment.
+  const [barPct, setBarPct] = useState((beforeXp / XP_PER_RANK) * 100);
+  useEffect(() => {
+    // If this run's XP crosses into a new rank, Camp's own LevelUpOverlay
+    // owns that celebration once pendingLevelUp lands there — this bar
+    // only ever shows the fill, capped at 100%, never a rank-up moment.
+    const afterPct = (((beforeXp + gainedXp) % XP_PER_RANK) / XP_PER_RANK) * 100;
+    const t = setTimeout(() => setBarPct(afterPct), 260);
+    if (gainedXp > 0) Audio.rewardFanfare();
+    return () => clearTimeout(t);
+  }, [beforeXp, gainedXp]);
+
   const rewards = [
     { icon: '💰', label: 'Gold earned',     val: '+' + (result.gold || 0) },
     { icon: '🌟', label: 'Account XP',      val: '+' + (ex.xpGained || 0) },
     { icon: '🔮', label: 'Skill Points',    val: '+' + (ex.spGained || 0) },
   ];
+  if (result.gearParts > 0) rewards.push({ icon: '🔩', label: 'Gear Parts', val: '+' + result.gearParts });
   const badges = [];
   if (ex.isBestTime)   badges.push({ icon: '🏆', label: 'NEW BEST TIME' });
   if (ex.isBestKills)  badges.push({ icon: '⚡', label: 'NEW LEVEL RECORD' });
@@ -36,6 +60,14 @@ export default function GameOver({ result, extras, onCamp, onRetry, onMenu }) {
           <div className="go-stat"><span>WAVE</span><b>{Math.max(1, Math.ceil((result.time||0)/30))}</b></div>
           <div className="go-stat"><span>SCORE</span><b>{(result.score || 0).toLocaleString()}</b></div>
         </div>
+
+        {save && (
+          <div className="go-profile-xp" data-testid="go-profile-xp">
+            <span className="go-profile-rank">RANK {save.profile?.level || 1}</span>
+            <div className="go-profile-bar"><div className="go-profile-fill" style={{ width: `${barPct}%` }} /></div>
+            <span className="go-profile-gain">+{gainedXp} XP</span>
+          </div>
+        )}
 
         <div className="go-section-title">REWARDS COLLECTED</div>
         <div className="go-rewards">

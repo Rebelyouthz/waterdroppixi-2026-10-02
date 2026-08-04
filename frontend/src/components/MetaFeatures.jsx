@@ -5,6 +5,8 @@ import { rollGearDrop } from '../game/gear';
 import { rollRune } from '../game/runes';
 import { rollAttachment } from '../game/attachments';
 import { patrolSlots, patrolRewardMult } from '../game/base';
+import { pushToast } from '../game/toastBus';
+import { Audio } from '../game/audio';
 import CardBattle from './CardBattle';
 
 // ─── Eye of Horus badge SVG ───────────────────
@@ -170,6 +172,8 @@ export function PatrolPanel({ save, setSave }) {
     setSave(ns);
     setClaimMsg(got.join('  ·  '));
     setTimeout(() => setClaimMsg(''), 4200);
+    pushToast({ tone: 'gold', icon: def.icon, title: `${def.name} complete`, text: got.join('  ·  ') });
+    Audio.claimPing();
   };
 
   const cancelMission = (mId) => {
@@ -435,6 +439,8 @@ export function CodexPanel({ save, setSave }) {
     if (a.rwd.sp)   ns.sp   = (ns.sp   || 0) + a.rwd.sp;
     if (a.rwd.gems) ns.gems = (ns.gems || 0) + a.rwd.gems;
     setSave(ns);
+    pushToast({ tone: 'achievement', icon: 'trophy', title: a.name, text: 'Achievement unlocked' });
+    Audio.achievement();
   };
 
   const achDone     = ACHIEVEMENTS.filter(a => getAchMetric(save, a.metric) >= a.goal).length;

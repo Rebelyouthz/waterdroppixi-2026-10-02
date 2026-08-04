@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { MISSION_DEFS, MISSION_DAILY_LIMIT, MISSION_REGEN_MS, rollMissionRewards, ACHIEVEMENTS, CHALLENGES, STAGES, MILESTONE_BAR, SHOP_CARD_POOL, shopCardCost, rollShopPull3, ACTIVE_SKILLS, ACTIVE_SKILL_KEYS, ADVANCED_CARDS, STARTER_WEAPONS, PART_RARITY_COLORS, PART_SLOTS, PART_SLOT_INFO, STAT_DISPLAY, rollPart, MAP_STAGES, DAILY_CHALLENGE_POOL, getDailyChallenges } from '../game/data_ext2';
 import { Audio } from '../game/audio';
 import { accountXpToNext } from '../game/data_ext';
+import { pushToast } from '../game/toastBus';
 
 const PART_RAR_CLS = { common: 'r-common', magic: 'r-magic', rare: 'r-rare', epic: 'r-epic', legendary: 'r-legendary', mythical: 'r-mythical' };
 
@@ -155,7 +156,8 @@ export function AchievementsPanel({ save, setSave }) {
     if (a.rwd.gold) ns.gold = (ns.gold || 0) + a.rwd.gold;
     if (a.rwd.sp) ns.sp = (ns.sp || 0) + a.rwd.sp;
     setSave(ns);
-    Audio.claimPing();
+    pushToast({ tone: 'achievement', icon: 'trophy', title: a.name, text: 'Achievement unlocked' });
+    Audio.achievement();
   };
   return (
     <>

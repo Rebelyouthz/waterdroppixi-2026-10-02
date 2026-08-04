@@ -10,6 +10,7 @@ import { applyRunesToStats } from '../game/runes';
 import { Audio } from '../game/audio';
 import { petStageMult } from './PetPanel';
 import { attachmentLooks } from '../game/attachments';
+import { pushToast } from '../game/toastBus';
 import HUD from './HUD';
 import LevelUpModal from './LevelUpModal';
 import GameOver from './GameOverScreen';
@@ -231,6 +232,7 @@ export default function GameScreen({ save, setSave, onExit, onRunEnd, mission })
             const item = rollGearDrop(drop.timeInRun, !!drop.boss);
             const cur = initialSaveRef.current;
             initialSaveRef.current = { ...cur, gearInventory: [...(cur.gearInventory || []), item] };
+            pushToast({ tone: item.rarity, icon: 'shield', title: item.name, text: item.rarity.toUpperCase() });
           }
         },
         onGameOver: (r) => {
@@ -317,7 +319,7 @@ export default function GameScreen({ save, setSave, onExit, onRunEnd, mission })
         </div>
       )}
       {gameOverResult && (
-        <GameOver result={gameOverResult} extras={gameOverExtras} onMenu={() => onExit('menu')} onCamp={() => onExit('camp')} onRetry={() => onExit('retry')} />
+        <GameOver result={gameOverResult} extras={gameOverExtras} save={save} onMenu={() => onExit('menu')} onCamp={() => onExit('camp')} onRetry={() => onExit('retry')} />
       )}
     </div>
   );

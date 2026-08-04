@@ -8,6 +8,7 @@ import { rollRune } from '../game/runes';
 import { rollCard } from '../game/petTcg';
 import { clickerRateMult } from '../game/base';
 import { Audio } from '../game/audio';
+import { pushToast } from '../game/toastBus';
 import GameIcon from './GameIcon';
 
 export default function ClickerScreen({ save, setSave, onClose }) {
@@ -112,6 +113,7 @@ export default function ClickerScreen({ save, setSave, onClose }) {
     }
     ns.clicker = { ...cl, claimed };
     setSave(ns);
+    pushToast({ tone: 'gold', icon: 'gem', title: `${pending.length} milestone${pending.length > 1 ? 's' : ''} claimed`, text: pending.map(m => m.label).join('  ·  ') });
     Audio.levelUp();
   };
 
