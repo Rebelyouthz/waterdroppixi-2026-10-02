@@ -5,6 +5,10 @@ import { SHIP_COLORS } from '../game/data_ext';
 import { rollRune } from '../game/runes';
 import { raidHullMult } from '../game/base';
 import { todayIdx } from '../store';
+import GameIcon from './GameIcon';
+
+const STAGE_ICON = ['meteor', 'bolt', 'orb'];
+const MODE_ACCENT = { artifact: '#ffb84d', rune: '#b362ff', endless: '#4dffd4' };
 
 // Endless mode: one artifact token per this many in-run levels, capped per
 // day. A per-run cap would still reward restarting; a daily one means the
@@ -205,40 +209,57 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
   const selectShip = (id) => setSave({ ...save, starRaid: { ...sr, shipId: id } });
 
   if (screen === 'menu') {
+    const curShip = SHIPS[sr.shipId || 'skiff'];
     return (
       <div className="modal-overlay">
-        <div className="menu" style={{ maxWidth: 480, width: '92vw', padding: 24 }} data-testid="starraid-menu">
-          <div className="title">🚀 STAR RAID</div>
-          <div style={{ fontFamily: 'VT323', fontSize: 15, color: 'var(--ink-dim)', margin: '8px 0 16px' }}>
-            One-thumb space raid. Autofire, dodge, collect Scrap, clear all 3 stages for a Gacha Token.
+        <div className="raid-menu" data-testid="starraid-menu">
+          <div className="raid-menu-head">
+            <div className="raid-menu-title">🚀 STAR RAID</div>
+            <div className="raid-menu-sub">One-thumb space raid — autofire, dodge, collect Scrap.</div>
+            <div className="raid-menu-ship" style={{ '--sc': SHIP_COLORS.find(c => c.id === save.profile?.shipColor)?.color || '#5fd6ff' }}>
+              Flying: <b>{curShip?.name || 'Skiff'}</b>
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+
+          <div className="raid-currency-row">
+            <span className="raid-currency-chip"><GameIcon name="coin" size={16} tone="#ffd166" /> {sr.scrap || 0} Scrap</span>
+          </div>
+
+          <div className="raid-section-label">STAGE</div>
+          <div className="raid-stage-grid">
             {STAGES.map((s, i) => {
               const locked = i > (sr.stageUnlocked || 0);
+              const sel = stageIdx === i;
               return (
                 <button key={s.id} disabled={locked}
-                  className={`go-btn ${stageIdx === i ? 'go-btn-retry' : 'go-btn-ghost'}`}
-                  style={{ opacity: locked ? 0.35 : 1, flex: '1 1 30%' }}
-                  onClick={() => !locked && setStageIdx(i)}>
-                  {locked ? '🔒' : '▶'} {s.name}
+                  className={`raid-stage-card${sel ? ' sel' : ''}${locked ? ' locked' : ''}`}
+                  onClick={() => !locked && setStageIdx(i)} data-testid={`starraid-stage-${i}`}>
+                  {locked
+                    ? <span className="raid-stage-lock">🔒</span>
+                    : <GameIcon name={STAGE_ICON[i] || 'meteor'} size={22} tone={sel ? '#ffd166' : '#7cd6ff'} />}
+                  <span className="raid-stage-name">{s.name}</span>
+                  <span className="raid-stage-boss">{s.bossName}</span>
                 </button>
               );
             })}
           </div>
+
+          <div className="raid-section-label">MODE</div>
           <div className="raid-modes">
             {[
-              ['artifact', '🔶', 'Artifact Run'],
-              ['rune', '🔮', 'Rune Run'],
-              ['endless', '∞', 'Endless'],
+              ['artifact', 'gem', 'Artifact Run'],
+              ['rune', 'rune', 'Rune Run'],
+              ['endless', 'star', 'Endless'],
             ].map(([m, ic, label]) => (
               <button key={m} className={`raid-mode${mode === m ? ' active' : ''}`}
+                      style={{ '--mc': MODE_ACCENT[m] }}
                       onClick={() => setMode(m)} data-testid={`starraid-mode-${m}`}>
-                <span className="raid-mode-icon">{ic}</span>
+                <span className="raid-mode-icon"><GameIcon name={ic} size={20} tone={MODE_ACCENT[m]} /></span>
                 <span className="raid-mode-label">{label}</span>
               </button>
             ))}
           </div>
-          <div style={{ fontFamily: 'VT323', color: 'var(--ink-dim)', fontSize: 12, marginBottom: 10 }}>
+          <div className="raid-mode-desc">
             {mode === 'endless' ? (
               <>
                 No stage end — fly until you die. One artifact token per {ENDLESS_LEVELS_PER_TOKEN} levels
@@ -250,12 +271,12 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
               <>Clearing the final stage in this mode awards {mode === 'rune' ? 'a Rune' : 'a Gacha Token'}.</>
             )}
           </div>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button className="go-btn go-btn-ghost" onClick={onExit} data-testid="starraid-exit">↩ Camp</button>
-            <button className="go-btn go-btn-camp" onClick={() => setScreen('shop')} data-testid="starraid-shop">🔧 Upgrade Ship</button>
-            <button className="go-btn go-btn-retry" onClick={startRun} data-testid="starraid-launch">🚀 LAUNCH</button>
+
+          <div className="raid-menu-actions">
+            <button className="prosp-btn ghost" onClick={onExit} data-testid="starraid-exit">↩ Camp</button>
+            <button className="prosp-btn" onClick={() => setScreen('shop')} data-testid="starraid-shop">🔧 Hangar</button>
+            <button className="prosp-btn go" onClick={startRun} data-testid="starraid-launch">🚀 LAUNCH</button>
           </div>
-          <div style={{ marginTop: 12, fontFamily: 'VT323', color: '#ffd166' }}>⚙ Scrap: {sr.scrap || 0}</div>
         </div>
       </div>
     );
@@ -264,12 +285,17 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
   if (screen === 'shop') {
     return (
       <div className="modal-overlay">
-        <div className="menu" style={{ maxWidth: 520, width: '92vw', padding: 24 }} data-testid="starraid-shop-panel">
-          <div className="title">🔧 HANGAR</div>
-          <div style={{ fontFamily: 'VT323', color: '#ffd166', margin: '6px 0 14px' }}>⚙ Scrap: {sr.scrap || 0}</div>
+        <div className="raid-menu raid-shop" data-testid="starraid-shop-panel">
+          <div className="raid-menu-head">
+            <div className="raid-menu-title">🔧 HANGAR</div>
+          </div>
+          <div className="raid-currency-row">
+            <span className="raid-currency-chip"><GameIcon name="coin" size={16} tone="#ffd166" /> {sr.scrap || 0} Scrap</span>
+          </div>
 
           {/* Hull roster. Upgrades below apply to whichever hull is flown, so
               switching never throws away what you have spent. */}
+          <div className="raid-section-label">HULLS</div>
           <div className="raid-hangar">
             {Object.values(SHIPS).map(s => {
               const owned = s.cost === 0 || (sr.ships || {})[s.id];
@@ -301,27 +327,35 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
             })}
           </div>
 
-          <div style={{ fontFamily: 'VT323', color: 'var(--accent-2)', letterSpacing: '0.16em', margin: '14px 0 6px' }}>UPGRADES</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: '34vh', overflowY: 'auto' }}>
+          <div className="raid-section-label">UPGRADES</div>
+          <div className="raid-upgrade-grid">
             {Object.entries(SHIP_UPGRADES).map(([id, u]) => {
               const lvl = sr.levels[id] || 0;
               const maxed = lvl >= u.max;
               const cost = upgradeCost(id, lvl);
               const canAfford = (sr.scrap || 0) >= cost;
               return (
-                <div key={id} className="gear-popover-row" style={{ '--rc': '#4dffd4', cursor: maxed ? 'default' : 'pointer' }}>
-                  <span className="gear-popover-name">{u.icon} {u.name} — Lv {lvl}/{u.max}</span>
+                <div key={id} className={`raid-upgrade-card${maxed ? ' maxed' : ''}`}>
+                  <div className="raid-upgrade-top">
+                    <span className="raid-upgrade-icon">{u.icon}</span>
+                    <span className="raid-upgrade-name">{u.name}</span>
+                    <span className="raid-upgrade-lvl">{lvl}<i>/{u.max}</i></span>
+                  </div>
+                  <div className="raid-upgrade-pips">
+                    {Array.from({ length: u.max }).map((_, i) => (<i key={i} className={i < lvl ? 'on' : ''} />))}
+                  </div>
                   {!maxed ? (
-                    <button className="gear-btn equip" disabled={!canAfford} style={{ opacity: canAfford ? 1 : 0.4 }}
-                      onClick={() => buyUpgrade(id)}>UPGRADE ({cost} ⚙)</button>
+                    <button className="prosp-btn buy" disabled={!canAfford} onClick={() => buyUpgrade(id)}>
+                      ⚙ {cost}
+                    </button>
                   ) : (
-                    <span style={{ color: '#4dff91', fontFamily: 'VT323' }}>MAX</span>
+                    <span className="raid-upgrade-max">MAX</span>
                   )}
                 </div>
               );
             })}
           </div>
-          <button className="go-btn go-btn-ghost" style={{ marginTop: 16, width: '100%' }} onClick={() => setScreen('menu')}>↩ Back</button>
+          <button className="prosp-btn ghost" style={{ marginTop: 14, width: '100%' }} onClick={() => setScreen('menu')}>↩ Back</button>
         </div>
       </div>
     );
