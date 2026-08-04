@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { WEAPONS } from '../game/data';
 import { WEAPON_PARTS, WEAPON_PART_OVERRIDES } from '../game/data_ext';
-import { ELEMENTS, STARTER_WEAPONS, STAT_DISPLAY } from '../game/data_ext2';
+import { ELEMENTS, STARTER_WEAPONS, STAT_DISPLAY, setProgress } from '../game/data_ext2';
 import { RUNE_RARITY_COLORS, RUNE_RARITIES, getRuneMergeGroups, mergeRunes, rollRune } from '../game/runes';
 import { mergeChance, FLUX_PER_MERGE_MAX } from '../game/forge';
 import { Audio } from '../game/audio';
@@ -130,6 +130,15 @@ export default function Weaponsmith({ save, setSave, onClose }) {
   // (The loose-parts inventory's state and handlers lived here. Removed with
   // the tab — attachments are the one found-part system now.)
 
+  // What the synergy list measures against: everything this profile could
+  // bring into a run. A set whose weapons you have not unlocked yet still
+  // shows, greyed — knowing a set exists is the reason to go unlock them.
+  const ownedForSyn = [...new Set([
+    'hydropistol',
+    ...(save.unlockedWeapons || []),
+    ...Object.keys(crafted).filter(k => crafted[k]),
+  ])];
+
   return (
     <div className="modal-overlay" data-testid="weaponsmith" onClick={(e) => { if (e.target.classList.contains('modal-overlay')) onClose(); }}>
       <div className="forge-panel forge-panel-scrollable">
@@ -150,7 +159,40 @@ export default function Weaponsmith({ save, setSave, onClose }) {
           <button className={`gear-tab ${sub === 'parts' ? 'active' : ''}`} onClick={() => setSub('parts')} data-testid="smith-sub-parts">⚙ TUNING</button>
           <button className={`gear-tab ${sub === 'runes' ? 'active' : ''}`} onClick={() => setSub('runes')} data-testid="smith-sub-runes">🔩 PARTS &amp; RUNES</button>
           <button className={`gear-tab ${sub === 'blueprints' ? 'active' : ''}`} onClick={() => setSub('blueprints')} data-testid="smith-sub-blueprints">📜 BLUEPRINTS</button>
+          <button className={`gear-tab ${sub === 'synergy' ? 'active' : ''}`} onClick={() => setSub('synergy')} data-testid="smith-sub-synergy">✦ SYNERGY</button>
         </div>
+
+        {sub === 'synergy' && (
+          <div className="syn-wrap" data-testid="synergy-list">
+            <div className="syn-intro">
+              Weapon sets fire the moment you hold every weapon in them during a
+              run — and once fired they stay for the rest of it, even if a
+              weapon later evolves into something else. Nothing to equip here;
+              this is the list, so you know what you are building toward.
+            </div>
+            {setProgress(ownedForSyn).map(({ set, missing, complete, matched }) => (
+              <div key={set.id} className={`syn-row${complete ? ' done' : ''}`} style={{ '--sc': set.accent }}
+                   data-testid={`syn-${set.id}`}>
+                <span className="syn-icon">{set.icon}</span>
+                <div className="syn-body">
+                  <div className="syn-name">
+                    {set.name}
+                    {set.weapons.length > 2 && <i className="syn-trinity">TRINITY</i>}
+                  </div>
+                  <div className="syn-desc">{set.desc}</div>
+                  <div className="syn-weapons">
+                    {set.weapons.map(id => (
+                      <span key={id} className={`syn-w${missing.includes(id) ? '' : ' have'}`}>
+                        {(WEAPONS[id] && WEAPONS[id].name) || id}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <span className="syn-count">{matched}/{set.weapons.length}</span>
+              </div>
+            ))}
+          </div>
+        )}
 
         {sub === 'parts' && (<>
           <div className="forge-weapons">

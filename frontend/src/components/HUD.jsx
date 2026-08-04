@@ -1,4 +1,5 @@
 import React from 'react';
+import { SET_INDEX } from '../game/data_ext2';
 
 const fmt = (t) => { const m = Math.floor(t / 60); const s = Math.floor(t % 60); return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; };
 
@@ -17,6 +18,7 @@ export default function HUD({ snap, isTutorial }) {
   const xpPct = (snap.xp / snap.xpToNext) * 100;
   const hpPct = (snap.hp / snap.maxHp) * 100;
   const missionTimeLeft = snap.targetDuration && snap.targetDuration < 999 ? Math.max(0, snap.targetDuration - snap.time) : null;
+  const activeSets = (snap.sets || []).map(id => SET_INDEX[id]).filter(Boolean);
 
   // Tutorial tip to show
   const tutTip = isTutorial ? [...TUTORIAL_TIPS].reverse().find(t => snap.time >= t.at) : null;
@@ -46,6 +48,15 @@ export default function HUD({ snap, isTutorial }) {
       {wx && snap.weatherBanner <= 0 && (
         <div className="hud-weather-tag" style={{ '--wc': wx.color }}>
           {wx.name} · {Math.ceil(snap.weatherT)}s
+        </div>
+      )}
+      {activeSets.length > 0 && (
+        <div className="hud-sets" data-testid="hud-sets">
+          {activeSets.map(s => (
+            <span key={s.id} className="hud-set" style={{ '--sc': s.accent }} title={`${s.name} — ${s.desc}`}>
+              <i>{s.icon}</i>{s.name}
+            </span>
+          ))}
         </div>
       )}
       {guardianIn !== null && (

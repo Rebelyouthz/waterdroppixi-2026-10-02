@@ -546,6 +546,9 @@ export class Game {
       weapons: this.run.ownedWeapons.map(id => ({
         id, icon: WEAPONS[id].icon, lvl: (this.run.weaponLvls[id] || 0) + 1, name: WEAPONS[id].name,
       })),
+      // Sets that have fired this run. The unlock toast is one moment; this
+      // is what lets you still see, ten minutes later, what you are carrying.
+      sets: [...this.run.setsUnlocked],
       over: this.over,
       victory: this.victory,
       fps: this.fps,

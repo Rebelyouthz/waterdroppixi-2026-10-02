@@ -536,18 +536,89 @@ export function getWeaponForkChoices(weaponDef) {
 // weapon later (e.g. it evolves into something else) doesn't strip the
 // bonus back out. Checked once per frame in engine.js's tickCardFlags via
 // run._setsUnlocked (a Set of pair ids already applied).
+//
+// Three rules the list follows, so it stays a reason to pick weapons rather
+// than a pile of flat numbers:
+//
+// 1. Every pair has a fiction. Fire plus harpoon is steam; bow plus sniper
+//    is the long shot. A pair you cannot explain out loud is a pair nobody
+//    will remember to build toward.
+// 2. The bonus leans into what the pair is ALREADY good at rather than
+//    patching what it is bad at. Blade Dance makes a fast build faster; it
+//    does not hand it the armour it lacks.
+// 3. Trinities (three weapons) pay roughly double a pair, because owning
+//    three specific weapons in one run is a genuine commitment and usually
+//    means turning down two other picks to get there.
+//
+// `desc` must state exactly what `apply` does. It is the only thing the
+// player ever reads, and a desc that drifts from its apply is worse than no
+// desc at all.
 export const WEAPON_SET_BONUSES = [
-  { id: 'set_frozenTide', weapons: ['hydropistol', 'icespike'], name: 'Frozen Tide', icon: '🧊',
-    desc: '+15% pierce, +10% crit', apply: (rs) => { rs.pierceBonus = (rs.pierceBonus || 0) + 1; rs.crit = (rs.crit || 0) + 0.10; } },
-  { id: 'set_steamOverload', weapons: ['flameburst', 'tidalHarpoon'], name: 'Steam Overload', icon: '💨',
+  { id: 'set_frozenTide', weapons: ['hydropistol', 'icespike'], name: 'Frozen Tide', icon: '🧊', accent: '#8fe6ff',
+    desc: '+1 pierce, +10% crit', apply: (rs) => { rs.pierceBonus = (rs.pierceBonus || 0) + 1; rs.crit = (rs.crit || 0) + 0.10; } },
+  { id: 'set_steamOverload', weapons: ['flameburst', 'tidalHarpoon'], name: 'Steam Overload', icon: '💨', accent: '#ff9a4d',
     desc: '+20% damage, +10% area', apply: (rs) => { rs.damageMult = (rs.damageMult || 1) * 1.20; rs.areaMult = (rs.areaMult || 1) * 1.10; } },
-  { id: 'set_twinStorms', weapons: ['stormLance', 'arcCaster'], name: 'Twin Storms', icon: '⚡',
+  { id: 'set_twinStorms', weapons: ['stormLance', 'arcCaster'], name: 'Twin Storms', icon: '⚡', accent: '#fff44d',
     desc: '+25% attack speed', apply: (rs) => { rs.fireRateMult = (rs.fireRateMult || 1) * 1.25; } },
-  { id: 'set_automatedWing', weapons: ['droneSquad', 'railgunArray'], name: 'Automated Wing', icon: '🛸',
-    desc: '+10% crit, +15% projectile speed (via bonus damage)', apply: (rs) => { rs.crit = (rs.crit || 0) + 0.10; rs.damageMult = (rs.damageMult || 1) * 1.10; } },
-  { id: 'set_ordnanceOverkill', weapons: ['cometLauncher', 'shrapnelMine'], name: 'Ordnance Overkill', icon: '💥',
+  { id: 'set_automatedWing', weapons: ['droneSquad', 'railgunArray'], name: 'Automated Wing', icon: '🛸', accent: '#4dc4ff',
+    desc: '+10% crit, +10% damage', apply: (rs) => { rs.crit = (rs.crit || 0) + 0.10; rs.damageMult = (rs.damageMult || 1) * 1.10; } },
+  { id: 'set_ordnanceOverkill', weapons: ['cometLauncher', 'shrapnelMine'], name: 'Ordnance Overkill', icon: '💥', accent: '#ff7a1a',
     desc: '+20% area, +15% damage', apply: (rs) => { rs.areaMult = (rs.areaMult || 1) * 1.20; rs.damageMult = (rs.damageMult || 1) * 1.15; } },
+
+  // ---- Manual-weapon pairs -------------------------------------------------
+  { id: 'set_handCannons', weapons: ['desertEagle', 'twinRevolvers'], name: 'Hand Cannons', icon: '🎯', accent: '#ffd166',
+    desc: '+28% manual damage, 20% faster reloads',
+    apply: (rs) => { rs.manualDmgMult = (rs.manualDmgMult || 1) * 1.28; rs.reloadMult = (rs.reloadMult || 1) * 0.80; } },
+  { id: 'set_longEye', weapons: ['bow', 'sniperDrop'], name: 'The Long Eye', icon: '👁', accent: '#c8f0a0',
+    desc: '+12% crit, +15% headshot, +1 pierce',
+    apply: (rs) => { rs.crit = (rs.crit || 0) + 0.12; rs.headshot = (rs.headshot || 0) + 0.15; rs.pierceBonus = (rs.pierceBonus || 0) + 1; } },
+  { id: 'set_quickHands', weapons: ['runebolts', 'acidSprayer'], name: 'Quick Hands', icon: '🖐', accent: '#7ad96b',
+    desc: '25% faster reloads, +8 magazine',
+    apply: (rs) => { rs.reloadMult = (rs.reloadMult || 1) * 0.75; rs.magBonus = (rs.magBonus || 0) + 8; } },
+
+  // ---- Auto-weapon pairs ---------------------------------------------------
+  { id: 'set_bladeDance', weapons: ['daggers', 'whirlwind'], name: 'Blade Dance', icon: '🌀', accent: '#9fe8c8',
+    desc: '+12% move speed, +20% auto attack speed',
+    apply: (rs) => { rs.moveMult = (rs.moveMult || 1) * 1.12; rs.autoRateMult = (rs.autoRateMult || 1) * 1.20; } },
+  { id: 'set_redHarvest', weapons: ['bloodscythe', 'tideWhip'], name: 'Red Harvest', icon: '🩸', accent: '#b51d28',
+    desc: '+15% damage, hearts heal 2 more',
+    apply: (rs) => { rs.damageMult = (rs.damageMult || 1) * 1.15; rs.heartHeal = (rs.heartHeal || 0) + 2; } },
+  { id: 'set_sunAndStorm', weapons: ['solarFlare', 'staticField'], name: 'Sun and Storm', icon: '🌤', accent: '#ffe44d',
+    desc: '+18% area, +12% attack speed',
+    apply: (rs) => { rs.areaMult = (rs.areaMult || 1) * 1.18; rs.fireRateMult = (rs.fireRateMult || 1) * 1.12; } },
+  { id: 'set_scrapyard', weapons: ['boneshards', 'shrapnelMine'], name: 'Scrapyard', icon: '🦴', accent: '#d8c8a0',
+    desc: '+1 projectile, +10% damage',
+    apply: (rs) => { rs.projBonus = (rs.projBonus || 0) + 1; rs.damageMult = (rs.damageMult || 1) * 1.10; } },
+
+  // ---- Trinities: three weapons, roughly double a pair ---------------------
+  { id: 'set_voidChoir', weapons: ['voidBeam', 'voidPulse', 'voidScatter'], name: 'The Void Choir', icon: '🔮', accent: '#b362ff',
+    desc: '+30% damage, +20% boss damage, void bursts on kill',
+    apply: (rs) => {
+      rs.damageMult = (rs.damageMult || 1) * 1.30;
+      rs.bossDmg = (rs.bossDmg || 1) + 0.20;
+      rs.voidBurst = (rs.voidBurst || 0) + 0.25;
+    } },
+  { id: 'set_orbitalRing', weapons: ['emberOrbs', 'frostOrb', 'plasmaTurret'], name: 'Orbital Ring', icon: '💫', accent: '#7cd6ff',
+    desc: '+25% auto area, +20% auto damage, +10% area',
+    apply: (rs) => {
+      rs.autoAreaMult = (rs.autoAreaMult || 1) * 1.25;
+      rs.autoDmgMult = (rs.autoDmgMult || 1) * 1.20;
+      rs.areaMult = (rs.areaMult || 1) * 1.10;
+    } },
 ];
+
+export const SET_INDEX = WEAPON_SET_BONUSES.reduce((m, s) => { m[s.id] = s; return m; }, {});
+
+// How close a loadout is to each set. Used by the Weaponsmith's synergy tab,
+// which is the only place a player can find out these exist at all — the
+// in-run toast only fires once the set has already landed.
+export function setProgress(owned) {
+  const have = new Set(owned || []);
+  return WEAPON_SET_BONUSES.map(s => {
+    const missing = s.weapons.filter(w => !have.has(w));
+    return { set: s, missing, complete: missing.length === 0, matched: s.weapons.length - missing.length };
+  });
+}
 
 // ---------- ELEMENTAL ROUNDS (Weaponsmith) ----------
 // Assignable to manual/auto weapons' bullets (see engine.js fireProjectile/

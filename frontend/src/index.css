@@ -4538,3 +4538,67 @@ canvas#game, canvas.starraid-canvas {
   color: #b6ffd2; background: #4dff910d; border: 1px solid #4dff9133;
   letter-spacing: 0.05em;
 }
+
+/* ============================================
+   WEAPON SYNERGIES — smith list + in-run tags
+   ============================================ */
+.syn-intro {
+  font-size: 11.5px; line-height: 1.5; color: var(--ink-dim);
+  padding: 9px 11px; margin-bottom: 10px;
+  background: #ffffff06; border-left: 2px solid #7cd6ff66;
+}
+.syn-wrap { display: flex; flex-direction: column; gap: 7px; }
+.syn-row {
+  display: flex; gap: 11px; align-items: flex-start; padding: 9px 11px;
+  background: #0a0612; border: 1px solid #1f1436; opacity: 0.62;
+  transition: all 0.16s;
+}
+.syn-row.done {
+  opacity: 1; border-color: var(--sc);
+  background: linear-gradient(100deg, color-mix(in srgb, var(--sc) 12%, #0a0612), #0a0612 60%);
+  box-shadow: inset 0 0 22px color-mix(in srgb, var(--sc) 14%, transparent);
+}
+.syn-icon { font-size: 22px; line-height: 1; flex: 0 0 auto; }
+.syn-row.done .syn-icon { filter: drop-shadow(0 0 8px var(--sc)); }
+.syn-body { flex: 1 1 auto; min-width: 0; }
+.syn-name {
+  font-family: 'VT323', monospace; font-size: 17px; letter-spacing: 0.07em;
+  color: var(--ink); display: flex; align-items: center; gap: 7px;
+}
+.syn-row.done .syn-name { color: var(--sc); text-shadow: 0 0 12px color-mix(in srgb, var(--sc) 55%, transparent); }
+.syn-trinity {
+  font-family: 'VT323', monospace; font-size: 10px; letter-spacing: 0.2em;
+  font-style: normal; color: #ffd166; border: 1px solid #ffd16655;
+  padding: 1px 5px; background: #ffd1660f;
+}
+.syn-desc { font-size: 11px; color: var(--ink-dim); margin-top: 1px; }
+.syn-weapons { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.syn-w {
+  font-size: 10px; padding: 2px 7px; letter-spacing: 0.04em;
+  border: 1px dashed #ffffff1f; color: #8794a8; background: #ffffff05;
+}
+.syn-w.have { border-style: solid; border-color: var(--sc); color: var(--ink); background: color-mix(in srgb, var(--sc) 12%, transparent); }
+.syn-count {
+  font-family: 'VT323', monospace; font-size: 16px; color: var(--ink-dim);
+  flex: 0 0 auto; align-self: center;
+}
+.syn-row.done .syn-count { color: var(--sc); }
+
+.hud-sets {
+  position: fixed; left: 10px; top: 96px; z-index: 30;
+  display: flex; flex-direction: column; gap: 4px; pointer-events: none;
+}
+.hud-set {
+  display: flex; align-items: center; gap: 5px;
+  font-family: 'VT323', monospace; font-size: 12px; letter-spacing: 0.1em;
+  color: var(--sc); padding: 2px 8px 2px 5px;
+  background: #05080ecc; border: 1px solid color-mix(in srgb, var(--sc) 55%, transparent);
+  border-left-width: 3px;
+  text-shadow: 0 0 8px color-mix(in srgb, var(--sc) 60%, transparent);
+  animation: setIn 0.45s ease both;
+}
+.hud-set i { font-style: normal; font-size: 13px; }
+@keyframes setIn {
+  from { opacity: 0; transform: translateX(-14px); }
+  to   { opacity: 1; transform: none; }
+}
