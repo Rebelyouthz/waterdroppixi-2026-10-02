@@ -5,12 +5,17 @@ import {
   CLICKER_MILESTONES, fmtDrops,
 } from '../game/clicker';
 import { rollRune } from '../game/runes';
+import { clickerRateMult } from '../game/base';
 import { Audio } from '../game/audio';
 import GameIcon from './GameIcon';
 
 export default function ClickerScreen({ save, setSave, onClose }) {
   const cl = save.clicker || { drops: 0, total: 0, buildings: {}, clickLvl: 0, claimed: {} };
-  const rate = dropsPerSec(cl);
+  // The Well building multiplies production. Applied here rather than baked
+  // into the stored rate so levelling the building takes effect immediately
+  // on existing condensers.
+  const wellMult = clickerRateMult(save);
+  const rate = dropsPerSec(cl) * wellMult;
   const perClick = dropsPerClick(cl);
   const pending = pendingMilestones(cl);
   const next = nextMilestone(cl);
@@ -31,7 +36,7 @@ export default function ClickerScreen({ save, setSave, onClose }) {
         const now = Date.now();
         const el = Math.max(0, Math.min(5000, now - (c.lastMs || now)));
         if (el < 200) return cur;
-        const g = dropsPerSec(c) * (el / 1000);
+        const g = dropsPerSec(c) * wellMult * (el / 1000);
         return { ...cur, clicker: { ...c, drops: (c.drops || 0) + g, total: (c.total || 0) + g, lastMs: now } };
       });
     }, 250);

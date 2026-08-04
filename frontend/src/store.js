@@ -106,6 +106,7 @@ export const DEFAULT_SAVE = {
   // Waterdrop Clicker. `drops` is spendable inside the clicker only; `total`
   // is lifetime production, which is what the milestone ladder pays against.
   clicker: { drops: 0, total: 0, buildings: {}, clickLvl: 0, claimed: {}, lastMs: 0 },
+  base: {},                  // building id -> level (see game/base.js)
   gearParts: 0,              // spent to level equipment 1..10 (see game/gear.js)
   probe: {},                 // Astro Prospector probe upgrade levels
   prospectBlueprints: 0,     // sealed data cores, spent to unlock unique cards
@@ -175,6 +176,7 @@ export function loadSave() {
     s.flux = s.flux || 0;
     s.clicker = { ...DEFAULT_SAVE.clicker, ...(s.clicker || {}) };
     if (!s.clicker.lastMs) s.clicker.lastMs = Date.now();
+    s.base = s.base || {};
     s.gearParts = s.gearParts || 0;
     // Gear predating the levelling system has no level. Treating a missing
     // level as 1 in the readers would work, but writing it once here means

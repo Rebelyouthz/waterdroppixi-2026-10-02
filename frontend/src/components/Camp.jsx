@@ -14,6 +14,7 @@ import PetPanel from './PetPanel';
 import ProspectorScreen from './ProspectorScreen';
 import { nextCampaignNode } from '../game/campaign';
 import ClickerScreen from './ClickerScreen';
+import BasePanel from './BasePanel';
 import { pendingMilestones } from '../game/clicker';
 import GearPanel from './GearPanel';
 import { BattlePassPanel, CodexPanel, PatrolPanel, EyeBadge } from './MetaFeatures';
@@ -81,6 +82,17 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
   const [petOpen, setPetOpen] = useState(false);
   const [prospectorOpen, setProspectorOpen] = useState(false);
   const [clickerOpen, setClickerOpen] = useState(false);
+  const [baseOpen, setBaseOpen] = useState(false);
+  // Entering a building opens the system it houses, so the base is the way
+  // into everything rather than a sixth place that duplicates them.
+  const enterBuilding = (id) => {
+    setBaseOpen(false);
+    if (id === 'hangar') { onStarRaid && onStarRaid(); return; }
+    if (id === 'incubator') { setPetOpen(true); return; }
+    if (id === 'well') { setClickerOpen(true); return; }
+    if (id === 'forge') { setTab('gear'); return; }
+    if (id === 'patrolPost') { setTab('patrol'); return; }
+  };
   const clickerReady = pendingMilestones(save.clicker).length;
   const [profileOpen, setProfileOpen] = useState(false);
   const [attrOpen, setAttrOpen] = useState(false);
@@ -299,6 +311,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
             <button className={`camp-tab ${tab==='campaign'?'active':''}`} onClick={() => setTab('campaign')} data-testid="tab-campaign">📜 CAMPAIGN</button>
             <button className={`camp-tab ${tab === 'stats' ? 'active' : ''}`} onClick={() => setTab('stats')} data-testid="tab-stats">📊 STATS</button>
             <button className={`camp-tab ${tab === 'starraid' ? 'active' : ''}`} onClick={() => setTab('starraid')} data-testid="tab-starraid">🚀 STAR RAID</button>
+            <button className="camp-tab" onClick={() => setBaseOpen(true)} data-testid="tab-base">🏛 THE BASE</button>
             <button className="camp-tab" onClick={() => setProspectorOpen(true)} data-testid="tab-prospector">⛏ PROSPECTOR</button>
             <button className="camp-tab" onClick={() => setClickerOpen(true)} data-testid="tab-clicker" style={{ position: 'relative' }}>
               💧 THE WELL {clickerReady > 0 && <EyeBadge />}
@@ -510,6 +523,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
       {petOpen && <PetPanel save={save} setSave={setSave} onClose={() => setPetOpen(false)} />}
       {prospectorOpen && <ProspectorScreen save={save} setSave={setSave} onClose={() => setProspectorOpen(false)} />}
       {clickerOpen && <ClickerScreen save={save} setSave={setSave} onClose={() => setClickerOpen(false)} />}
+      {baseOpen && <BasePanel save={save} setSave={setSave} onOpen={enterBuilding} onClose={() => setBaseOpen(false)} />}
       {profileOpen && <ProfilePanel save={save} setSave={setSave} onClose={() => setProfileOpen(false)} />}
       {save.pendingLevelUp && (
         <LevelUpOverlay save={save} onCollect={() => {

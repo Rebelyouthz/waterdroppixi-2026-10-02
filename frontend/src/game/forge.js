@@ -22,13 +22,20 @@ export const MERGE_ODDS = [0, 0.75, 0.60, 0.45, 0.30, 0.18];
 export const FLUX_PER_MERGE_MAX = 3;
 export const FLUX_BONUS = 0.15;
 
-// Success chance for a merge into `targetIdx`, given `flux` catalysts spent.
-// Capped just below certainty — a 100% merge is the guaranteed upgrade this
-// system exists to avoid.
-export function mergeChance(targetIdx, flux = 0) {
+// Success chance for a merge into `targetIdx`, given `flux` catalysts spent
+// and a flat `bonus` from elsewhere (the Forge building).
+//
+// `bonus` is a separate argument rather than being folded into `flux` on the
+// caller's side, because flux is capped at FLUX_PER_MERGE_MAX — passing the
+// building's contribution as extra flux-equivalents would have been silently
+// clamped away.
+//
+// Capped just below certainty either way: a 100% merge is the guaranteed
+// upgrade this whole system exists to avoid.
+export function mergeChance(targetIdx, flux = 0, bonus = 0) {
   const base = MERGE_ODDS[targetIdx] ?? 0.18;
   const used = Math.max(0, Math.min(FLUX_PER_MERGE_MAX, Math.floor(flux)));
-  return Math.min(0.95, base + used * FLUX_BONUS);
+  return Math.min(0.95, base + used * FLUX_BONUS + Math.max(0, bonus));
 }
 
 /**
@@ -41,13 +48,13 @@ export function mergeChance(targetIdx, flux = 0) {
  *   consumed = how many of the three are destroyed (3 on success, since the
  *   upgraded item replaces them; 2 on failure, leaving one behind).
  */
-export function resolveMerge(ladder, rarity, flux = 0) {
+export function resolveMerge(ladder, rarity, flux = 0, bonus = 0) {
   const idx = ladder.indexOf(rarity);
   const targetIdx = idx + 1;
   if (idx < 0 || targetIdx >= ladder.length) {
     return { ok: false, atMax: true, chance: 0, targetRarity: rarity, consumed: 0, roll: 1 };
   }
-  const chance = mergeChance(targetIdx, flux);
+  const chance = mergeChance(targetIdx, flux, bonus);
   const roll = Math.random();
   const ok = roll < chance;
   return {

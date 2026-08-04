@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Audio } from '../game/audio';
 import { INCUBATOR_MS, incubatorRemaining, incubatorSpeedCost } from '../store';
+import { incubatorSlots, incubatorSpeedMult } from '../game/base';
 
 // ─── Pet Definitions ─────────────────────────────────────────────────────────
 export const PET_TYPES = [
@@ -156,11 +157,14 @@ export default function PetPanel({ save, setSave, onClose }) {
   // rarity-scaled timer that keeps ticking while the game is closed (see
   // tickIdle in store.js), and only then can be cracked open.
   const incSlots = save.incubator?.slots || [];
-  const maxIncSlots = save.incubatorSlots || 2;
+  // Slot count and hatch speed both come from the Incubator building, read
+  // live rather than mirrored into the save — a mirrored value is a value
+  // that can disagree with the building that granted it.
+  const maxIncSlots = incubatorSlots(save);
 
   const incubate = (egg) => {
     if (incSlots.length >= maxIncSlots) return;
-    const durMs = INCUBATOR_MS[egg.rarity] || INCUBATOR_MS.common;
+    const durMs = Math.round((INCUBATOR_MS[egg.rarity] || INCUBATOR_MS.common) * incubatorSpeedMult(save));
     const slot = {
       eggId: egg.id, rarity: egg.rarity, type: egg.type,
       startMs: Date.now(), durMs, spentMs: 0, ready: false,
@@ -445,7 +449,7 @@ export default function PetPanel({ save, setSave, onClose }) {
                           <div style={{ fontFamily:'VT323', fontSize:13, color:rc }}>{egg.rarity}</div>
                           <div style={{ fontFamily:'VT323', fontSize:12, color:'var(--ink-dim)' }}>{def?.icon} {def?.name}</div>
                           <div style={{ fontFamily:'VT323', fontSize:11, color: incSlots.length >= maxIncSlots ? '#7a6a8a' : '#4dffd4', marginTop:4 }}>
-                            {incSlots.length >= maxIncSlots ? 'INCUBATOR FULL' : `INCUBATE · ${Math.round((INCUBATOR_MS[egg.rarity] || INCUBATOR_MS.common) / 60000)}m`}
+                            {incSlots.length >= maxIncSlots ? 'INCUBATOR FULL' : `INCUBATE · ${Math.round((INCUBATOR_MS[egg.rarity] || INCUBATOR_MS.common) * incubatorSpeedMult(save) / 60000)}m`}
                           </div>
                           {sameTypeEggs.length >= 3 && (
                             <button onClick={(e) => { e.stopPropagation(); doMerge(egg.rarity, egg.type); }}

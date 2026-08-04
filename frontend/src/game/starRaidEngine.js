@@ -134,6 +134,10 @@ export class StarRaidGame {
     this.shipLevels = opts.shipLevels || {};
     this.shipId = SHIPS[opts.shipId] ? opts.shipId : 'skiff';
     this.stats = makeStats(this.shipLevels, this.shipId);
+    // Hangar building: a flat multiplier on hull and damage, applied after
+    // the ship's own modifiers so it scales whatever you chose to fly.
+    const hullMult = opts.hullMult || 1;
+    if (hullMult !== 1) { this.stats.maxHp *= hullMult; this.stats.dmg *= hullMult; }
     this.stageIdx = clamp(opts.stageIdx || 0, 0, STAGES.length - 1);
     this.stage = STAGES[this.stageIdx];
 

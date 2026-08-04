@@ -3,6 +3,7 @@ import { ENEMIES } from '../game/data';
 import { STARTER_WEAPONS, ACHIEVEMENTS } from '../game/data_ext2';
 import { rollGearDrop } from '../game/gear';
 import { rollRune } from '../game/runes';
+import { patrolSlots, patrolRewardMult } from '../game/base';
 
 // ─── Eye of Horus badge SVG ───────────────────
 export function EyeBadge({ size = 14 }) {
@@ -81,9 +82,11 @@ export function PatrolPanel({ save, setSave }) {
 
   const missions = save.patrol?.missions || [];
   const active = missions.filter(m => m.status !== 'claimed');
-  const canAdd  = active.length < MAX_PATROL;
+  // Slot count and reward scale both come from the Patrol Post building.
+  const maxPatrol = patrolSlots(save);
+  const canAdd  = active.length < maxPatrol;
   const hasPet  = (save.pets || []).some(p => p.active);
-  const petMult = hasPet ? 1.2 : 1;
+  const petMult = (hasPet ? 1.2 : 1) * patrolRewardMult(save);
 
   // Auto-complete missions whose time has elapsed
   const checkComplete = () => {
@@ -161,7 +164,7 @@ export function PatrolPanel({ save, setSave }) {
     <div className="patrol-panel" data-testid="patrol-panel">
       <div className="patrol-header">
         <span className="patrol-title">PATROL MISSIONS</span>
-        <span className="patrol-slots">{active.length}/{MAX_PATROL} slots</span>
+        <span className="patrol-slots">{active.length}/{maxPatrol} slots</span>
         {hasPet && <span className="patrol-pet-bonus">🐾 +20% reward (pet active)</span>}
       </div>
       {claimMsg && <div className="patrol-claim-msg" data-testid="patrol-claim">{claimMsg}</div>}

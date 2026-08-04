@@ -3,6 +3,7 @@ import { StarRaidGame, STAGES, SHIP_UPGRADES, upgradeCost, SHIPS } from '../game
 import { StarRaidRenderer } from '../game/starRaidRenderer';
 import { SHIP_COLORS } from '../game/data_ext';
 import { rollRune } from '../game/runes';
+import { raidHullMult } from '../game/base';
 
 // Readable names for the hull modifier keys shown in the hangar.
 const MOD_LABELS = {
@@ -56,6 +57,7 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
     const game = new StarRaidGame(canvas, {
       shipLevels: sr.levels,
       shipId: sr.shipId || 'skiff',
+      hullMult: raidHullMult(save),   // Hangar building
       stageIdx,
       shipColor: SHIP_COLORS.find(c => c.id === save.profile?.shipColor)?.color || '#5fd6ff',
       callbacks: {

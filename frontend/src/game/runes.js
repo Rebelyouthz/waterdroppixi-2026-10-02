@@ -68,11 +68,11 @@ export function getRuneMergeGroups(inventory) {
 }
 // Chance-based, same rules as gear — see game/forge.js. Success keeps the
 // rune's flavour and only bumps its rarity; failure eats two of the three.
-export function mergeRunes(inventory, ids, flux = 0) {
+export function mergeRunes(inventory, ids, flux = 0, bonus = 0) {
   const items = ids.map(id => inventory.find(x => x.id === id)).filter(Boolean);
   if (items.length < 3) return { inventory, newItem: null, result: null };
   const base = items[0];
-  const result = resolveMerge(RUNE_RARITIES, base.rarity, flux);
+  const result = resolveMerge(RUNE_RARITIES, base.rarity, flux, bonus);
   if (result.atMax) return { inventory, newItem: null, result };
 
   const doomed = new Set(ids.slice(0, result.consumed));

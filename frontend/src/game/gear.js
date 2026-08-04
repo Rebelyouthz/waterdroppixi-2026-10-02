@@ -217,11 +217,11 @@ export function getPendingMergeGroups(inventory) {
 // On success the three are consumed and replaced by one item of the next
 // rarity. On failure two are consumed and one survives, so a bad roll costs
 // you material without wiping the attempt entirely.
-export function mergeItems(inventory, ids, flux = 0) {
+export function mergeItems(inventory, ids, flux = 0, bonus = 0) {
   const items = ids.map(id => inventory.find(x => x.id === id)).filter(Boolean);
   if (items.length < 3) return { inventory, newItem: null, result: null };
   const base = items[0];
-  const result = resolveMerge(GEAR_RARITIES, base.rarity, flux);
+  const result = resolveMerge(GEAR_RARITIES, base.rarity, flux, bonus);
   if (result.atMax) return { inventory, newItem: null, result };
 
   const doomed = new Set(ids.slice(0, result.consumed));

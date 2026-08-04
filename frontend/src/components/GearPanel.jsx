@@ -9,6 +9,7 @@ import {
 } from '../game/artifacts';
 import { RUNE_GEAR_SLOTS, RUNE_RARITY_COLORS } from '../game/runes';
 import { mergeChance, FLUX_PER_MERGE_MAX } from '../game/forge';
+import { forgeBonus } from '../game/base';
 import { Audio } from '../game/audio';
 import { heroBodyPath, HERO_RIG, HERO_COLORS } from '../game/heroShape';
 
@@ -142,7 +143,10 @@ export default function GearPanel({ save, setSave }) {
     const candidates = inv.filter(x => x.slot === slot && x.rarity === rarity && (x.level || 1) >= GEAR_MAX_LEVEL);
     if (candidates.length < 3) return;
     const spend = Math.max(0, Math.min(FLUX_PER_MERGE_MAX, flux, save.flux || 0));
-    const { inventory: newInv, newItem, result } = mergeItems(inv, candidates.slice(0, 3).map(x => x.id), spend);
+    // The Forge building's contribution is a separate flat bonus, not extra
+    // flux — flux is capped, so folding it in there would be clamped away.
+    const { inventory: newInv, newItem, result } =
+      mergeItems(inv, candidates.slice(0, 3).map(x => x.id), spend, forgeBonus(save));
     if (!result || result.atMax) return;
     setSave({ ...save, gearInventory: newInv, flux: (save.flux || 0) - spend });
     if (result.ok) {

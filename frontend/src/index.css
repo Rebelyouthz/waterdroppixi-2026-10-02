@@ -2782,6 +2782,64 @@ canvas#game, canvas.starraid-canvas {
 }
 .raid-card-lvl i.on { background: #5fd6ff; box-shadow: 0 0 6px #5fd6ff; }
 
+/* ============================================================
+   THE BASE
+   ============================================================ */
+.base-panel {
+  width: min(760px, 96vw); max-height: 92vh; overflow-y: auto;
+  background: linear-gradient(180deg, #0e1420 0%, #05080e 100%);
+  border: 2px solid #4dffd444;
+  box-shadow: 0 20px 60px #000d, inset 0 0 60px rgba(77,255,212,0.04);
+  padding: 16px;
+}
+.base-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.base-title {
+  font-family: 'Cinzel', serif; font-weight: 900; font-size: 20px;
+  letter-spacing: 0.16em; color: #d8fff6;
+  text-shadow: 0 0 18px rgba(77,255,212,0.35);
+}
+.base-sum { margin-left: auto; font-family: 'VT323', monospace; font-size: 13px; color: var(--ink-dim); }
+.base-toast {
+  font-family: 'VT323', monospace; font-size: 14px; color: #b6ffd2;
+  padding: 6px 10px; margin-bottom: 10px;
+  background: rgba(77,255,145,0.10); border: 1px solid #4dff9144;
+  animation: spinResultIn 0.35s ease-out both;
+}
+.base-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+.base-card {
+  --bc: #4dffd4;
+  padding: 11px;
+  background: linear-gradient(160deg, rgba(16,30,44,0.94), rgba(5,9,16,0.94));
+  border: 1px solid color-mix(in srgb, var(--bc) 34%, transparent);
+  box-shadow: inset 0 0 24px rgba(0,0,0,0.5);
+}
+.base-card.maxed { border-color: var(--bc); box-shadow: inset 0 0 24px color-mix(in srgb, var(--bc) 12%, transparent), 0 0 16px color-mix(in srgb, var(--bc) 26%, transparent); }
+.base-card-top { display: flex; align-items: flex-start; gap: 9px; }
+.base-card-name { font-family: 'VT323', monospace; font-size: 17px; color: #eafffb; letter-spacing: 0.05em; }
+.base-card-blurb { font-size: 11px; color: #6d8290; font-style: italic; line-height: 1.3; }
+.base-card-lvl {
+  margin-left: auto; font-family: 'VT323', monospace; font-size: 20px; color: var(--bc);
+}
+.base-card-lvl i { font-style: normal; font-size: 12px; color: #55707e; }
+.base-card-effect { font-family: 'VT323', monospace; font-size: 13px; color: #cfe6de; margin: 7px 0 5px; }
+.base-card-none { color: #55707e; }
+.base-card-next { color: #6dff9e; }
+.base-pips { display: flex; gap: 2px; margin-bottom: 8px; }
+.base-pips i { flex: 1; height: 4px; background: #ffffff14; }
+.base-pips i.on { background: var(--bc); box-shadow: 0 0 6px var(--bc); }
+.base-card-actions { display: flex; gap: 6px; }
+.base-btn {
+  flex: 1; padding: 6px; cursor: pointer;
+  font-family: 'VT323', monospace; font-size: 13px; letter-spacing: 0.08em;
+  background: #ffffff0c; border: 1px solid #ffffff22; color: var(--ink);
+  transition: background 0.14s, border-color 0.14s;
+}
+.base-btn.open:hover { border-color: var(--bc); color: var(--bc); background: color-mix(in srgb, var(--bc) 12%, transparent); }
+.base-btn.buy { color: #ffd166; border-color: #ffd16644; }
+.base-btn.buy:not(:disabled):hover { background: #ffd1661f; border-color: #ffd166; }
+.base-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.base-btn.maxlbl { flex: 1; text-align: center; color: #4dff91; border-color: #4dff9144; background: #4dff9114; }
+
 /* ── Star Raid hangar ─────────────────────────────────────────── */
 .raid-hangar { display: flex; flex-direction: column; gap: 8px; }
 .raid-hull {
