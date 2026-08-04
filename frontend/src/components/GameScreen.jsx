@@ -119,33 +119,11 @@ function buildMetaEffects(save) {
   if (pistolParts.sight && WEAPON_PARTS.sight)   result.crit += (WEAPON_PARTS.sight.tiers[pistolParts.sight] || {}).crit || 0;
   if (pistolParts.rarity && WEAPON_PARTS.rarity) result.dmg += ((WEAPON_PARTS.rarity.tiers[pistolParts.rarity] || {}).mult - 1) * 0.4 || 0;
 
-  // NEW parts inventory equipped per starter weapon
-  const parts = save.parts || [];
-  const eqParts = save.equippedParts || {};
-  for (const wid of Object.keys(eqParts)) {
-    const slotMap = eqParts[wid] || {};
-    for (const slot of Object.keys(slotMap)) {
-      const p = parts.find(x => x.id === slotMap[slot]); if (!p) continue;
-      const apply = (stat, val) => {
-        if (stat === 'magBonus') result.maxHp += 0; // mag bonus = no HP effect
-        else if (['damage','dmg'].includes(stat)) result.dmg += val;
-        else if (stat === 'fireRate') result.atks += val;
-        else if (stat === 'pierce') result.pierce += Math.floor(val);
-        else if (stat === 'crit') result.crit += val;
-        else if (stat === 'critd') result.critd += val;
-        else if (stat === 'mspd') result.mspd += val;
-        else if (stat === 'headshot') result.headshot += val;
-        else if (stat === 'atks') result.atks += val;
-        else if (stat === 'reloadMult') result.atks += val * 0.5;
-        else if (stat === 'knockback') result.dmg += val * 0.2;
-        else if (stat === 'spreadReduce') result.crit += val * 0.1;
-        else if (stat === 'range' || stat === 'projSpeed') result.dmg += val * 0.1;
-        else if (stat === 'burn' || stat === 'shock') { result.flags.burnDoT = true; }
-      };
-      apply(p.primary.stat, p.primary.val);
-      for (const sub of p.sub) apply(sub.stat, sub.val);
-    }
-  }
+  // The loose-parts system (save.parts / save.equippedParts) used to be read
+  // here. It was one of three overlapping weapon-part systems; attachments
+  // won, old parts are migrated into attachInventory in store.js, and the
+  // stat block that lived here is gone with them. Attachments apply at the
+  // end of computeWeaponStats instead, per weapon, not as global meta.
 
   // Apply new gear system items
   const gearInv = save.gearInventory || [];
@@ -163,6 +141,17 @@ function buildMetaEffects(save) {
   }
   applyArtifactsToStats(save, result);
   applyRunesToStats(save, result);
+
+  // Base Defence pays out into the NEXT run, not into itself. The buff is
+  // consumed by GameScreen when the run starts (see the effect below), so
+  // holding waves is worth something even though the mode has no loot of
+  // its own.
+  const db = save.defenceBuff;
+  if (db) {
+    result.dmg   += db.dmg   || 0;
+    result.armor += db.armor || 0;
+    result.gold  += db.gold  || 0;
+  }
   const activePet = (save.pets || []).find(p => p.active);
   if (activePet) {
     const PET_STAT_MAP = {
@@ -202,6 +191,10 @@ export default function GameScreen({ save, setSave, onExit, onRunEnd, mission })
     const canvas = canvasRef.current;
     const isTutorial = mission && mission.isTutorial;
     const meta = buildMetaEffects(save);
+    // The Base Defence buff is one run only — it has been folded into `meta`
+    // above, so burn it now rather than at run end, which never fires if the
+    // player quits out mid-run.
+    if (save.defenceBuff) setSave(s => ({ ...s, defenceBuff: null }));
     // Tutorial missions start with pre-boosted meta
     if (isTutorial && mission.startMeta) {
       Object.assign(meta, mission.startMeta);

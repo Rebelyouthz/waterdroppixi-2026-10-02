@@ -109,6 +109,11 @@ export const DEFAULT_SAVE = {
   attachInventory: [],       // found weapon attachments (see game/attachments.js)
   weaponAttach: {},          // { weaponId: { barrel|optic|magazine|underbarrel|coating: attachId } }
   base: {},                  // building id -> level (see game/base.js)
+  // Base Defence. The mode itself is one session, so nothing about a layout
+  // is persisted — only the record and the buff it earned, which the next
+  // run consumes.
+  defenceBest: 0,            // most waves ever held
+  defenceBuff: null,         // { waves, dmg, armor, gold, label } | null
   gearParts: 0,              // spent to level equipment 1..10 (see game/gear.js)
   probe: {},                 // Astro Prospector probe upgrade levels
   prospectBlueprints: 0,     // sealed data cores, spent to unlock unique cards
@@ -180,6 +185,39 @@ export function loadSave() {
     if (!s.clicker.lastMs) s.clicker.lastMs = Date.now();
     s.attachInventory = s.attachInventory || [];
     s.weaponAttach = s.weaponAttach || {};
+    // The game had TWO found-weapon-part systems doing the same job: the
+    // loose `parts` inventory and attachments. Attachments won — they socket
+    // into five named slots and are visible on the drawn weapon. Old parts
+    // are converted rather than deleted, so nobody loses a collection.
+    if (Array.isArray(s.parts) && s.parts.length) {
+      const SLOT_MAP = {
+        barrel: 'barrel', muzzle: 'barrel',
+        sight: 'optic',
+        magazine: 'magazine',
+        grip: 'underbarrel', stock: 'underbarrel',
+        bullets: 'coating',
+      };
+      const DEF_BY_SLOT = {
+        barrel: 'longBarrel', optic: 'redDot', magazine: 'drumMag',
+        underbarrel: 'foregrip', coating: 'incendiary',
+      };
+      for (const p of s.parts) {
+        const slot = SLOT_MAP[p.slot] || 'barrel';
+        s.attachInventory.push({
+          id: p.id || `a_mig_${Math.random().toString(36).slice(2, 8)}`,
+          defId: DEF_BY_SLOT[slot],
+          slot,
+          rarity: p.rarity === 'uncommon' ? 'magic' : (p.rarity || 'common'),
+          name: `Salvaged ${slot}`,
+          mods: { damage: 0.08 },
+          cost: {},
+          element: slot === 'coating' ? 'fire' : null,
+          look: slot === 'coating' ? 'coat' : DEF_BY_SLOT[slot] === 'longBarrel' ? 'long' : 'dot',
+        });
+      }
+      s.parts = [];
+      s.equippedParts = {};
+    }
     s.base = s.base || {};
     s.gearParts = s.gearParts || 0;
     // Gear predating the levelling system has no level. Treating a missing

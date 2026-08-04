@@ -4383,3 +4383,75 @@ canvas#game, canvas.starraid-canvas {
 .ach-entry { cursor:default; }
 .codex-ach-rwd { display:flex; gap:8px; font-family:'VT323'; font-size:11px; color:#ffd700; margin-top:3px; flex-wrap:wrap; }
 .codex-ach-rwd span { background:#0a0520; border:1px solid #2a1a4e; padding:2px 6px; }
+
+/* ============================================
+   BASE DEFENCE
+   ============================================ */
+.bd-panel {
+  width: min(940px, 96vw); max-height: 94vh; display: flex; flex-direction: column;
+  background: linear-gradient(160deg, #0a1220, #060a12 60%);
+  border: 1px solid #ff5f7a44;
+  box-shadow: 0 0 0 1px #000, 0 22px 70px #000c, inset 0 1px 0 #ffffff10;
+  padding: 14px; position: relative; overflow: hidden;
+}
+.bd-panel::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(120% 60% at 50% -10%, #ff5f7a1c, transparent 70%);
+}
+.bd-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; position: relative; }
+.bd-title {
+  font-family: 'VT323', monospace; font-size: 22px; letter-spacing: 0.16em;
+  color: #ffc3cd; text-shadow: 0 0 14px #ff5f7a66;
+}
+.bd-stat {
+  font-family: 'VT323', monospace; font-size: 14px; letter-spacing: 0.1em;
+  color: #9fb3c8; border: 1px solid #ffffff18; background: #ffffff08; padding: 3px 10px;
+}
+.bd-stat b { color: #e9f4ff; }
+.bd-stat b.crit { color: #ff7a8c; animation: bdPulse 0.7s infinite; }
+@keyframes bdPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+.bd-head .prosp-close { margin-left: auto; }
+
+.bd-canvas {
+  width: 100%; height: min(46vh, 340px); display: block;
+  border: 1px solid #ffffff14; background: #05080e; cursor: crosshair;
+  box-shadow: inset 0 0 60px #000a;
+}
+
+.bd-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
+.bd-tower {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  padding: 8px 9px; cursor: pointer; text-align: left;
+  border: 1px solid #ffffff18; background: #ffffff08; color: var(--ink);
+  transition: all 0.14s;
+}
+.bd-tower:hover { background: #ffffff12; }
+.bd-tower.on {
+  border-color: var(--tc); background: color-mix(in srgb, var(--tc) 14%, transparent);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--tc) 40%, transparent), inset 0 1px 0 #ffffff18;
+}
+.bd-tower-name { font-family: 'VT323', monospace; font-size: 15px; letter-spacing: 0.08em; color: var(--tc); }
+.bd-tower-cost { font-family: 'VT323', monospace; font-size: 13px; color: #ffd166; }
+.bd-tower-desc { font-size: 10px; line-height: 1.25; opacity: 0.62; }
+
+.bd-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.bd-sel { font-family: 'VT323', monospace; font-size: 15px; letter-spacing: 0.08em; color: #cfe6ff; }
+.bd-actions .prosp-btn.dig { flex: 1 1 auto; text-align: center; }
+
+.bd-over {
+  position: absolute; inset: 0; z-index: 4;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  background: radial-gradient(60% 60% at 50% 45%, #200610e8, #03060ce8);
+  backdrop-filter: blur(2px);
+}
+.bd-over-title {
+  font-family: 'VT323', monospace; font-size: 30px; letter-spacing: 0.2em;
+  color: #ff7a8c; text-shadow: 0 0 22px #ff5f7a88;
+}
+.bd-over-sub { font-size: 12px; color: #cfe0f0; opacity: 0.85; max-width: 70%; text-align: center; }
+.bd-over-actions { display: flex; gap: 10px; margin-top: 6px; }
+
+@media (max-width: 620px) {
+  .bd-bar { grid-template-columns: repeat(2, 1fr); }
+  .bd-canvas { height: 40vh; }
+}

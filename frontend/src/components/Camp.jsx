@@ -15,6 +15,7 @@ import ProspectorScreen from './ProspectorScreen';
 import { nextCampaignNode } from '../game/campaign';
 import ClickerScreen from './ClickerScreen';
 import BasePanel from './BasePanel';
+import BaseDefenceScreen from './BaseDefenceScreen';
 import { pendingMilestones } from '../game/clicker';
 import GearPanel from './GearPanel';
 import { BattlePassPanel, CodexPanel, PatrolPanel, EyeBadge } from './MetaFeatures';
@@ -83,6 +84,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
   const [prospectorOpen, setProspectorOpen] = useState(false);
   const [clickerOpen, setClickerOpen] = useState(false);
   const [baseOpen, setBaseOpen] = useState(false);
+  const [defenceOpen, setDefenceOpen] = useState(false);
   // Entering a building opens the system it houses, so the base is the way
   // into everything rather than a sixth place that duplicates them.
   const enterBuilding = (id) => {
@@ -92,6 +94,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
     if (id === 'well') { setClickerOpen(true); return; }
     if (id === 'forge') { setTab('gear'); return; }
     if (id === 'patrolPost') { setTab('patrol'); return; }
+    if (id === 'rampart') { setDefenceOpen(true); return; }
   };
   const clickerReady = pendingMilestones(save.clicker).length;
   const [profileOpen, setProfileOpen] = useState(false);
@@ -524,6 +527,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
       {prospectorOpen && <ProspectorScreen save={save} setSave={setSave} onClose={() => setProspectorOpen(false)} />}
       {clickerOpen && <ClickerScreen save={save} setSave={setSave} onClose={() => setClickerOpen(false)} />}
       {baseOpen && <BasePanel save={save} setSave={setSave} onOpen={enterBuilding} onClose={() => setBaseOpen(false)} />}
+      {defenceOpen && <BaseDefenceScreen save={save} setSave={setSave} onClose={() => setDefenceOpen(false)} />}
       {profileOpen && <ProfilePanel save={save} setSave={setSave} onClose={() => setProfileOpen(false)} />}
       {save.pendingLevelUp && (
         <LevelUpOverlay save={save} onCollect={() => {

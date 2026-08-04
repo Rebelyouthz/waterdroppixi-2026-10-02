@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { WEAPONS } from '../game/data';
 import { WEAPON_PARTS, WEAPON_PART_OVERRIDES } from '../game/data_ext';
-import { ELEMENTS, STARTER_WEAPONS, PART_SLOTS, PART_SLOT_INFO, STAT_DISPLAY } from '../game/data_ext2';
+import { ELEMENTS, STARTER_WEAPONS, STAT_DISPLAY } from '../game/data_ext2';
 import { RUNE_RARITY_COLORS, RUNE_RARITIES, getRuneMergeGroups, mergeRunes, rollRune } from '../game/runes';
 import { mergeChance, FLUX_PER_MERGE_MAX } from '../game/forge';
 import { Audio } from '../game/audio';
@@ -15,7 +15,7 @@ const ATC_STAT = {
   crit: 'crit', knockback: 'knockback', spreadAdd: 'spread',
 };
 
-const PART_RAR_CLS = { common: 'r-common', magic: 'r-magic', rare: 'r-rare', epic: 'r-epic', legendary: 'r-legendary', mythical: 'r-mythical' };
+// (PART_RAR_CLS was only used by the retired loose-parts inventory.)
 
 // Consolidated weapon hub: upgrade parts + elemental rounds + blueprints +
 // the loose-parts inventory/equip system used to all live in 3 separate
@@ -23,7 +23,7 @@ const PART_RAR_CLS = { common: 'r-common', magic: 'r-magic', rare: 'r-rare', epi
 // per feedback ("too many menus"), same underlying save data, nothing
 // about the mechanics themselves changed.
 export default function Weaponsmith({ save, setSave, onClose }) {
-  const [sub, setSub] = useState('parts'); // 'parts' | 'blueprints' | 'inventory' | 'runes'
+  const [sub, setSub] = useState('parts'); // 'parts' (tuning) | 'runes' (parts+runes) | 'blueprints'
   const [wid, setWid] = useState('hydropistol');
   const w = WEAPONS[wid];
   const parts = save.weaponParts[wid] || {};
@@ -122,31 +122,8 @@ export default function Weaponsmith({ save, setSave, onClose }) {
   };
   const blueprintWeapons = Object.keys(STARTER_WEAPONS).filter(k => k !== 'hydropistol');
 
-  // ---- Parts inventory sub-tab state (its own weapon selector — scoped to
-  // STARTER_WEAPONS, a different catalog than the full WEAPONS list above) ----
-  const [invWid, setInvWid] = useState(Object.keys(STARTER_WEAPONS)[0]);
-  const invParts = save.parts || [];
-  const invEquipped = save.equippedParts || {};
-  const cw = save.craftedWeapons || { hydropistol: true };
-  const invWeaponList = Object.keys(STARTER_WEAPONS).filter(k => k === 'hydropistol' || cw[k]);
-  const equipPart = (part) => {
-    const cur = { ...(invEquipped[invWid] || {}) };
-    cur[part.slot] = part.id;
-    setSave({ ...save, equippedParts: { ...invEquipped, [invWid]: cur } });
-    Audio.click();
-  };
-  const unequipSlot = (slot) => {
-    const cur = { ...(invEquipped[invWid] || {}) };
-    delete cur[slot];
-    setSave({ ...save, equippedParts: { ...invEquipped, [invWid]: cur } });
-  };
-  const sellPart = (part) => {
-    const val = ({ common: 20, uncommon: 60, rare: 200, epic: 800, legendary: 3000, mythical: 8000 })[part.rarity] || 10;
-    const inv = invParts.filter(p => p.id !== part.id);
-    const cleared = { ...invEquipped };
-    for (const wk of Object.keys(cleared)) if (cleared[wk] && cleared[wk][part.slot] === part.id) delete cleared[wk][part.slot];
-    setSave({ ...save, parts: inv, gold: (save.gold || 0) + val, equippedParts: cleared });
-  };
+  // (The loose-parts inventory's state and handlers lived here. Removed with
+  // the tab — attachments are the one found-part system now.)
 
   return (
     <div className="modal-overlay" data-testid="weaponsmith" onClick={(e) => { if (e.target.classList.contains('modal-overlay')) onClose(); }}>
@@ -159,10 +136,15 @@ export default function Weaponsmith({ save, setSave, onClose }) {
         </div>
 
         <div className="gear-tabs" style={{ marginBottom: 12 }}>
-          <button className={`gear-tab ${sub === 'parts' ? 'active' : ''}`} onClick={() => setSub('parts')} data-testid="smith-sub-parts">UPGRADE PARTS</button>
+          {/* Three axes, and they must not sound like each other:
+              TUNING  — permanent per-weapon ladders bought with gold
+              PARTS   — found attachments socketed into the five slots
+              BLUEPRINTS — shards that craft whole new weapons
+              The old "PARTS INVENTORY" tab was a fourth system doing the same
+              job as attachments; it is gone, and its contents are migrated. */}
+          <button className={`gear-tab ${sub === 'parts' ? 'active' : ''}`} onClick={() => setSub('parts')} data-testid="smith-sub-parts">⚙ TUNING</button>
+          <button className={`gear-tab ${sub === 'runes' ? 'active' : ''}`} onClick={() => setSub('runes')} data-testid="smith-sub-runes">🔩 PARTS &amp; RUNES</button>
           <button className={`gear-tab ${sub === 'blueprints' ? 'active' : ''}`} onClick={() => setSub('blueprints')} data-testid="smith-sub-blueprints">📜 BLUEPRINTS</button>
-          <button className={`gear-tab ${sub === 'inventory' ? 'active' : ''}`} onClick={() => setSub('inventory')} data-testid="smith-sub-inventory">🔧 PARTS INVENTORY</button>
-          <button className={`gear-tab ${sub === 'runes' ? 'active' : ''}`} onClick={() => setSub('runes')} data-testid="smith-sub-runes">🔮 RUNES</button>
         </div>
 
         {sub === 'parts' && (<>
@@ -277,51 +259,9 @@ export default function Weaponsmith({ save, setSave, onClose }) {
           </div>
         </>)}
 
-        {sub === 'inventory' && (<>
-          <div className="forge-weapons">
-            {invWeaponList.map(id => (
-              <div key={id} className={`forge-wch ${invWid === id ? 'sel' : ''}`} onClick={() => setInvWid(id)} data-testid={`pi-w-${id}`}>
-                <div style={{ fontSize: 26 }}>{STARTER_WEAPONS[id].icon}</div>
-                <div style={{ fontSize: 10 }}>{STARTER_WEAPONS[id].name}</div>
-              </div>
-            ))}
-          </div>
-          <div className="forge-name">{STARTER_WEAPONS[invWid].icon} {STARTER_WEAPONS[invWid].name}</div>
-          <div style={{ marginTop: 10, marginBottom: 8, color: 'var(--accent-2)', letterSpacing: '0.2em', fontSize: 13 }}>EQUIPPED PARTS</div>
-          <div className="parts-slots">
-            {PART_SLOTS.map(slot => {
-              const eqId = (invEquipped[invWid] || {})[slot];
-              const part = invParts.find(p => p.id === eqId);
-              return (
-                <div key={slot} className="part-slot">
-                  <div className="ps-name">{PART_SLOT_INFO[slot].icon} {slot}</div>
-                  {part ? (
-                    <div className={`part-chip ${PART_RAR_CLS[part.rarity]}`} onClick={() => unequipSlot(slot)}>
-                      <div style={{ fontWeight: 800 }}>{part.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--ink-dim)' }}>+{Math.round(part.primary.val * 100) / 100} {STAT_DISPLAY[part.primary.stat] || part.primary.stat}</div>
-                    </div>
-                  ) : <div className="ps-empty">— empty —</div>}
-                </div>
-              );
-            })}
-          </div>
-          <div style={{ marginTop: 14, color: 'var(--accent-2)', letterSpacing: '0.2em', fontSize: 13 }}>INVENTORY ({invParts.length})</div>
-          {invParts.length === 0 && <div style={{ color: 'var(--ink-dim)', fontFamily: 'VT323', padding: 10 }}>No parts yet. Run missions to find some.</div>}
-          <div className="inv-row">
-            {invParts.map(p => (
-              <div className={`part-chip ${PART_RAR_CLS[p.rarity]}`} key={p.id} data-testid={`part-${p.id}`}>
-                <div style={{ fontWeight: 800, fontSize: 11 }}>{p.name}</div>
-                <div style={{ fontSize: 10, color: 'var(--ink-dim)' }}>{p.slot}</div>
-                <div style={{ fontSize: 10 }}>+{Math.round(p.primary.val * 100) / 100} {STAT_DISPLAY[p.primary.stat] || p.primary.stat}</div>
-                {p.sub.map((s, i) => <div key={i} style={{ fontSize: 10, color: 'var(--ink-dim)' }}>+{Math.round(s.val * 100) / 100} {STAT_DISPLAY[s.stat] || s.stat}</div>)}
-                <div style={{ display: 'flex', gap: 3, marginTop: 4 }}>
-                  <button onClick={() => equipPart(p)} style={{ padding: '3px 5px', fontSize: 10 }}>Equip</button>
-                  <button onClick={() => sellPart(p)} style={{ padding: '3px 5px', fontSize: 10 }}>Sell</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </>)}
+        {/* (The loose 'parts inventory' lived here. It was a second
+            found-part system doing the same job as attachments, so it is
+            retired — see store.js's migration.) */}
 
         {sub === 'runes' && (<>
           <div style={{ color: 'var(--ink-dim)', fontFamily: 'VT323', marginBottom: 10, fontSize: 14 }}>

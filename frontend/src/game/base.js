@@ -41,6 +41,12 @@ export const BUILDINGS = {
     effect: (l) => `+${l * 2}% merge success`,
     costGold: 1100, costParts: 16, growth: 1.45,
   },
+  rampart: {
+    id: 'rampart', name: 'Rampart', icon: 'shield', accent: '#ff5f7a', max: 10,
+    blurb: 'Walls, a core, and four lanes something keeps walking down.',
+    effect: (l) => `+${l * 12} core, +${l * 15} scrap${l >= 4 ? `, ${l >= 8 ? 2 : 1} free tower` : ''}`,
+    costGold: 1000, costParts: 14, growth: 1.43,
+  },
 };
 
 export function buildingLevel(save, id) {
@@ -84,4 +90,16 @@ export function forgeBonus(save) {
 
 export function raidHullMult(save) {
   return 1 + buildingLevel(save, 'hangar') * 0.03;
+}
+
+// Base Defence starts from what the Rampart is. Levels buy you a tougher
+// core, more opening scrap, and eventually towers already standing when the
+// first wave arrives.
+export function defenceStart(save) {
+  const l = buildingLevel(save, 'rampart');
+  return {
+    coreMax: 100 + l * 12,
+    scrap: 90 + l * 15,
+    freeTowers: l >= 8 ? 2 : l >= 4 ? 1 : 0,
+  };
 }

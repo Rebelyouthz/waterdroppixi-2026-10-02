@@ -60,10 +60,18 @@ function AppInner() {
     return () => document.body.classList.remove('in-game');
   }, [view]);
 
-  const setSave = (newSave) => {
-    setSaveState(newSave);
-    saveLocal(newSave);
-    syncSave(newSave);
+  // Accepts either a save object or a React-style updater function. The
+  // updater form matters wherever a caller must not clobber changes made
+  // between render and commit (e.g. GameScreen burning a one-run buff on
+  // mount) — passing a function straight through to saveLocal used to
+  // persist the function itself.
+  const setSave = (next) => {
+    setSaveState(cur => {
+      const ns = typeof next === 'function' ? next(cur) : next;
+      saveLocal(ns);
+      syncSave(ns);
+      return ns;
+    });
   };
 
   // Settle every time-based system (patrol, incubator, and later the clicker)
