@@ -155,9 +155,29 @@ export class StarRaidRenderer {
     // sprite art, and procedural ones would fight with them. Depth behind
     // the stars comes from a slow-drifting galaxy instead, which is diffuse
     // enough to sit under a sprite without competing.
-    this._galaxy = {
-      x: rnd(W * 0.2, W * 0.8), y: rnd(-H * 0.4, H * 0.5),
-      r: rnd(H * 0.16, H * 0.24), speed: rnd(3, 6), tilt: rnd(-0.5, 0.5),
+    // An ECLIPSED MOON, not a galaxy.
+    //
+    // Two problems with the galaxy. It drifted at 3-6 px/s against an asteroid
+    // belt moving at 60-120, so it was twenty times slower than everything
+    // else and read as stuck to the screen rather than as distant. And a
+    // purple spiral is what every space shooter has; it said nothing about
+    // this game.
+    //
+    // A dead moon with a star burning out from behind it is a silhouette — it
+    // reads instantly at any size, it gives the whole layer a single hard
+    // light source everything else can agree with, and the corona doing the
+    // work means the moon itself can stay almost black and never compete with
+    // the sprites in front of it.
+    this._moon = {
+      x: rnd(W * 0.2, W * 0.8), y: rnd(-H * 0.5, H * 0.2),
+      r: rnd(H * 0.10, H * 0.15),
+      // Fast enough to read as travelling, slow enough to still be the
+      // furthest thing away.
+      speed: rnd(16, 24),
+      // Where the star sits behind it, as an angle. Fixed per spawn so the
+      // rim light and the ray fan agree.
+      sunAng: Math.random() * TAU,
+      tilt: rnd(-0.5, 0.5),
     };
 
     // Asteroid belt — closest background layer, tumbling.
@@ -193,35 +213,50 @@ export class StarRaidRenderer {
       }
     }
 
-    // Distant galaxy — slow, diffuse, no hard silhouette to clash with the
-    // planet sprites that will sit on this layer later.
+    // ---- Eclipsed moon -------------------------------------------------
+    // The furthest layer, and the only hard light source in the scene. Drawn
+    // back-to-front: corona, ray fan, then the moon itself as a near-black
+    // disc so it stays a silhouette and never fights the sprites in front.
     const gf = this.gFar; gf.clear();
-    const gx = this._galaxy;
-    gx.y += gx.speed * dt;
-    if (gx.y - gx.r * 2 > H) { gx.y = -gx.r * 2; gx.x = Math.random() * W; }
-    for (let i = 6; i >= 1; i--) {
-      gf.ellipse(gx.x, gx.y, gx.r * (i / 6) * 1.15, gx.r * (i / 6) * 0.6)
-        .fill({ color: '#6a4fd0', alpha: 0.030 });
+    const mo = this._moon;
+    mo.y += mo.speed * dt;
+    if (mo.y - mo.r * 3 > H) { mo.y = -mo.r * 3; mo.x = Math.random() * W; mo.sunAng = Math.random() * TAU; }
+    const sx = mo.x + Math.cos(mo.sunAng) * mo.r * 0.34;
+    const sy = mo.y + Math.sin(mo.sunAng) * mo.r * 0.34;
+
+    // Corona, hot at the limb and cooling outward.
+    const COR = ['#fff3d0', '#ffd08a', '#ff9a4d', '#7a4a9a'];
+    for (let i = 14; i >= 1; i--) {
+      const f = i / 14;
+      gf.circle(sx, sy, mo.r * (1 + f * 2.4))
+        .fill({ color: COR[Math.min(3, (f * 4) | 0)], alpha: 0.026 * (1 - f * 0.5) });
     }
-    for (let arm = 0; arm < 2; arm++) {
-      const base = arm * Math.PI + gx.tilt;
-      for (let pass = 0; pass < 3; pass++) {
-        gf.moveTo(gx.x, gx.y);
-        for (let s = 1; s <= 22; s++) {
-          const f = s / 22;
-          const rr = gx.r * 0.08 + f * gx.r;
-          const aa = base + f * 3.1;
-          gf.lineTo(gx.x + Math.cos(aa) * rr, gx.y + Math.sin(aa) * rr * 0.54);
-        }
-        gf.stroke({
-          width: [14, 8, 3][pass],
-          color: ['#4a3aa0', '#7a6ae0', '#cfc4ff'][pass],
-          alpha: [0.13, 0.17, 0.22][pass],
-        });
-      }
+    // Ray fan — uneven lengths so it reads as a star and not as a sunburst
+    // stamp. Seeded off the spawn angle so it is stable while it drifts.
+    for (let i = 0; i < 30; i++) {
+      const a = (i / 30) * TAU + mo.sunAng;
+      const len = mo.r * (1.15 + Math.abs(Math.sin(i * 2.7 + mo.sunAng)) * 1.5);
+      gf.moveTo(sx + Math.cos(a) * mo.r * 1.02, sy + Math.sin(a) * mo.r * 1.02)
+        .lineTo(sx + Math.cos(a) * len, sy + Math.sin(a) * len)
+        .stroke({ width: 1 + (i % 4) * 0.5, color: '#ffcf8a', alpha: 0.05 + (i % 3) * 0.02 });
     }
-    gf.ellipse(gx.x, gx.y, gx.r * 0.3, gx.r * 0.16).fill({ color: '#e6c8ff', alpha: 0.26 });
-    gf.ellipse(gx.x, gx.y, gx.r * 0.14, gx.r * 0.075).fill({ color: '#fff4ff', alpha: 0.6 });
+    // The bright rim where the star clears the limb.
+    gf.circle(sx, sy, mo.r * 1.06).fill({ color: '#ffe6b0', alpha: 0.30 });
+    gf.circle(sx, sy, mo.r * 1.02).fill({ color: '#fff8e0', alpha: 0.45 });
+
+    // The moon: near-black, with craters just visible against the corona
+    // spill so it is a body rather than a hole.
+    gf.circle(mo.x, mo.y, mo.r).fill({ color: '#080a12', alpha: 0.98 });
+    for (let c = 0; c < 7; c++) {
+      const ca = mo.tilt + c * 1.9;
+      const cr = mo.r * (0.16 + ((c * 37) % 40) / 260);
+      const cd = mo.r * (0.18 + ((c * 53) % 55) / 100);
+      gf.circle(mo.x + Math.cos(ca) * cd, mo.y + Math.sin(ca) * cd, cr)
+        .fill({ color: '#12161f', alpha: 0.9 });
+    }
+    // A thin lit crescent on the star side, which is what sells the eclipse.
+    gf.circle(mo.x, mo.y, mo.r)
+      .stroke({ width: 1.6, color: '#ffd9a0', alpha: 0.35 });
 
     // Starfield — collected into tiers first, because Graphics fills every
     // shape accumulated since the last fill() in one go.

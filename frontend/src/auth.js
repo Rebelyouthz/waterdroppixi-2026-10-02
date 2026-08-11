@@ -11,7 +11,10 @@ const AuthCtx = createContext(null);
 // always "logged in" and "paid" offline. Untouched when REACT_APP_BACKEND_URL
 // is set (e.g. a real deploy), so the real auth/payment flow still works there.
 const LOCAL_MODE = !process.env.REACT_APP_BACKEND_URL;
-const LOCAL_USER = { name: 'Local Player', email: 'local@dev', picture: null };
+// `user_id` mirrors the real entitlement payload's shape — anything reading
+// the signed-in identity (the leaderboard placement lookup, for one) must not
+// behave differently in local mode just because a field is missing.
+const LOCAL_USER = { user_id: 'local', name: 'Local Player', email: 'local@dev', picture: null };
 
 // Configure axios to send cookies
 axios.defaults.withCredentials = true;

@@ -12,22 +12,48 @@
 
 import { MAP_STAGES } from './data_ext2';
 import { companionForNode } from './companions';
+import { progressFor, resolveDifficulty, difficultyMods, rewardMult } from './difficulty';
 
 // Which boss closes each map. Ordered so a map's finale escalates with how
 // far into the story it sits.
 export const MAP_BOSS = {
+  // The Rain Pool closes on the same guardian the Lake does. Deliberately not
+  // a new, weaker boss: meeting the Eye here at diff 0/1 scaling and then
+  // meeting it again in the Lake at diff 1-3 teaches the player that a
+  // guardian is a fight they can learn, which a one-off pushover would not.
+  pond:  'bossOcular',
   lake:  'bossOcular',
   ruins: 'bossNecromancer',
   void:  'bossVoidTitan',
   ship:  'bossAida',
   sky:   'bossTidebreaker',
+  // The Deep Current is the last map and had NO entry here at all, so its
+  // nodes' "put the guardian down" objective could never be satisfied — the
+  // final map of the campaign was uncompletable. The Hollow Queen is the one
+  // boss not already spoken for, and a shape-shifting siege fight suits the
+  // endless-mode capstone.
+  deepcurrent: 'bossHollowQueen',
 };
 
-// How long you hold out before the boss gate opens. Scales with the node's
-// difficulty, floored so even a first node has a real middle, and capped so a
-// late node never becomes a slog.
+// How long you hold out before the boss gate opens.
+//
+// The old floor was 180s, which was ABOVE the derived gate for the first five
+// nodes — so lake_1, lake_2, ruins_1 and ruins_2 all opened their gate at
+// exactly three minutes regardless of their stated duration, and the whole
+// early campaign read as one node repeated. The floor is now 150s (still a
+// real middle) and the durations in MAP_STAGES have been spread far enough
+// apart that the derived value is what actually decides, which is what the
+// per-node duration was always supposed to mean.
 export function bossGateTime(node) {
-  return Math.max(180, Math.min(600, Math.round((node.duration || 300) * 0.72)));
+  const dur = node.duration || 300;
+  // The floor has to stay BELOW the node's own length or the guardian can
+  // never appear. At a flat 150 the new Rain Pool nodes (165s and 200s) would
+  // have gated at 150s and 150s — the first one barely inside its own runtime,
+  // and any shorter node would have been literally uncompletable. The floor is
+  // now capped by the node itself, so a short intro node gates early and the
+  // long ones are unchanged (lake_1 still 151s).
+  const floor = Math.min(150, Math.round(dur * 0.6));
+  return Math.max(floor, Math.min(600, Math.round(dur * 0.72)));
 }
 
 // Objectives for a node. Derived rather than authored per node: five maps of
@@ -65,19 +91,27 @@ export function rewardTier(result, node) {
 
 // What a chest holds. Weighted toward the levelling currency, because gear
 // parts are the steady progression and a whole item is the occasional event.
-export function rollCampaignChest(node, isFinal) {
+//
+// `rm` is the difficulty reward multiplier (see game/difficulty.js). It scales
+// the AMOUNTS and lifts the drop CHANCES, but the chance lift is capped — at
+// Nightmare's ×2.4 an uncapped roll would put gear and runes at ~100%, which
+// would turn the rarest outcome in the chest into the default one and flatten
+// the whole loot table into "you always get everything".
+export function rollCampaignChest(node, isFinal, rm = 1) {
   const diff = node?.diff || 1;
+  const amt = (n) => Math.max(1, Math.round(n * rm));
+  const chance = (p) => Math.min(0.85, p * (1 + (rm - 1) * 0.5));
   const out = [];
-  out.push({ type: 'gold', amount: 220 * diff + Math.round(Math.random() * 180) });
-  out.push({ type: 'gearParts', amount: 8 + diff * 6 + Math.floor(Math.random() * 8) });
-  if (Math.random() < 0.42 + diff * 0.08) out.push({ type: 'gear' });
-  if (Math.random() < 0.18 + diff * 0.06) out.push({ type: 'rune' });
-  if (Math.random() < 0.22) out.push({ type: 'gems', amount: 1 + Math.floor(Math.random() * 3) });
-  if (Math.random() < 0.30) out.push({ type: 'petFood', amount: 1 + Math.floor(Math.random() * 3) });
+  out.push({ type: 'gold', amount: amt(220 * diff + Math.round(Math.random() * 180)) });
+  out.push({ type: 'gearParts', amount: amt(8 + diff * 6 + Math.floor(Math.random() * 8)) });
+  if (Math.random() < chance(0.42 + diff * 0.08)) out.push({ type: 'gear' });
+  if (Math.random() < chance(0.18 + diff * 0.06)) out.push({ type: 'rune' });
+  if (Math.random() < chance(0.22)) out.push({ type: 'gems', amount: amt(1 + Math.floor(Math.random() * 3)) });
+  if (Math.random() < chance(0.30)) out.push({ type: 'petFood', amount: amt(1 + Math.floor(Math.random() * 3)) });
   // The last chest of a cleared node is the one worth chasing.
   if (isFinal) {
-    out.push({ type: 'sp', amount: 1 + diff });
-    if (Math.random() < 0.5) out.push({ type: 'gearParts', amount: 20 + diff * 10 });
+    out.push({ type: 'sp', amount: amt(1 + diff) });
+    if (Math.random() < 0.5) out.push({ type: 'gearParts', amount: amt(20 + diff * 10) });
   }
   return out;
 }
@@ -95,10 +129,31 @@ export function campaignNodes() {
   return out;
 }
 
-// The next node the player has not cleared — what "Continue story" resumes.
+// The next node the player has not cleared ON THE ACTIVE DIFFICULTY — what
+// "Continue story" resumes. Switching to Hard therefore restarts the thread at
+// the very first node, which is the intent: Hard is the story again, not the
+// story's leftovers.
 export function nextCampaignNode(save) {
-  const progress = save.mapProgress || {};
+  const progress = progressFor(save);
   return campaignNodes().find(n => !progress[n.id]) || null;
+}
+
+// The difficulty numbers a run should actually use, with the selected tier
+// clamped to what the player has earned. Lives here rather than in
+// difficulty.js because it needs the node list, and difficulty.js is
+// deliberately free of the data layer (campaign.js already imports it, so
+// putting the dependency the other way would be a cycle).
+//
+// Every site that decides combat or payout should go through this rather than
+// reading save.difficulty directly.
+export function resolvedDifficultyMods(save) {
+  const ids = campaignNodes().map(n => n.id);
+  return difficultyMods({ ...save, difficulty: resolveDifficulty(save, ids) });
+}
+
+export function resolvedRewardMult(save) {
+  const ids = campaignNodes().map(n => n.id);
+  return rewardMult({ ...save, difficulty: resolveDifficulty(save, ids) });
 }
 
 // Turns a campaign node into the `mission` object GameScreen already knows

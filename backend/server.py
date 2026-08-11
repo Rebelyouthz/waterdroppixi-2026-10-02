@@ -265,7 +265,12 @@ async def get_entitlement(
     ent = await db.entitlements.find_one({"user_id": user["user_id"]}, {"_id": 0})
     return {
         "paid": bool(ent and ent.get("paid")),
-        "user": {"name": user.get("name"), "email": user.get("email"), "picture": user.get("picture")},
+        # user_id is included so the client can recognise its OWN rows in the
+        # leaderboard (see App.js's placement lookup, which feeds the
+        # "Named in Stone" top-10 badge). Without it there is no field the
+        # client and the leaderboard rows have in common, and the badge was
+        # unattainable. It is the caller's own id, not another user's.
+        "user": {"user_id": user["user_id"], "name": user.get("name"), "email": user.get("email"), "picture": user.get("picture")},
         "price_usd": GAME_PRICE_USD,
         "title": GAME_TITLE,
     }

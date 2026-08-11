@@ -4,6 +4,8 @@ import { MISSION_DEFS, MISSION_DAILY_LIMIT, MISSION_REGEN_MS, rollMissionRewards
 import { Audio } from '../game/audio';
 import { accountXpToNext } from '../game/data_ext';
 import { pushToast } from '../game/toastBus';
+import { progressFor } from '../game/difficulty';
+import DifficultyPicker from './DifficultyPicker';
 
 const PART_RAR_CLS = { common: 'r-common', magic: 'r-magic', rare: 'r-rare', epic: 'r-epic', legendary: 'r-legendary', mythical: 'r-mythical' };
 
@@ -296,7 +298,16 @@ export function CardShopModal({ save, setSave, onClose }) {
         ns.unlockedWeapons = [...new Set([...(ns.unlockedWeapons || []), w.effect.unlockWeapon])];
       } else if (w.effect.unlockEvo) {
         ns.unlockedEvos = [...new Set([...(ns.unlockedEvos || []), w.effect.unlockEvo])];
+      } else if (w.effect.unlockCard) {
+        // Unlocks an ADVANCED_CARD into the in-run pool (engine.js gates on
+        // meta.shopCards). Replaces the old permanent-stat payout: the shop
+        // should widen what you can FIND during a run, not quietly raise your
+        // sheet between runs — the meta upgrade tree already owns that job.
+        ns.shopCards = [...new Set([...(ns.shopCards || []), w.effect.unlockCard])];
       } else if (w.effect.stat) {
+        // Legacy path. Kept only so a save created before this change, which
+        // may still hold shopBonuses, keeps whatever it already earned — no
+        // NEW card in the pool grants stats any more.
         ns.shopBonuses = { ...(ns.shopBonuses || {}) };
         ns.shopBonuses[w.effect.stat] = (ns.shopBonuses[w.effect.stat] || 0) + (w.finalEffect?.amount || 0);
       }
@@ -445,7 +456,7 @@ export function ActiveLoadoutPanel({ save, setSave, onClose }) {
 
   return (
     <div className="modal-overlay" data-testid="loadout" onClick={(e) => { if (e.target.classList.contains('modal-overlay')) onClose(); }}>
-      <div className="forge-panel" style={{ maxWidth: 720 }}>
+      <div className="forge-panel loadout-panel" style={{ maxWidth: 720 }}>
         <div className="forge-header">
           <div className="forge-title">🎯 ACTIVE SKILL LOADOUT</div>
           <button onClick={onClose} style={{ padding: '6px 12px', fontSize: 12 }}>✕</button>
@@ -503,10 +514,16 @@ export function WeaponCrafting({ save, setSave, onClose }) {
     const ns = { ...save, blueprintShards: { ...shards, [id]: have - def.blueprintCost }, craftedWeapons: { ...crafted, [id]: true } };
     setSave(ns); Audio.blueprint();
   };
+  // hydropistol is the default weapon and never appears here. Everything else
+  // does — including the starters that need no blueprint at all, which render
+  // as already unlocked rather than as a craft with a cost of `undefined`
+  // (that produced a NaN progress bar and a FORGE button that "crafted" for
+  // free, because `0 < undefined` is false).
   const weapons = Object.keys(STARTER_WEAPONS).filter(k => k !== 'hydropistol');
+  const isFree = (def) => !def.blueprintCost;
   return (
     <div className="modal-overlay" data-testid="craft" onClick={(e) => { if (e.target.classList.contains('modal-overlay')) onClose(); }}>
-      <div className="forge-panel" style={{ maxWidth: 760 }}>
+      <div className="forge-panel craft-panel" style={{ maxWidth: 760 }}>
         <div className="forge-header">
           <div className="forge-title">📜 WEAPON BLUEPRINTS</div>
           <button onClick={onClose} style={{ padding: '6px 12px', fontSize: 12 }}>✕</button>
@@ -516,20 +533,21 @@ export function WeaponCrafting({ save, setSave, onClose }) {
           {weapons.map(id => {
             const def = STARTER_WEAPONS[id];
             const have = shards[id] || 0;
-            const c = crafted[id];
-            const pct = Math.min(100, (have / def.blueprintCost) * 100);
+            const free = isFree(def);
+            const c = free || crafted[id];
+            const pct = free ? 100 : Math.min(100, (have / def.blueprintCost) * 100);
             return (
-              <div className="upgrade-card" key={id} data-testid={`craft-${id}`}>
+              <div className={`upgrade-card${free ? ' is-free' : ''}`} key={id} data-testid={`craft-${id}`}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ fontSize: 32 }}>{def.icon}</div>
                   <div>
                     <div className="name">{def.name}</div>
-                    <div className="lvl">{have} / {def.blueprintCost}</div>
+                    <div className="lvl">{free ? 'UNLOCKED' : `${have} / ${def.blueprintCost}`}</div>
                   </div>
                 </div>
                 <div className="desc">{def.desc}</div>
                 <div className="hud-xpbar"><div className="hud-xpbar-fill" style={{ width: pct + '%' }} /></div>
-                {c ? <div style={{ color: 'var(--accent-2)' }}>✓ CRAFTED</div> :
+                {c ? <div style={{ color: 'var(--accent-2)' }}>{free ? '✓ READY' : '✓ CRAFTED'}</div> :
                   <button onClick={() => craft(id)} disabled={have < def.blueprintCost} data-testid={`btn-craft-${id}`}>FORGE</button>}
               </div>
             );
@@ -548,7 +566,7 @@ export function SettingsPanel({ save, setSave, onClose, onReset }) {
   useEffect(() => { Audio.setSfxVol(s.sfx ?? 1.0); Audio.setMusicVol(s.music ?? 0.28); Audio.setMuted(s.muted ?? false); }, [s.sfx, s.music, s.muted]);
   return (
     <div className="modal-overlay" data-testid="settings" onClick={(e) => { if (e.target.classList.contains('modal-overlay')) onClose(); }}>
-      <div className="forge-panel" style={{ maxWidth: 480 }}>
+      <div className="forge-panel settings-panel" style={{ maxWidth: 480 }}>
         <div className="forge-header">
           <div className="forge-title">⚙ SETTINGS</div>
           <button onClick={onClose} style={{ padding: '6px 12px', fontSize: 12 }}>✕</button>
@@ -632,7 +650,7 @@ export function PartsInventory({ save, setSave, onClose }) {
   };
   return (
     <div className="modal-overlay" data-testid="parts-inv" onClick={(e) => { if (e.target.classList.contains('modal-overlay')) onClose(); }}>
-      <div className="forge-panel">
+      <div className="forge-panel parts-panel">
         <div className="forge-header">
           <div className="forge-title">🔧 PARTS WORKSHOP</div>
           <div className="forge-gold">★ {save.gold}</div>
@@ -691,7 +709,9 @@ const DIFF_LABEL = ['', 'EASY', 'MEDIUM', 'HARD'];
 const DIFF_COLOR = ['', '#4dffd4', '#ffd166', '#ff7a1a'];
 
 export function MapsPanel({ save, setSave, onStart }) {
-  const progress = save.mapProgress || {};
+  // Reads the ACTIVE tier's ledger, so switching to Hard shows a fresh map
+  // with everything to do again rather than a wall of ✓ CLEARED from Normal.
+  const progress = progressFor(save);
 
   const canUnlockStage = (stage) => {
     if (!stage.unlock) return true;
@@ -720,6 +740,7 @@ export function MapsPanel({ save, setSave, onStart }) {
   return (
     <>
       <div className="camp-header"><h1>World Map</h1></div>
+      <DifficultyPicker save={save} setSave={setSave} />
       <div className="maps-grid">
         {MAP_STAGES.map(stage => {
           const unlocked = canUnlockStage(stage);

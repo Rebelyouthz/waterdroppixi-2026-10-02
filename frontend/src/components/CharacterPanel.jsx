@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { CHAR_RARITIES, CHAR_RARITY_COLORS, CHAR_RARITY_NAMES, CHAR_SLOTS_BY_RARITY, CHAR_LEVEL_COST, CHAR_EVOLVE_COST, CHAR_MAX_LEVELS, charLevelStat } from '../game/data_ext2';
+import { CHAR_RARITIES, CHAR_RARITY_COLORS, CHAR_RARITY_NAMES, CHAR_SLOTS_BY_RARITY, CHAR_LEVEL_COST, CHAR_EVOLVE_COST, CHAR_MAX_LEVELS, charLevelStat, characterSlots } from '../game/data_ext2';
 import { Audio } from '../game/audio';
+import HeroFigure from './HeroFigure';
 
 export default function CharacterPanel({ save, setSave, onClose }) {
   const [popAnim, setPopAnim] = useState(false);
@@ -46,12 +47,56 @@ export default function CharacterPanel({ save, setSave, onClose }) {
   // Collect all bonuses gained so far
   const earned = (save.charBonuses || {});
 
+  // One shared rule (data_ext2's characterSlots) rather than a second copy of
+  // the table — this panel only draws what the engine will actually run on.
+  const sl = characterSlots(char.rarity, char.level);
+  const curWeapons = sl.slots;
+  const curSkills = sl.skillSlots;
+  // The nearest level that opens EITHER slot type. Weapons come first (50% of
+  // the rarity's levels), actives second (80%), so whichever is still ahead of
+  // the current level is the one to name.
+  //
+  // Gated on `sl.cap > sl.floor` because Common has nothing below it — its
+  // floor IS its cap, so no level inside Common opens anything. Without this
+  // the panel would promise "Level 2 unlocks a weapon slot" to a starting
+  // character and then quietly not deliver.
+  // The bandage takes the rarity colour, so evolving visibly re-wraps him —
+  // grey at common, up through the ladder. Same field the in-game renderer
+  // reads, so the two never disagree.
+  const bandColor = CHAR_RARITY_COLORS[char.rarity] || '#d9cba8';
+
+  const nextSlotUnlock = sl.cap <= sl.floor ? null
+    : char.level < sl.weaponAt ? { at: sl.weaponAt, kind: 'weapon' }
+    : char.level < sl.skillAt ? { at: sl.skillAt, kind: 'skill' }
+    : null;
+
   return (
     <div className="modal-overlay" data-testid="char-panel" onClick={(e) => { if (e.target.classList.contains('modal-overlay')) onClose(); }}>
       <div className={`forge-panel char-panel ${popAnim ? 'card-pop' : ''}`} style={{ maxWidth: 560 }}>
         <div className="forge-header">
           <div className="forge-title" style={{ color: rarColor }}>CHARACTER</div>
           <button onClick={onClose} style={{ padding: '6px 12px', fontSize: 12 }}>✕</button>
+        </div>
+
+        {/* Hero portrait. The reference sheet makes the character the
+            centrepiece and this panel had no portrait at all — it opened on a
+            row of rarity chips, so the screen about your character never
+            actually showed them. Drawn in SVG rather than dropped in as art
+            so it takes the current rarity colour: the drop visibly changes as
+            you evolve, which is the whole point of the screen. */}
+        <div className="char-portrait" style={{ '--rar': rarColor }}>
+          <span className="char-portrait-grid" aria-hidden="true" />
+          <HeroFigure
+            className="char-portrait-drop"
+            rarColor={rarColor}
+            bandColor={bandColor}
+          />
+          {/* Holo pedestal the drop stands on. */}
+          <span className="char-portrait-pad" aria-hidden="true" />
+          <div className="char-portrait-name">
+            <span className="char-portrait-rar">{CHAR_RARITY_NAMES[char.rarity]}</span>
+            <span className="char-portrait-lvl">Lv {char.level} / {MAX_LVL}</span>
+          </div>
         </div>
 
         {/* Rarity evolution path */}
@@ -75,10 +120,24 @@ export default function CharacterPanel({ save, setSave, onClose }) {
           <div className="char-lvl-bar"><div className="char-lvl-fill" style={{ width: (char.level / MAX_LVL * 100) + '%', background: rarColor }} /></div>
         </div>
 
-        {/* Slot unlock info */}
+        {/* ---- Slot unlocks -------------------------------------------------
+            Rarity is the CEILING and level is the KEY (the rule itself lives
+            in data_ext2's characterSlots — this only draws it). Showing the
+            live numbers plus what the NEXT level opens is the whole reason
+            character levelling now matters: before, a level was a stat
+            trickle and this line only ever showed the rarity cap, so nothing
+            on screen ever said "one more level and you carry another
+            weapon". */}
         <div className="char-slot-badge" style={{ borderColor: rarColor, color: rarColor }}>
-          ⚔️ {slots} weapons · 🧠 {slots} skills active simultaneously
+          ⚔️ {curWeapons} weapon{curWeapons === 1 ? '' : 's'} · 🧠 {curSkills} skill{curSkills === 1 ? '' : 's'} at once
+          <span style={{ color: 'var(--ink-dim)', marginLeft: 6 }}>(cap {slots} at {CHAR_RARITY_NAMES[char.rarity]})</span>
         </div>
+        {nextSlotUnlock && (
+          <div className="char-slot-next" data-testid="char-slot-next">
+            ▲ Level {nextSlotUnlock.at} unlocks a {nextSlotUnlock.kind} slot
+            {nextSlotUnlock.at > MAX_LVL && ' — evolve first'}
+          </div>
+        )}
 
         {/* Currency row */}
         <div className="char-currency">

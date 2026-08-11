@@ -2,6 +2,17 @@ import React, { useState } from 'react';
 import { CHESTS, rollChest, EQUIP_RARITY, EQUIP_SLOTS } from '../game/data_ext';
 import { PART_SLOTS, PART_SLOT_INFO, PART_RARITY_COLORS, rollPart } from '../game/data_ext2';
 import { PET_TYPES } from './PetPanel';
+import { Audio } from '../game/audio';
+import { pushToast } from '../game/toastBus';
+
+// Best rarity among a set of drops decides the toast's tone — a chest with
+// one epic buried in four commons should chime like an epic landed, not
+// like the first item in the array did.
+const RARITY_RANK = { common: 0, magic: 1, uncommon: 1, rare: 2, epic: 3, legendary: 4, mythical: 5 };
+const bestRarityTone = (drops) => drops.reduce((best, d) => {
+  const r = d.rarity || 'common';
+  return (RARITY_RANK[r] || 0) > (RARITY_RANK[best] || 0) ? r : best;
+}, 'common');
 
 export default function Shop({ save, setSave, onClose }) {
   const [openedDrops, setOpenedDrops] = useState(null);
@@ -17,9 +28,18 @@ export default function Shop({ save, setSave, onClose }) {
     return (save.gold || 0) >= chest.cost;
   };
 
+  // Timmy: chest opening had zero sound anywhere — click to open, 900ms
+  // wait, drops just appear. `pushToast` gives the reveal both a chime
+  // (rarity-scaled via `Audio.toast(tone)`) and a banner for free, same
+  // choke point the rest of the game's reward moments already go through.
+  const announceDrops = (drops, label) => {
+    pushToast({ tone: bestRarityTone(drops), title: label, text: drops.map(d => d.name).join(', ') });
+  };
+
   const open = (chest) => {
     if (!canAfford(chest) || opening) return;
     setOpening(true);
+    Audio.click();
 
     // Pet egg chests
     if (chest.petOnly) {
@@ -40,7 +60,9 @@ export default function Shop({ save, setSave, onClose }) {
           petEggs: [...(save.petEggs || []), newEgg],
         };
         setSave(ns);
-        setOpenedDrops([{ isPetEgg: true, egg: newEgg, petType, icon: '🥚', name: `${petType.name} Egg`, rarity: chosenRarity }]);
+        const drops = [{ isPetEgg: true, egg: newEgg, petType, icon: '🥚', name: `${petType.name} Egg`, rarity: chosenRarity }];
+        setOpenedDrops(drops);
+        announceDrops(drops, chest.name || 'Chest opened');
         setOpening(false);
       }, 900);
       return;
@@ -57,7 +79,9 @@ export default function Shop({ save, setSave, onClose }) {
       }
       setTimeout(() => {
         setSave({ ...save, gems: gems - chest.cost, parts: [...(save.parts || []), ...newParts] });
-        setOpenedDrops(newParts.map(p => ({ ...p, isPart: true, icon: PART_SLOT_INFO[p.slot]?.icon || '🔩' })));
+        const drops = newParts.map(p => ({ ...p, isPart: true, icon: PART_SLOT_INFO[p.slot]?.icon || '🔩' }));
+        setOpenedDrops(drops);
+        announceDrops(drops, chest.name || 'Chest opened');
         setOpening(false);
       }, 900);
       return;
@@ -69,10 +93,12 @@ export default function Shop({ save, setSave, onClose }) {
       const gemsAmt = Math.round(5 + Math.random() * 10);
       setTimeout(() => {
         setSave({ ...save, gems: gems - chest.cost + gemsAmt, gold: (save.gold || 0) + goldAmt });
-        setOpenedDrops([
+        const drops = [
           { isResource: true, icon: '★', name: `${goldAmt} Gold`, rarity: 'common' },
           { isResource: true, icon: '💎', name: `${gemsAmt} Gems`, rarity: 'common' },
-        ]);
+        ];
+        setOpenedDrops(drops);
+        announceDrops(drops, chest.name || 'Chest opened');
         setOpening(false);
       }, 900);
       return;
@@ -88,6 +114,7 @@ export default function Shop({ save, setSave, onClose }) {
       };
       setSave(ns);
       setOpenedDrops(drops);
+      announceDrops(drops, chest.name || 'Chest opened');
       setOpening(false);
     }, 900);
   };
@@ -97,12 +124,14 @@ export default function Shop({ save, setSave, onClose }) {
     const inv = (save.inventory || []).filter(x => x.id !== item.id);
     if (cur) inv.push(cur);
     setSave({ ...save, inventory: inv, equipped: { ...save.equipped, [item.slot]: item } });
+    Audio.click();
   };
 
   const sellItem = (item) => {
     const r = EQUIP_RARITY[item.rarity];
     const val = Math.floor(50 * r.mult);
     setSave({ ...save, inventory: (save.inventory || []).filter(x => x.id !== item.id), gold: (save.gold || 0) + val });
+    Audio.gold(val);
   };
 
   return (

@@ -92,6 +92,29 @@ export function mergeRunes(inventory, ids, flux = 0, bonus = 0) {
 // slots take runes, per spec ("några equipment", not all of them).
 export const RUNE_GEAR_SLOTS = ['ring', 'amulet'];
 
+// `save.gearRunes` used to be keyed by SLOT with one rune each
+// ({ ring: id, amulet: id }), which had two consequences: an item could never
+// hold more than one rune, and the rune belonged to the slot rather than to the
+// piece -- swapping your ring left the rune sitting on the finger.
+//
+// It is now keyed by ITEM id with an array of runes each
+// ({ [itemId]: [runeId, runeId] }), so runes travel with the piece they were
+// set into and a high-rarity item can carry up to three.
+//
+// Both shapes are read here on purpose. Existing saves are full of the old
+// shape and silently dropping their runes would be taking away something the
+// player earned, so the legacy slot keys keep working untouched.
+export function gearRunesFor(save, item) {
+  if (!item) return [];
+  const gr = save.gearRunes || {};
+  const byItem = gr[item.id];
+  if (Array.isArray(byItem)) return byItem.filter(Boolean);
+  if (typeof byItem === 'string') return [byItem];
+  // Legacy: keyed by slot, single rune.
+  const legacy = gr[item.slot];
+  return typeof legacy === 'string' ? [legacy] : [];
+}
+
 export function applyRunesToStats(save, result) {
   const gearRunes = save.gearRunes || {};
   const weaponRunes = save.weaponRunes || {};
@@ -104,7 +127,30 @@ export function applyRunesToStats(save, result) {
     else if (result[rune.stat] !== undefined) result[rune.stat] += rune.val;
     else result[rune.stat] = rune.val;
   };
-  for (const slot of RUNE_GEAR_SLOTS) applyOne(gearRunes[slot]);
+
+  // Only runes in EQUIPPED gear count. Keying by item id means the inventory
+  // can hold socketed pieces that are not worn, and those must not pay out.
+  const eq = save.gearEquipped || {};
+  const inv = save.gearInventory || [];
+  const seen = new Set();
+  for (const slot of Object.keys(eq)) {
+    const item = inv.find((x) => x.id === eq[slot]);
+    if (!item) continue;
+    for (const rid of gearRunesFor(save, item)) {
+      // A rune is a physical object -- the same one must never be counted
+      // twice even if a stale save has it listed in two places.
+      if (seen.has(rid)) continue;
+      seen.add(rid);
+      applyOne(rid);
+    }
+  }
+  // Legacy slot-keyed entries for slots with nothing equipped: still honoured,
+  // so an old save does not lose stats the player already had.
+  for (const slot of RUNE_GEAR_SLOTS) {
+    const v = gearRunes[slot];
+    if (typeof v === 'string' && !seen.has(v) && !eq[slot]) { seen.add(v); applyOne(v); }
+  }
+
   for (const wid of Object.keys(weaponRunes)) applyOne(weaponRunes[wid]);
   return result;
 }

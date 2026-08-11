@@ -6,11 +6,15 @@ import { rollRune } from '../game/runes';
 import { raidHullMult } from '../game/base';
 import { todayIdx } from '../store';
 import GameIcon from './GameIcon';
+import { Audio } from '../game/audio';
 
 // Keep this the same length as STAGES (starRaidEngine.js) — a stage past
 // index 2 silently reuses 'meteor' rather than erroring, since there's
 // nothing at render time to flag a missing entry.
-const STAGE_ICON = ['meteor', 'bolt', 'orb'];
+// One per stage in starRaidEngine's STAGES. Kept the same length as STAGES —
+// when it grew from 3 to 7 this was left behind, so stages 4-7 all fell to the
+// `|| 'meteor'` fallback and four of the seven cards were visually identical.
+const STAGE_ICON = ['meteor', 'bolt', 'orb', 'shockwave', 'flare', 'bone', 'voidpulse'];
 const MODE_ACCENT = { artifact: '#ffb84d', rune: '#b362ff', endless: '#4dffd4' };
 
 // Endless mode: one artifact token per this many in-run levels, capped per
@@ -61,7 +65,16 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
 
   const sr = save.starRaid || { levels: {}, scrap: 0, stageUnlocked: 0 };
 
+  // The Atlas gets its own track for as long as the screen is open, and hands
+  // the menu track back on the way out. Without the cleanup the map's music
+  // would follow you back into the camp.
+  useEffect(() => {
+    Audio.swapToAtlasMusic();
+    return () => Audio.swapToMenuMusic();
+  }, []);
+
   const startRun = useCallback(() => {
+    Audio.atlasWarp();
     setScreen('playing');
   }, []);
 
@@ -84,10 +97,20 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
           if (s.cleared) {
             const nextUnlocked = Math.max(newSr.stageUnlocked || 0, stageIdx + 1);
             newSr.stageUnlocked = Math.min(STAGES.length - 1, nextUnlocked);
-            if (stageIdx === STAGES.length - 1) {
-              if (mode === 'rune') gotRune = rollRune();
-              else gotToken = true;
-            }
+            // A reward for EVERY boss cleared, not only the last stage.
+            //
+            // This used to require `stageIdx === STAGES.length - 1`. That was
+            // survivable when there were three stages; when the roster grew to
+            // seven the single rune moved from "clear stage 3" to "clear stage
+            // 7" and became all but unreachable — which is exactly the "I only
+            // ever get scrap" report. My own expansion caused it.
+            //
+            // Each stage's guardian is a checkpoint now, and later stages pay
+            // better: the rune roll gets the accumulated stage index as luck,
+            // so pushing deep is what buys rarity rather than just repetition.
+            if (mode === 'rune') gotRune = rollRune(stageIdx * 1.5);
+            else gotToken = true;
+            newSr._clearedStage = stageIdx + 1;
           }
           // Endless: the deeper you get, the more you bring back — but the
           // count is capped PER DAY, not per run. Uncapped it would just be a
@@ -209,7 +232,7 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
       starRaid: { ...sr, scrap: sr.scrap - s.cost, ships: { ...(sr.ships || {}), [s.id]: true }, shipId: s.id },
     });
   };
-  const selectShip = (id) => setSave({ ...save, starRaid: { ...sr, shipId: id } });
+  const selectShip = (id) => { Audio.atlasMove(); setSave({ ...save, starRaid: { ...sr, shipId: id } }); };
 
   if (screen === 'menu') {
     const curShip = SHIPS[sr.shipId || 'skiff'];
@@ -239,7 +262,7 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
               return (
                 <button key={s.id} disabled={locked}
                   className={`raid-stage-card${sel ? ' sel' : ''}${locked ? ' locked' : ''}`}
-                  onClick={() => !locked && setStageIdx(i)} data-testid={`starraid-stage-${i}`}>
+                  onClick={() => { if (locked) return; Audio.atlasSelect(); setStageIdx(i); }} data-testid={`starraid-stage-${i}`}>
                   {locked
                     ? <span className="raid-stage-lock">🔒</span>
                     : <GameIcon name={STAGE_ICON[i] || 'meteor'} size={22} tone={sel ? '#ffd166' : '#7cd6ff'} />}
@@ -259,7 +282,7 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
             ].map(([m, ic, label]) => (
               <button key={m} className={`raid-mode${mode === m ? ' active' : ''}`}
                       style={{ '--mc': MODE_ACCENT[m] }}
-                      onClick={() => setMode(m)} data-testid={`starraid-mode-${m}`}>
+                      onClick={() => { Audio.atlasMove(); setMode(m); }} data-testid={`starraid-mode-${m}`}>
                 <span className="raid-mode-icon"><GameIcon name={ic} size={20} tone={MODE_ACCENT[m]} /></span>
                 <span className="raid-mode-label">{label}</span>
               </button>
@@ -274,7 +297,10 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
                 Getting further is the only way to earn more.
               </>
             ) : (
-              <>Clearing the final stage in this mode awards {mode === 'rune' ? 'a Rune' : 'a Gacha Token'}.</>
+              <>
+                Every guardian you put down awards {mode === 'rune' ? 'a Rune' : 'a Gacha Token'}.
+                Deeper stages roll better.
+              </>
             )}
           </div>
 

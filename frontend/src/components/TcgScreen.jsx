@@ -76,7 +76,7 @@ export default function TcgScreen({ save, setSave, onClose }) {
 
   return (
     <div className="modal-overlay" data-testid="tcg-screen" onClick={(e) => { if (e.target.classList.contains('modal-overlay')) onClose(); }}>
-      <div className="forge-panel forge-panel-scrollable" style={{ maxWidth: 760 }}>
+      <div className="forge-panel forge-panel-scrollable tcg-panel" style={{ maxWidth: 760 }}>
         <div className="forge-header">
           <div className="forge-title">⚔ PET TCG</div>
           <div style={{ fontFamily: 'VT323', fontSize: 14, color: 'var(--ink-dim)' }}>🃏 {inventory.length} cards</div>
@@ -92,7 +92,7 @@ export default function TcgScreen({ save, setSave, onClose }) {
         {tab === 'cards' && (
           <div className="tcg-collection">
             {resolved.length === 0 ? (
-              <div className="tcg-empty">No cards yet. Astro Prospector and the Clicker both find them.</div>
+              <div className="tcg-empty">No cards yet. The Lootmine and the Clicker both find them.</div>
             ) : (
               <div className="tcg-card-grid">
                 {resolved.map(c => <CardFace key={c.id} card={c} />)}

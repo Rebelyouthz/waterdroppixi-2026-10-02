@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Game } from '../game/engine';
 import { SKILL_INDEX, WEAPON_PARTS } from '../game/data_ext';
-import { ACTIVE_SKILLS } from '../game/data_ext2';
+import { ACTIVE_SKILLS, characterSlots, resolveStartWeapon, CHAR_RARITY_COLORS } from '../game/data_ext2';
 import { HEADBANDS } from '../game/data_ext';
 import { POE_INDEX, POE_ATTRS } from '../game/poe_tree';
-import { rollGearDrop, applyGearToStats } from '../game/gear';
+import { rollGearDrop, applyGearToStats, gearDropHappens, rollPartsDrop, addParts, PART_NAMES } from '../game/gear';
 import { applyArtifactsToStats } from '../game/artifacts';
 import { applyRunesToStats } from '../game/runes';
 import { Audio } from '../game/audio';
@@ -12,10 +12,13 @@ import { petStageMult } from './PetPanel';
 import { attachmentLooks } from '../game/attachments';
 import { pushToast } from '../game/toastBus';
 import { isRescued } from '../game/companions';
-import HUD from './HUD';
+import { DIFF_INDEX } from '../game/difficulty';
+import { resolvedDifficultyMods } from '../game/campaign';
+import HUD from './Hud';
 import LevelUpModal from './LevelUpModal';
 import GameOver from './GameOverScreen';
 import MobileControls from './MobileControls';
+import HeroFigure from './HeroFigure';
 
 function buildMetaEffects(save) {
   const m = save.meta || {};
@@ -26,9 +29,12 @@ function buildMetaEffects(save) {
   const tb = save.talentBonuses || {};
   const metaSum = (id, mult) => (m[id] || 0) * mult;
 
+  // Weapon / active-skill slots. The rule lives in data_ext2's characterSlots
+  // so this and the Character panel can never disagree about what a level
+  // opens — they used to keep two copies of the table.
   const charRarity = save.character?.rarity || 'common';
-  const SLOTS = { common:2, uncommon:3, rare:4, epic:5, legendary:6, mythical:7 };
-  const slots = SLOTS[charRarity] || 2;
+  const charLvl = save.character?.level || 0;
+  const { slots, skillSlots } = characterSlots(charRarity, charLvl);
 
   const result = {
     maxHp:    metaSum('m_hp', 1)     + (shopB.maxHp || 0) + (cb.maxHp || 0) + (tb.maxHp || 0),
@@ -48,6 +54,19 @@ function buildMetaEffects(save) {
     dodge:    metaSum('m_dodge', 0.001),
     heartHeal: metaSum('m_heal', 0.5),
     zoom:     metaSum('m_zoom', 0.005),
+    // engine.js seeds projSpeedMult/projRangeMult from `meta.projspd` and
+    // `meta.projrange`. Those keys were never written here, so both stayed
+    // undefined and every level of Swift Rounds / Long Barrel bought with gold
+    // did nothing at all — while the in-run STAT_CARDS versions worked, which
+    // made the meta ones look randomly broken rather than unimplemented.
+    projspd:   metaSum('m_projspd', 0.0015),
+    projrange: metaSum('m_projrange', 0.0012),
+    // Same silent-gap bug as projspd, found by the dead-config sweep:
+    // engine.js seeds the level-up blast from `meta.lvlBoomDmg` /
+    // `meta.lvlBoomKB`, and nothing here wrote either key — so Shockwave
+    // Mastery and Earthshaker, 20 gold-bought levels each, changed nothing.
+    lvlBoomDmg: metaSum('m_lvlBoomDmg', 10),
+    lvlBoomKB:  metaSum('m_lvlBoomKB', 20),
     revive:   !!m.m_revive,
     startBoon:(m.m_start || 0),
     area: 0, proj: 0, pierce: 0,
@@ -55,11 +74,16 @@ function buildMetaEffects(save) {
     flags: {},
     // Character system
     weaponSlots: slots,
-    skillSlots: slots,
+    skillSlots,
     unlockedWeapons: save.unlockedWeapons || [],
     // Unique Astro Prospector cards this profile has unlocked. Read by
     // buildLevelUpChoices, which skips every gated card not listed here.
     prospectCards: save.prospectCards || [],
+    // Forwarded alongside prospectCards because engine.buildLevelUpChoices
+    // gates on BOTH. Missing this would make every shop-unlocked card
+    // permanently invisible with no error anywhere — the same silent-gap
+    // failure the weapon icons had.
+    shopCards: save.shopCards || [],
   };
 
   // Old SKILL_TREE nodes (sk_ prefix)
@@ -174,6 +198,9 @@ export default function GameScreen({ save, setSave, onExit, onRunEnd, mission })
   const canvasRef = useRef(null);
   const gameRef = useRef(null);
   const [snap, setSnap] = useState(null);
+  // False until the Pixi renderer reports a live context. Drives the loader
+  // that covers the black gap while Pixi downloads its browser chunk.
+  const [rendererReady, setRendererReady] = useState(false);
   const [levelUpChoices, setLevelUpChoices] = useState(null);
   const [gameOverResult, setGameOverResult] = useState(null);
   const [gameOverExtras, setGameOverExtras] = useState(null);
@@ -214,9 +241,18 @@ export default function GameScreen({ save, setSave, onExit, onRunEnd, mission })
       // Two only — one pod per joystick dial. Unknown ids (a save carrying a
       // retired skill) are dropped rather than reaching the engine.
       activeSkills: (save.equippedActives || []).filter(id => id && ACTIVE_SKILLS[id]).slice(0, 2),
-      startWeapons: (isTutorial && mission.startWeapons) ? mission.startWeapons : ['hydropistol'],
+      // The tutorial dictates its own loadout — it is teaching two specific
+      // weapons. Every other run opens with whatever the Weaponsmith's START
+      // group has selected, validated here: the engine's `snapshot()` reads
+      // `WEAPONS[id].icon` every frame, so an id it has no entry for would
+      // throw sixty times a second rather than fail quietly.
+      startWeapons: (isTutorial && mission.startWeapons) ? mission.startWeapons : [resolveStartWeapon(save)],
       missionDuration: mission ? mission.duration : null,
       spawnMult: mission ? (mission.spawnMult || 1.0) : 1.0,
+      // Difficulty tier. The tutorial is pinned to Normal regardless of what
+      // the profile is set to — a returning player replaying the tutorial on
+      // Nightmare would be taught the game by a fight they cannot win.
+      diff: isTutorial ? DIFF_INDEX.normal : resolvedDifficultyMods(save),
       // Campaign node: hold-out time before the map's guardian arrives.
       bossAt: mission ? (mission.bossAt || 0) : 0,
       bossId: mission ? (mission.bossId || null) : null,
@@ -234,10 +270,21 @@ export default function GameScreen({ save, setSave, onExit, onRunEnd, mission })
           if (gameRef.current && gameRef.current._pendingGearDrop) {
             const drop = gameRef.current._pendingGearDrop;
             gameRef.current._pendingGearDrop = null;
-            const item = rollGearDrop(drop.timeInRun, !!drop.boss);
+            const isBoss = !!drop.boss;
             const cur = initialSaveRef.current;
-            initialSaveRef.current = { ...cur, gearInventory: [...(cur.gearInventory || []), item] };
-            pushToast({ tone: item.rarity, icon: 'shield', title: item.name, text: item.rarity.toUpperCase() });
+            if (gearDropHappens(isBoss)) {
+              // Equipment: guaranteed from a boss, uncommon otherwise.
+              const item = rollGearDrop(drop.timeInRun, isBoss);
+              initialSaveRef.current = { ...cur, gearInventory: [...(cur.gearInventory || []), item] };
+              pushToast({ tone: item.rarity, icon: 'shield', title: item.name, text: item.rarity.toUpperCase() });
+            } else {
+              // Everything that used to be an equipment drop and no longer is
+              // pays parts instead, so the pickup never turns into nothing --
+              // it just stops being another item to sort.
+              const p = rollPartsDrop(isBoss ? 3 : 1);
+              initialSaveRef.current = { ...cur, gearSlotParts: addParts(cur, p.slot, p.amount) };
+              pushToast({ tone: 'magic', icon: 'shield', title: `+${p.amount} ${PART_NAMES[p.slot]}`, text: 'GEAR PARTS' });
+            }
           }
         },
         onGameOver: (r) => {
@@ -254,17 +301,91 @@ export default function GameScreen({ save, setSave, onExit, onRunEnd, mission })
             isBestScore: (r.score || 0) > (save.bestScore || 0),
             noHit: !!r.noHit,
             challengeBonus: mission && mission.isChallenge && r.victory ? (mission.mod ? { gold: 500, sp: 5 } : null) : null,
+            // The hold-out time this node's reward tiers are measured against
+            // — the death screen uses it to say which tier the run actually
+            // earned rather than guessing from the clock.
+            gateTime: mission && mission.isCampaign ? (mission.bossAt || 0) : 0,
           });
-          const baseSave = initialSaveRef.current;
-          const newSave = { ...baseSave, gold: baseSave.gold + r.gold, lifetimeGold: (baseSave.lifetimeGold || 0) + r.gold, runsCompleted: baseSave.runsCompleted + 1, bestRunTime: Math.max(baseSave.bestRunTime, r.time), bestKills: Math.max(baseSave.bestKills, r.level), bestScore: Math.max(baseSave.bestScore || 0, r.score || 0), totalKills: baseSave.totalKills + r.kills };
-          if (r.noHit) newSave.noHitRuns = (newSave.noHitRuns || 0) + 1;
-          setSave(newSave);
-          onRunEnd && onRunEnd(r, newSave, mission);
+          // `initialSaveRef` is a snapshot taken when this screen MOUNTED, and
+          // it is never refreshed. Meanwhile App's 10s `tickIdle` and its
+          // `settleProgression` effect keep writing to the real save all the
+          // way through the run — clicker production, quest completions, the
+          // gold and pendingRewards they pay out.
+          //
+          // Writing `{ ...initialSaveRef.current, ... }` back wholesale threw
+          // every one of those away: a quest could complete mid-run, toast,
+          // credit gold, and then silently un-complete when you died — and
+          // complete and toast AGAIN on the next settle.
+          //
+          // So the run's own fields are collected here, and merged onto the
+          // CURRENT save functionally below. Only these four are owned by the
+          // run; everything else must come from `cur`.
+          const runOwned = initialSaveRef.current;
+          // `bestKills` has always stored the best run LEVEL, not kills — the
+          // achievement list reads it that way. Rather than break every save
+          // that depends on it, `bestLevel` is written alongside as the field
+          // that says what it means, and the quest chain reads that one.
+          // Built inside the updater so every counter increments from whatever
+          // the save is NOW, not from a snapshot taken minutes ago.
+          const buildSave = (cur) => {
+            const next = {
+              ...cur,
+              // --- fields the run owns, carried over from the accumulator ---
+              gearInventory: runOwned.gearInventory,
+              gearSlotParts: runOwned.gearSlotParts,
+              codex: runOwned.codex,
+              // --- run results, applied to the live values ---
+              gold: (cur.gold || 0) + r.gold,
+              lifetimeGold: (cur.lifetimeGold || 0) + r.gold,
+              runsCompleted: (cur.runsCompleted || 0) + 1,
+              bestRunTime: Math.max(cur.bestRunTime || 0, r.time),
+              bestKills: Math.max(cur.bestKills || 0, r.level),
+              bestLevel: Math.max(cur.bestLevel || 0, r.level),
+              bestScore: Math.max(cur.bestScore || 0, r.score || 0),
+              totalKills: (cur.totalKills || 0) + r.kills,
+            };
+            // Runs carried out with the katana, so the storyline can ask for
+            // one and actually know whether it happened. `snapshot()` exposes
+            // the carried weapons as `weapons: [{ id, name, lvl, icon }]` —
+            // NOT as a bare `ownedWeapons` id list, which is what this first
+            // reached for and would have made the whole quest permanently
+            // uncompletable with no error anywhere.
+            if ((r.weapons || []).some(w => w && w.id === 'katana')) {
+              next.katanaRuns = (cur.katanaRuns || 0) + 1;
+            }
+            if (r.noHit) next.noHitRuns = (cur.noHitRuns || 0) + 1;
+            return next;
+          };
+          setSave(buildSave);
+          // onRunEnd wants the resulting save. Derive it from the accumulator
+          // as a best-effort snapshot for the reward screen — the authoritative
+          // write is the functional update above.
+          onRunEnd && onRunEnd(r, buildSave(runOwned), mission);
         },
         onPauseToggle: () => setPaused(p => { const np = !p; g.setPaused(np); return np; }),
       },
     };
     const g = new Game(canvas, opts);
+
+    // Hold a load screen up until the renderer has actually started.
+    //
+    // PixiJS's Application.init() dynamically imports a browser-environment
+    // chunk, so starting a run fires a network request. Over a slow link that
+    // is seconds of BLACK SCREEN with the music already playing — the game
+    // looks hung when it is only downloading. `readyPromise` is the renderer's
+    // own signal that it has a context and its layers built, so gate on that
+    // rather than on a timer that would be wrong on every device.
+    const rp = g.renderer && g.renderer.readyPromise;
+    if (rp && typeof rp.then === 'function') {
+      rp.then(() => setRendererReady(true))
+        // A failed init already draws its own diagnostic panel (_fatal), so
+        // clear the loader either way — leaving it up would hide the one
+        // message that explains what went wrong.
+        .catch(() => setRendererReady(true));
+    } else {
+      setRendererReady(true);
+    }
+
     // Gear drop + codex callbacks
     g.onCodexKill = (enemyId) => {
       const cur = initialSaveRef.current;
@@ -310,7 +431,25 @@ export default function GameScreen({ save, setSave, onExit, onRunEnd, mission })
   return (
     <div className="game-stage">
       <canvas ref={canvasRef} id="game" data-testid="game-canvas" />
-      {!gameOverResult && <HUD snap={snap} onActiveSkill={onActiveSkill} isTutorial={!!(mission && mission.isTutorial)} />}
+
+      {/* Covers the gap between "music started" and "world visible". Without
+          it the player gets a black screen with audio and no way to tell the
+          game from a hang. Sits above the canvas and below everything else. */}
+      {!rendererReady && (
+        <div className="game-loader" data-testid="game-loader">
+          <div className="game-loader-drop">
+            {/* Was a fifth hand-drawn copy of the character — the same blue
+                blob the intro used, with a different body curve from the real
+                one and no face at all. Found by the guard in wiring.test.mjs
+                the first time it ran. */}
+            <HeroFigure rarColor={CHAR_RARITY_COLORS[save.character?.rarity] || CHAR_RARITY_COLORS.common} />
+          </div>
+          <div className="game-loader-bar"><i /></div>
+          <div className="game-loader-text">CONDENSING…</div>
+        </div>
+      )}
+
+      {!gameOverResult && <HUD snap={snap} onActiveSkill={onActiveSkill} isTutorial={!!(mission && mission.isTutorial)} mission={mission} levelUpOpen={!!levelUpChoices} />}
       <MobileControls onUpdate={onMobileUpdate} onReload={onMobileReload} onDashDir={onMobileDashDir} onSwipeAttack={onMobileSwipeAttack} dashCD={snap ? snap.dashCD : 0} dashMaxCD={snap ? snap.dashMaxCD : 2.4} dashReady={snap ? snap.dashReady : false} swipeAttackUnlocked={snap ? snap.swipeAttackUnlocked : false} swipeAttackCD={snap ? snap.swipeAttackCD : 0} swipeAttackMaxCD={snap ? snap.swipeAttackMaxCD : 1.1} visible={!gameOverResult} activeSkills={snap ? snap.activeSkills : []} onActiveSkill={onActiveSkill} />
       {levelUpChoices && <LevelUpModal choices={levelUpChoices} onPick={pickCard} playerLevel={snap ? snap.level : 1} />}
       {paused && !gameOverResult && (

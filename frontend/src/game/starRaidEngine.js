@@ -11,10 +11,19 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const dist2 = (ax, ay, bx, by) => { const dx = ax - bx, dy = ay - by; return dx * dx + dy * dy; };
 
+// Three stages meant the mode was over almost as soon as the ship tree opened
+// up -- there was nothing left to spend Scrap on. The curve continues at the
+// same shape it always had (duration, spawn rate and hull multiplier all
+// climbing together) rather than spiking, so the new stages read as more of
+// the same fight rather than a wall.
 export const STAGES = [
-  { id: 1, name: 'Debris Field',   duration: 40, spawnRate: 1.1, enemyHpMult: 1.0, bossHp: 260, bossDmg: 14, bossName: 'HULL BREAKER' },
-  { id: 2, name: 'Ion Storm',      duration: 50, spawnRate: 1.4, enemyHpMult: 1.6, bossHp: 480, bossDmg: 20, bossName: 'ARC WARDEN' },
-  { id: 3, name: 'The Deep Void',  duration: 60, spawnRate: 1.8, enemyHpMult: 2.4, bossHp: 820, bossDmg: 28, bossName: 'VOID SOVEREIGN' },
+  { id: 1, name: 'Debris Field',    duration: 40, spawnRate: 1.1, enemyHpMult: 1.0, bossHp: 260,  bossDmg: 14, bossName: 'HULL BREAKER' },
+  { id: 2, name: 'Ion Storm',       duration: 50, spawnRate: 1.4, enemyHpMult: 1.6, bossHp: 480,  bossDmg: 20, bossName: 'ARC WARDEN' },
+  { id: 3, name: 'The Deep Void',   duration: 60, spawnRate: 1.8, enemyHpMult: 2.4, bossHp: 820,  bossDmg: 28, bossName: 'VOID SOVEREIGN' },
+  { id: 4, name: 'Shattered Ring',  duration: 70, spawnRate: 2.2, enemyHpMult: 3.4, bossHp: 1300, bossDmg: 36, bossName: 'RING TYRANT' },
+  { id: 5, name: 'Solar Furnace',   duration: 80, spawnRate: 2.6, enemyHpMult: 4.6, bossHp: 1950, bossDmg: 45, bossName: 'HELIOS CORE' },
+  { id: 6, name: 'Nebula Graveyard',duration: 90, spawnRate: 3.0, enemyHpMult: 6.0, bossHp: 2800, bossDmg: 55, bossName: 'THE DERELICT' },
+  { id: 7, name: 'Event Horizon',   duration: 100,spawnRate: 3.5, enemyHpMult: 7.8, bossHp: 4000, bossDmg: 68, bossName: 'SINGULARITY' },
 ];
 
 // Enemy hull classes. The renderer draws a distinct silhouette per kind

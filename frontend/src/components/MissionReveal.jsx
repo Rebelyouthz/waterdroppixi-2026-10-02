@@ -8,7 +8,7 @@ export default function MissionReveal({ rewards, onClose }) {
   useEffect(() => { Audio.levelUp(); }, []);
   return (
     <div className="modal-overlay" data-testid="mission-reveal">
-      <div className="forge-panel" style={{ maxWidth: 620, textAlign: 'center' }}>
+      <div className="forge-panel mission-panel" style={{ maxWidth: 620, textAlign: 'center' }}>
         <div className="forge-title" style={{ fontSize: 28 }}>✓ MISSION COMPLETE</div>
         <div style={{ fontFamily: 'VT323', color: 'var(--ink-dim)', letterSpacing: '0.3em', margin: '10px 0' }}>REWARDS</div>
         <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap', margin: '14px 0' }}>

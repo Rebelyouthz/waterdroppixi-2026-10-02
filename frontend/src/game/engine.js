@@ -6,6 +6,14 @@ import { Audio } from './audio';
 import { PixiRenderer } from './pixiRenderer';
 
 const TAU = Math.PI * 2;
+// Timmy: blood is always blood-red, full stop — every enemy used to bleed
+// its own identity color (a green slime spraying green "blood"), which read
+// as colored paint rather than a wound. Chunks/gibs stay the enemy's own
+// color (that part already read right) and stay untouched; this constant is
+// only for the liquid — spray, spatter, arterial fans, bleed pulses, floor
+// pools, puncture/bullet-hole wounds. Slime "ooze" is a deliberate exception
+// (see spawnBrutalKill's 'ooze' branch) — it was never blood to begin with.
+const BLOOD_RED = '#b51d28';
 // Heavy "square" melee enemies — hit noticeably harder than the rest of the
 // roster once the first boss is down, on top of the general post-boss scaling.
 const SQUARE_ENEMY_TYPES = new Set(['brute', 'charger', 'necron', 'steelbrute']);
@@ -23,6 +31,57 @@ const VARIANTS = {
   leeching: { id: 'leeching', name: 'Leeching', color: '#7ad96b' },
 };
 const VARIANT_IDS = Object.keys(VARIANTS);
+
+// Camera scale is 1:1 — one world unit is one CSS pixel, on every device.
+//
+// This was briefly derived from screen size, on the reasoning that a 393px
+// phone showing 393 world units makes everything ~3.5x larger relative to the
+// screen than a 1400px desktop does. That reasoning is sound in the abstract
+// and wrong in practice: at the resulting zoom (1.78 on a phone) the player
+// and enemies read as distant specks, and the game stopped being legible.
+// The reference the design is tuned against is 1:1, so 1:1 it is.
+//
+// Kept as a function rather than inlining `1` because the two things that
+// actually needed fixing during that experiment are still fixed and still
+// depend on a single agreed zoom: viewSpan() below (spawn rings were being
+// measured in screen pixels but used as world distances) and the off-screen
+// boss arrow (was reading world deltas as screen coordinates). Both are real
+// bugs at any zoom above 1 — which the Vision upgrade still produces.
+function deviceZoomFor(W, H) {
+  // How much WORLD a screen of this size should show.
+  //
+  // This returned a flat 1, which meant the visible world span was simply the
+  // window size: ~390 world px on a phone, ~1920 on a desktop. A desktop
+  // player was looking at five times as much world, so the hero was a speck,
+  // enemies crossed the screen slowly, and the whole game felt sluggish
+  // compared to the phone — the same content at a fifth of the apparent size.
+  //
+  // Targeting a world SPAN instead makes the two feel alike. The clamp at 1 is
+  // deliberate and load-bearing: a phone is already showing less than the
+  // target, so it never zooms out, and the phone framing that was checked
+  // against the reference screenshot is untouched. Only larger screens move.
+  if (!W || !H) return 1;
+  const TARGET_W = 760;   // world px across, on any screen big enough
+  const TARGET_H = 520;   // and down — guards a wide, short window
+  const z = Math.min(W / TARGET_W, H / TARGET_H);
+  // Upper bound so an ultrawide or a 4K panel does not zoom in so far that the
+  // player cannot see what is walking at them.
+  return Math.max(1, Math.min(2.4, z));
+}
+
+// Human-readable names for the run-stat keys, used by the level-up cards'
+// before/after row. Keyed by the internal `stat` field on STAT_CARDS /
+// ADVANCED_CARDS; anything missing falls back to the raw key rather than
+// rendering blank.
+const STAT_LABELS = {
+  damageMult: 'DAMAGE', fireRateMult: 'ATK SPEED', moveMult: 'MOVE SPEED',
+  maxHp: 'MAX HP', regen: 'REGEN/S', armor: 'ARMOR', crit: 'CRIT',
+  critDmgMult: 'CRIT DMG', areaMult: 'AREA', projBonus: 'PROJECTILES',
+  pickupMult: 'PICKUP', xpMult: 'XP GAIN', goldMult: 'GOLD',
+  pierceBonus: 'PIERCE', dodge: 'DODGE', reloadMult: 'RELOAD',
+  magBonus: 'MAGAZINE', luck: 'LUCK', skillCdMult: 'SKILL CD',
+  projSpeedMult: 'PROJ SPEED', projRangeMult: 'PROJ RANGE',
+};
 
 // Weather fronts. A run is ten minutes in one open field; weather is the
 // cheapest way to make minute eight play differently from minute two without
@@ -42,6 +101,13 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const randi = (a, b) => Math.floor(rand(a, b));
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const dist2 = (ax, ay, bx, by) => { const dx = ax - bx, dy = ay - by; return dx * dx + dy * dy; };
+
+// How many times a stat/passive card can meaningfully stack, and therefore how
+// many level dots it shows. Matched to the weapon trees (10-12 levels) so the
+// two kinds of card read on the same scale -- a passive showing 5 dots next to
+// a weapon showing 11 would imply the passive was nearly finished when it was
+// not. Cards are not hard-capped by this; it is the scale the dots use.
+const CARD_MAX_STACKS = 10;
 // Points to fully buy back the Agility/Aim attributes' -33%..+33% curve —
 // matches the 20-point scale other attributes already use.
 const ATTR_CURVE_MAX = 20;
@@ -208,7 +274,7 @@ export class Game {
 
     // Stats / run state
     this.run = {
-      time: 0, kills: 0, level: 1, xp: 0, xpToNext: 16, gold: 0,
+      time: 0, kills: 0, level: 1, xp: 0, xpToNext: 20, gold: 0,
       comboCount: 0, comboTimer: 0, maxCombo: 0,
       score: 0, multiplier: 1, maxMultiplier: 1,
       ownedWeapons: opts.startWeapons || ['hydropistol'],
@@ -231,7 +297,13 @@ export class Game {
         autoRateMult: 1.0,
         autoAreaMult: 1.0,
         moveMult: 1.0 + (this.meta.mspd || 0),
-        maxHp: 50 + (this.meta.maxHp || 0),
+        // 70, up from 50, to pay for removing the hard 100 cap. With the
+        // reworked enemy damage a fresh slime hits for 16, so this is a
+        // deliberate "four hits from the weakest thing in the game is a real
+        // problem" — lethal enough that the opening minute is genuinely
+        // dangerous, forgiving enough that a new player gets to make four
+        // mistakes rather than three before the run ends.
+        maxHp: 70 + (this.meta.maxHp || 0),
         regen: (this.meta.regen || 0),
         armor: (this.meta.armor || 0),
         crit: 0.05 + (this.meta.crit || 0),
@@ -247,6 +319,11 @@ export class Game {
         dodge: (this.meta.dodge || 0),
         reloadMult: 1.0,
         magBonus: 0,
+        // Projectile speed and range. Both seeded from meta so the permanent
+        // upgrades apply from the first frame of a run, then raised further by
+        // level-up cards during it — the same shape every other stat here uses.
+        projSpeedMult: 1.0 + (this.meta.projspd || 0),
+        projRangeMult: 1.0 + (this.meta.projrange || 0),
         luck: 0.5 + (this.meta.luck || 0),
         revive: this.meta.revive ? 1 : 0,
         headshot: (this.meta.headshot || 0),
@@ -281,7 +358,9 @@ export class Game {
       this.run.stats.damageMult *= 2.5;
       this.run.stats.maxHp = Math.floor(this.run.stats.maxHp * 0.5);
     }
-    this.player.maxHp = Math.min(100, this.run.stats.maxHp);
+    // No cap — see the maxHp branch in the level-up card handler for why the
+    // old Math.min(100, …) had to go.
+    this.player.maxHp = this.run.stats.maxHp;
     this.player.hp = this.player.maxHp;
 
     // Wave spawn state
@@ -330,6 +409,26 @@ export class Game {
     this.killGoal = (this.challenge && this.challenge.killGoal) || 0;
     this.spawnMultExtra = (this.challenge && this.challenge.spawnMult) || (opts.spawnMult || 1.0);
 
+    // Difficulty tier (see game/difficulty.js). Defaulted rather than required
+    // so any caller that starts a run without passing one — the tutorial, a
+    // challenge, a dev harness — runs on Normal instead of crashing on an
+    // undefined multiplier.
+    this.diff = opts.diff || {
+      id: 'normal', name: 'Normal', color: '#4dc4ff', icon: '🌊',
+      hpMult: 1, dmgMult: 1, speedMult: 1, spawnMult: 1, bossHpMult: 1, xpMult: 1,
+    };
+
+    // Anti-AFK pressure. See updateStagnation — 0 while you are playing, ramps
+    // to 1 if you park. Read by spawnWave and spawnEnemy, and surfaced in the
+    // HUD so the player is told what is happening rather than just punished.
+    this._stagnation = 0;
+    this._stagPrev = null;
+    this._stagDist = 0;
+    this._stagSampleT = 0;
+    // Starts "moving" so the very first sample window cannot ramp before the
+    // player has had a chance to take a step.
+    this._stagMoving = true;
+
     // Campaign node: hold out until the gate opens, then the map's guardian
     // arrives and killing it clears the node. Deliberately NOT a target
     // duration — a node ends because you beat something, not because a clock
@@ -372,6 +471,13 @@ export class Game {
 
     this.frame = this.frame.bind(this);
     this.running = true;
+    // Dev-only handle. Inspecting anything about a live run otherwise means
+    // digging the instance out of a React fiber, which breaks whenever the
+    // component tree changes. Stripped from production builds by the bundler's
+    // dead-code elimination, so nothing is exposed to players.
+    if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
+      window.__wdGame = this;
+    }
     requestAnimationFrame(this.frame);
   }
 
@@ -400,11 +506,37 @@ export class Game {
   resize() {
     const c = this.canvas;
     this.W = c.clientWidth; this.H = c.clientHeight;
+    this._deviceZoom = deviceZoomFor(this.W, this.H);
     if (this.renderer) this.renderer.resize(this.W, this.H);
+  }
+
+  // The single zoom the camera, the renderer and screen↔world conversion all
+  // have to agree on. Two independent factors, deliberately kept apart:
+  //   _deviceZoom — how much world a screen of THIS size should show
+  //   _visionZoom — the player's Vision upgrade, ×1.25 a pick
+  // Multiplying them here means a phone player's Vision card still widens
+  // their view by the same proportion a desktop player's does.
+  viewZoom() {
+    return (this._deviceZoom || 1) * (this._visionZoom || 1);
+  }
+
+  // The long edge of the visible area in WORLD units. Every "spawn just
+  // outside the view" distance has to be measured in these, not in screen
+  // pixels: a screen shows W*zoom world units across, so `max(W,H) * 0.55`
+  // put an ambush spawn comfortably *inside* the view the moment zoom rose
+  // above ~1.2. That was already true for anyone holding the Vision upgrade
+  // and would have become the normal case on every phone.
+  viewSpan() {
+    return Math.max(this.W, this.H) * this.viewZoom();
   }
 
   destroy() {
     this.running = false;
+    // Release the dev handle. Without this, every destroyed run stays
+    // reachable from `window` and its pools, textures and filters can never be
+    // collected — which over a long editing session (each hot reload builds a
+    // fresh Game) is a real and growing leak.
+    if (typeof window !== 'undefined' && window.__wdGame === this) window.__wdGame = null;
     window.removeEventListener('keydown', this._kd);
     window.removeEventListener('keyup', this._ku);
     window.removeEventListener('mousemove', this._mm); // window-level
@@ -566,6 +698,18 @@ export class Game {
       // Campaign HUD: how long until the guardian, and whether it is up.
       campaignBossAt: this.campaignBossAt || 0,
       campaignBossUp: !!(this._campaignBoss && this._campaignBoss.alive),
+      // Spawned AND no longer alive. The objective list used to read `victory`
+      // for this, which is technically present in the snapshot but is set in
+      // the same frame as `over` — so the tick fired at the exact instant the
+      // game-over screen replaced the HUD and was never actually seen.
+      campaignBossDown: !!(this._campaignBoss && !this._campaignBoss.alive),
+      // Difficulty tier + anti-AFK pressure. Both are surfaced because a
+      // player who is being punished has to be able to see WHY — an
+      // unexplained spike in spawn rate reads as the game cheating.
+      diffId: this.diff.id,
+      diffName: this.diff.name,
+      diffColor: this.diff.color,
+      stagnation: this._stagnation || 0,
       mag: Math.max(0, Math.floor(this.player.mag)),
       reloading: this.player.reloading,
       weapons: this.run.ownedWeapons.map(id => ({
@@ -623,6 +767,25 @@ export class Game {
     };
   }
 
+  // Canvas pixels -> world pixels. The ONE place that knows how the camera and
+  // the vision zoom map the two spaces, because there were three copies of
+  // this arithmetic and all three were wrong in the same way.
+  //
+  // The renderer parents `world` (translated by -cam) inside `zoomRoot`
+  // (scaled by 1/zoom), so a world point W lands at screen (W - cam) / zoom.
+  // Inverting that gives world = cam + screen * zoom.
+  //
+  // The old inline version computed `mx - W/2 + p.x - cam.x`, which SUBTRACTS
+  // the camera origin instead of adding it. With the player near the middle of
+  // a 6400px map that is off by roughly 2400px, so the aim vector pointed at a
+  // fixed spot far off-map and barely responded to the mouse at all — mouse
+  // aiming simply did not work, while the keyboard, firing and everything
+  // driven off `aimX/aimY` still behaved, which is exactly how it presented.
+  screenToWorld(sx, sy) {
+    const zoom = this.viewZoom();
+    return [this.cam.x + sx * zoom, this.cam.y + sy * zoom];
+  }
+
   setMobileInput(joyMove, joyAim, firing) {
     this.input.joyMove = joyMove;
     this.input.joyAim = joyAim;
@@ -673,9 +836,17 @@ export class Game {
     this.updateParts(dt);
     this.updateGems(dt);
     this.updateDmgNums(dt);
+    // Before spawnWave, since it reads the value this sets.
+    this.updateStagnation(dt);
     this.spawnWave(dt);
     this.updateDockStation(dt);
     this.updateTidalShrine(dt);
+    // The ambient miniboss/swarm timers pause during a boss for the same
+    // reason the wave does — a Sky Wisp swarm dropping in mid-duel is exactly
+    // the interruption the freeze exists to prevent. They are held, not reset,
+    // so they resume where they were once the boss is down instead of the
+    // player getting a free window after every fight.
+    if (!this.bossActive) {
     this._nextWardenAt -= dt;
     if (this._nextWardenAt <= 0) {
       let hasWarden = false;
@@ -707,6 +878,7 @@ export class Game {
       if (!has) { this.spawnEnemy('blightWeaver'); this._nextBlightAt = rand(140, 200); }
       else this._nextBlightAt = 10;
     }
+    }   // end: ambient spawners paused while a boss is active
     this.tickCardFlags(dt);
     if (this.pet) this.updatePet(dt);
 
@@ -752,7 +924,21 @@ export class Game {
       if (this.callbacks.onGameOver) this.callbacks.onGameOver({ ...this.snapshot(), victory: true, completed: 'campaignBoss' });
     }
 
-    if (this.nextBoss && this.run.time >= this.nextBoss.t && !this.bossActive) {
+    // The ambient WAVE_TIMELINE boss rotation is for free/endless runs. A
+    // campaign node supplies its OWN guardian at its own gate, and the two
+    // collided badly once the timeline's first boss moved to t=150 and the
+    // gate floor moved to 150: lake_1 gates at 151s, so the ambient Eye of
+    // Horus spawned at t=150 and the campaign Eye of Horus one frame later.
+    // Two full-HP guardians at once on the node the whole difficulty pass is
+    // tuned around — and because spawnBoss overwrites `bossActive`, killing
+    // the ambient one blanked the HUD boss bar while the real guardian was
+    // still alive.
+    //
+    // Suppressing the rotation for the whole campaign node is the honest fix
+    // rather than a timing fudge: a node's shape is "hold out, then the
+    // guardian", and a second unrelated boss wandering in during the hold-out
+    // is not part of that shape at any gate time.
+    if (!this.campaignBossAt && this.nextBoss && this.run.time >= this.nextBoss.t && !this.bossActive) {
       this.spawnBoss(this.nextBoss.event);
       this.nextBoss = nextBossEvent(this.run.time + 0.1);
     }
@@ -1025,7 +1211,20 @@ export class Game {
   // dash speed/cooldown.
   agilityMult() {
     const pts = Math.min(ATTR_CURVE_MAX, this.attrs.mob || 0);
-    return 0.67 + (pts / ATTR_CURVE_MAX) * 0.66;
+    // Baseline at ZERO points, up to +33% fully invested.
+    //
+    // This used to run 0.67 -> 1.33, i.e. a 33% speed PENALTY until you had
+    // spent half the curve. A fresh player therefore moved at 200 * 0.67 =
+    // 134, against bats at 126, nanoswarm at 115, lightningbugs at 145 and
+    // skyWisps at 155 — several enemies were outright faster than the player
+    // and the rest were within a hair. Retreating did not work, which is
+    // exactly the "I die even though I just back away" report.
+    //
+    // Punishing the player hardest at the one moment they have no points to
+    // spend is backwards: the attribute should buy an advantage, not buy back
+    // a handicap. Investment is still worth the same 33% swing, it just runs
+    // from par instead of from a hole.
+    return 1.0 + (pts / ATTR_CURVE_MAX) * 0.33;
   }
 
   // Aim attribute (save.attrs.aim): inverse curve — 0 points = 33% MORE
@@ -1036,7 +1235,12 @@ export class Game {
   // tighter, more reliable shot.
   aimSpreadMult() {
     const pts = Math.min(ATTR_CURVE_MAX, this.attrs.aim || 0);
-    return 1.33 - (pts / ATTR_CURVE_MAX) * 0.66;
+    // Baseline at zero, down to -33% spread fully invested. Was 1.33 -> 0.67,
+    // the same "buy back a handicap" shape Agility had: an unspent player shot
+    // 33% WIDER than the weapon's own stated spread, so every gun felt worse
+    // than its numbers until half the curve was paid off. Same reasoning as
+    // agilityMult — the attribute should buy an advantage, not undo a tax.
+    return 1.0 - (pts / ATTR_CURVE_MAX) * 0.33;
   }
 
   updatePlayer(dt) {
@@ -1052,7 +1256,20 @@ export class Game {
     }
     const l = Math.hypot(dx, dy) || 1;
     const agi = this.agilityMult();
-    const baseSpd = 200 * s.moveMult * agi;
+    // 172, not 200.
+    //
+    // The code always said 200, but the Agility curve multiplied it by 0.67 at
+    // zero points, so what shipped was 134 — slower than four enemies, which is
+    // why retreating did not work. Fixing the curve handed the player the full
+    // 200 for the first time, and at 200 NOTHING in the game can catch you:
+    // the fastest enemy is 165, and the margin is +35. That reads as "almost
+    // too fast" because it is also completely safe.
+    //
+    // 172 keeps every enemy escapable — the point of the curve fix — while
+    // leaving the fastest ones a real threat at +7 rather than a formality.
+    // Neither 134 nor 200 was ever a validated number; this one is chosen
+    // against the actual enemy speed table.
+    const baseSpd = 172 * s.moveMult * agi;
     // Target velocity (normalized) + accel/decel smoothing for that nice "weight" feel
     const moving = !!(dx || dy);
     const targetX = moving ? (dx / l) : 0;
@@ -1126,8 +1343,7 @@ export class Game {
     if (this.input.joyAim && (this.input.joyAim.x || this.input.joyAim.y)) {
       aimX = this.input.joyAim.x; aimY = this.input.joyAim.y;
     } else {
-      const wmx = this.input.mx - this.W / 2 + p.x - this.cam.x;
-      const wmy = this.input.my - this.H / 2 + p.y - this.cam.y;
+      const [wmx, wmy] = this.screenToWorld(this.input.mx, this.input.my);
       const ax = wmx - p.x, ay = wmy - p.y;
       const al = Math.hypot(ax, ay) || 1;
       aimX = ax / al; aimY = ay / al;
@@ -1142,7 +1358,19 @@ export class Game {
       while (p.regenCarry >= 1) { p.hp = Math.min(p.maxHp, p.hp + 1); p.regenCarry -= 1; }
     }
 
-    const tx = p.x - this.W / 2, ty = p.y - this.H / 2;
+    // Half a SCREEN in world units — with the vision zoom active a screen
+    // covers `zoom` times more world, so centring on p.x - W/2 left the player
+    // visibly off to one side. Scaling the half-extent by the zoom keeps him
+    // centred at every zoom level, and keeps screenToWorld's inverse exact.
+    const zoom = this.viewZoom();
+    const tx = p.x - (this.W / 2) * zoom, ty = p.y - (this.H / 2) * zoom;
+    // First frame SNAPS instead of damping. The camera is constructed at
+    // (0,0) while the player spawns at ~(3200,3200), so the damped follow
+    // spent the opening half-second flying across the map to catch up — a
+    // visible lurch at the start of every run, and it meant anything that
+    // sampled the camera on frame one (the parallax backdrop) sampled a
+    // position the run never actually uses.
+    if (!this._camSeeded) { this.cam.x = tx; this.cam.y = ty; this._camSeeded = true; }
     this.cam.x += (tx - this.cam.x) * Math.min(1, dt * 8);
     this.cam.y += (ty - this.cam.y) * Math.min(1, dt * 8);
 
@@ -1183,6 +1411,17 @@ export class Game {
     p.iframes = s.undertowDash ? 0.33 : 0.22;
     this.cam.shake = Math.max(this.cam.shake, 2);
     for (let i = 0; i < 12; i++) this.spawnSpark(p.x, p.y, '#4dffd4');
+    // Spike Plates: dashing leaves a trap where you launched from, so the card
+    // rewards dashing THROUGH a crowd rather than away from one.
+    if ((s.flags || {}).spikePlates) {
+      const trap = this.parts.acquire();
+      trap.x = p.x; trap.y = p.y; trap.vx = 0; trap.vy = 0;
+      trap.life = 6; trap.max = 6;
+      trap.color = '#9fb4c8'; trap.size = 34; trap.type = 'spikeTrap';
+      trap._dmg = 60 * s.damageMult;
+      trap._armed = 0.25;      // brief arming delay so it cannot hit instantly
+      trap._used = false;
+    }
     if (s.undertowDash) {
       const pullR = 180;
       this.enemies.forEach(e => {
@@ -1247,21 +1486,61 @@ export class Game {
   castSkill(id) {
     const p = this.player; const s = this.run.stats;
     if (id === 'lightning') {
+      // Reworked twice over.
+      //
+      // It USED to be a chain that crawled outward from the player's own
+      // position — visually identical to the Arc Tesla weapon, and nothing
+      // about it read as "lightning strike". It now falls from the sky onto
+      // the target: telegraph, bolt down out of frame, ground flash, thunder.
+      //
+      // It also had NO progression whatsoever — a flat 120 damage and a flat
+      // 5 targets the instant you unlocked it, which is what made it feel like
+      // it started at max level. `skillLvl` scales strike count, damage and
+      // splash, so rank 1 is a single bolt and it grows into a storm.
+      const lvl = this.skillLvl('lightning');
+      const strikes = Math.min(6, 1 + Math.floor(lvl / 2));
+      const dmgBase = 46 + lvl * 26;
+      const splashR = 54 + lvl * 7;
+
+      // Aim point first, then the nearest foes to it. Strikes land ON enemies
+      // rather than chaining between them.
+      const ax = p.x + (p.aimX || 0) * 110, ay = p.y + (p.aimY || 0) * 110;
       const targets = [];
-      let from = { x: p.x + p.aimX * 80, y: p.y + p.aimY * 80 };
-      for (let i = 0; i < 5; i++) {
-        const t = this.nearestEnemy(from.x, from.y, 280);
+      let from = { x: ax, y: ay };
+      for (let i = 0; i < strikes; i++) {
+        const t = this.nearestEnemy(from.x, from.y, 300);
         if (!t || targets.includes(t)) break;
         targets.push(t); from = { x: t.x, y: t.y };
       }
-      let prev = { x: p.x, y: p.y };
-      for (const t of targets) {
-        const dmg = this.rollDamage(120 * s.damageMult);
-        this.dealDamage(t, dmg.dmg, dmg.crit, 80, p.x, p.y);
-        this.spawnLightning(prev.x, prev.y, t.x, t.y);
-        prev = { x: t.x, y: t.y };
-      }
-      this.cam.shake = Math.max(this.cam.shake, 6);
+      // With nothing in range it still strikes where you aimed, so the skill
+      // never silently does nothing.
+      const points = targets.length
+        ? targets.map((t) => ({ x: t.x, y: t.y, e: t }))
+        : [{ x: ax, y: ay, e: null }];
+
+      points.forEach((pt, i) => {
+        // Staggered so a multi-strike rolls across the field like real
+        // thunder instead of every bolt landing on the same frame.
+        this.spawnSkyBolt(pt.x, pt.y, i * 0.07, splashR);
+        const dmg = this.rollDamage(dmgBase * s.damageMult);
+        if (pt.e) this.dealDamage(pt.e, dmg.dmg, dmg.crit, 80, pt.x, pt.y - 200);
+        // Everything under the strike takes the splash, so a bolt landing in a
+        // crowd is worth more than one landing on a straggler.
+        // NB: `Pool` exposes `free` / `active` / `forEach` — there is no
+        // `items`. Iterating a non-existent property threw on the first strike
+        // AFTER the cooldown had already been spent, so the skill ate its
+        // cooldown and then died mid-cast. `forEach` also walks backwards and
+        // skips dead entries, which matters here because dealDamage can kill
+        // an enemy and release it from the pool during the loop.
+        this.enemies.forEach((e2) => {
+          if (e2 === pt.e) return;
+          if (dist2(e2.x, e2.y, pt.x, pt.y) > splashR * splashR) return;
+          const sd = this.rollDamage(dmgBase * 0.45 * s.damageMult);
+          this.dealDamage(e2, sd.dmg, sd.crit, 40, pt.x, pt.y - 200);
+        });
+      });
+      this._lightningFlash = Math.max(this._lightningFlash || 0, 0.5);
+      this.cam.shake = Math.max(this.cam.shake, 9 + strikes);
     } else if (id === 'aegis') {
       p.iframes = Math.max(p.iframes, 3);
       p._reflectTimer = 3;
@@ -1379,7 +1658,14 @@ export class Game {
     const r = pr.explode;
     this.enemies.forEach(en => {
       if (dist2(en.x, en.y, pr.x, pr.y) <= r * r) {
-        this.dealDamage(en, pr.dmg * 0.6, false, 100, pr.x, pr.y, true);
+        // Rolled per enemy from the BASE damage, not scaled off `pr.dmg`.
+        // `pr.dmg` already has the shot's crit multiplier baked into it, so
+        // passing it on handed every single enemy in the blast radius that one
+        // lucky roll's damage — the crit was shared, it just did not show a red
+        // number. Each enemy in a blast now takes its own chance.
+        const base = (pr._baseDmg !== undefined ? pr._baseDmg : pr.dmg) * 0.6;
+        const roll = this.rollDamage(base, pr._baseCrit || 0);
+        this.dealDamage(en, roll.dmg, roll.crit, 100, pr.x, pr.y, true);
       }
     });
     this.spawnRing(pr.x, pr.y, r, pr.color || '#ff7a1a', 0.4);
@@ -1439,6 +1725,14 @@ export class Game {
       // hydropistol wounds run pale blue-white, flameburst runs ember-orange,
       // icespike runs frosty cyan, instead of every kill bleeding plain red.
       this._curWeaponColor = stats.color || null;
+      // What KIND of thing is about to hit, so the wound can match it. Without
+      // this every hit that was not fire or ice stamped a bullet hole -- a
+      // katana slash, a beam and a shockwave all punched neat round holes.
+      this._curWeaponBehaviour = w.behaviour || null;
+      // 'manual' | 'auto'. Live Wire and the manual-cooldown passive both need
+      // to know which kind of weapon is firing, and `behaviour` does not say:
+      // both a manual pistol and an auto turret are 'projectile'.
+      stats._wtype = w.type || 'auto';
       switch (w.behaviour) {
         case 'projectile':
           stats._behaviour = w.behaviour;
@@ -1472,6 +1766,7 @@ export class Game {
         case 'meteor':  stats._behaviour = w.behaviour; this.weaponMeteor(stats, dt); break;
         case 'chain':   stats._behaviour = w.behaviour; this.weaponChain(stats, dt); break;
         case 'drone':   stats._behaviour = w.behaviour; this.weaponDrone(stats, dt); break;
+        case 'melee':   stats._behaviour = w.behaviour; this.weaponKatana(stats, dt); break;
         default: break;
       }
     }
@@ -1502,6 +1797,11 @@ export class Game {
       if (rs.manualDmgMult !== 1) s.damage = (s.damage || 0) * rs.manualDmgMult;
       if (rs.manualRateMult !== 1) s.fireRate = (s.fireRate || 0) * rs.manualRateMult;
       if (rs.manualMagMult !== 1 && s.magazine) s.magazine = Math.ceil(s.magazine * rs.manualMagMult);
+      // Cycled Action: -manual weapon cooldown, i.e. faster cycling. Applied
+      // here rather than at each of the eight `fireRate * fireRateMult` sites,
+      // so it cannot be half-applied by whichever one someone forgets.
+      const cd = (rs.flags || {}).manualCooldown ? (rs.manualCooldownAmt || 0.05) : 0;
+      if (cd) s.fireRate = (s.fireRate || 0) * (1 + cd);
     } else {
       if (rs.autoDmgMult !== 1) s.damage = (s.damage || 0) * rs.autoDmgMult;
       if (rs.autoRateMult !== 1) s.fireRate = (s.fireRate || 0) * rs.autoRateMult;
@@ -1536,6 +1836,24 @@ export class Game {
       p.reloadT -= dt;
       if (p.reloadT <= 0) {
         p.reloading = false;
+        // Bulletstorm: finishing a reload sprays the spent magazine outward.
+        // Fired on COMPLETION rather than on the reload starting, so it rewards
+        // riding the reload out instead of cancelling it.
+        if ((rs.flags || {}).bulletstorm) {
+          const n = this.fxCount(10);
+          for (let i = 0; i < n; i++) {
+            const a = (i / n) * TAU + Math.random() * 0.2;
+            const pr = this.projs.acquire();
+            pr.x = p.x; pr.y = p.y;
+            pr.vx = Math.cos(a) * 620; pr.vy = Math.sin(a) * 620;
+            pr.dmg = (s.damage || 18) * 0.5 * rs.damageMult;
+            pr.life = 0.55; pr.size = (s.projSize || 6) * 0.8;
+            pr.color = s.color || '#ffd166';
+            pr.pierce = 0; pr.crit = false;
+          }
+          this.spawnRing(p.x, p.y, 42, '#ffd166', 0.28);
+          Audio.shoot(s._wid, s._behaviour);
+        }
         p.mag = (s.magazine || 12) + rs.magBonus;
       }
       return;
@@ -1582,7 +1900,14 @@ export class Game {
     // _reloadPose uses (0.20 mag drops, 0.66 fresh mag seats, 0.74-0.86 the
     // rack), so the mag-drop thunk, the seat click and the slide rack land
     // on the actual animation beats instead of being one generic beep.
-    Audio.reloadSequence(p.reloadTotal * 1000);
+    // Per-weapon reload mechanism. One reload sound across every gun made
+    // them all feel like the same weapon; shells, power cells and a bowstring
+    // are different machines and should sound like it.
+    // `s._wid` is the id the very next line already trusts for picking the
+    // reload VISUAL, so it is the right source for picking the reload SOUND —
+    // using anything else here would let the two disagree about which weapon
+    // is being reloaded.
+    Audio.reloadFor(s._wid, p.reloadTotal * 1000);
     p._reloadMag = (s.magazine || 12) + this.run.stats.magBonus; // capacity, for the revolver-cylinder notch count
     p._reloadWid = s._wid || null; // which weapon is reloading, so the renderer picks the right visual
     // The spent magazine is a real object thrown to the ground rather than a
@@ -1616,12 +1941,18 @@ export class Game {
     p.boltCD = 1 / fr;
     const tgt = this.nearestEnemy(p.x, p.y, 700);
     if (!tgt) return;
-    const projCount = (s.projectiles || 1) + rs.projBonus;
+    const native = s.projectiles || 1;
+    const projCount = native + rs.projBonus;
+    // Bonus projectiles hit softer than the weapon's own — see
+    // bonusProjDamageScale. Applied by handing fireProjectile a scaled copy of
+    // the stats rather than by touching `s`, which is a shared object.
+    const scale = this.bonusProjDamageScale(native, projCount);
+    const shotStats = scale === 1 ? s : { ...s, damage: (s.damage || 10) * scale };
     const baseAng = Math.atan2(tgt.y - p.y, tgt.x - p.x);
     const spread = 0.18;
     for (let i = 0; i < projCount; i++) {
       const off = (i - (projCount - 1) / 2) * spread;
-      this.fireProjectile(p.x, p.y, baseAng + off, s, true, s.homing || 0);
+      this.fireProjectile(p.x, p.y, baseAng + off, shotStats, true, s.homing || 0);
     }
     this.spawnMuzzle(p.x + Math.cos(baseAng) * 18, p.y + Math.sin(baseAng) * 18, baseAng, s.color);
   }
@@ -1675,6 +2006,199 @@ export class Game {
     // different read, so a whip build doesn't look like a scythe build.
     if (s.whip) { this.spawnWhip(p.x, p.y, r, s.color, aimAng); Audio.whipCrack(); }
     else { this.spawnArc(p.x, p.y, r, s.color, aimAng); Audio.shoot(s._wid, s._behaviour); }
+  }
+
+  // ---- Katana ------------------------------------------------------------
+  // The only true melee weapon in the game, and the first user of the 'melee'
+  // behaviour (which the wound system already maps to a `gash` -- an open cut
+  // across the blow rather than a bullet hole).
+  //
+  // It reads differently from the scythe on purpose: a much TIGHTER arc, so it
+  // is a weapon you have to aim rather than one that clears a room, and a
+  // short forward step on the swing so a hit feels committed. In exchange it
+  // hits hard and, on a killing blow, cuts the enemy in half.
+  weaponKatana(s, dt) {
+    const p = this.player; const rs = this.run.stats;
+    p.katanaCD = (p.katanaCD || 0) - dt;
+    // Whirl Training (+melee attack speed) and Cycled Action (-manual weapon
+    // cooldown) both land here: the katana is melee AND manual.
+    // Whirl Training (+melee attack speed). The manual-cooldown passive is
+    // applied centrally in computeWeaponStats instead, so it is not repeated
+    // here -- doing both would stack it twice on the katana, which is the one
+    // weapon that is melee AND manual.
+    const pf = rs.flags || {};
+    let fr = s.fireRate * rs.fireRateMult;
+    if (pf.meleeSpeed) fr *= 1 + (rs.meleeSpeedAmt || 0.10);
+    if (p.katanaCD > 0) return;
+    p.katanaCD = 1 / fr;
+
+    const reach = (s.area || 96) * rs.areaMult;
+    const baseDmg = s.damage * rs.damageMult;
+    const aimAng = Math.atan2(p.aimY || 0, p.aimX || 1);
+    // Alternate the swing direction so consecutive strikes read as a combo
+    // rather than the same animation replayed.
+    p._katanaSwing = -(p._katanaSwing || 1);
+
+    let anyHit = false;
+    this.enemies.forEach((e) => {
+      const edx = e.x - p.x, edy = e.y - p.y;
+      const ed = Math.hypot(edx, edy);
+      if (ed > reach) return;
+      let da = Math.atan2(edy, edx) - aimAng;
+      while (da > Math.PI) da -= TAU;
+      while (da < -Math.PI) da += TAU;
+      // ~78 degrees total, against the scythe's ~198. A katana is a line, not
+      // a circle.
+      if (Math.abs(da) > 0.68) return;
+      anyHit = true;
+      const dmg = this.rollDamage(baseDmg);
+      const wasAlive = e.alive;
+      const hpBefore = e.hp;
+      this.dealDamage(e, dmg.dmg, dmg.crit, s.knockback || 40, p.x, p.y);
+      // Cleave on a clean kill -- only on a kill, because splitting something
+      // that survives would look absurd. Every ordinary enemy is included;
+      // bosses are excluded on purpose, since they run their own death
+      // sequence and a bisect on top of it would fight with it.
+      if (wasAlive && !e.alive && !e.t.boss && hpBefore > 0) {
+        this.spawnBisect(e.x, e.y, aimAng, e.t.color, e.t.size);
+      }
+    });
+
+    // The blade always swings, hit or not -- a swing that only animates on
+    // contact makes the weapon feel broken when you miss.
+    this.spawnKatanaSlash(p.x, p.y, reach, s.color || '#dff4ff', aimAng, p._katanaSwing);
+    if (anyHit) {
+      this.cam.shake = Math.max(this.cam.shake, 5);
+      // A short step INTO the cut. Carried on knockback so it decays on its
+      // own rather than teleporting the player.
+      p.vx = (p.vx || 0) + Math.cos(aimAng) * 90;
+      p.vy = (p.vy || 0) + Math.sin(aimAng) * 90;
+    }
+    Audio.shoot(s._wid, s._behaviour);
+  }
+
+  // Four ways the blade moves, cycled so no two consecutive strikes look the
+  // same. `dir` (+1/-1) still mirrors alternate swings; the STYLE changes how
+  // far the arc travels, how fast, and how heavy it reads.
+  //
+  // The arc was also drawn at the weapon's full `area` (96px), which is the
+  // HIT range — so the visual was as long as the reach in every direction at
+  // once and read as a huge fan rather than a sword. It is scaled in per style
+  // now; the hit box is untouched, so this is purely how it looks.
+  static KATANA_STYLES = [
+    // name        span(rad) reach  life  thick  lead
+    { span: 1.10, reach: 0.55, life: 0.17, th: 0.20, lead: 2.4 },  // level cut
+    { span: 0.70, reach: 0.46, life: 0.12, th: 0.14, lead: 2.0 },  // short flick
+    { span: 1.52, reach: 0.6, life: 0.22, th: 0.27, lead: 3.0 },  // heavy sweep
+    { span: 0.34, reach: 0.66, life: 0.14, th: 0.10, lead: 3.4 },  // thrust
+  ];
+
+  spawnKatanaSlash(x, y, reach, color, ang, dir) {
+    const p = this.parts.acquire();
+    const idx = (this._katanaStyle = ((this._katanaStyle || 0) + 1) % 4);
+    const st = Game.KATANA_STYLES[idx];
+    p.x = x; p.y = y; p.vx = 0; p.vy = 0;
+    p.life = st.life; p.max = st.life;
+    p.color = color; p.size = reach * st.reach; p.type = 'katanaSlash';
+    p._ang = ang; p._dir = dir || 1;
+    p._span = st.span; p._th = st.th; p._lead = st.lead;
+  }
+
+  // A killing cut. Five ways a body comes apart, rolled per kill, so cutting
+  // down a crowd never plays the same animation twice in a row. One clean
+  // bisect every time made the katana's best moment become wallpaper within a
+  // minute.
+  //
+  // Every variant respects `ang` -- the direction the blade actually travelled
+  // -- because the whole point is that the cut reads as YOUR cut. A random
+  // split angle would look like the body exploded, not like it was cut.
+  spawnBisect(x, y, ang, color, size) {
+    const S = size || 22;
+    const roll = Math.random();
+    // Weighted: the clean halves stay the signature, the rest are the spice.
+    const variant =
+      roll < 0.38 ? 'halves'      // straight through, two pieces
+      : roll < 0.60 ? 'quarters'  // a second cut across the first
+      : roll < 0.76 ? 'topoff'    // a shallow cut, small piece off one end
+      : roll < 0.90 ? 'fan'       // three wedges, fanned apart
+      : 'burst';                  // cut through and blown apart
+
+    // Emits one body piece. `off` slides its start along the cut, `frac` sizes
+    // it, `push` is how hard it leaves.
+    const piece = (pAng, side, frac, off, push, life) => {
+      const h = this.parts.acquire();
+      const px = Math.cos(pAng + Math.PI / 2) * side;
+      const py = Math.sin(pAng + Math.PI / 2) * side;
+      // Offset along the cut line so pieces do not all start stacked on the
+      // same point -- that is what made a split read as one object twitching.
+      h.x = x + Math.cos(pAng) * off;
+      h.y = y + Math.sin(pAng) * off;
+      h.vx = px * push + Math.cos(pAng) * rand(-25, 25);
+      h.vy = py * push + Math.sin(pAng) * rand(-25, 25) - rand(10, 45);
+      h.life = life; h.max = life;
+      h.color = color; h.size = S * frac;
+      h.type = 'bisectHalf';
+      h._ang = pAng; h._side = side;
+      return h;
+    };
+
+    const cross = ang + Math.PI / 2 + rand(-0.3, 0.3);
+
+    if (variant === 'halves') {
+      piece(ang, -1, 0.5, 0, rand(40, 90), 1.85);
+      piece(ang, 1, 0.5, 0, rand(40, 90), 1.85);
+    } else if (variant === 'quarters') {
+      // The blade came back through. Four pieces, two cut lines.
+      for (const side of [-1, 1]) {
+        piece(ang, side, 0.36, -S * 0.22, rand(50, 100), 1.80);
+        piece(ang, side, 0.36, S * 0.22, rand(50, 100), 1.80);
+      }
+      this._cutFlash(x, y, cross, S * 1.3);
+    } else if (variant === 'topoff') {
+      // A shallow cut: one small piece leaves fast, the rest drops.
+      piece(ang, -1, 0.28, S * 0.3, rand(110, 190), 1.90);
+      piece(ang, 1, 0.62, -S * 0.1, rand(15, 40), 1.75);
+    } else if (variant === 'fan') {
+      // Three wedges opening away from the cut like a dealt hand.
+      piece(ang, -1, 0.34, -S * 0.18, rand(70, 120), 1.80);
+      piece(ang, 0.001, 0.34, 0, rand(20, 45), 1.85);
+      piece(ang, 1, 0.34, S * 0.18, rand(70, 120), 1.80);
+    } else {
+      // Cut through AND blown apart: halves plus a shower of chunks.
+      piece(ang, -1, 0.42, 0, rand(120, 200), 1.70);
+      piece(ang, 1, 0.42, 0, rand(120, 200), 1.70);
+      const n = this.fxCount(6);
+      for (let i = 0; i < n; i++) {
+        const c = this.parts.acquire();
+        c.x = x; c.y = y;
+        const a = Math.random() * TAU;
+        const sp = rand(90, 230);
+        c.vx = Math.cos(a) * sp; c.vy = Math.sin(a) * sp - rand(30, 90);
+        c.life = rand(0.35, 0.7); c.max = c.life;
+        c.color = color; c.size = rand(1.5, 3.4); c.type = 'chunk';
+      }
+      this.cam.shake = Math.max(this.cam.shake, 7);
+    }
+
+    // The primary cut line always flashes along the blade's path.
+    this._cutFlash(x, y, ang, S * 1.6);
+    // Two arterial fans, one out of each side of the cut, thrown PERPENDICULAR
+    // to the blade — that is the direction a body actually opens. Full power:
+    // a clean bisect is the biggest blood moment in the game.
+    this.spawnArterialCone(x, y, ang + Math.PI / 2, color, 1.0);
+    this.spawnArterialCone(x, y, ang - Math.PI / 2, color, 1.0);
+    // Plus the existing droplet spatter along the blade, for texture.
+    for (const d of [0, Math.PI]) {
+      this.spawnPunctureHit(x, y, color, Math.cos(ang + d), Math.sin(ang + d));
+    }
+  }
+
+  _cutFlash(x, y, ang, len) {
+    const f = this.parts.acquire();
+    f.x = x; f.y = y; f.vx = 0; f.vy = 0;
+    f.life = 0.22; f.max = 0.22;
+    f.color = '#ffffff'; f.size = len;
+    f.type = 'cutLine'; f._ang = ang;
   }
 
   spawnWhip(x, y, len, color, ang) {
@@ -1792,12 +2316,27 @@ export class Game {
   fireProjectile(x, y, ang, s, friendly = true, homing = 0) {
     const pr = this.projs.acquire();
     pr.x = x; pr.y = y;
-    pr.vx = Math.cos(ang) * (s.projSpeed || 600);
-    pr.vy = Math.sin(ang) * (s.projSpeed || 600);
+    // Speed and range are now upgradeable (level-up cards + meta upgrades).
+    // Both were hardcoded: every bolt flew at its weapon's fixed speed and
+    // every bolt died at exactly 1.6s regardless of build, which is why shots
+    // travelled the same enormous distance no matter what you picked.
+    const spd = (s.projSpeed || 600) * (this.run.stats.projSpeedMult || 1);
+    pr.vx = Math.cos(ang) * spd;
+    pr.vy = Math.sin(ang) * spd;
     const dmg = this.rollDamage((s.damage || 10) * this.run.stats.damageMult, s.crit);
     pr.dmg = dmg.dmg; pr.crit = dmg.crit;
+    // Kept alongside the resolved hit so a PIERCING shot can re-roll for each
+    // enemy it passes through. Without these the single roll made at fire time
+    // applied to everything on the line: one lucky shot crit an entire row,
+    // one unlucky shot could not crit anything it touched.
+    pr._baseDmg = (s.damage || 10) * this.run.stats.damageMult;
+    pr._baseCrit = s.crit || 0;
     pr.pierce = (s.pierce || 0) + this.run.stats.pierceBonus;
-    pr.life = 1.6;
+    // Life is DIVIDED by the speed multiplier so that "range" means distance,
+    // not time. A faster bolt covers more ground in the same 1.6s, so without
+    // this a speed upgrade would silently be a range upgrade too and the two
+    // stats would be impossible to tune independently.
+    pr.life = 1.6 * (this.run.stats.projRangeMult || 1) / Math.max(0.25, this.run.stats.projSpeedMult || 1);
     pr.color = s.color || '#fff';
     pr.size = s.projSize || 6;
     pr.homing = homing;
@@ -1916,6 +2455,30 @@ export class Game {
     }
   }
 
+  // Damage scale for a weapon once bonus projectiles are added on top of its
+  // own count.
+  //
+  // Every weapon now starts at 1 projectile (2-3 for spread weapons), which
+  // silently made "+1 projectile" the strongest effect in the game: it used to
+  // be +11%..+50% on weapons that began with 2-9 shots, and became a flat
+  // +100% DPS. Multishot maxes at 3 levels, so a single skill node was worth
+  // +300%, with the meta Projectile Up stacking on top of that.
+  //
+  // Rather than gut the node, bonus projectiles simply hit softer than the
+  // weapon's native ones — standard practice in the genre, and it keeps the
+  // upgrade feeling identical on every weapon instead of being a jackpot on
+  // some and a rounding error on others.
+  //
+  //   1 -> 2 projectiles now reads +65% DPS, not +100%
+  //   3 -> 4 reads +22%, near enough the same relative gain
+  bonusProjDamageScale(nativeCount, totalCount) {
+    const extras = Math.max(0, totalCount - Math.max(1, nativeCount));
+    if (extras <= 0) return 1;
+    // Each bonus shot is worth 65% of a native one. Averaged across the volley
+    // so callers can keep firing one damage value for every projectile.
+    return (nativeCount + extras * 0.65) / totalCount;
+  }
+
   rollDamage(base, baseCrit) {
     const p = this.player; const s = this.run.stats;
     let dmg = base;
@@ -1942,11 +2505,87 @@ export class Game {
   }
 
   // ====== ENEMIES ======
+  // ---- Stagnation --------------------------------------------------------
+  // The anti-"stand still and win" rule, made mechanical instead of hoped-for.
+  // A build strong enough to clear the screen without moving is a build the
+  // player has earned — the answer is not to nerf it, it is to make standing
+  // in one place stop being where the screen gets cleared FROM.
+  //
+  // Accumulates PATH LENGTH over a fixed SAMPLE window, then holds that
+  // verdict until the next sample. Ramps `_stagnation` 0→1 over STAG_RAMP
+  // seconds while parked, drains it three times faster while moving, so
+  // re-engaging is rewarded immediately rather than serving a sentence.
+  //
+  // Two things here are deliberate and both were wrong in the first cut.
+  //
+  // 1. SAMPLE THE WINDOW, DON'T CHASE AN ANCHOR. The original compared the
+  //    player against an anchor re-seeded to their feet on the very frame
+  //    they got far enough from it. That made "moving" a ONE-FRAME state: a
+  //    player running flat out cleared the radius, got a single frame of
+  //    decay, then spent ~27 frames ramping again against a fresh anchor
+  //    underneath them. Net +0.10/s while sprinting — stagnation pegged at
+  //    1.0 seconds into every run, applying the AFK penalty to everyone and
+  //    parking "THEY ARE CLOSING IN" on screen permanently.
+  //
+  // 2. PATH LENGTH, NOT DISPLACEMENT. Measuring how far the player ended up
+  //    FROM a point punishes circle-strafing — and orbiting a tight arc while
+  //    kiting is core play in this genre, not idling. Distance travelled is
+  //    the honest "is anyone driving" signal: a player working a small circle
+  //    at speed racks up path length, and an AFK player racks up zero.
+  //    MOVED_MIN is ~25% of the 200px/s base speed over the window, so it
+  //    only trips on near-total inactivity — being slowed, reloading or
+  //    nudging all clear it comfortably.
+  //
+  // At full stagnation: +80% spawn rate and +35% enemy speed. That is a wall
+  // of bodies converging on a stationary target — survivable for a few
+  // seconds by a strong build, which is the point. It is a shove, not a
+  // death sentence, and it goes away the instant you play the game.
+  updateStagnation(dt) {
+    const p = this.player;
+    const SAMPLE = 1.5;     // seconds per verdict
+    const MOVED_MIN = 75;   // px of path required in a window to count as active
+    const STAG_RAMP = 9;
+    const STAG_DECAY = 3;
+    if (!this._stagPrev) { this._stagPrev = { x: p.x, y: p.y }; this._stagMoving = true; }
+    this._stagDist = (this._stagDist || 0) + Math.hypot(p.x - this._stagPrev.x, p.y - this._stagPrev.y);
+    this._stagPrev.x = p.x; this._stagPrev.y = p.y;
+    this._stagSampleT = (this._stagSampleT || 0) + dt;
+    if (this._stagSampleT >= SAMPLE) {
+      this._stagSampleT = 0;
+      this._stagMoving = this._stagDist > MOVED_MIN;
+      this._stagDist = 0;
+    }
+    if (this._stagMoving) this._stagnation = Math.max(0, this._stagnation - dt / STAG_DECAY);
+    else this._stagnation = Math.min(1, this._stagnation + dt / STAG_RAMP);
+  }
+
   spawnWave(dt) {
     if (this.over) return;
+    // The wave STOPS the moment a boss is on the field.
+    //
+    // A boss fight that keeps the ambient stream running is not a boss fight,
+    // it is the same crowd with a bigger enemy somewhere in it — you never get
+    // to read the boss's pattern because you are still being nibbled from
+    // behind. Freezing the spawner turns it into a real duel: clear whatever
+    // was already on screen, then it is you and it.
+    //
+    // Bosses that summon are unaffected: those calls go through spawnEnemy /
+    // enemies.acquire directly, so a summoner still fills its own arena — which
+    // is the point of being a summoner, and now reads as ITS mechanic rather
+    // than as the background noise everyone shares.
+    if (this.bossActive) { this.spawnTimer = 0; return; }
     const w = waveAt(this.run.time);
     this.spawnTimer += dt;
-    const spawnInterval = 1 / (w.spawn * (this.spawnMultExtra || 1));
+    // Density scales with the tier, with stagnation, and very mildly with the
+    // player's own level — the same "your power buys the wave's power"
+    // contract as the HP/damage menace terms in spawnEnemy.
+    const levelDensity = Math.min(1.6, 1 + (this.run.level - 1) * 0.018);
+    const rate = w.spawn
+      * (this.spawnMultExtra || 1)
+      * this.diff.spawnMult
+      * levelDensity
+      * (1 + this._stagnation * 0.8);
+    const spawnInterval = 1 / rate;
     while (this.spawnTimer >= spawnInterval) {
       this.spawnTimer -= spawnInterval;
       const n = 1 + (Math.random() < (this.run.time / 600) ? 1 : 0);
@@ -1962,18 +2601,30 @@ export class Game {
     const p = this.player;
     // spawn ring just outside view
     const ang = Math.random() * TAU;
-    const dist = Math.max(this.W, this.H) * 0.42 + rand(20, 60);
+    const dist = this.viewSpan() * 0.42 + rand(20, 60);
     const x = clamp(p.x + Math.cos(ang) * dist, 30, this.world.w - 30);
     const y = clamp(p.y + Math.sin(ang) * dist, 30, this.world.h - 30);
     const e = this.enemies.acquire();
     e.x = x; e.y = y; e.vx = 0; e.vy = 0;
     e.t = t;
-    const scale = 1 + this.run.time / 240; // gradual scale
-    // Damage grows with time as well as boss kills. Before, an enemy spawned
-    // at minute one and an enemy spawned at minute nine hit for exactly the
-    // same amount until a boss died, so the mid-game had no pressure curve at
-    // all — you simply out-geared it and stopped being in danger.
-    e.dmgMult = (1 + this.run.time / 200) * (1 + this.bossesKilled * 1.6);
+    const D = this.diff;
+    // ---- The three pressure curves ----------------------------------------
+    // TIME    — the slow bed. Steepened (240→190) because the mid-game had a
+    //           long flat stretch you simply out-geared.
+    // MILESTONE — bosses killed. Player-paced: struggling for longer between
+    //           kills does not also raise the difficulty, and steamrolling
+    //           them does. This stays the dominant lever.
+    // MENACE  — the player's own run level. This is the one that answers
+    //           "you should never be so strong you can stand still": every
+    //           card you take makes the wave that much heavier, so power
+    //           growth buys you *reach*, not safety. Deliberately mild per
+    //           level (5.5% HP / 3.5% damage) because it compounds against
+    //           the other two, and it is capped so a 40-minute endless run
+    //           does not turn into a wall of unkillable statues.
+    const menace = Math.min(2.2, 1 + (this.run.level - 1) * 0.055);
+    const menaceDmg = Math.min(1.9, 1 + (this.run.level - 1) * 0.035);
+    const scale = 1 + this.run.time / 190;
+    e.dmgMult = (1 + this.run.time / 200) * (1 + this.bossesKilled * 1.6) * menaceDmg * D.dmgMult;
     if (SQUARE_ENEMY_TYPES.has(typeId)) e.dmgMult *= 2.5; // brute/charger/necron/steelbrute hit harder
     // Tier escalation (task: T1..T5+, one boss kill = one tier up, keeps
     // climbing indefinitely for a long endless). Speed/HP grow WITH the
@@ -1985,11 +2636,17 @@ export class Game {
     // Baseline pace lifted 12%: the game read noticeably more sluggish after
     // the player's agility/aim attributes were rebased down by a third, and
     // enemy speed had never been adjusted to match.
-    e.speedMult = 1.12 * (1 + this.bossesKilled * 0.12);
-    e.maxHp = Math.floor(t.hp * scale * 3 * (1 + this.bossesKilled * 0.25));
+    // Stagnation (see updateStagnation) rides on top of speed rather than on
+    // damage: an AFK player should be OVERRUN, not chipped down. Being caught
+    // is the punishment; the enemies that catch you hit for their normal
+    // amount.
+    e.speedMult = 1.12 * (1 + this.bossesKilled * 0.12) * D.speedMult * (1 + this._stagnation * 0.35);
+    const bossHp = t.boss ? D.bossHpMult : D.hpMult;
+    e.maxHp = Math.floor(t.hp * scale * 3 * (1 + this.bossesKilled * 0.25) * menace * bossHp);
     e.hp = e.maxHp;
     e.hit = 0; e.cd = 0; e.dz = 0;
     e.kbX = 0; e.kbY = 0;
+    e._hitCD = 0;
     e._woundStage = 0; e._wounds.length = 0;
     // Melee-strike state — pooled objects keep whatever the previous
     // occupant left behind, so a recycled enemy could otherwise spawn
@@ -2050,7 +2707,7 @@ export class Game {
     const ang = Math.random() * TAU;
     // Far enough to require real travel, not so far it's never reachable
     // relative to the current view.
-    const dist = Math.max(this.W, this.H) * (0.55 + Math.random() * 0.5);
+    const dist = this.viewSpan() * (0.55 + Math.random() * 0.5);
     const x = clamp(p.x + Math.cos(ang) * dist, 80, this.world.w - 80);
     const y = clamp(p.y + Math.sin(ang) * dist, 80, this.world.h - 80);
     this.dockStation = { x, y, r: 46, progress: 0, charging: false };
@@ -2128,7 +2785,7 @@ export class Game {
   spawnTidalShrine() {
     const p = this.player;
     const ang = Math.random() * TAU;
-    const dist = Math.max(this.W, this.H) * (0.6 + Math.random() * 0.5);
+    const dist = this.viewSpan() * (0.6 + Math.random() * 0.5);
     const x = clamp(p.x + Math.cos(ang) * dist, 90, this.world.w - 90);
     const y = clamp(p.y + Math.sin(ang) * dist, 90, this.world.h - 90);
     this.tidalShrine = { x, y, r: 60, channelT: 0, summonCD: 3 };
@@ -2172,16 +2829,50 @@ export class Game {
     const t = ENEMIES[typeId]; if (!t) return;
     const p = this.player;
     const ang = Math.random() * TAU;
-    const dist = Math.max(this.W, this.H) * 0.42;
+    const dist = this.viewSpan() * 0.42;
     const e = this.enemies.acquire();
     // Clamp to world bounds so the boss always spawns on the actual map —
     // otherwise the guide arrow can point at an unreachable off-map location.
     e.x = clamp(p.x + Math.cos(ang) * dist, 60, this.world.w - 60);
     e.y = clamp(p.y + Math.sin(ang) * dist, 60, this.world.h - 60);
     e.t = t;
-    e.maxHp = Math.floor(t.hp * 3 * (1 + this.run.time / 600));
+    // ---- Boss HP is tuned to fight LENGTH, not to difficulty --------------
+    // Target window: 25-45 seconds at the player's expected power for the
+    // checkpoint. Under 5s and the fight never registers as an event; over
+    // 90s and it stops being climactic and starts being a slog.
+    //
+    // Scaling with the player's run level is what HOLDS that window: player
+    // DPS grows roughly with level, so boss HP growing alongside it keeps the
+    // fight the same length at level 7 and at level 25. The difficulty tier's
+    // bossHpMult is the one term that deliberately breaks the window — a
+    // Nightmare guardian is SUPPOSED to take longer than you can survive
+    // standing in front of it.
+    const bossMenace = Math.min(2.2, 1 + (this.run.level - 1) * 0.055);
+    e.maxHp = Math.floor(
+      t.hp * 2.6
+      * (1 + this.run.time / 600)
+      * (1 + this.bossesKilled * 0.35)
+      * bossMenace
+      * this.diff.bossHpMult
+    );
     e.hp = e.maxHp;
+    // These come from a POOL. spawnEnemy sets them on every acquire; this
+    // function never did, so a boss could inherit whatever damage multiplier,
+    // variant or status timers the last enemy to occupy the slot left behind
+    // — which made boss damage quietly depend on what died most recently.
+    e.dmgMult = (1 + this.run.time / 200) * (1 + this.bossesKilled * 0.8) * this.diff.dmgMult;
+    e.speedMult = 1;
+    e.tier = this.bossesKilled + 1;
+    e.variant = null; e._shell = 0; e._leechCD = 0;
+    e._burn = 0; e._slowT = 0; e._poisonT = 0; e._poisonStacks = 0;
+    e._windup = 0; e._strikeT = 0; e._atkCD = rand(0.6, 1.6);
+    e._atkDX = 0; e._atkDY = 0; e._lunging = false; e._lungeT = 0;
+    if (e._marks) e._marks.length = 0;
     e.hit = 0; e.cd = 0; e.dz = 0; e.kbX = 0; e.kbY = 0;
+    // Pooled objects otherwise inherit the previous occupant's swing timer, so
+    // a freshly spawned enemy could arrive already on cooldown and walk
+    // through the player harmlessly for a second.
+    e._hitCD = 0;
     e._woundStage = 0; e._wounds.length = 0;
     // Reset boss-specific state flags so recycled pool objects start clean
     e._hasFleed = false; e._fleeing = false; e._fleeTimer = 0;
@@ -2332,7 +3023,7 @@ export class Game {
           if (e._fleeTimer <= 0) {
             e._fleeing = false;
             const retAng = Math.random() * TAU;
-            const retDist = Math.max(this.W, this.H) * 0.75;
+            const retDist = this.viewSpan() * 0.75;
             e.x = p.x + Math.cos(retAng) * retDist;
             e.y = p.y + Math.sin(retAng) * retDist;
             e.kbX = 0; e.kbY = 0;
@@ -2366,6 +3057,105 @@ export class Game {
       }
 
       // === Void Titan: spiralskjuter void-orbs ===
+      // === A.I.D.A. — the only boss with no pattern at all ===
+      //
+      // She is the story's antagonist and she fought like a slime that had
+      // been scaled up: walk at the player, touch them. Everything else in the
+      // roster had a mechanic and she had a health bar.
+      //
+      // Hers is BLINK-AND-SWEEP, built to be read rather than dodged by luck:
+      // she teleports to a firing position, telegraphs, then sweeps a rotating
+      // laser fan. The tell is long enough to react to and the punish is real.
+      // Between sweeps she launches homing seekers, so standing still to wait
+      // out the laser is its own mistake.
+      if (t.id === 'bossAida') {
+        e._aidaState = e._aidaState || 'move';
+        e._aidaT = (e._aidaT !== undefined ? e._aidaT : 2.4) - dt;
+
+        // Phase 2 below half health: everything cycles faster and the fan
+        // gains arms, so the fight escalates without new rules to learn.
+        const hard = e.hp < e.maxHp * 0.5;
+        if (hard && !e._aidaPhase2) {
+          e._aidaPhase2 = true;
+          this.spawnDamageNumber(e.x, e.y - 52, 'PROTOCOL: PURGE', '#ff5ef5');
+          this.cam.shake = Math.max(this.cam.shake, 12);
+          this.spawnRing(e.x, e.y, t.size * 1.6, '#ff5ef5', 0.7);
+        }
+
+        if (e._aidaState === 'move') {
+          // Drifts, then blinks to a ring position around the player so she
+          // never simply body-blocks. Blinking rather than walking is what
+          // makes her read as a machine.
+          if (e._aidaT <= 0) {
+            const ba = Math.random() * TAU;
+            const bd = 200 + Math.random() * 90;
+            this.spawnRing(e.x, e.y, t.size, '#9fd8ff', 0.35);
+            e.x = clamp(p.x + Math.cos(ba) * bd, 40, this.world.w - 40);
+            e.y = clamp(p.y + Math.sin(ba) * bd, 40, this.world.h - 40);
+            this.spawnRing(e.x, e.y, t.size * 1.2, '#ff5ef5', 0.4);
+            e._aidaState = 'telegraph';
+            e._aidaT = hard ? 0.75 : 1.05;
+            e._aidaAim = Math.atan2(p.y - e.y, p.x - e.x);
+          }
+        } else if (e._aidaState === 'telegraph') {
+          // The tell: thin warning beams along exactly where the fan will go.
+          e._aidaAim += (Math.atan2(p.y - e.y, p.x - e.x) - e._aidaAim) * Math.min(1, dt * 2.2);
+          const arms = hard ? 5 : 3;
+          for (let a2 = 0; a2 < arms; a2++) {
+            const ang2 = e._aidaAim + (a2 - (arms - 1) / 2) * 0.42;
+            const w2 = this.parts.acquire();
+            w2.x = e.x; w2.y = e.y; w2.vx = 0; w2.vy = 0;
+            w2.life = 0.08; w2.max = 0.08;
+            w2.color = '#ff5ef5'; w2.size = 620; w2.type = 'lightning';
+            w2.vx = e.x + Math.cos(ang2) * 620;
+            w2.vy = e.y + Math.sin(ang2) * 620;
+          }
+          if (e._aidaT <= 0) {
+            e._aidaState = 'sweep';
+            e._aidaT = hard ? 1.5 : 1.1;
+            e._aidaSweep = 0;
+            Audio.active('lightning');
+          }
+        } else if (e._aidaState === 'sweep') {
+          // The fan rotates through its arc, firing continuously. Standing
+          // inside the arc is fatal; the gap between arms is the safe lane.
+          const arms = hard ? 5 : 3;
+          e._aidaSweep = (e._aidaSweep || 0) + dt * (hard ? 2.1 : 1.5);
+          e._aidaFire = (e._aidaFire || 0) - dt;
+          if (e._aidaFire <= 0) {
+            e._aidaFire = 0.06;
+            for (let a2 = 0; a2 < arms; a2++) {
+              const ang2 = e._aidaAim + (a2 - (arms - 1) / 2) * 0.42 + e._aidaSweep;
+              const evp = this.eprojs.acquire();
+              evp.x = e.x; evp.y = e.y;
+              evp.vx = Math.cos(ang2) * 330; evp.vy = Math.sin(ang2) * 330;
+              evp.dmg = t.dmg * (e.dmgMult || 1) * 0.30;
+              evp.life = 2.4; evp.color = '#ff5ef5'; evp.size = 7; evp.homing = 0;
+            }
+          }
+          if (e._aidaT <= 0) { e._aidaState = 'seek'; e._aidaT = 0.5; }
+        } else {
+          // Seekers between sweeps, so waiting out the laser is not free.
+          if (e._aidaT <= 0) {
+            const n2 = hard ? 5 : 3;
+            for (let i2 = 0; i2 < n2; i2++) {
+              const a2 = Math.random() * TAU;
+              const evp = this.eprojs.acquire();
+              evp.x = e.x + Math.cos(a2) * t.size;
+              evp.y = e.y + Math.sin(a2) * t.size;
+              evp.vx = Math.cos(a2) * 120; evp.vy = Math.sin(a2) * 120;
+              evp.dmg = t.dmg * (e.dmgMult || 1) * 0.45;
+              evp.life = 4.5; evp.color = '#9fd8ff'; evp.size = 9; evp.homing = 1.6;
+            }
+            e._aidaState = 'move';
+            e._aidaT = hard ? 1.5 : 2.2;
+          }
+        }
+        // She holds position while telegraphing and sweeping — a boss that
+        // walks at you during its own attack cannot be sidestepped.
+        if (e._aidaState !== 'move') spd = 0;
+      }
+
       if (t.id === 'bossVoidTitan') {
         e._voidCD = (e._voidCD !== undefined ? e._voidCD : 2) - dt;
         if (e._voidCD <= 0) {
@@ -2580,15 +3370,83 @@ export class Game {
         }
       }
 
-      e.x += nx * spd * dt + e.kbX * dt;
-      e.y += ny * spd * dt + e.kbY * dt;
+      // ---- Break up the conga line -------------------------------------
+      //
+      // Spawn angles are already random around the player, but every enemy
+      // then steers at the player's CURRENT position. Once the player is
+      // moving, all of them converge onto the same point and collapse into a
+      // single trailing column — you spend the run backing away from one queue
+      // and the XP orbs are all inside it, which is the opposite of how this
+      // genre is supposed to feel. Two forces fix it, and both are needed.
+      //
+      // 1. SEPARATION. Enemies push each other apart, so a crowd spreads into
+      //    a front instead of a file. Uses the existing broadphase, and only
+      //    looks at close neighbours, so it stays cheap with hundreds alive.
+      let sepX = 0, sepY = 0;
+      const sepR = t.size * 1.35;
+      this.enemyGrid.query(e.x, e.y, sepR, (o) => {
+        if (o === e || !o.alive) return;
+        const ox = e.x - o.x, oy = e.y - o.y;
+        const od2 = ox * ox + oy * oy;
+        if (od2 <= 0.01 || od2 > sepR * sepR) return;
+        const od = Math.sqrt(od2);
+        // Falls off with distance so contact shoves hard and neighbours drift.
+        const w = (1 - od / sepR) / od;
+        sepX += ox * w; sepY += oy * w;
+      });
+
+      // 2. INTERCEPT. Each enemy aims slightly ahead of where the player is
+      //    GOING rather than where they are, by an amount fixed per enemy.
+      //    Identical lead would just move the queue; a spread of leads fans
+      //    them across the player's path so you have to weave, which is what
+      //    opens up the ground the orbs are lying on.
+      if (e._lead === undefined) e._lead = rand(0, 0.55);
+      const ix = nx + (p.vx || 0) * e._lead * 0.004;
+      const iy = ny + (p.vy || 0) * e._lead * 0.004;
+      const il = Math.hypot(ix, iy) || 1;
+
+      e.x += (ix / il) * spd * dt + sepX * 26 * dt + e.kbX * dt;
+      e.y += (iy / il) * spd * dt + sepY * 26 * dt + e.kbY * dt;
       e.x = clamp(e.x, 20, this.world.w - 20);
       e.y = clamp(e.y, 20, this.world.h - 20);
       e.kbX *= Math.pow(0.001, dt);
       e.kbY *= Math.pow(0.001, dt);
-      // separation - mild
-      // collision with player
+
+      // Wounded enemies keep bleeding between hits.
+      this._updateBleed(e, dt);
+
       const sumR = (t.size / 2) + p.r;
+
+      // Contact separation.
+      //
+      // There used to be a `// separation - mild` comment here with no code
+      // under it, and that was the whole bug: nothing ever stopped an enemy
+      // from walking INTO the player. `nx`/`ny` are recomputed toward the
+      // player every frame, so once one arrived it drove itself into the
+      // hitbox, overshot, flipped, and jittered on the spot -- visually glued
+      // to the character. Contact damage kept retriggering on its 0.32s
+      // cooldown the entire time, so anything faster than the player (the
+      // small ones especially) was unshakeable and simply ground you down.
+      //
+      // Pushing the enemy back onto the contact ring keeps it threatening --
+      // it still touches, and the damage check below still fires -- but it can
+      // no longer occupy the same space as the player, so you can always walk
+      // out of it. Bosses are exempt: their size makes the ring huge, and
+      // being shoved off a boss would read as the boss backing away.
+      if (!t.boss) {
+        const sx = e.x - p.x, sy = e.y - p.y;
+        const sd = Math.hypot(sx, sy);
+        if (sd < sumR) {
+          // At sd == 0 there is no meaningful direction to push along, so fall
+          // back to the approach normal rather than dividing by zero.
+          const ux = sd > 0.001 ? sx / sd : -nx;
+          const uy = sd > 0.001 ? sy / sd : -ny;
+          e.x = clamp(p.x + ux * sumR, 20, this.world.w - 20);
+          e.y = clamp(p.y + uy * sumR, 20, this.world.h - 20);
+        }
+      }
+
+      // collision with player
       if (d < sumR + 4 && (this.run.stats.flags || {}).venomBite) {
         e._venomCD = (e._venomCD || 0) - dt;
         if (e._venomCD <= 0) {
@@ -2598,7 +3456,22 @@ export class Game {
           this.spawnSpark(e.x, e.y, '#7ad96b');
         }
       }
-      if (d < sumR + 4 && p.iframes <= 0) {
+      // Per-enemy attack cooldown, on top of the global i-frames.
+      //
+      // The design intent for 70 starting HP is "four mistakes before you die"
+      // (see the maxHp comment). With only a 0.32s global window, four hits
+      // from a 17-damage enemy land in 1.3 SECONDS — so the mechanic was
+      // counting time-in-contact while the design was counting mistakes.
+      // Standing next to something for a second and a bit is one mistake, and
+      // it killed you. That is the "I just poof die" report.
+      //
+      // Giving each enemy its own ~1s swing timer separates the two: an
+      // individual enemy can only land a hit a second, so four hits really is
+      // four approaches, while the much shorter global window still lets a
+      // desynchronised crowd hurt faster than a single chaser — which is the
+      // reason the global window was tightened in the first place.
+      e._hitCD = Math.max(0, (e._hitCD || 0) - dt);
+      if (d < sumR + 4 && p.iframes <= 0 && e._hitCD <= 0) {
         if (p.shieldCharge > 0) {
           p.shieldCharge = 0; p.shieldCD = 25;
           p.iframes = 0.7;
@@ -2610,6 +3483,13 @@ export class Game {
           const dmg = this.mitigate(t.dmg * (e.dmgMult || 1));
           // Reflect
           if (f.reflect) { this.dealDamage(e, dmg * 0.3, false, 0, p.x, p.y, true); }
+          // Thorns: return a share of what you just took, to whatever hit you.
+          // Separate from `reflect` on purpose -- they stack, and Thorns scales
+          // with its own card amount.
+          if (f.thorns) {
+            this.dealDamage(e, dmg * (this.run.stats.thornsAmt || 0.25), false, 30, p.x, p.y, true);
+            this.spawnSpark(e.x, e.y, '#8fe36b');
+          }
           // Grit damage reduction
           const reduce = f.grit && (p._gritT || 0) > this.run.time ? 0.7 : 1.0;
           p.hp -= dmg * reduce;
@@ -2620,7 +3500,31 @@ export class Game {
           // enemies could only ever land two hits a second no matter how
           // many of them were touching you. Standing in a crowd should hurt
           // roughly in proportion to the crowd.
-          p.iframes = 0.32;
+          // Short global window: just enough that two enemies cannot both
+          // resolve on the same frame. The real throttle is `_hitCD` above.
+          p.iframes = 0.15;
+          e._hitCD = 1.0;
+          // Shove the attacker back out past the damage ring after it lands a
+          // hit.
+          //
+          // This is the other half of the contact-separation fix. Before that
+          // fix, enemies drove into the player and jittered, and the jitter
+          // accidentally carried them outside `sumR + 4` between frames — you
+          // got intermittent contact and a chance to escape. Pinning them to
+          // the ring made contact CONTINUOUS: a fresh 70 HP player against a
+          // 17-damage ghoul on a 0.32s cooldown is 53 dps, i.e. dead in 1.3
+          // seconds, which reads as dying for no reason at all.
+          //
+          // A hit now buys space. It decays through the normal knockback
+          // damping, so a slow enemy loses a beat and a fast one closes again
+          // almost immediately — the pressure stays, the instant death does
+          // not.
+          {
+            const kdx = e.x - p.x, kdy = e.y - p.y;
+            const kd = Math.hypot(kdx, kdy) || 1;
+            e.kbX += (kdx / kd) * 260;
+            e.kbY += (kdy / kd) * 260;
+          }
           if (p._reflectTimer > 0) { this.dealDamage(e, dmg * 0.6, true, 0, p.x, p.y, true); }
           this.cam.shake = Math.max(this.cam.shake, 5);
           this.spawnHitBurst(p.x, p.y, '#b51d28', 18);
@@ -2662,7 +3566,19 @@ export class Game {
         if (pr.hit.has(e)) return;
         const sumR = e.t.size / 2 + pr.size;
         if (dist2(pr.x, pr.y, e.x, e.y) <= sumR * sumR) {
-          this.dealDamage(e, pr.dmg, pr.crit, pr.knockback, pr.x, pr.y, false, pr.color);
+          // Every enemy gets its OWN crit roll. The first target uses the roll
+          // made when the shot was fired; each further target a piercing shot
+          // reaches rolls fresh. Crit is a property of a HIT, not of a bullet —
+          // sharing one roll across a row meant a big piercing shot either crit
+          // on everything it touched or on nothing, which is exactly the
+          // "it crits all of them at once" complaint.
+          let hitDmg = pr.dmg, hitCrit = pr.crit;
+          if (pr._hitCount) {
+            const r = this.rollDamage(pr._baseDmg, pr._baseCrit);
+            hitDmg = r.dmg; hitCrit = r.crit;
+          }
+          pr._hitCount = (pr._hitCount || 0) + 1;
+          this.dealDamage(e, hitDmg, hitCrit, pr.knockback, pr.x, pr.y, false, pr.color);
           this.spawnHitBurst(pr.x, pr.y, pr.color || e.t.color, 8);
           if (pr._element) {
             const bonus = 1 + (this.run.stats.elementalDmg || 0);
@@ -2844,7 +3760,32 @@ export class Game {
       p.x += p.vx * dt; p.y += p.vy * dt;
       p.vx *= Math.pow(0.05, dt);
       p.vy *= Math.pow(0.05, dt);
+      // Spike trap: sits armed until something walks over it, then fires once.
+      if (p.type === 'spikeTrap') {
+        p._armed = (p._armed || 0) - dt;
+        if (!p._used && p._armed <= 0) {
+          this.enemies.forEach((en) => {
+            if (p._used) return;
+            if (dist2(en.x, en.y, p.x, p.y) > p.size * p.size) return;
+            p._used = true;
+            const r = p.size;
+            this.enemies.forEach((e2) => {
+              if (dist2(e2.x, e2.y, p.x, p.y) > r * r) return;
+              this.dealDamage(e2, p._dmg, false, 120, p.x, p.y, true);
+            });
+            this.spawnRing(p.x, p.y, r, '#dfe8ff', 0.3);
+            p.life = Math.min(p.life, 0.25);
+          });
+        }
+      }
       if (p.type === 'blood') p.vy += 200 * dt;
+      // Skin flakes fall, but flutter: light and broad, so they slow down fast
+      // and drift rather than arcing like a chunk of meat.
+      if (p.type === 'skinFlake') {
+        p.vy += 150 * dt;
+        p.vx *= Math.pow(0.22, dt);
+        p.vy *= Math.pow(0.5, dt);
+      }
       if (p.type === 'chunk') p.vy += 260 * dt; // dismembered flesh chunks fall
       if (p.type === 'casing') {
         if (p._settled) {
@@ -2932,6 +3873,86 @@ export class Game {
     if (crit) { Audio.crit(); this._critPunch = Math.min(0.22, this._critPunch + 0.18); }
     else if (!silent) Audio.impact(s._behaviour); // silent hits are per-frame DoT ticks — see orbit/beam
     if ((s.flags || {}).burnDoT) e._burn = Math.max(e._burn || 0, 3);
+
+    // ---- Passive card effects ---------------------------------------------
+    // These ten flags were declared on their cards but READ NOWHERE, so every
+    // one of them was a dead pick: you chose "Ricochet" out of three offers
+    // and got nothing at all. Implemented here, at the one point every hit
+    // passes through.
+    const pf = s.flags || {};
+
+    // Frostbite: chilled foes take more. Read before the damage lands so it
+    // scales the hit that is being dealt right now.
+    if (pf.frostbite && (e._slowT > 0 || e._frozen > 0)) dmg *= 1.20;
+
+    // Death Mark: shots into a slowed/marked foe hit harder. Same idea as
+    // Frostbite but a bigger bonus on a narrower condition.
+    if (pf.deathMark && e._slowT > 0) dmg *= 1.30;
+
+    // Lightning Crit: a crit arcs to two nearby foes. Guarded against
+    // re-entry for the same reason the other arcs are.
+    if (!silent && crit && pf.lightningOnCrit && !e._critArcNow) {
+      e._critArcNow = true;
+      let prev = e;
+      const hit = new Set([e]);
+      for (let j = 0; j < 2; j++) {
+        const next = this.nearestEnemyExcluding(prev.x, prev.y, 210, prev);
+        if (!next || hit.has(next)) break;
+        this.spawnLightning(prev.x, prev.y, next.x, next.y, '#bfe8ff');
+        this.dealDamage(next, dmg * 0.5, false, 24, prev.x, prev.y, true);
+        hit.add(next); prev = next;
+      }
+      e._critArcNow = false;
+    }
+
+    // Executioner: anything already broken dies to any hit. Bosses exempt --
+    // an instant-kill on a boss would trivialise the fight it gates.
+    if (pf.executioner && !e.t.boss && e.maxHp > 0 && e.hp / e.maxHp <= 0.15) {
+      dmg = e.hp + 1;
+      if (!silent) this.spawnDamageNumber(e.x, e.y - e.t.size * 0.7, 'EXECUTE', '#ff3146');
+    }
+
+    // Electric Rounds / Live Wire: the hit arcs onward. `silent` hits are
+    // per-frame DoT ticks (orbit/beam) -- arcing off those would fire sixty
+    // times a second, so they are excluded.
+    if (!silent && (pf.electricRounds || pf.liveWire)) {
+      const isManual = s._wtype === 'manual';
+      // Live Wire is the manual-weapon upgrade of the same idea: more jumps,
+      // but only off a manual weapon.
+      const jumps = pf.liveWire && isManual ? 3 : (pf.electricRounds ? 1 : 0);
+      if (jumps > 0 && !e._arcingNow) {
+        // Guard against re-entry: dealDamage below can arc again off the
+        // enemy it just hit and recurse until the stack blows.
+        e._arcingNow = true;
+        let prev = e;
+        const hit = new Set([e]);
+        for (let j = 0; j < jumps; j++) {
+          let next = null; let bestD = 190;
+          this.enemies.forEach((en) => {
+            if (hit.has(en) || en === e) return;
+            const cd = Math.hypot(en.x - prev.x, en.y - prev.y);
+            if (cd < bestD) { bestD = cd; next = en; }
+          });
+          if (!next) break;
+          this.spawnLightning(prev.x, prev.y, next.x, next.y, '#9fd8ff');
+          this.dealDamage(next, dmg * 0.45, false, 20, prev.x, prev.y, true);
+          hit.add(next); prev = next;
+        }
+        e._arcingNow = false;
+      }
+    }
+
+    // Ricochet: the shot bounces once to a nearby foe for reduced damage.
+    // Same re-entry guard, same reason.
+    if (!silent && pf.ricochet && !e._ricochetNow) {
+      const t2 = this.nearestEnemyExcluding(e.x, e.y, 170, e);
+      if (t2) {
+        e._ricochetNow = true;
+        this.spawnSpark(t2.x, t2.y, '#dfe8ff');
+        this.dealDamage(t2, dmg * 0.5, false, 20, e.x, e.y, true);
+        e._ricochetNow = false;
+      }
+    }
     if ((s.flags || {}).vampire && !silent) {
       const vAmt = s.vampireAmt || 0.001;
       this.player.hp = Math.min(this.player.maxHp, this.player.hp + dmg * vAmt);
@@ -2992,7 +4013,12 @@ export class Game {
     // (ox,oy — the projectile's own position at collision, not the enemy
     // center), so hits visibly "punch in" somewhere specific on the body
     // rather than just tinting the whole silhouette.
-    this.spawnPunctureHit(ox, oy, bloodColor);
+    // Direction of travel of whatever hit them: from the impact point toward
+    // the body. spawnHitSparks below already derives this; blood now uses the
+    // same vector so spatter and sparks agree on where the shot came from.
+    const _hdx = e.x - (ox ?? e.x), _hdy = e.y - (oy ?? e.y);
+    const _hl = Math.hypot(_hdx, _hdy) || 1;
+    this.spawnPunctureHit(ox, oy, bloodColor, _hdx / _hl, _hdy / _hl);
     this._addImpactMark(e, ox, oy, impactAccent);
     // Hit sparks use the impact accent (weapon/muzzle light color) — small,
     // transient, additive-looking flash particles are the right place for
@@ -3027,9 +4053,32 @@ export class Game {
     // Pull the mark inside the silhouette — the impact point is where the
     // projectile was, which is usually just outside the body.
     if (d > R * 0.82) { const k = (R * 0.82) / (d || 1); lx *= k; ly *= k; }
+    // The wound has to say WHAT hit it. Element wins when there is one (fire
+    // chars, ice crusts, regardless of delivery), otherwise the weapon's
+    // behaviour decides. Previously anything that was not fire or ice stamped
+    // a bullet hole, so a katana slash, a laser beam and a shockwave all
+    // punched identical neat round holes in the enemy.
     const el = this._elementHintFor(accent);
-    const kind = el === 'fire' ? 'burn' : el === 'ice' ? 'frost' : 'hole';
-    e._marks.push({ lx, ly, r: rand(1.4, 2.6), kind });
+    let kind;
+    if (el === 'fire') kind = 'burn';
+    else if (el === 'ice') kind = 'frost';
+    else {
+      switch (this._curWeaponBehaviour) {
+        case 'projectile':
+        case 'shotgun':  kind = 'hole';   break;  // only actual bullets punch through
+        case 'melee':
+        case 'orbit':    kind = 'gash';   break;  // blades open a cut, not a hole
+        case 'beam':     kind = 'sear';   break;  // a beam cauterises a line
+        case 'chain':    kind = 'arc';    break;  // electricity leaves a burn tree
+        case 'aoe':
+        case 'meteor':   kind = 'blunt';  break;  // concussive: bruise and split
+        default:         kind = 'gash';   break;
+      }
+    }
+    // Direction the hit came from, so directional wounds (gash, sear) can be
+    // oriented along the blow instead of at a random angle.
+    const ang = Math.atan2(ly, lx);
+    e._marks.push({ lx, ly, r: rand(1.4, 2.6), kind, ang });
     if (e._marks.length > 16) e._marks.shift();
   }
 
@@ -3109,6 +4158,52 @@ export class Game {
         this.spawnRing(e.x, e.y, r, '#b362ff', 0.3);
       }
       const f = s.flags || {};
+
+      // Poison Cloud: a kill leaves a lingering patch that poisons anything
+      // standing in it.
+      if (f.poisonOnKill) {
+        this.enemies.forEach((en) => {
+          if (en === e || dist2(en.x, en.y, e.x, e.y) > 90 * 90) return;
+          en._poisonStacks = Math.min(8, (en._poisonStacks || 0) + 2);
+          en._poisonT = 4;
+        });
+        this.spawnRing(e.x, e.y, 90, '#7ad96b', 0.45);
+        for (let i = 0; i < this.fxCount(6); i++) this.spawnSpark(
+          e.x + rand(-40, 40), e.y + rand(-40, 40), '#7ad96b');
+      }
+
+      // Star Burst: every fifth kill goes off as an area burst. Counted on the
+      // run so the rhythm is predictable, same as Overload Core.
+      if (f.starBurst) {
+        this.run._starBurstN = (this.run._starBurstN || 0) + 1;
+        if (this.run._starBurstN % 5 === 0) {
+          const r = 120 * s.areaMult;
+          this.enemies.forEach((en) => {
+            if (en === e || dist2(en.x, en.y, e.x, e.y) > r * r) return;
+            this.dealDamage(en, 55 * s.damageMult, false, 100, e.x, e.y, true);
+          });
+          this.spawnRing(e.x, e.y, r, '#ffe9a8', 0.45);
+          this.spawnHitBurst(e.x, e.y, '#ffe9a8', 18);
+        }
+      }
+
+      // Overload Core: every 10th kill detonates a chain reaction. Counted on
+      // the run rather than per weapon, so it fires at a predictable rhythm
+      // instead of depending on which weapon happened to land the blow.
+      if (f.overloadCore) {
+        this.run._overloadN = (this.run._overloadN || 0) + 1;
+        if (this.run._overloadN % 10 === 0) {
+          const r = 150 * s.areaMult;
+          this.enemies.forEach((en) => {
+            if (en === e || dist2(en.x, en.y, e.x, e.y) > r * r) return;
+            this.dealDamage(en, 90 * s.damageMult, false, 140, e.x, e.y, true);
+          });
+          this.spawnRing(e.x, e.y, r, '#ffd166', 0.5);
+          this.spawnHitBurst(e.x, e.y, '#ffd166', 24);
+          this.cam.shake = Math.max(this.cam.shake, 10);
+          this.spawnDamageNumber(e.x, e.y - 40, 'OVERLOAD', '#ffd166');
+        }
+      }
       if (f.chainOnKill) {
         const t2 = this.nearestEnemy(e.x, e.y, 200);
         if (t2 && t2.alive && t2 !== e) this.dealDamage(t2, 0.5 * (s._lastHitDmg || 30), false, 40, e.x, e.y, true);
@@ -3143,6 +4238,15 @@ export class Game {
     // every enemy doesn't die the exact same "green splat" regardless of type.
     const fx = ENEMY_KILL_FX[t.id] || KILL_FX[s._lastHitWeapon] || 'gibs';
     const finalBlood = e._lastHitColor || t.color;
+    // An arterial fan on every kill, thrown along the direction the killing
+    // blow came from. Scales with the body, so a big enemy opens up wider —
+    // the same effect at a fixed size would look wrong on both a bat and a
+    // brute. Bosses are excluded; they have their own death sequence.
+    if (!t.boss) {
+      const km = e._marks && e._marks.length ? e._marks[e._marks.length - 1] : null;
+      const kAng = km && km.ang !== undefined ? km.ang : Math.random() * TAU;
+      this.spawnArterialCone(e.x, e.y, kAng, finalBlood, Math.min(1, 0.4 + t.size / 60));
+    }
     this.spawnBrutalKill(e.x, e.y, finalBlood, t.size, fx);
     Audio.kill(t.size, !!t.boss);
     // Ground mark where the body fell — was a body-sized (0.85x) flat pool
@@ -3153,7 +4257,10 @@ export class Game {
     // skipped entirely for FX types that shouldn't leave a blood pool at all
     // (crystal shatter / dust decay / metal spark burst).
     if (fx !== 'crystallize' && fx !== 'decay' && fx !== 'sparkExplode') {
-      this.pushBloodDecal({ x: e.x, y: e.y, r: t.size * 0.3, a: 0.4, bornAt: this.time, color: finalBlood });
+      // Ooze is the one deliberate exception — slimes were never bleeding to
+      // begin with, so their pool stays their own color; every other death
+      // leaves an actual blood pool now.
+      this.pushBloodDecal({ x: e.x, y: e.y, r: t.size * 0.3, a: 0.4, bornAt: this.time, color: fx === 'ooze' ? finalBlood : BLOOD_RED });
     }
     // drop XP gem
     const gm = this.gems.acquire();
@@ -3189,7 +4296,11 @@ export class Game {
       this._pendingGearDrop = { timeInRun: this.run.time, boss: true };
       this.cam.shake = 18; this.cam.slowmo = 0.5;
       Audio.boss();
-      this.bossesKilled += 1; this.bossActive = null;
+      this.bossesKilled += 1;
+      // Only clear the HUD pointer if it is THIS boss that died. Blanking it
+      // unconditionally meant any second boss on the field taking the bar
+      // down with it while the one the bar was tracking was still alive.
+      if (this.bossActive === e) this.bossActive = null;
       this._tierBannerT = 3.4; // "TIER N NOW ACTIVATED" banner, see snapshot()/HUD
       // Massive boss death rings
       this.spawnRing(e.x, e.y, 240, '#ff7a1a', 0.8);
@@ -3288,7 +4399,7 @@ export class Game {
         pp.x = x + rand(-4,4); pp.y = y + rand(-4,4);
         const a = Math.random() * TAU; const sp = rand(160, 440);
         pp.vx = Math.cos(a)*sp; pp.vy = Math.sin(a)*sp - rand(30, 120);
-        pp.life = rand(0.5,1.0); pp.max = pp.life; pp.color = i%4===0?'#b51d28':color; pp.size = rand(1.6,3.4); pp.type = 'blood';
+        pp.life = rand(0.5,1.0); pp.max = pp.life; pp.color = BLOOD_RED; pp.size = rand(1.6,3.4); pp.type = 'blood';
       }
       for (let i = 0; i < 3; i++) {
         const pp = this.parts.acquire();
@@ -3306,7 +4417,7 @@ export class Game {
         const a = Math.random() * TAU; const sp = rand(100, 480);
         pp.vx = Math.cos(a)*sp; pp.vy = Math.sin(a)*sp - rand(40,160);
         pp.life = rand(0.4, 1.0); pp.max = pp.life;
-        pp.color = i % 4 === 0 ? '#b51d28' : color;
+        pp.color = BLOOD_RED;
         pp.size = rand(1.2, 3); pp.type = 'blood';
       }
       // Body chunks
@@ -3388,24 +4499,182 @@ export class Game {
   // static splash. Distinct from (and much smaller than) the 10%-HP wound
   // patches in spawnWoundBurst, which track cumulative damage rather than
   // this-exact-shot feedback.
-  spawnPunctureHit(x, y, color) {
-    this.pushBloodDecal({ x, y, r: rand(1.2, 2.2), a: 0.75, bornAt: this.time, color });
+  // `dirX/dirY` is the direction the shot was travelling. Spatter used to fire
+  // off at `Math.random() * TAU` -- a neat ring of droplets around the wound,
+  // identical whether you shot them from the left or dropped a meteor on them.
+  // Blood now throws along the shot, which is the single biggest thing that
+  // makes a hit read as having come from your gun.
+  spawnPunctureHit(x, y, color, dirX, dirY) {
+    const hasDir = dirX !== undefined && (dirX || dirY);
+    const fwd = hasDir ? Math.atan2(dirY, dirX) : 0;
+    this.pushBloodDecal({ x, y, r: rand(1.2, 2.2), a: 0.75, bornAt: this.time, color: BLOOD_RED });
+
+    // A small arterial fan out the exit side of a gunshot too. Quarter power,
+    // so it is a flick rather than the sheet a blade produces — the katana has
+    // to stay the reason to use the katana. Not on every hit: a fan on every
+    // bullet from a 9-per-second SMG would be a wall of red.
+    if (hasDir && Math.random() < 0.35) {
+      this.spawnArterialCone(x, y, fwd, color, 0.25);
+    }
+
+    // Exit spatter: a cone of droplets thrown onward past the body, landing as
+    // a smear on the ground beyond it rather than a pool underneath.
+    if (hasDir) {
+      const cast = this.fxCount(3);
+      for (let i = 0; i < cast; i++) {
+        const a = fwd + rand(-0.5, 0.5);
+        const dist = rand(14, 46);
+        this.pushBloodDecal({
+          x: x + Math.cos(a) * dist,
+          y: y + Math.sin(a) * dist,
+          r: rand(0.8, 2.0), a: rand(0.25, 0.5), bornAt: this.time, color: BLOOD_RED,
+        });
+      }
+    }
+
+    // Back-spatter: a thinner, faster spray thrown BACK toward the shooter.
+    // Real impacts throw material both ways, and having everything go one way
+    // was the tell that this was a cone generator rather than a wound.
+    if (hasDir && Math.random() < 0.7) {
+      const back = fwd + Math.PI;
+      const bn = this.fxCount(2 + randi(0, 2));
+      for (let i = 0; i < bn; i++) {
+        const p = this.parts.acquire();
+        p.x = x; p.y = y;
+        // Tighter cone and less speed than the exit side.
+        const a = back + rand(-0.45, 0.45);
+        const sp = rand(60, 150);
+        p.vx = Math.cos(a) * sp; p.vy = Math.sin(a) * sp - rand(20, 60);
+        p.life = rand(0.12, 0.3); p.max = p.life;
+        p.color = BLOOD_RED; p.size = rand(0.5, 1.1); p.type = 'blood';
+      }
+    }
+
     const n = 2 + randi(0, 2);
     for (let i = 0; i < n; i++) {
       const p = this.parts.acquire();
       p.x = x; p.y = y;
-      const a = Math.random() * TAU; const sp = rand(30, 90);
+      // Mostly forward along the shot, but not slavishly: one droplet in five
+      // goes anywhere at all. A perfectly obedient cone looks generated; the
+      // strays are what make it look like it came off something wet.
+      const wild = Math.random() < 0.2;
+      const a = (hasDir && !wild) ? fwd + rand(-0.9, 0.9) : Math.random() * TAU;
+      // Three grades of droplet in every spray: fine mist, ordinary spatter,
+      // and the occasional fat slow drop that arcs and lands separately.
+      const grade = Math.random();
+      const heavy = grade > 0.86;
+      const mist = grade < 0.3;
+      const sp = (mist ? rand(70, 170) : heavy ? rand(18, 45) : rand(30, 90)) * (hasDir ? 1.6 : 1);
       p.vx = Math.cos(a) * sp; p.vy = Math.sin(a) * sp - rand(10, 40);
+      p._heavy = heavy; p._mist = mist;
       // Staggered life so droplets visibly separate in time (the "pump")
       // instead of one simultaneous burst.
       p.life = rand(0.15, 0.5) + i * 0.06; p.max = p.life;
-      p.color = color; p.size = rand(0.8, 1.8); p.type = 'blood';
+      p.color = BLOOD_RED;
+      // Size follows the grade, so mist really is fine and the fat drops
+      // really are fat. A spray of identically sized dots is the giveaway.
+      p.size = mist ? rand(0.35, 0.7) : heavy ? rand(1.9, 3.1) : rand(0.8, 1.8);
+      p.type = 'blood';
+    }
+  }
+
+  // ---- Arterial cone -------------------------------------------------------
+  // The wide flat fan of blood that erupts along a cut, the way Slash of Sword
+  // does it: a sheet rather than a spray. Everything already here throws round
+  // droplets, and droplets can never read as a SLASH — a cut is a line, so what
+  // comes out of it has to be a shape with an edge and a direction.
+  //
+  // Kept alongside the existing spatter rather than replacing it: the fan is
+  // the silhouette, the droplets are the texture, and together they read as one
+  // event. `power` scales the whole thing so a katana kill and a bullet hit can
+  // share the code without looking like the same event.
+  // `color` is accepted for backward compatibility with every call site but
+  // no longer used for the particles themselves — this whole effect IS
+  // blood, and blood is always BLOOD_RED now (Timmy). Left in the signature
+  // rather than touching every caller.
+  spawnArterialCone(x, y, ang, color, power = 1) {
+    const c = this.parts.acquire();
+    c.x = x; c.y = y; c.vx = 0; c.vy = 0;
+    c.life = 0.34 + power * 0.1; c.max = c.life;
+    c.color = BLOOD_RED;
+    c.size = (58 + power * 46);      // reach of the fan
+    c.type = 'bloodCone';
+    c._ang = ang;
+    c._spread = 0.5 + power * 0.35;  // how wide it opens
+    c._seed = Math.random() * 1000;
+
+    // Long thin streaks riding the leading edge. These are what sell the
+    // ARC — a fan alone reads as a triangle, the streaks give it motion.
+    const n = this.fxCount(Math.round(4 + power * 5));
+    for (let i = 0; i < n; i++) {
+      const s = this.parts.acquire();
+      const a = ang + rand(-c._spread, c._spread);
+      const sp = rand(260, 620) * (0.6 + power * 0.6);
+      s.x = x; s.y = y;
+      s.vx = Math.cos(a) * sp;
+      s.vy = Math.sin(a) * sp - rand(20, 120);
+      s.life = rand(0.25, 0.55); s.max = s.life;
+      s.color = BLOOD_RED;
+      s.size = rand(1.4, 3.6) * (0.7 + power * 0.5);
+      s.type = 'blood';
+      s._mist = false; s._heavy = i % 4 === 0;
+    }
+    // Airborne droplets thrown high out of the cut, arcing over and landing
+    // separately. This is the part that makes it read as ARTERIAL rather than
+    // as an impact puff.
+    const arcN = this.fxCount(Math.round(2 + power * 4));
+    for (let i = 0; i < arcN; i++) {
+      const s = this.parts.acquire();
+      const a = ang + rand(-0.7, 0.7);
+      s.x = x; s.y = y;
+      s.vx = Math.cos(a) * rand(60, 190);
+      s.vy = Math.sin(a) * rand(60, 190) - rand(180, 340);   // thrown UP
+      s.life = rand(0.6, 1.1); s.max = s.life;
+      s.color = BLOOD_RED;
+      s.size = rand(1.8, 3.8);
+      s.type = 'blood';
+      s._heavy = true;
+    }
+  }
+
+  // Arterial bleed. A wounded enemy keeps pumping between hits, in rhythmic
+  // spurts out of its worst wound rather than a steady dribble -- the pulse is
+  // what reads as something still alive and losing.
+  //
+  // Called from updateEnemies. Cheap: one timer per enemy, and it only runs on
+  // enemies that are actually hurt.
+  _updateBleed(e, dt) {
+    if (!e._marks || !e._marks.length) return;
+    const hurt = 1 - e.hp / Math.max(1, e.maxHp);
+    if (hurt < 0.35) return;                  // only real wounds pump
+    e._bleedT = (e._bleedT || 0) - dt;
+    if (e._bleedT > 0) return;
+    // Faster pulse the worse they are: roughly 1.1s down to 0.35s.
+    e._bleedT = 1.2 - hurt * 0.85 + Math.random() * 0.25;
+
+    // Pump from the most recent wound, outward along the way it faces.
+    const m = e._marks[e._marks.length - 1];
+    const wx = e.x + m.lx, wy = e.y + m.ly;
+    const a0 = m.ang !== undefined ? m.ang : Math.atan2(m.ly, m.lx);
+    const n = this.fxCount(2 + randi(0, 3));
+    for (let i = 0; i < n; i++) {
+      const p = this.parts.acquire();
+      p.x = wx; p.y = wy;
+      const a = a0 + rand(-0.35, 0.35);
+      // Spurt strength varies shot to shot, so no two pulses look the same.
+      const sp = rand(50, 130) * (0.7 + hurt * 0.7);
+      p.vx = Math.cos(a) * sp; p.vy = Math.sin(a) * sp - rand(20, 70);
+      p.life = rand(0.25, 0.6); p.max = p.life;
+      p.color = BLOOD_RED; p.size = rand(0.7, 1.9); p.type = 'blood';
     }
   }
 
   addXp(amount) {
     const r = this.run;
-    r.xp += Math.floor(amount * r.stats.xpMult);
+    // The tier's XP bonus is applied here rather than folded into the orb
+    // values so it also covers every non-orb XP source (shrine rewards, dock
+    // stations, boss bonuses) without each of them having to remember.
+    r.xp += Math.floor(amount * r.stats.xpMult * this.diff.xpMult);
     this._maybeLevelUp();
   }
 
@@ -3419,7 +4688,25 @@ export class Game {
     if (r.xp < r.xpToNext) return;
     r.xp -= r.xpToNext;
     r.level += 1;
-    r.xpToNext = Math.floor(r.xpToNext * 1.25 + 6);
+    // Three-stage geometric curve instead of one flat 1.25×. The old curve
+    // put the player at level 9-10 by the first guardian, which is roughly a
+    // full build ahead of where the fight is tuned — the early game was
+    // handing out power faster than it was handing out threat.
+    //
+    //   1-9   ×1.46 — steep. Forward-simulated against the reworked wave
+    //                 curve this puts the player at level 7 with ~480 DPS
+    //                 when the first guardian arrives at t=150, which is
+    //                 exactly the intended "you got here, and it is still
+    //                 stronger than you". Levels 2-4 still cost only 20/37/62,
+    //                 so the early dopamine cadence is untouched — the
+    //                 steepness lands from level 5 on, which is where the old
+    //                 curve was handing out power faster than threat.
+    //   10-19 ×1.24 — the build-defining stretch; a level every ~50-90s keeps
+    //                 the card cadence alive without it becoming background.
+    //   20+   ×1.16 — flattened so a long endless run does not brick-wall
+    //                 against an accelerating spawn curve.
+    const growth = r.level < 10 ? 1.46 : r.level < 20 ? 1.24 : 1.16;
+    r.xpToNext = Math.floor(r.xpToNext * growth + 8);
     // Reveal the card modal (and pause the sim, per frame()'s
     // levelUpQueue===0 gate) half a second AFTER the explosion below, so
     // the player actually sees and feels the blast play out in real,
@@ -3437,11 +4724,11 @@ export class Game {
     // BIG level-up blast — visual + KNOCKBACK + small damage
     const p = this.player;
     this._levelUpTextPos = { x: p.x, y: p.y - 40 };
-    // Small floating orange "LEVEL UP!" text above the head, same lightweight
-    // pooled-text system as hit/dodge feedback (spawnDamageNumber) — distinct
-    // from the big centered banner (_drawLevelUpText), reads as an instant
-    // "got it" ping the same instant the blast lands.
-    this.spawnDamageNumber(p.x, p.y - 60, 'LEVEL UP!', '#ffb347', 20);
+    // Timmy: a second, smaller "LEVEL UP!" ping used to spawn here through the
+    // shared damage-number pool, on top of the big banner (_drawLevelUpText)
+    // driven by _levelUpTextTimer above — same text, two systems, a few px
+    // apart, reading as a broken double-exposure instead of two effects. One
+    // banner only now.
     const blastR = 180 * (r.stats.areaMult || 1);
     const blastR2 = blastR * blastR;
     const blastKB  = r.stats.levelUpKB  || 150;
@@ -3463,20 +4750,63 @@ export class Game {
       this._inCascade = true;
       this.dealDamage(e, blastDmg * (r.stats.damageMult || 1), false, 0, p.x, p.y, true);
       this._inCascade = prevCascade;
+
+      // Skin torn off the FACING side.
+      //
+      // The old blast threw 36 golden sparks out of the player in every
+      // direction and called it done — from inside a crowd that is just noise
+      // on top of noise, and nothing about it said the wave had actually hit
+      // anything. These flakes come off the ENEMY instead, only from the arc
+      // pointing back at the blast, and they carry the enemy's own colour, so
+      // what you read is a row of bodies being stripped on the side the wave
+      // reached. Falls off with distance: the ones next to you are shredded,
+      // the ones at the rim barely scuff.
+      const closeness = 1 - Math.min(1, d / blastR);
+      const flakes = this.fxCount(Math.round(3 + closeness * 7));
+      const nx = dx / d, ny = dy / d;         // blast -> enemy
+      const face = Math.atan2(-ny, -nx);      // the side looking back at it
+      for (let fI = 0; fI < flakes; fI++) {
+        const fp = this.parts.acquire();
+        // Spawned ON the facing surface, not at the centre — a flake that
+        // starts inside the body reads as a particle, not as peeled skin.
+        const sa = face + rand(-1.0, 1.0);
+        const sr = e.t.size * 0.46;
+        fp.x = e.x + Math.cos(sa) * sr;
+        fp.y = e.y + Math.sin(sa) * sr;
+        // Thrown outward along the wave, plus a little scatter and lift.
+        const sp2 = rand(120, 300) * (0.5 + closeness);
+        const oa = sa + Math.PI + rand(-0.5, 0.5);
+        fp.vx = Math.cos(oa) * sp2 * -1 + nx * 60;
+        fp.vy = Math.sin(oa) * sp2 * -1 + ny * 60 - rand(20, 90);
+        fp.life = rand(0.4, 0.9); fp.max = fp.life;
+        fp.color = e.t.color;
+        fp.size = rand(1.6, 4.2) * (0.7 + closeness * 0.6);
+        fp.type = 'skinFlake';
+        fp._spin = rand(-9, 9);
+        fp._rot = Math.random() * TAU;
+      }
+      // The stripped side stays marked, so the damage is visible after the
+      // flakes have landed rather than only during the burst.
+      this._addImpactMark(e, e.x + Math.cos(face) * e.t.size * 0.4,
+        e.y + Math.sin(face) * e.t.size * 0.4, '#ffd166');
     }
     this.spawnRing(p.x, p.y, blastR, '#ffd166', 0.55);
     this.spawnRing(p.x, p.y, blastR * 0.55, '#4dffd4', 0.45);
     this.spawnRing(p.x, p.y, blastR * 0.25, '#fff', 0.32);
-    // golden spark burst
-    for (let k = 0; k < 36; k++) {
-      const a = Math.random() * TAU;
-      const sp = rand(220, 520);
+    // Golden sparks, cut from 36 to 14 and thrown as a flat RING rather than a
+    // sphere. The old burst sprayed in every direction from the player and,
+    // fired from inside a crowd, buried the thing that actually matters — the
+    // wave front and the enemies coming apart on it. The wave should be the
+    // loudest thing on screen, not the confetti in front of it.
+    for (let k = 0; k < 14; k++) {
+      const a = (k / 14) * TAU + rand(-0.12, 0.12);
+      const sp = rand(340, 520);
       const pp = this.parts.acquire();
       pp.x = p.x; pp.y = p.y;
-      pp.vx = Math.cos(a) * sp; pp.vy = Math.sin(a) * sp - 40;
-      pp.life = rand(0.45, 0.85); pp.max = pp.life;
-      pp.color = k % 3 === 0 ? '#fff' : (k % 3 === 1 ? '#ffd166' : '#4dffd4');
-      pp.size = rand(2, 4); pp.type = 'spark';
+      pp.vx = Math.cos(a) * sp; pp.vy = Math.sin(a) * sp;
+      pp.life = rand(0.35, 0.6); pp.max = pp.life;
+      pp.color = k % 2 === 0 ? '#ffd166' : '#fff';
+      pp.size = rand(2, 3.4); pp.type = 'spark';
     }
     // "water-to-ash" motes drifting up from the level-up text — cool blue
     // droplets that cool into grey ash flecks as they rise and fade.
@@ -3539,6 +4869,18 @@ export class Game {
     this.maxProjSize = maxS;
   }
 
+  // Nearest enemy that is not `skip`. `nearestEnemy` would keep returning the
+  // enemy we just hit, so a ricochet would bounce back into its own target.
+  nearestEnemyExcluding(x, y, maxR, skip) {
+    let best = null; let bestD = maxR;
+    this.enemies.forEach((en) => {
+      if (en === skip) return;
+      const d = Math.hypot(en.x - x, en.y - y);
+      if (d < bestD) { bestD = d; best = en; }
+    });
+    return best;
+  }
+
   nearestEnemy(x, y, maxR) {
     let best = null, bd = maxR * maxR;
     this.enemyGrid.query(x, y, maxR + this._maxEnemyR, e => {
@@ -3561,10 +4903,23 @@ export class Game {
   // have long since finished their grow-in animation and faded visually into
   // the ground clutter, so evicting them is unnoticeable).
   pushBloodDecal(decal) {
+    // Every pool records WHAT made it, so the renderer can settle it correctly:
+    // blood clots, fire leaves embers in scorched ground, ice freezes into a
+    // shard crust, poison bubbles, electricity keeps arcing. Derived here, in
+    // the one funnel every decal passes through, rather than at each of the
+    // half-dozen call sites -- they would drift apart otherwise.
+    if (decal.kind === undefined) {
+      const el = this._elementHintFor(decal.color);
+      decal.kind = el
+        || (this._curWeaponBehaviour === 'chain' ? 'electric' : 'blood');
+    }
     if (this.bloodDecals.length >= 150) this.bloodDecals.shift();
     this.bloodDecals.push(decal);
   }
 
+  // `color` kept in the signature for every existing caller; the particles
+  // are always BLOOD_RED now regardless of what's passed (Timmy: blood is
+  // always blood-red).
   spawnBlood(x, y, color) {
     const n = this.fxCount(3 + randi(0, 4));
     for (let i = 0; i < n; i++) {
@@ -3577,7 +4932,7 @@ export class Game {
       // Droplets vary in size within a single spray. A spray of identically
       // sized dots is the tell that gore is procedural; real spatter is a few
       // fat drops among a lot of fine mist.
-      p.color = color;
+      p.color = BLOOD_RED;
       p.size = i === 0 ? rand(2.4, 3.6) : rand(0.7, 1.9);
       p.type = 'blood';
     }
@@ -3633,7 +4988,7 @@ export class Game {
     // very long boss fight would otherwise keep growing for the fight's
     // whole duration (found in a code review pass).
     if (e._wounds.length > 24) e._wounds.shift();
-    this.pushBloodDecal({ x: wx, y: wy, r: 3 + stage * 0.55, a: 0.5, bornAt: this.time, color: bc });
+    this.pushBloodDecal({ x: wx, y: wy, r: 3 + stage * 0.55, a: 0.5, bornAt: this.time, color: BLOOD_RED });
   }
 
   // Weather. Global rather than a moving zone: a zone means a per-entity
@@ -3813,7 +5168,7 @@ export class Game {
     const p = this.player;
     const isUfo = Math.random() < 0.3;
     const ang = Math.random() * TAU;
-    const dist = Math.max(this.W, this.H) * 0.7 + 80;
+    const dist = this.viewSpan() * 0.7 + 80;
     const sx = p.x + Math.cos(ang) * dist, sy = p.y + Math.sin(ang) * dist;
     const dirAng = ang + Math.PI + rand(-0.35, 0.35);
     const speed = isUfo ? rand(55, 85) : rand(480, 720);
@@ -3876,10 +5231,15 @@ export class Game {
     if (this.bossActive) {
       const b = this.bossActive;
       // cam.x/cam.y store the camera's top-left world origin (see updatePlayer:
-      // tx = p.x - W/2), matching ctx.translate(-cam.x, ...) used for world
-      // rendering — so screen pos is simply world - cam, no extra +W/2.
-      const sx = b.x - this.cam.x;
-      const sy = b.y - this.cam.y;
+      // tx = p.x - (W/2)*zoom), and the renderer scales the world by 1/zoom —
+      // so screen = (world - cam) / zoom. The division was missing, which made
+      // the boss arrow believe the boss was off screen while it was plainly
+      // visible (and vice versa) at any zoom above 1. That was already wrong
+      // for anyone holding the Vision upgrade; now that zoom is device-derived
+      // it would have been wrong on every phone, all the time.
+      const zoom = this.viewZoom();
+      const sx = (b.x - this.cam.x) / zoom;
+      const sy = (b.y - this.cam.y) / zoom;
       const margin = 50;
       const inWorld = b.x >= 0 && b.x <= this.world.w && b.y >= 0 && b.y <= this.world.h;
       offscreen = inWorld && (sx < margin || sx > this.W - margin || sy < margin || sy > this.H - margin);
@@ -3915,6 +5275,33 @@ export class Game {
       this._bossArrowDissolve.t += dt;
       if (this._bossArrowDissolve.t >= this._bossArrowDissolve.dur) this._bossArrowDissolve = null;
     }
+  }
+
+  // Active-skill rank. There was no such concept before: every skill fired at
+  // one fixed strength from the moment it was unlocked, which is exactly why
+  // Lightning Strike felt like it "starts at max level". Rank 1 is the floor,
+  // and it climbs with the character's level so a skill grows over a run
+  // instead of arriving finished.
+  skillLvl(id) {
+    const explicit = this.run.skillLvls && this.run.skillLvls[id];
+    if (explicit) return explicit;
+    return 1 + Math.floor((this.run.level || 1) / 4);
+  }
+
+  // Lightning falling from above. `delay` staggers a volley; `splashR` sizes
+  // the ground burst. The bolt itself is drawn by the renderer from these
+  // fields — see the 'skyBolt' particle branch.
+  spawnSkyBolt(x, y, delay = 0, splashR = 60) {
+    const p = this.parts.acquire();
+    p.x = x; p.y = y; p.vx = 0; p.vy = 0;
+    p.life = 0.55 + delay; p.max = p.life;
+    p.color = '#cfefff'; p.size = splashR; p.type = 'skyBolt';
+    p._delay = delay;
+    // Fixed per-bolt seed so the jagged path is stable for the bolt's whole
+    // life. Re-randomising per frame makes a bolt shimmer like TV static
+    // instead of hanging in the air the way a real strike reads.
+    p._seed = Math.random() * 1000;
+    Audio.active('lightning');
   }
 
   spawnArc(x, y, r, color, angle) {
@@ -3961,7 +5348,10 @@ export class Game {
       });
       if (!next) break;
       this.spawnLightning(chainFrom.x, chainFrom.y, next.x, next.y, s.color || '#a0e4ff');
-      this.dealDamage(next, dmg.dmg * 0.65, dmg.crit, 20, chainFrom.x, chainFrom.y);
+      // Fresh roll per link, same reason as the piercing shot above: the first
+      // target's luck should not decide the whole chain.
+      const link = this.rollDamage(s.damage * rs.damageMult * 0.65, s.crit);
+      this.dealDamage(next, link.dmg, link.crit, 20, chainFrom.x, chainFrom.y);
       this.spawnSpark(next.x, next.y, s.color || '#a0e4ff');
       hit.add(next); prev = next;
     }
@@ -4036,7 +5426,25 @@ export class Game {
     const newWeaponIds = Object.keys(WEAPONS)
       .filter(id => !owned.includes(id))
       .filter(id => !WEAPONS[id].requireUnlock || (this.meta.unlockedWeapons || []).includes(id));
-    const canAddWeapon = owned.length < (this.meta.weaponSlots || 2) && newWeaponIds.length > 0;
+    // Two gates on how many weapons you can be carrying, and they answer
+    // different questions:
+    //
+    //   meta.weaponSlots  — what your CHARACTER can hold. Permanent, bought
+    //                       with character levels and rarity (see
+    //                       buildMetaEffects). This is the meta progression.
+    //   runWeaponCap      — what you have earned THIS RUN. One more every
+    //                       four run levels. This is what stops a run from
+    //                       opening with a full arsenal and turning the first
+    //                       two minutes into a formality: at level 1 you have
+    //                       what you started with, and the second weapon is a
+    //                       thing you fought to level 4 for.
+    //
+    // The floor at owned.length matters: a character that starts with two
+    // weapons must never be told it is over its own cap and be unable to take
+    // a weapon card for the rest of the run.
+    const runWeaponCap = Math.max(owned.length, 1 + Math.floor(r.level / 4));
+    const weaponCap = Math.min(this.meta.weaponSlots || 2, runWeaponCap);
+    const canAddWeapon = owned.length < weaponCap && newWeaponIds.length > 0;
 
     // We want a mix; produce up to 4 choices, then random 3
     const pool = [];
@@ -4049,16 +5457,40 @@ export class Game {
       const evoId = upg?.evolve ? WEAPON_EVO_MAP[id] : null;
       const evoDef = evoId ? WEAPONS[evoId] : null;
       const evoText = evoDef ? ` → ${evoDef.name}` : '';
-      const canEvo = upg?.evolve && r.stats.evoUnlocked && evoId && r.stats.unlockedEvos.includes(id);
+      // A card may only promise an evolution that actually exists. Thirty of
+      // the game's weapons carry `evolve: true` on their last level-up but have
+      // no entry in WEAPON_EVO_MAP, and this line used to key on the flag
+      // alone — so thirty weapons offered an epic card reading "X — EVOLVE!"
+      // with an evolution badge, and taking it applied a damage multiplier and
+      // transformed nothing. `hasEvo` is the honest condition; the flag on its
+      // own now only means "this is the final upgrade".
+      const hasEvo = !!(upg?.evolve && evoDef);
+      const isMastery = !!(upg?.evolve && !evoDef);
+      const canEvo = hasEvo && r.stats.evoUnlocked && r.stats.unlockedEvos.includes(id);
+      let evoNote = '';
+      if (canEvo) evoNote = `\n✦ TRANSFORMS into ${evoDef.name}!`;
+      else if (hasEvo && !r.stats.evoUnlocked) evoNote = '\nEvolution locked — needs the Awakening Gate';
+      // The gap that was never reported: gate open, this weapon's evolution
+      // simply not bought yet. Previously silent, so the card looked identical
+      // to one that could evolve.
+      else if (hasEvo) evoNote = '\nEvolution not unlocked — Card Shop, EVOLUTIONS';
       pool.push({
         kind: 'weapon-upgrade', weaponId: id, icon: def.icon,
-        name: def.name + (upg?.evolve ? ` — EVOLVE!${evoText}` : (lvl >= def.levelUps.length ? ' +' + (lvl - def.levelUps.length + 2) : ' +')),
-        desc: this.describeWeaponUpgrade(def, upg) + (canEvo ? `\n✦ TRANSFORMS into ${evoDef.name}!` : (evoId && !r.stats.evoUnlocked ? '\n🔒 Evo locked (need Awakening Gate)' : '')),
-        rarity: upg?.evolve ? 'epic' : (lvl >= 4 ? 'rare' : 'uncommon'),
+        name: def.name + (hasEvo ? ` — EVOLVE!${evoText}`
+          : isMastery ? ' — MASTERY'
+            : (lvl >= def.levelUps.length ? ' +' + (lvl - def.levelUps.length + 2) : ' +')),
+        desc: this.describeWeaponUpgrade(def, upg) + evoNote,
+        rarity: hasEvo ? 'epic' : (isMastery || lvl >= 4) ? 'rare' : 'uncommon',
         evoTarget: evoDef ? evoDef.name : null,
+        // The recipe the card draws along its bottom edge: what this weapon is
+        // now and what it becomes, plus whether the transform is actually
+        // available. Ids rather than names, so the card can draw the art.
+        evoFromId: hasEvo ? id : null,
+        evoToId: evoId || null,
+        evoReady: canEvo,
         // For the level-up card UI: current/max tier so it can render level
         // pips, and whether this pick is an evolution step (distinct badge).
-        lvl, maxLvl: def.levelUps.length, isEvolve: !!(upg && upg.evolve),
+        lvl, maxLvl: def.levelUps.length, isEvolve: hasEvo,
       });
     }
     // 2: new weapons
@@ -4078,8 +5510,23 @@ export class Game {
     for (const s of STAT_CARDS) {
       const rar = rollRarity(r.stats.luck);
       const mult = RARITY[rar].mult;
-      const desc = s.desc.replace('{v}', s.mult ? Math.round(s.amount * mult * 100).toString() : (Math.round(s.amount * mult * 100) / 100).toString());
-      pool.push({ kind: 'stat', statId: s.id, statRef: s, icon: s.icon, name: s.name, desc, rarity: rar, multiplier: mult });
+      // Math.abs: every desc template carries its own sign ("+{v}% damage",
+      // "-{v}% reload time"), so a negative amount was rendering the sign
+      // twice — Fast Reload read "--8% reload time" and Overclock "--6%
+      // active skill cooldown" on every card that has ever been offered.
+      const amt = Math.abs(s.amount * mult);
+      const desc = s.desc.replace('{v}', s.mult ? Math.round(amt * 100).toString() : (Math.round(amt * 100) / 100).toString());
+      pool.push({
+        kind: 'stat', statId: s.id, statRef: s, icon: s.icon, name: s.name, desc, rarity: rar, multiplier: mult,
+        // What the pick actually does to the sheet, resolved now against the
+        // live run so the card can show "42% → 47%" instead of only "+5%".
+        // A bare "+5% damage" is unreadable as an offer: +5% of a stat that
+        // is already at 300% is a different decision than +5% at 100%.
+        cmp: this.statCompare(s, s.amount * mult),
+        // Stack count, so the card can show its level dots the same way a
+        // weapon card does.
+        lvl: (r.cardStacks && r.cardStacks[s.id]) || 0, maxLvl: CARD_MAX_STACKS,
+      });
     }
     // 4: advanced flag/stat cards (rare/epic only) — only if not already active
     for (const ac of ADVANCED_CARDS) {
@@ -4087,6 +5534,10 @@ export class Game {
       // flag cards, so checking this second would let every one of them
       // through the `ac.flag` branch regardless of whether it was unlocked.
       if (ac.prospect && !(this.meta.prospectCards || []).includes(ac.prospectId)) continue;
+      // Card Shop gate, same shape as the Prospector one above. Both unlock
+      // systems now feed the SAME pool through the SAME check, so a card can
+      // never be reachable from one and invisible to the other.
+      if (ac.shop && !(this.meta.shopCards || []).includes(ac.shopId)) continue;
       if (ac.flag) {
         if (r.stats.flags && r.stats.flags[ac.flag]) continue;
         const rar = rollRarity(r.stats.luck + 1);
@@ -4104,10 +5555,25 @@ export class Game {
         // would have silently flattened the multiplier cards too.
         const rar = rollRarity(r.stats.luck + 1);
         const statRef = { stat: ac.stat, amount: ac.amount, mult: !!ac.mult };
-        pool.push({ kind: 'stat', statId: ac.id, statRef, icon: ac.icon, name: ac.name, desc: ac.desc, rarity: rar, multiplier: 1 });
+        pool.push({ kind: 'stat', statId: ac.id, statRef, icon: ac.icon, name: ac.name, desc: ac.desc, rarity: rar, multiplier: 1, cmp: this.statCompare(statRef, ac.amount),
+          lvl: (r.cardStacks && r.cardStacks[ac.id]) || 0, maxLvl: CARD_MAX_STACKS });
       }
     }
-    // pick 3 unique
+    // pick 3 unique. Flag/stat cards (ADVANCED_CARDS + STAT_CARDS, ~50+
+    // entries) heavily outnumber weapon entries (a couple of upgrades for
+    // owned weapons plus whatever new weapons are cap-eligible) by raw pool
+    // count, so a flat uniform draw over the whole pool statistically starved
+    // weapon offers — measured under 10% of picks across real runs, and
+    // "upgrade a weapon you already have" almost never appeared at all. One
+    // slot is reserved for a weapon card whenever the pool actually has one,
+    // so weapon progression stays visible; the other two stay a free draw.
+    const weaponIdx = pool.map((c, i) => (c.kind === 'weapon-upgrade' || c.kind === 'weapon-new' || c.kind === 'weapon-fork') ? i : -1).filter(i => i >= 0);
+    if (weaponIdx.length > 0) {
+      const pick = weaponIdx[randi(0, weaponIdx.length)];
+      const c = pool.splice(pick, 1)[0];
+      usedIds.add(c.kind + '|' + (c.weaponId || c.statId || c.flagId));
+      choices.push(c);
+    }
     while (choices.length < 3 && pool.length > 0) {
       const idx = randi(0, pool.length);
       const c = pool.splice(idx, 1)[0];
@@ -4125,8 +5591,14 @@ export class Game {
     if (upg.evolve) {
       const evoId = WEAPON_EVO_MAP[weapon.id];
       const evoDef = evoId ? WEAPONS[evoId] : null;
-      const suffix = evoDef ? ` | Evolves into: ${evoDef.name}` : '';
-      return 'EVOLVED: +' + Math.round((upg.mult - 1) * 100) + '% ' + k + '. Awakened form.' + suffix;
+      const pct = '+' + Math.round((upg.mult - 1) * 100) + '% ' + this.weaponStatName(weapon, k);
+      // Same correction as the card name above: without a target in
+      // WEAPON_EVO_MAP this is simply the last upgrade on the track, and
+      // calling it an "awakened form" was describing something that does not
+      // happen.
+      return evoDef
+        ? `EVOLVED: ${pct}. Awakened form. | Evolves into: ${evoDef.name}`
+        : `MASTERY: ${pct}. Final upgrade.`;
     }
     const label = this.weaponStatName(weapon, k);
     if (upg.mult != null) return '+' + Math.round((upg.mult - 1) * 100) + '% ' + label;
@@ -4176,6 +5648,32 @@ export class Game {
     })[k] || k;
   }
 
+  // Before/after preview for a stat card. Deliberately mirrors the arithmetic
+  // in applyCardChoice below — if that changes, this has to change with it, or
+  // the card promises a number the pick does not deliver.
+  //
+  // Returns null for anything that has no meaningful "before" (a heal is an
+  // event, not a sheet value), so the UI can simply omit the row.
+  statCompare(s, amount) {
+    if (!s || !s.stat || s.stat === 'heal') return null;
+    const r = this.run;
+    const from = s.mult ? (r.stats[s.stat] ?? 1) : (r.stats[s.stat] ?? 0);
+    const to = from + amount;
+    // How the number should read. Multiplier stats live around 1.0 and mean
+    // nothing shown raw; crit and dodge are flat but are 0..1 chances, so they
+    // are percentages too.
+    const pct = s.mult || s.stat === 'crit' || s.stat === 'dodge';
+    const fmt = pct
+      ? (v) => Math.round(v * 100) + '%'
+      : (v) => (Math.round(v * 100) / 100).toString();
+    // Two stats are buffs that make the number go DOWN — reload time and
+    // skill cooldown both ship negative amounts. Colouring by the raw sign
+    // would paint the game's two best economy cards as losses.
+    const lowerIsBetter = s.stat === 'reloadMult' || s.stat === 'skillCdMult';
+    const up = lowerIsBetter ? amount <= 0 : amount >= 0;
+    return { label: STAT_LABELS[s.stat] || s.stat, from: fmt(from), to: fmt(to), up };
+  }
+
   applyCardChoice(choice) {
     const r = this.run;
     if (!choice) { // safety: never leave queue stuck
@@ -4183,9 +5681,31 @@ export class Game {
       this.cam.slowmo = 0;
       return;
     }
+    // How many times each stat/passive card has been taken. Weapons already
+    // tracked this in weaponLvls; passives had no record at all, so a card you
+    // had stacked four times looked exactly like one you had never seen. This
+    // is what the level dots on the card read from.
+    if (choice.kind === 'stat' && choice.statId) {
+      if (!r.cardStacks) r.cardStacks = {};
+      r.cardStacks[choice.statId] = (r.cardStacks[choice.statId] || 0) + 1;
+    }
     if (choice.kind === 'weapon-upgrade') {
       const baseId = choice.weaponId;
       r.weaponLvls[baseId] = (r.weaponLvls[baseId] || 0) + 1;
+      // Twin Ascend: a weapon upgrade also levels a SECOND manual weapon.
+      // Picks the least-levelled other manual weapon, so it closes the gap in
+      // a build rather than running one weapon further ahead.
+      if ((r.stats.flags || {}).twinAscend && WEAPONS[baseId]) {
+        const others = (r.ownedWeapons || []).filter(
+          (id) => id !== baseId && WEAPONS[id] && WEAPONS[id].type === 'manual');
+        if (others.length) {
+          others.sort((a, b) => (r.weaponLvls[a] || 0) - (r.weaponLvls[b] || 0));
+          const twin = others[0];
+          r.weaponLvls[twin] = (r.weaponLvls[twin] || 0) + 1;
+          this.spawnDamageNumber(this.player.x, this.player.y - 60,
+            `TWIN: ${WEAPONS[twin].name} +1`, '#b362ff');
+        }
+      }
       // Evolution check: if this levelUp has evolve:true AND evo gate + evo unlocked
       const def = WEAPONS[baseId];
       const newLvl = r.weaponLvls[baseId];
@@ -4230,7 +5750,17 @@ export class Game {
         r.stats[s.stat] = (r.stats[s.stat] || 0) + amount;
       }
       if (s.stat === 'maxHp') {
-        r.stats.maxHp = Math.min(100, r.stats.maxHp); // HP cap: never exceed 100
+        // The hard 100 cap that used to live here (and at run start) is gone.
+        // It silently voided every HP source in the game past a very low
+        // ceiling: meta's Hardened Core alone reaches +100, gear rolls up to
+        // ~60 on a finished mythical chest, six talent nodes feed maxHp, and
+        // the Vital Surge card gives +3 a pick — all of it clipped, so a
+        // player could spend an entire economy on a stat that did nothing.
+        //
+        // It also made the reworked damage curve unsurvivable: by the ten
+        // minute mark a plain slime hits for more than 100 after dmgMult, so
+        // a capped player is one-shot by the weakest enemy in the game.
+        // Health is now simply what the stats say it is.
         this.player.maxHp = r.stats.maxHp;
         this.player.hp = Math.min(this.player.maxHp, this.player.hp + amount);
       }

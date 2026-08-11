@@ -22,6 +22,10 @@ let _muted = false;
 let _sfxVol = 1.0;
 let _musicVol = 0.28;
 let _musicNode = null;
+// Which of the three track sets is currently playing ('menu' | 'game' | 'atlas'),
+// so a swap to the track that is already on can be skipped instead of restarting
+// it. Null means nothing is playing.
+let _musicTrack = null;
 let _xpPingLastT = 0;
 let _impactLastT = 0;
 let _noiseBufCache = new Map();
@@ -367,7 +371,53 @@ export const Audio = {
 
   // ---- UI ----
   click() { osc({ type: 'square', freq: 880, dur: 0.05, vol: 0.08 }); },
+  // Level-up card hover. Deliberately much quieter and shorter than click():
+  // it fires every time the pointer crosses a card, so anything with body to
+  // it turns into a rattle while you compare three of them. `rank` (0..1) is
+  // the card's rarity, which pitches the tick up — a legendary announces
+  // itself before you have read the plate.
+  cardHover(rank = 0) {
+    osc({ type: 'triangle', freq: 620 + rank * 460, dur: 0.035, vol: 0.035, attack: 0.002 });
+  },
   blueprint() { osc({ type: 'triangle', freq: 523, dur: 0.10, vol: 0.10 }); setTimeout(() => osc({ type: 'triangle', freq: 1046, dur: 0.18, vol: 0.12 }), 80); },
+
+  // ---- Profile level-up ----
+  // The XP bar filling. `t` is 0..1 along the bar and pitches the tick up with
+  // it, so the bar is audibly climbing rather than just rattling. A flat tick
+  // repeated nine times reads as a loading spinner; a rising one reads as
+  // progress, and that difference is most of the feeling.
+  xpTick(t = 0) {
+    osc({ type: 'square', freq: 380 + t * t * 900, dur: 0.045, vol: 0.055, attack: 0.002 });
+  },
+  // The bar hitting the end. Deliberately the biggest sound on the screen —
+  // this is the moment the level actually happens.
+  xpArrive() {
+    const c = ctx(); if (!c || _muted) return;
+    const now = c.currentTime;
+    // Two detuned saws swept up together, then a bright triad on top. The
+    // detune is what gives it width; a single oscillator sweep sounds thin no
+    // matter how loud it is.
+    for (const det of [0, 7]) {
+      const o = c.createOscillator(); const g = c.createGain();
+      o.connect(g); g.connect(_master);
+      o.type = 'sawtooth';
+      o.frequency.setValueAtTime(180 + det, now);
+      o.frequency.exponentialRampToValueAtTime(720 + det * 4, now + 0.42);
+      g.gain.setValueAtTime(0.0001, now);
+      g.gain.exponentialRampToValueAtTime(_sfxVol * 0.30, now + 0.06);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + 0.62);
+      o.start(now); o.stop(now + 0.64);
+    }
+    setTimeout(() => chord([659, 880, 1319], 0.34, 'triangle', 0.14), 300);
+  },
+  // A reward striking the portrait. Pitch climbs across the sequence so five
+  // payouts in a row form a rising run instead of the same thud five times.
+  rewardLand(t = 0) {
+    osc({ type: 'triangle', freq: 520 + t * 520, dur: 0.09, vol: 0.13, attack: 0.002 });
+    // The impact under it — short, low, no pitch content, so it reads as
+    // weight rather than as a second note.
+    osc({ type: 'sine', freq: 150, dur: 0.10, vol: 0.16, sweepTo: 60 });
+  },
   levelUp(){ chord([523, 659, 784], 0.20, 'triangle', 0.16); },
   claimPing() {
     const c = ctx(); if (!c || _muted) return;
@@ -387,6 +437,157 @@ export const Audio = {
   waterDrop() {
     osc({ type: 'sine', freq: 1800, dur: 0.22, vol: 0.16, sweepTo: 600, attack: 0.004 });
     setTimeout(() => osc({ type: 'sine', freq: 900, dur: 0.14, vol: 0.07, sweepTo: 400 }), 40);
+  },
+
+  // ---- Reload variants ------------------------------------------------------
+  // One reload sound for every weapon made them all feel like the same gun.
+  // Each family below is a different MECHANISM, not the same sound retuned:
+  // a magazine swap, shells fed one at a time, a power cell spinning up, a
+  // bowstring drawn. `reloadSequence` picks by weapon so a player switching
+  // weapons hears the change before they see it.
+  reloadShells(durMs) {
+    const c = ctx(); if (!c || _muted) return;
+    // Four shells thumbed in, unevenly spaced — a pump gun is loaded by hand
+    // and a metronome would sound like a machine.
+    const n = 4;
+    for (let i = 0; i < n; i++) {
+      const t = durMs * (0.12 + (i / n) * 0.6) + Math.random() * 40;
+      setTimeout(() => {
+        const p = 0.9 + Math.random() * 0.25;
+        noiseBurst({ dur: 0.035, vol: 0.07, filterType: 'bandpass', freq: 1500 * p, Q: 2.5 });
+        osc({ type: 'triangle', freq: 300 * p, dur: 0.04, vol: 0.05, sweepTo: 160 * p });
+      }, t);
+    }
+    setTimeout(() => { // the pump: two heavy strokes
+      noiseBurst({ dur: 0.06, vol: 0.13, filterType: 'lowpass', freq: 1800, sweepTo: 400 });
+      osc({ type: 'square', freq: 220, dur: 0.05, vol: 0.09, sweepTo: 90 });
+    }, durMs * 0.80);
+    setTimeout(() => {
+      noiseBurst({ dur: 0.055, vol: 0.12, filterType: 'lowpass', freq: 1500, sweepTo: 320 });
+      osc({ type: 'square', freq: 180, dur: 0.05, vol: 0.08, sweepTo: 70 });
+    }, durMs * 0.92);
+  },
+  reloadEnergy(durMs) {
+    const c = ctx(); if (!c || _muted) return;
+    setTimeout(() => { // spent cell ejects — a hiss of vented pressure
+      noiseBurst({ dur: 0.16, vol: 0.07, filterType: 'highpass', freq: 2400, sweepTo: 5200 });
+    }, durMs * 0.18);
+    setTimeout(() => { // fresh cell seats
+      osc({ type: 'square', freq: 380, dur: 0.05, vol: 0.06, sweepTo: 180 });
+    }, durMs * 0.55);
+    // Spin-up: a rising tone is the clearest possible "not ready ... ready".
+    setTimeout(() => {
+      osc({ type: 'sawtooth', freq: 180, dur: 0.30, vol: 0.07, sweepTo: 900, attack: 0.02 });
+      setTimeout(() => osc({ type: 'sine', freq: 1400, dur: 0.10, vol: 0.06, sweepTo: 1900 }), 260);
+    }, durMs * 0.62);
+  },
+  reloadBow(durMs) {
+    const c = ctx(); if (!c || _muted) return;
+    setTimeout(() => { // arrow drawn from the quiver
+      noiseBurst({ dur: 0.09, vol: 0.05, filterType: 'bandpass', freq: 3600, Q: 1.6, sweepTo: 2200 });
+    }, durMs * 0.16);
+    setTimeout(() => { // nocked
+      osc({ type: 'triangle', freq: 900, dur: 0.03, vol: 0.05, sweepTo: 500 });
+    }, durMs * 0.52);
+    setTimeout(() => { // string drawn back — creak rising in tension
+      osc({ type: 'sawtooth', freq: 90, dur: 0.26, vol: 0.05, sweepTo: 170, attack: 0.04 });
+      noiseBurst({ dur: 0.20, vol: 0.03, filterType: 'lowpass', freq: 700, sweepTo: 1100 });
+    }, durMs * 0.62);
+  },
+  // Chooses a mechanism from the weapon id. Anything unrecognised keeps the
+  // original magazine sound, so a new weapon is never silent.
+  reloadFor(wid, durMs) {
+    const id = String(wid || '');
+    if (/shotgun|scatter|boneshards|flameburst|acidSprayer/i.test(id)) return this.reloadShells(durMs);
+    if (/plasma|railgun|arcCaster|voidBeam|tesla|static|solarFlare|runebolts/i.test(id)) return this.reloadEnergy(durMs);
+    if (/bow|harpoon|stormLance/i.test(id)) return this.reloadBow(durMs);
+    return this.reloadSequence(durMs);
+  },
+
+  // ---- Toast -----------------------------------------------------------------
+  // ONE notification sound for the whole game — menus and in-game alike — so
+  // "something good just happened" always sounds the same wherever you are.
+  // Played from pushToast() rather than from each call site, which is what
+  // guarantees no reward moment can ever be silently added without it.
+  //
+  // Kept short and consonant on purpose: this fires often, and anything with
+  // a tail or a dissonance becomes irritating by the twentieth time. A rising
+  // major third is about the cheapest sound that reliably reads as "good".
+  toast(tone = 'default') {
+    const c = ctx(); if (!c || _muted) return;
+    if (tone === 'bad' || tone === 'warn') {
+      // Falls instead of rising. Same family, unmistakably not a reward.
+      osc({ type: 'triangle', freq: 520, dur: 0.09, vol: 0.07, sweepTo: 380, attack: 0.003 });
+      setTimeout(() => osc({ type: 'triangle', freq: 380, dur: 0.12, vol: 0.05, sweepTo: 280 }), 70);
+      return;
+    }
+    // Gold gets a third note on top — the same phrase, more of it, so a big
+    // reward is audibly bigger without being a different sound.
+    const gold = tone === 'gold' || tone === 'legendary';
+    osc({ type: 'triangle', freq: 660, dur: 0.10, vol: 0.075, attack: 0.003 });
+    setTimeout(() => osc({ type: 'triangle', freq: 880, dur: 0.13, vol: 0.065, attack: 0.003 }), 62);
+    if (gold) setTimeout(() => osc({ type: 'sine', freq: 1320, dur: 0.20, vol: 0.055, attack: 0.006 }), 130);
+    // A whisper of high sparkle. Barely audible alone, but it is what makes
+    // the chime feel like a reward rather than a UI beep.
+    setTimeout(() => noiseBurst({ dur: 0.05, vol: 0.022, filterType: 'highpass', freq: 5200 }), 58);
+  },
+
+  // ---- Clicker ---------------------------------------------------------------
+  // The well is tapped thousands of times, so the tap sound has three jobs:
+  // be short, never fatigue, and never sound like the same sample twice.
+  // Randomised pitch plus a randomised second plip does both cheaply.
+  clickWell() {
+    const p = 0.82 + Math.random() * 0.46;
+    osc({ type: 'sine', freq: 1500 * p, dur: 0.07, vol: 0.075, sweepTo: 620 * p, attack: 0.002 });
+    if (Math.random() < 0.55) {
+      setTimeout(() => osc({ type: 'sine', freq: 900 * p, dur: 0.05, vol: 0.035, sweepTo: 420 * p }), 26);
+    }
+  },
+  // Buying a producer should sound like machinery engaging, not like the UI
+  // click — it is a different KIND of event and deserves its own voice.
+  clickerBuy() {
+    osc({ type: 'triangle', freq: 240, dur: 0.09, vol: 0.09, sweepTo: 420, attack: 0.003 });
+    noiseBurst({ dur: 0.05, vol: 0.05, filterType: 'bandpass', freq: 1400, Q: 2 });
+    setTimeout(() => osc({ type: 'sine', freq: 720, dur: 0.10, vol: 0.06, sweepTo: 1080 }), 70);
+  },
+  clickerMilestone() {
+    chord([392, 523, 659], 0.28, 'triangle', 0.13);
+    setTimeout(() => chord([523, 659, 784], 0.34, 'sine', 0.11), 150);
+  },
+
+  // ---- Star Atlas ------------------------------------------------------------
+  // Cold, wide and synthetic, so the Atlas does not sound like the camp.
+  atlasMove() {
+    const p = 0.9 + Math.random() * 0.2;
+    osc({ type: 'sine', freq: 620 * p, dur: 0.05, vol: 0.045, sweepTo: 880 * p, attack: 0.002 });
+  },
+  atlasSelect() {
+    osc({ type: 'sine', freq: 880, dur: 0.10, vol: 0.07, sweepTo: 1320, attack: 0.003 });
+    setTimeout(() => osc({ type: 'sine', freq: 1320, dur: 0.14, vol: 0.05, sweepTo: 1760 }), 60);
+  },
+  atlasWarp() {
+    osc({ type: 'sawtooth', freq: 120, dur: 0.55, vol: 0.09, sweepTo: 1500, attack: 0.05 });
+    noiseBurst({ dur: 0.5, vol: 0.07, filterType: 'highpass', freq: 800, sweepTo: 6000 });
+    setTimeout(() => noiseBurst({ dur: 0.18, vol: 0.09, filterType: 'lowpass', freq: 2400, sweepTo: 300 }), 480);
+  },
+
+  // ---- Forge merge -----------------------------------------------------------
+  // A merge destroys three things to make one, so it gets a sound with a
+  // before and an after: metal drawn together, a strike, then the ring of the
+  // result. Distinct from a purchase on purpose — you are consuming, not buying.
+  mergeForge(success = true) {
+    noiseBurst({ dur: 0.22, vol: 0.07, filterType: 'bandpass', freq: 900, Q: 1.2, sweepTo: 2400 });
+    osc({ type: 'sawtooth', freq: 90, dur: 0.24, vol: 0.07, sweepTo: 220, attack: 0.03 });
+    setTimeout(() => { // the strike
+      noiseBurst({ dur: 0.09, vol: 0.18, filterType: 'bandpass', freq: 2600, Q: 2.2, sweepTo: 1200 });
+      osc({ type: 'square', freq: 320, dur: 0.07, vol: 0.11, sweepTo: 120 });
+    }, 250);
+    setTimeout(() => {
+      if (success) chord([523, 784, 1046], 0.45, 'triangle', 0.12);
+      // A failed merge falls instead of rising — you must be able to tell
+      // without reading the screen.
+      else osc({ type: 'sawtooth', freq: 300, dur: 0.4, vol: 0.10, sweepTo: 90, attack: 0.01 });
+    }, 340);
   },
 
   // ---- cards (Patrol encounters + Pet TCG) ----
@@ -473,21 +674,59 @@ export const Audio = {
     };
     playNext();
   },
-  startMusic() {
-    const c = ctx(); if (!c || _musicNode) return;
-    this._playUrl('/menu-music.mp3');
-  },
-  swapToGameMusic() {
-    this._stopMusicNode();
-    this._playPlaylist([
+  // ---- Track assignments ----------------------------------------------------
+  // Three distinct places, three distinct moods:
+  //   menus     -> waterdrop.mp3, looped. Calm, and it is the game's own
+  //                signature track, so the place you spend the most time
+  //                sounds like the game rather than like a menu.
+  //   in-game   -> a 3-track playlist. The guitar-bagpipe piece leads, then
+  //                the two uplifting tracks at the same tempo follow it
+  //                rather than interrupt it, and the sequence loops.
+  //   Star Atlas-> menu-music.mp3, which is wide and synthetic and suits a
+  //                star map far better than it suited a menu.
+  MUSIC: {
+    menu:  '/waterdrop.mp3',
+    atlas: '/menu-music.mp3',
+    game:  [
       'https://customer-assets.emergentagent.com/job_progression-warrior/artifacts/hyp8e5j4_guitarbagpipe-synapse.mp3',
       '/game-music-1.mp3',
       '/game-music-2.mp3',
-    ]);
+    ],
   },
-  swapToMenuMusic() {
+  startMusic() {
+    const c = ctx(); if (!c || _musicNode) return;
+    _musicTrack = 'menu';
+    this._playUrl(this.MUSIC.menu);
+  },
+  swapToGameMusic() {
+    if (_musicTrack === 'game' && _musicNode) return;
+    _musicTrack = 'game';
     this._stopMusicNode();
-    this._playUrl('/menu-music.mp3');
+    this._playPlaylist(this.MUSIC.game);
   },
-  stopMusic() { if (_musicNode) { try { _musicNode.disconnect(); } catch (e) {} _musicNode = null; } },
+  // Idempotent on purpose. The side games call this on mount so the track they
+  // want is guaranteed, but they are almost always entered straight from the
+  // camp where waterdrop.mp3 is already playing -- restarting it from zero on
+  // every screen change made the menu music stutter back to the top constantly.
+  // Guarding on the current track means "make sure this is playing" instead of
+  // "start this again".
+  swapToMenuMusic() {
+    if (_musicTrack === 'menu' && _musicNode) return;
+    _musicTrack = 'menu';
+    this._stopMusicNode();
+    this._playUrl(this.MUSIC.menu);
+  },
+  // Star Atlas gets its own call rather than borrowing the game playlist, so
+  // the map has a fixed identity instead of whatever track the run happened
+  // to leave playing.
+  swapToAtlasMusic() {
+    if (_musicTrack === 'atlas' && _musicNode) return;
+    _musicTrack = 'atlas';
+    this._stopMusicNode();
+    this._playUrl(this.MUSIC.atlas);
+  },
+  stopMusic() {
+    _musicTrack = null;
+    if (_musicNode) { try { _musicNode.disconnect(); } catch (e) {} _musicNode = null; }
+  },
 };

@@ -11,8 +11,10 @@ export const DEFAULT_SAVE = {
   meta: {},
   runsCompleted: 0,
   bestRunTime: 0,
-  bestKills: 0,
+  bestKills: 0,   // historical misnomer: stores the best run LEVEL, not kills
+  bestLevel: 0,   // best run level, under a name that says so
   bestScore: 0,
+  bestLeaderboardRank: 0, // best global placement seen, 1 = first
   totalKills: 0,
   introSeen: false,
   // NEW currencies
@@ -20,8 +22,26 @@ export const DEFAULT_SAVE = {
   slotCoins: 0,   // 🎰 for card shop spins
   talentPoints: 0, // 🌿 for talent tree
   petFood: 0,     // 🍖 feed pets
-  // profile
-  profile: { name: '', avatar: 'drop', level: 1, xp: 0, frame: 'none', headband: 'none', nameColor: 'white', shipColor: 'teal', cigarOn: false },
+  // profile. `badges` is the 3 equipped badge ids (see game/badges.js) —
+  // fixed-length so the three carved slots in the camp frame always render,
+  // with null meaning "empty slot" rather than the array simply being short.
+  profile: { name: '', avatar: 'drop', level: 1, xp: 0, frame: 'none', headband: 'none', nameColor: 'white', shipColor: 'teal', cigarOn: false, badges: [null, null, null] },
+  // Badges earned (see game/badges.js). `badgesEarned` is the award ledger;
+  // profile.badges is only what is currently on display.
+  badgesEarned: {},   // { badgeId: earnedAtMs }
+  badgesTouched: false, // player has arranged their own slots — stop auto-filling
+  // ---- Difficulty (see game/difficulty.js) --------------------------------
+  // Normal is the only tier that exists on a fresh save. `mapProgress` stays
+  // the Normal ledger for backwards compatibility; hard/nightmare live in
+  // mapProgressByDiff so no existing campaign is lost.
+  difficulty: 'normal',
+  mapProgressByDiff: {},   // { hard: { nodeId: true }, nightmare: {...} }
+  diffCleared: {},         // { normal: true, hard: true } — tier fully finished
+  // Rewards banked while away from Camp, shown on the next camp entry.
+  pendingRewards: [],      // [{ icon, title, text, items: [{type, amount}] }]
+  // Guided quest chain (see game/storyQuests.js). Two tracks run at once.
+  questsDone: {},          // { questId: true }  — chain steps already paid out
+  questSeen: {},           // { questId: true }  — "new step" toast already shown
   // skills
   sp: 0,
   skills: {}, // { skillId: level }
@@ -34,6 +54,12 @@ export const DEFAULT_SAVE = {
   artifactInventory: [],
   artifactEquipped: {}, // { 0: artifactId, 1: artifactId, ... }
   gachaTokens: 0,
+  // Probe Keys gate Lootmine dives -- one key per launch. Without a cost the
+  // mine was infinite free income. Earned from run rewards, rank-ups and
+  // milestones; also trickles back slowly so a player can never be hard-locked
+  // out of the mode with zero keys and no way to get one (see tickIdle).
+  probeKeys: 3,
+  probeKeyAt: 0,   // ms timestamp the regen clock last paid out
   // Star Raid minigame (permanent ship progression) — see game/starRaidEngine.js
   starRaid: { levels: {}, scrap: 0, stageUnlocked: 0 },
   // Elemental Rounds (Weaponsmith): { weaponId: [elementId, ...] }, cycles
@@ -105,7 +131,7 @@ export const DEFAULT_SAVE = {
   flux: 0,
   // Waterdrop Clicker. `drops` is spendable inside the clicker only; `total`
   // is lifetime production, which is what the milestone ladder pays against.
-  clicker: { drops: 0, total: 0, buildings: {}, clickLvl: 0, claimed: {}, lastMs: 0 },
+  clicker: { drops: 0, total: 0, buildings: {}, clickLvl: 0, claimed: {}, lastMs: 0, springs: 0, prestiges: 0 },
   attachInventory: [],       // found weapon attachments (see game/attachments.js)
   weaponAttach: {},          // { weaponId: { barrel|optic|magazine|underbarrel|coating: attachId } }
   base: {},                  // building id -> level (see game/base.js)
@@ -127,6 +153,7 @@ export const DEFAULT_SAVE = {
   probe: {},                 // Astro Prospector probe upgrade levels
   prospectBlueprints: 0,     // sealed data cores, spent to unlock unique cards
   prospectCards: [],         // unlocked PROSPECT_CARDS ids -> enter the run pool
+  shopCards: [],             // unlocked SHOP_CARD_POOL card ids -> enter the run pool
 
   // ---- Fields below were read (with `||` fallbacks) by various panels but
   // never actually declared here — added for documentation/consistency
@@ -134,11 +161,18 @@ export const DEFAULT_SAVE = {
   // already defended against them being undefined on a fresh save. ----
   equippedParts: {},   // { weaponId: { slot: partId } }
   equippedActives: [], // active-skill ids currently slotted (Loadout)
-  parts: [],           // loose weapon-parts inventory
+  parts: [],           // loose weapon-parts inventory (ARRAY - do not reuse this key)
+  gearSlotParts: {},   // per-slot gear parts { helmet: n, boots: n, ... }
   settings: {},
   shopBonuses: {},
   blueprintShards: {}, // { weaponId: shardCount }
   craftedWeapons: [],
+  // Which unlocked starter the next run opens with. Chosen in the
+  // Weaponsmith's BLUEPRINTS tab; read by GameScreen. Never trust it blindly
+  // — a save can carry an id whose weapon was retired, so the read site falls
+  // back to the pistol rather than handing the engine an id WEAPONS has no
+  // entry for (snapshot() reads WEAPONS[id].icon every frame and would throw).
+  startWeapon: 'hydropistol',
   milestoneBar: 0,
   achClaimed: {},      // { achievementId: true }
   challengesDone: {},
@@ -256,6 +290,29 @@ export function loadSave() {
       s.skills.sh_skill_steamvent = s.skills.sh_skill_decoy;
       delete s.skills.sh_skill_decoy;
     }
+    // ---- Difficulty / badges / quest chain ---------------------------------
+    // A save written before these systems has none of them. Every field is
+    // seeded rather than left undefined so the readers can index them without
+    // a fallback each time, and profile.badges is normalised to exactly three
+    // entries — a short array would render fewer than three carved slots.
+    // `bestKills` has always stored the best run LEVEL despite its name, so it
+    // is the only record an existing save has of that number. Backfilling
+    // `bestLevel` from it matters: the story quest chain gates on bestLevel at
+    // steps 3 and 9, and `completedUnpaid` only ever advances the OPEN step —
+    // so without this a veteran with dozens of runs behind them would find
+    // their whole story track frozen at "reach level 5" until they happened to
+    // finish another run.
+    s.bestLevel = s.bestLevel || s.bestKills || 0;
+    s.difficulty = s.difficulty || 'normal';
+    s.mapProgressByDiff = s.mapProgressByDiff || {};
+    s.diffCleared = s.diffCleared || {};
+    s.badgesEarned = s.badgesEarned || {};
+    s.pendingRewards = Array.isArray(s.pendingRewards) ? s.pendingRewards : [];
+    s.questsDone = s.questsDone || {};
+    s.questSeen = s.questSeen || {};
+    const b = Array.isArray(s.profile.badges) ? s.profile.badges.slice(0, 3) : [];
+    while (b.length < 3) b.push(null);
+    s.profile.badges = b;
     return s;
   } catch { return { ...DEFAULT_SAVE }; }
 }
@@ -313,6 +370,42 @@ export function tickIdle(save, nowMs = Date.now()) {
   let changed = false;
   let s = save;
   const touch = () => { if (!changed) { s = { ...save }; changed = true; } return s; };
+
+  // Probe Keys refill slowly, up to a small cap. Keys are meant to LIMIT the
+  // mine, not to lock a player out of it: without a trickle, someone who spent
+  // their last key and had no run rewards pending would simply have the mode
+  // taken away with no way to get it back. The cap is what keeps it a limit —
+  // they do not stockpile while you are away.
+  {
+    const PROBE_KEY_MS = 20 * 60 * 1000;   // one every 20 minutes
+    const PROBE_KEY_CAP = 3;
+    const have = save.probeKeys || 0;
+    const last = save.probeKeyAt || 0;
+    if (have < PROBE_KEY_CAP) {
+      if (!last) {
+        // First ever tick: start the clock rather than granting immediately,
+        // otherwise a fresh save banks a key the instant it loads.
+        const ns = touch();
+        ns.probeKeyAt = now;
+      } else {
+        const earned = Math.floor((now - last) / PROBE_KEY_MS);
+        if (earned > 0) {
+          const ns = touch();
+          ns.probeKeys = Math.min(PROBE_KEY_CAP, have + earned);
+          // Carry the remainder so partial progress is not thrown away on
+          // every tick — otherwise the 10s interval would reset the clock
+          // constantly and a key would never actually arrive.
+          ns.probeKeyAt = last + earned * PROBE_KEY_MS;
+        }
+      }
+    }
+    // Deliberately nothing in the at-cap case. Writing `probeKeyAt = now`
+    // here would mark the save changed on EVERY 10s tick forever, breaking
+    // tickIdle's contract of returning the same reference when nothing moved
+    // and forcing a save+sync round trip continuously. The clock is instead
+    // restarted at the moment a key is spent (see ProspectorScreen.startDive),
+    // which is the only time it actually matters.
+  }
 
   // Patrol missions are already stored with absolute start/duration, so they
   // settle simply by being re-evaluated against `now`.
@@ -438,23 +531,38 @@ export function addAccountXp(save, amount) {
     const ls = { ...(save.levelUpStreak || { day: 0, count: 0 }) };
     if (ls.day === today) { ls.count += 1; } else { ls.day = today; ls.count = 1; }
     save.levelUpStreak = ls;
-    const mult = ls.count >= 3 ? 2 : 1;
+    // The daily streak bonus was a flat ×2 on EVERYTHING, which made the
+    // third level-up of a day worth as much as the first two combined and
+    // turned the whole reward table into a login-timing puzzle. ×1.5, and it
+    // no longer doubles the rarest currencies (gems, slot coins, shards) —
+    // those stay on their own schedule so a streak is a nudge, not the
+    // primary way to get them.
+    const mult = ls.count >= 3 ? 1.5 : 1;
+    const scale = (n) => Math.max(1, Math.round(n * mult));
     // Slot coins at milestones: every 5 levels = 1, every 10 = 2
     const slotBonus = (lv % 10 === 0) ? 2 : (lv % 5 === 0) ? 1 : 0;
-    // Gems: 1 per level, bonus at 10
-    const gemsBonus = Math.floor(lv / 10) + 1;
+    // Gems every FIFTH level rather than every level, plus a bump per 10.
+    // Profile levels come steadily from every run, so one-per-level made
+    // the level-up screen the single largest gem faucet in the game.
+    const gemsBonus = (lv % 5 === 0 ? 2 : 0) + Math.floor(lv / 10);
     save.pendingLevelUp = {
       level: lv,
-      gold: (100 + lv * 40) * mult,
-      sp: Math.max(1, Math.floor(lv / 3)) * mult,
-      talentPoints: 2 * mult,
-      gems: gemsBonus * mult,
+      // The level you came FROM, so the celebration can tell a plain profile
+      // level-up apart from an actual rank-up. Rank only moves every 4 levels
+      // (getRank = floor(level/4)); without this the overlay shouted
+      // "RANK UP!" on every single level and printed the profile level where
+      // the rank number should be.
+      fromLevel: prevLevel,
+      gold: scale(100 + lv * 40),
+      sp: scale(Math.max(1, Math.floor(lv / 4))),
+      talentPoints: scale(2),
+      gems: gemsBonus,
       slotCoins: slotBonus,
       freeSpin: lv % 10 === 0,
       streakBonus: ls.count >= 3,
       streakCount: ls.count,
-      pieces: Math.floor((5 + lv * 2) * mult),
-      shards: lv % 5 === 0 ? Math.ceil(3 * mult) : 0,
+      pieces: scale(4 + lv * 2),
+      shards: lv % 5 === 0 ? 3 : 0,
     };
   }
 }
@@ -474,6 +582,14 @@ export function applyReward(save, reward, openChest) {
   if (reward.gearParts) save.gearParts = (save.gearParts || 0) + reward.gearParts;
   if (reward.flux)      save.flux      = (save.flux      || 0) + reward.flux;
   if (reward.cores)     save.cores     = (save.cores     || 0) + reward.cores;
+  // These two were missing, which meant any reward bag containing them paid
+  // out everything EXCEPT them — silently. The guided quest chain pays
+  // talentPoints (c_talent) and gachaTokens (c_artifact, s_void, s_aida), and
+  // the reward screen listed both, so the player was shown currency that
+  // never arrived. Every currency this function can be handed a key for must
+  // have a branch here; there is no fallback.
+  if (reward.talentPoints) save.talentPoints = (save.talentPoints || 0) + reward.talentPoints;
+  if (reward.gachaTokens)  save.gachaTokens  = (save.gachaTokens  || 0) + reward.gachaTokens;
   if (reward.type === 'gold')  save.gold      = (save.gold      || 0) + reward.amount;
   if (reward.type === 'sp')    save.sp        = (save.sp        || 0) + reward.amount;
   if (reward.type === 'gems')  save.gems      = (save.gems      || 0) + reward.amount;
@@ -481,4 +597,16 @@ export function applyReward(save, reward, openChest) {
     const drops = openChest(reward.chestId);
     if (drops && drops.length) save.inventory = [...(save.inventory || []), ...drops];
   }
+}
+
+// Queues a reward for the "welcome back" screen that fires on the next camp
+// entry, IN ADDITION to applying it. The currency has already landed by the
+// time the screen shows — the screen exists so a badge earned mid-run or a
+// quest that completed while a modal was open still gets a moment, rather
+// than a number silently ticking up in a corner nobody was looking at.
+//
+// Mutates in place, same contract as applyReward: pass a fresh copy.
+export function bankReward(save, entry) {
+  if (!entry) return;
+  save.pendingRewards = [...(save.pendingRewards || []), entry].slice(-12);
 }

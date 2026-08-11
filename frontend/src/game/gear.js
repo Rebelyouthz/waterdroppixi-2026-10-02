@@ -11,7 +11,11 @@ export const GEAR_SLOT_NAMES = {
   helmet:'Helmet', chest:'Chest', arms:'Gloves', legs:'Legs', boots:'Boots', ring:'Ring', amulet:'Amulet'
 };
 
-export const GEAR_RARITIES = ['common','magic','rare','epic','legendary','mythical'];
+// `mythicplus` sits above mythical as the ceiling of the whole ladder. It is
+// deliberately NOT on the drop table — see rollGearDrop. The only way to hold
+// one is to finish a mythical at max level and forge it, which makes it the
+// one rarity that is earned rather than found.
+export const GEAR_RARITIES = ['common','magic','rare','epic','legendary','mythical','mythicplus'];
 export const GEAR_RARITY_COLORS = {
   common:    '#9a8fa6',
   magic:     '#4dc4ff',
@@ -19,10 +23,59 @@ export const GEAR_RARITY_COLORS = {
   epic:      '#b362ff',
   legendary: '#ff7a1a',
   mythical:  '#ff3146',
+  mythicplus:'#ff5ef5',
+};
+export const GEAR_RARITY_NAMES = {
+  common: 'Common', magic: 'Magic', rare: 'Rare', epic: 'Epic',
+  legendary: 'Legendary', mythical: 'Mythical', mythicplus: 'Mythic+',
 };
 export const GEAR_RARITY_MULT = {
   common: 1.0, magic: 1.6, rare: 2.5, epic: 3.8, legendary: 6.0, mythical: 9.5,
+  mythicplus: 14.0,
 };
+
+// ---- Per-slot gear parts ---------------------------------------------------
+// Levelling used to spend one undifferentiated `gearParts` pile, so every item
+// competed for the same currency and there was no reason to care WHERE a part
+// came from. Each slot now has its own part, which turns "what dropped" into a
+// decision about what you can afford to finish.
+//
+// The generic `gearParts` currency is deliberately kept, not replaced: the base
+// builder and base defence already spend it, and it now doubles as a wildcard
+// that can top up any slot at a penalty (see gearLevelPayment). Old saves that
+// only have the generic pile therefore keep working untouched.
+export const PART_SLOTS = GEAR_SLOTS;
+export const PART_ICONS = {
+  helmet:'⛑️', chest:'🛡️', arms:'🧤', legs:'🦿', boots:'👢', ring:'🔗', amulet:'🔮',
+};
+export const PART_NAMES = {
+  helmet:'Helmet Parts', chest:'Plate Parts', arms:'Grip Parts', legs:'Greave Parts',
+  boots:'Tread Parts', ring:'Band Parts', amulet:'Focus Parts',
+};
+// Two wildcard parts stand in for one slot part. Cheap enough that a hoard of
+// generic parts is never dead weight, expensive enough that slot parts stay
+// the thing worth chasing.
+export const WILDCARD_PART_RATE = 2;
+
+// NB the key is `gearSlotParts`, NOT `parts`. `save.parts` was already taken:
+// it is the loose weapon-parts ARRAY (store.js), read with `.filter`/`.length`
+// all over the camp UI. Writing an object there would have silently destroyed
+// that inventory and thrown the moment anything tried to filter it.
+export function slotPartsOf(save, slot) {
+  return (save && save.gearSlotParts && save.gearSlotParts[slot]) || 0;
+}
+
+// Work out how to pay `cost` parts for `slot`: slot parts first, wildcards for
+// the remainder. Returns null when it cannot be paid, so callers get one
+// unambiguous "no" instead of having to re-derive affordability themselves.
+export function gearLevelPayment(save, slot, cost) {
+  const have = slotPartsOf(save, slot);
+  const useSlot = Math.min(have, cost);
+  const short = cost - useSlot;
+  const useWild = short * WILDCARD_PART_RATE;
+  if (short > 0 && (save.gearParts || 0) < useWild) return null;
+  return { slot, useSlot, useWild: short > 0 ? useWild : 0, cost };
+}
 
 // Primary stat by slot — expanded pool per slot for more build variety
 // (was 2 possible rolls/slot, now 3-4).
@@ -81,7 +134,47 @@ export function gearSecondaryValue(item) {
 // rolls a socket at generation time can take one too, which gives an
 // otherwise-mediocre drop a reason to be kept.
 export function gearHasSocket(item) {
-  return !!item && (item.socket === true || item.slot === 'ring' || item.slot === 'amulet');
+  return gearSocketCount(item) > 0;
+}
+
+// ---- Rune sockets ----------------------------------------------------------
+// Sockets used to be a single boolean, and only rings and amulets could
+// actually be socketed -- anything else that rolled `socket: true` showed a
+// socket pip in the list and then had nowhere to put a rune. Now the count is
+// rolled per item and scales with rarity, and every slot can carry runes.
+//
+// Rarity sets the ODDS, not a flat number, so two legendaries are not
+// interchangeable: pulling a 3-socket legendary is its own small jackpot.
+// Weights are [P(0), P(1), P(2), P(3)].
+export const SOCKET_ODDS = {
+  common:     [1.00, 0,    0,    0   ],
+  magic:      [0.85, 0.15, 0,    0   ],
+  rare:       [0.45, 0.55, 0,    0   ],
+  epic:       [0.10, 0.60, 0.30, 0   ],
+  legendary:  [0,    0.30, 0.55, 0.15],
+  mythical:   [0,    0.05, 0.45, 0.50],
+  mythicplus: [0,    0,    0.20, 0.80],
+};
+export const GEAR_MAX_SOCKETS = 3;
+
+export function rollSocketCount(rarity, rand = Math.random) {
+  const odds = SOCKET_ODDS[rarity] || SOCKET_ODDS.common;
+  let r = rand();
+  for (let i = 0; i < odds.length; i++) {
+    r -= odds[i];
+    if (r < 0) return i;
+  }
+  return 0;
+}
+
+// Legacy items stored a boolean `socket` and had no count. Rather than
+// migrating the save, read through: an old item with socket true is worth one
+// socket, and rings/amulets keep the single socket they always implicitly had.
+export function gearSocketCount(item) {
+  if (!item) return 0;
+  if (typeof item.sockets === 'number') return item.sockets;
+  if (item.socket === true) return 1;
+  return item.slot === 'ring' || item.slot === 'amulet' ? 1 : 0;
 }
 // Almost every piece also carries a small flat armor roll on top of its
 // primary stat, per spec ("most pieces should have at least a little
@@ -102,25 +195,113 @@ const SLOT_NAME_SUFFIX = {
   boots:'Treads', ring:'Band', amulet:'Pendant',
 };
 
-export function generateGearItem(slot, rarity) {
-  const stats = SLOT_STATS[slot];
-  const stat = stats[Math.floor(Math.random() * stats.length)];
-  const mult = GEAR_RARITY_MULT[rarity];
+// ---- Base types ------------------------------------------------------------
+// Every slot used to produce exactly one shape, so the only thing separating
+// two helmets was the prefix and the number. Each slot now has three base
+// types, and the base type biases the roll: `weight` skews which primary stat
+// comes up, and `mult` trades raw stat size against that bias. A Bulwark plate
+// is reliably defensive; a Duelist plate is a gamble that pays more.
+//
+// This is generation-side only -- an item still stores a plain `stat`/`val`,
+// so nothing downstream needs to know base types exist.
+export const GEAR_BASES = {
+  helmet: [
+    { id: 'visor',     name: 'Visor',      icon: 'gbVisor',     mult: 1.00, weight: { crit: 3, headshot: 3 } },
+    { id: 'greathelm', name: 'Greathelm',  icon: 'gbGreathelm', mult: 1.12, weight: { maxHp: 4, armor: 3 } },
+    { id: 'crown',     name: 'Crown',      icon: 'gbCrown',     mult: 0.94, weight: { crit: 2, headshot: 4 } },
+    { id: 'diveHood',  name: 'Dive Hood',  icon: 'gbDiveHood',  mult: 1.05, weight: { maxHp: 5 } },
+    { id: 'circlet',   name: 'Circlet',    icon: 'gbCirclet',   mult: 0.90, weight: { headshot: 5, crit: 3 } },
+  ],
+  chest: [
+    { id: 'bulwark',   name: 'Bulwark',    icon: 'gbBulwark',   mult: 1.14, weight: { armor: 5, maxHp: 3 } },
+    { id: 'duelist',   name: 'Duelist',    icon: 'gbDuelist',   mult: 0.92, weight: { regen: 4, maxHp: 2 } },
+    { id: 'carapace',  name: 'Carapace',   icon: 'gbCarapace',  mult: 1.05, weight: { maxHp: 5, armor: 2 } },
+    { id: 'drownvest', name: 'Drown Vest', icon: 'gbDrownVest', mult: 0.97, weight: { regen: 5 } },
+    { id: 'aegis',     name: 'Aegis',      icon: 'gbAegis',     mult: 1.20, weight: { armor: 6 } },
+  ],
+  arms: [
+    { id: 'gauntlet',  name: 'Gauntlet',   icon: 'gbGauntlet',  mult: 1.08, weight: { dmg: 4, pierce: 2 } },
+    { id: 'wraps',     name: 'Wraps',      icon: 'gbWraps',     mult: 0.95, weight: { atks: 5 } },
+    { id: 'claws',     name: 'Claws',      icon: 'gbClaws',     mult: 1.02, weight: { pierce: 4, dmg: 2 } },
+    { id: 'pistons',   name: 'Pistons',    icon: 'gbPistons',   mult: 1.12, weight: { dmg: 5 } },
+    { id: 'flowcuffs', name: 'Flowcuffs',  icon: 'gbFlowcuffs', mult: 0.93, weight: { atks: 6 } },
+  ],
+  legs: [
+    { id: 'greaves',   name: 'Greaves',    icon: 'gbGreaves',   mult: 1.10, weight: { armor: 4 } },
+    { id: 'striders',  name: 'Striders',   icon: 'gbStriders',  mult: 0.96, weight: { mspd: 5 } },
+    { id: 'phase',     name: 'Phaseplate', icon: 'gbPhase',     mult: 1.00, weight: { dodge: 5 } },
+    { id: 'tideguard', name: 'Tideguard',  icon: 'gbTideguard', mult: 1.06, weight: { armor: 5, mspd: 2 } },
+    { id: 'slipleg',   name: 'Slipplate',  icon: 'gbSlipleg',   mult: 0.91, weight: { dodge: 6 } },
+  ],
+  boots: [
+    { id: 'treads',    name: 'Treads',     icon: 'gbTreads',    mult: 1.00, weight: { mspd: 4 } },
+    { id: 'skimmers',  name: 'Skimmers',   icon: 'gbSkimmers',  mult: 0.97, weight: { dodge: 4, mspd: 2 } },
+    { id: 'magnets',   name: 'Magboots',   icon: 'gbMagboots',  mult: 1.06, weight: { pickup: 5 } },
+    { id: 'finblades', name: 'Finblades',  icon: 'gbFinblades', mult: 0.94, weight: { mspd: 6 } },
+    { id: 'anchors',   name: 'Anchorshoes',icon: 'gbAnchors',   mult: 1.14, weight: { pickup: 6 } },
+  ],
+  ring: [
+    { id: 'band',      name: 'Band',       icon: 'gbBand',      mult: 1.00, weight: { crit: 4 } },
+    { id: 'signet',    name: 'Signet',     icon: 'gbSignet',    mult: 1.08, weight: { critd: 5 } },
+    { id: 'loop',      name: 'Loop',       icon: 'gbLoop',      mult: 0.95, weight: { proj: 5 } },
+    { id: 'coil',      name: 'Coil',       icon: 'gbCoil',      mult: 1.04, weight: { proj: 6 } },
+    { id: 'seal',      name: 'Seal',       icon: 'gbSeal',      mult: 1.11, weight: { critd: 6, crit: 2 } },
+  ],
+  amulet: [
+    { id: 'pendant',   name: 'Pendant',    icon: 'gbPendant',   mult: 1.00, weight: { xp: 4 } },
+    { id: 'sigil',     name: 'Sigil',      icon: 'gbSigil',     mult: 1.04, weight: { gold: 5 } },
+    { id: 'orb',       name: 'Orb',        icon: 'gbOrb',       mult: 1.10, weight: { area: 5 } },
+    { id: 'tear',      name: 'Tear',       icon: 'gbTear',      mult: 0.93, weight: { xp: 6 } },
+    { id: 'compass',   name: 'Compass',    icon: 'gbCompass',   mult: 1.07, weight: { gold: 6 } },
+  ],
+};
+
+// Flat id -> base lookup, so a stored item can find its base type without
+// knowing its slot.
+export const GEAR_BASE_INDEX = Object.values(GEAR_BASES)
+  .flat()
+  .reduce((acc, b) => { acc[b.id] = b; return acc; }, {});
+
+// Weighted pick over a slot's stat pool. Stats not named in `weight` still get
+// a baseline chance of 1, so a base type biases the roll without ever locking
+// a stat out entirely.
+function pickStat(slot, base, rand) {
+  const pool = SLOT_STATS[slot];
+  const w = (base && base.weight) || {};
+  const weights = pool.map((s) => w[s] || 1);
+  const total = weights.reduce((a, b) => a + b, 0);
+  let r = rand() * total;
+  for (let i = 0; i < pool.length; i++) {
+    r -= weights[i];
+    if (r < 0) return pool[i];
+  }
+  return pool[pool.length - 1];
+}
+
+export function generateGearItem(slot, rarity, rand = Math.random) {
+  const bases = GEAR_BASES[slot] || [];
+  const baseType = bases.length ? bases[Math.floor(rand() * bases.length)] : null;
+  const stat = pickStat(slot, baseType, rand);
+  const mult = GEAR_RARITY_MULT[rarity] * (baseType ? baseType.mult : 1);
   const base = BASE_VALS[stat] || 0.01;
   const val  = parseFloat((base * mult).toFixed(4));
   const prefixes = NAME_PREFIX[rarity];
-  const pre = prefixes[Math.floor(Math.random() * prefixes.length)];
-  const suf = SLOT_NAME_SUFFIX[slot];
+  const pre = prefixes[Math.floor(rand() * prefixes.length)];
+  // The base type supplies the noun when there is one, so the name says what
+  // the item actually is ("Etched Magboots") rather than a generic slot word.
+  const suf = baseType ? baseType.name : SLOT_NAME_SUFFIX[slot];
   // Small secondary armor roll on most pieces (skip if armor IS the primary
   // stat already, to avoid double-rolling the same stat on one item).
   let secondary = null;
-  if (stat !== 'armor' && Math.random() < SECONDARY_ARMOR_CHANCE) {
+  if (stat !== 'armor' && rand() < SECONDARY_ARMOR_CHANCE) {
     secondary = { stat: 'armor', val: parseFloat((SECONDARY_ARMOR_BASE * mult).toFixed(3)) };
   }
   // Higher rarities are more likely to arrive with a rune socket, so a
   // legendary is worth chasing for more than its numbers.
-  const rIdx = Math.max(0, GEAR_RARITIES.indexOf(rarity));
-  const socket = slot === 'ring' || slot === 'amulet' || Math.random() < 0.06 + rIdx * 0.07;
+  // Rings and amulets are the rune-bearing slots by tradition, so they get a
+  // floor of one socket regardless of what the rarity table rolls.
+  const rolled = rollSocketCount(rarity, rand);
+  const sockets = (slot === 'ring' || slot === 'amulet') ? Math.max(1, rolled) : rolled;
   return {
     id:     `g_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,6)}`,
     slot,
@@ -129,11 +310,13 @@ export function generateGearItem(slot, rarity) {
     val,
     secondary,
     level:  1,
-    socket,
+    sockets,
+    socket: sockets > 0,   // kept so older code paths reading the boolean still agree
+    base:   baseType ? baseType.id : null,
     // Which gear set this piece belongs to. Rolled flat rather than weighted
     // by slot: a set that could only ever appear on three slots could never
     // reach its 4-piece tier.
-    set:    GEAR_SET_IDS[Math.floor(Math.random() * GEAR_SET_IDS.length)],
+    set:    GEAR_SET_IDS[Math.floor(rand() * GEAR_SET_IDS.length)],
     name:   `${pre} ${suf}`,
   };
 }
@@ -144,6 +327,19 @@ export function generateGearItem(slot, rarity) {
 // reached this function or affected the roll — wired it up here so a boss
 // kill/shrine blessing really does roll better odds than a random mid-run
 // drop, instead of being functionally identical to one.
+// How often a gear drop is even ATTEMPTED. Equipment used to rain down from
+// ordinary kills, which made the inventory a chore and made a boss feel like
+// nothing special. Ordinary drops are now rare; a boss kill is where equipment
+// actually comes from, and the trickle in between is what parts are for.
+//
+// `rollGearDrop` decides the rarity once a drop happens; this decides whether
+// one happens at all, so callers get a single place to ask.
+export const GEAR_DROP_CHANCE_NORMAL = 0.5; // multiplier on the caller's own rate: halved
+export function gearDropHappens(isBoss, rand = Math.random) {
+  if (isBoss) return true;          // a boss always pays equipment
+  return rand() < 0.06;             // otherwise genuinely uncommon
+}
+
 export function rollGearDrop(timeInRun = 0, isBoss = false) {
   const r = Math.random();
   // Early drops are almost always low rarity, and the good tiers open up as
@@ -163,6 +359,28 @@ export function rollGearDrop(timeInRun = 0, isBoss = false) {
   else rarity = 'common';
   const slot = GEAR_SLOTS[Math.floor(Math.random() * GEAR_SLOTS.length)];
   return generateGearItem(slot, rarity);
+}
+
+// ---- Parts drops -----------------------------------------------------------
+// The trickle that replaces the old flood of equipment. Every source in the
+// game -- runs, the clicker, Star Atlas, exploration, the card game -- calls
+// this, so parts arrive from wherever the player actually spends time instead
+// of only from combat.
+//
+// `scale` lets a source tune generosity without inventing its own maths: a long
+// Star Atlas stage passes a bigger scale than a single clicker milestone.
+export function rollPartsDrop(scale = 1, rand = Math.random) {
+  const slot = PART_SLOTS[Math.floor(rand() * PART_SLOTS.length)];
+  const amount = Math.max(1, Math.round((1 + rand() * 2) * scale));
+  return { slot, amount };
+}
+
+// Fold a parts drop into a save. Kept here rather than in each screen so the
+// shape of `save.parts` is defined in exactly one place.
+export function addParts(save, slot, amount) {
+  const parts = { ...(save.gearSlotParts || {}) };
+  parts[slot] = (parts[slot] || 0) + amount;
+  return parts;
 }
 
 // ---- Gear sets -------------------------------------------------------------

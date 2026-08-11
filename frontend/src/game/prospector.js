@@ -24,7 +24,19 @@ export function probeCost(id, lvl) {
 
 export function probeStats(levels = {}) {
   return {
-    hull: 1 + (levels.hull || 0),
+    // Base hull 2, not 1.
+    //
+    // At 1 the FIRST hazard ended the dive, and hazard chance starts at 10% and
+    // climbs 4.5% a layer — so the only safe play was to bank at depth 1 for
+    // ~2 cores, and any attempt at a real dive lost everything two times in
+    // three. Measured over 20k dives: banking at the optimal depth 5 still lost
+    // 66% of dives outright and yielded 0.076 blueprints each, which is 14
+    // dives per unlockable card. That is why Timmy reported never getting them.
+    //
+    // At 2 the first hazard is a WARNING — you learn something and get to
+    // decide — instead of a coin flip with no counterplay. The upgrade ladder
+    // is untouched and still adds 5 on top.
+    hull: 2 + (levels.hull || 0),
     drillMult: 1 + (levels.drill || 0) * 0.18,
     scannerDepth: levels.scanner || 0,
     cargo: 60 + (levels.cargo || 0) * 40,

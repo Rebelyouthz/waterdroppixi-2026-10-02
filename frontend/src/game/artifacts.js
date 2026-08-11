@@ -47,6 +47,18 @@ const POSITIVE_POOL = [
   { stat: 'pierce', base: 0.2,   name: 'Piercing' },
   { stat: 'proj',   base: 0.12,  name: 'Barrage' },
   { stat: 'elementalDmg', base: 0.02, name: 'Elemental Attunement' },
+  // Three axes artifacts could not previously roll at all. Each is read
+  // additively by the engine (dodge -> engine.js dodge check, luck -> rarity
+  // rolls, headshot -> the instant-kill check on non-boss enemies), so they
+  // slot into the existing `result[stat] += val` application untouched.
+  //
+  // NB: deliberately NOT projSpeedMult / projRangeMult, tempting as they are.
+  // Those are MULTIPLIERS defaulting to 1, and this pool is applied additively
+  // onto an undefined key -- an artifact rolling 0.05 would set the multiplier
+  // to 0.05 and cut projectile speed to a twentieth rather than adding 5%.
+  { stat: 'dodge',    base: 0.006, name: 'Evasion' },
+  { stat: 'luck',     base: 0.05,  name: 'Providence' },
+  { stat: 'headshot', base: 0.003, name: 'Marksmanship' },
 ];
 // Drawbacks skew toward the OPPOSITE axis of common positives so a roll
 // feels like a real tradeoff (e.g. hits harder but frailer), not just a

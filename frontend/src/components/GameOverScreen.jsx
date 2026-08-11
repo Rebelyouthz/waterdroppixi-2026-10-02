@@ -45,6 +45,38 @@ export default function GameOver({ result, extras, save, onCamp, onRetry, onMenu
   if (result.endless)  badges.push({ icon: '∞', label: 'ENDLESS SURVIVOR' });
   if (ex.challengeBonus) badges.push({ icon: '🎯', label: 'CHALLENGE CLEARED' });
 
+  // Advice keyed off how the run actually ended, not off a generic template.
+  // The tiers mirror campaign.js's rewardTier so the wording and the payout
+  // can never disagree about how far "far enough" was.
+  const nextStep = (() => {
+    if (result.victory || result.aidaKilled) {
+      return { head: '✓ NODE CLEARED', body: 'Three chests banked. The next node expects the gear these paid for — spend before you go.' };
+    }
+    const gate = ex.gateTime || 0;
+    if (gate && result.time >= gate) {
+      return {
+        head: '◆ YOU REACHED THE GUARDIAN',
+        body: 'Two chests banked. This is the fight the node was building to, and it is meant to take a few attempts — take the haul to the Camp and come back heavier.',
+      };
+    }
+    if (gate && result.time >= gate * 0.45) {
+      return {
+        head: '◆ PARTIAL HAUL',
+        body: 'One chest banked. Level 4 opens a second weapon slot — surviving to it is usually what turns an attempt around.',
+      };
+    }
+    if ((result.level || 1) < 4) {
+      return {
+        head: '▸ KEEP MOVING',
+        body: 'Standing still draws them in faster. Kite in wide circles, collect every orb, and reach level 4 for your second weapon.',
+      };
+    }
+    return {
+      head: '▸ SPEND WHAT YOU EARNED',
+      body: 'Nothing in the Camp is saved for later. Gear, talents and meta all take effect on the very next run.',
+    };
+  })();
+
   return (
     <div className="modal-overlay">
       <div className={'gameover go-modern' + (result.victory || result.aidaKilled ? ' is-victory' : '')} data-testid="game-over">
@@ -87,6 +119,20 @@ export default function GameOver({ result, extras, save, onCamp, onRetry, onMenu
                 <span>{b.icon}</span><b>{b.label}</b>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* ---- What to do next -----------------------------------------
+            The whole difficulty pass rests on a node taking three to five
+            attempts, and a death screen that only says "you fell" makes
+            attempt two feel like a punishment rather than the plan. This
+            names how far you got, what it paid, and the single most useful
+            thing to go do — so a failed run ends with a direction rather
+            than with a decision the player has no information for. */}
+        {nextStep && (
+          <div className="go-next" data-testid="go-next">
+            <div className="go-next-head">{nextStep.head}</div>
+            <div className="go-next-body">{nextStep.body}</div>
           </div>
         )}
 

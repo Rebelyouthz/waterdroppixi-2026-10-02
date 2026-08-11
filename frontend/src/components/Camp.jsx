@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { META_UPGRADES, metaCost } from '../game/data';
-import { MILESTONES, AVATARS, CHESTS, rollChest, getRank, RANK_TITLES, PROFILE_FRAMES, NAME_COLORS } from '../game/data_ext';
+import { META_UPGRADES, metaCost, WEAPONS } from '../game/data';
+import { MILESTONES, AVATARS, CHESTS, rollChest, getRank, RANK_TITLES, PROFILE_FRAMES, NAME_COLORS, HEADBANDS, SHIP_COLORS, CIGAR_UNLOCK_RANK, accountXpToNext } from '../game/data_ext';
 import ProfilePanel from './ProfilePanel';
 import { META_UNLOCK_REQS, POE_INDEX, POE_ATTRS } from '../game/poe_tree';
 import { applyReward, DEFAULT_SAVE, saveLocal } from '../store';
@@ -24,9 +24,12 @@ import ExplorationScreen from './ExplorationScreen';
 import { pendingMilestones } from '../game/clicker';
 import GearPanel from './GearPanel';
 import { BattlePassPanel, CodexPanel, PatrolPanel, EyeBadge } from './MetaFeatures';
-import { ACHIEVEMENTS } from '../game/data_ext2';
+import { ACHIEVEMENTS, resolveStartWeapon } from '../game/data_ext2';
 import { MissionsPanel, ChallengesPanel, AchievementsPanel, CardShopModal, ActiveLoadoutPanel, SettingsPanel, MapsPanel } from './CampPanels';
 import { Audio } from '../game/audio';
+import BadgeSlots, { BadgePicker } from './BadgeSlots';
+import QuestTracker from './QuestTracker';
+import GameIcon from './GameIcon';
 
 // A number that rolls from its current displayed value to the new one rather
 // than snapping. Buying three upgrades in quick succession does NOT queue
@@ -58,9 +61,30 @@ function CountUp({ value, className }) {
     raf.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf.current);
   }, [value]);
+  // Compact from a thousand up: 2466 -> "2.5k". Seven currency chips share one
+  // phone-width row, and "2 466" alone is wider than the share each chip gets
+  // — a thousands-separated number is what forced the row to overflow and
+  // scroll. Under 1000 the exact figure still shows, because that is the range
+  // where a player is counting single coins.
+  // Precision drops as the number grows, so the string stays about the same
+  // WIDTH at every magnitude — that is what keeps the chips equal:
+  //   2466   -> 2.46k      12345 -> 12.3k
+  //   123456 -> 123k       2.4M  -> 2.4M
+  // Trailing zeros are trimmed so it reads 3k rather than 3.00k.
+  const fmt = (n) => {
+    const trim = (s) => s.replace(/\.?0+$/, '');
+    if (n >= 1e6) return trim((n / 1e6).toFixed(n >= 1e7 ? 0 : 1)) + 'M';
+    if (n >= 1e5) return trim((n / 1e3).toFixed(0)) + 'k';
+    if (n >= 1e4) return trim((n / 1e3).toFixed(1)) + 'k';
+    // Truncated, not rounded: 2466 reads 2.46k. Rounding to 2.47k shows a
+    // number the player does not have, which matters on a currency — you can
+    // be shown less than you own, never more.
+    if (n >= 1e3) return trim((Math.floor(n / 10) / 100).toFixed(2)) + 'k';
+    return String(n);
+  };
   return (
     <span className={`countup${dir > 0 ? ' is-up' : dir < 0 ? ' is-down' : ''}${className ? ' ' + className : ''}`}>
-      {shown.toLocaleString('sv-SE')}
+      {fmt(shown)}
       {dir !== 0 && <i className="countup-arrow">{dir > 0 ? '▲' : '▼'}</i>}
     </span>
   );
@@ -78,6 +102,10 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
   const [shopOpen, setShopOpen] = useState(false);
   const [skillOpen, setSkillOpen] = useState(false);
   const [forgeOpen, setForgeOpen] = useState(false);
+  // Which Weaponsmith sub-tab to land on. The smith holds three unrelated
+  // systems, so "go to the smith" is not a destination on its own — the
+  // katana quest sends you to BLUEPRINTS, the tuning steps to TUNING.
+  const [forgeSub, setForgeSub] = useState('parts');
   const [chestOpen, setChestOpen] = useState(false);
   const [loadoutOpen, setLoadoutOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -110,12 +138,37 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
     switch (dest) {
       case 'story':    if (storyNode && onStory) onStory(); break;
       case 'gear':     setTab('gear'); break;
-      case 'smith':    setForgeOpen(true); break;
+      case 'smith':    setForgeSub('parts'); setForgeOpen(true); break;
+      // Same panel, but landed on the blueprint shelf. The katana quest asks
+      // you to pick a start weapon; dropping you on TUNING and letting you
+      // hunt for the control is how a two-click task becomes a dead end.
+      case 'smithBlueprints': setForgeSub('blueprints'); setForgeOpen(true); break;
       case 'base':     setBaseOpen(true); break;
       case 'defence':  setDefenceOpen(true); break;
       case 'prospect': setProspectorOpen(true); break;
       case 'patrol':   setTab('patrol'); break;
       case 'starraid': if (onStarRaid) onStarRaid(); break;
+      // ---- Destinations the guided quest chain can name --------------------
+      // Same rule as above, extended: every `go` value in storyQuests.js must
+      // land somewhere real. A guided step whose button does nothing is worse
+      // than no guidance at all, so this is exhaustive by construction — if a
+      // quest names a destination, it is in this switch.
+      case 'attrs':     setAttrOpen(true); break;
+      case 'meta':      setTab('cards'); break;
+      case 'skills':    setSkillOpen(true); break;
+      case 'talents':   setTalentOpen(true); break;
+      case 'character': setCharacterOpen(true); break;
+      case 'loadout':   setLoadoutOpen(true); break;
+      case 'shop':      setShopOpen(true); break;
+      case 'chests':    setChestOpen(true); break;
+      case 'clicker':   setClickerOpen(true); break;
+      case 'pets':      setPetOpen(true); break;
+      case 'tcg':       setTcgOpen(true); break;
+      case 'pass':      setTab('pass'); break;
+      // Daily quests live on the Welcome screen, not in the camp — the only
+      // honest destination for this step is back out the front door.
+      case 'daily':     onBack && onBack(); break;
+      case 'profile':   setBadgeOpen(true); break;
       default: setTab('cards');
     }
   };
@@ -125,6 +178,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
   const pathStep = currentStep(save);
   const pathReady = !!pathStep && pathStep.check(save);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [badgeOpen, setBadgeOpen] = useState(false);
   const [attrOpen, setAttrOpen] = useState(false);
   // The attribute panel escapes the sidebar entirely. Both an absolutely
   // positioned dropdown AND an in-flow expanding block get clipped here —
@@ -139,21 +193,29 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
       const el = profileBarRef.current;
       if (!el) return;
       const r = el.getBoundingClientRect();
-      const width = Math.min(340, window.innerWidth - 16);
+      // Exactly as wide as the profile plaque it drops out of, and aligned to
+      // its left edge. It used to be a flat 340px regardless, which on a wider
+      // sidebar left it overhanging the right side by a finger's width — the
+      // panel looked bolted on rather than part of the menu. Measuring the
+      // anchor means it stays symmetric at every sidebar width.
       setAttrPanelStyle({
         position: 'fixed',
-        left: Math.max(8, Math.min(r.left, window.innerWidth - width - 8)),
+        left: r.left,
         top: r.bottom - 2,
-        width,
+        width: r.width,
         maxHeight: Math.max(180, window.innerHeight - r.bottom - 20),
       });
     };
     place();
+    // Third way out, for keyboard. The backdrop and the ✕ cover touch.
+    const onKey = (e) => { if (e.key === 'Escape') setAttrOpen(false); };
     window.addEventListener('resize', place);
     window.addEventListener('scroll', place, true);
+    window.addEventListener('keydown', onKey);
     return () => {
       window.removeEventListener('resize', place);
       window.removeEventListener('scroll', place, true);
+      window.removeEventListener('keydown', onKey);
     };
   }, [attrOpen]);
   // Sub-tabs for the consolidated Campaign hub (was 4 separate top-level
@@ -175,14 +237,52 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
     const v = upg.amount;
     return PCT_STATS.has(upg.stat) ? `+${(v * 100).toFixed(2)}% ${upg.stat}` : `+${v} ${upg.stat}`;
   };
-  const burstMeta = (upg, e) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const id = Math.random().toString(36).slice(2);
-    setMetaBurst({ id, x: rect.left + rect.width / 2, y: rect.top, icon: upg.icon, gain: fmtMetaGain(upg) });
-    setTimeout(() => setMetaBurst(cur => (cur && cur.id === id ? null : cur)), 1100);
+  // The burst ACCUMULATES while you keep buying the same upgrade instead of
+  // being replaced. Buying five levels in a row used to spawn five bursts that
+  // each overwrote the last, so a fast batch showed one flicker or — if the
+  // clicks landed inside the same frame — nothing at all. Now it counts them
+  // up, shows the level you came from and landed on, and only expires once you
+  // actually stop.
+  const burstTimer = useRef(null);
+  // Set by the meta-purchase updater when a buy is actually committed, read by
+  // the effect that fires the celebration. See `buy` below for why the verdict
+  // cannot simply be returned.
+  const buyFxRef = useRef(null);
+  // Takes an already-measured `rect`, NOT the event.
+  //
+  // This used to take the event and call `e.currentTarget.getBoundingClientRect()`
+  // itself. That was fine while it ran inside the click handler, but once the
+  // call moved into an effect (so the celebration only fires for purchases that
+  // actually committed) the event was long dead by then: React nulls
+  // `currentTarget` as soon as the handler returns, so this threw
+  // "null is not an object" on every meta purchase. The rect has to be
+  // measured during the click and carried along.
+  const burstMeta = (upg, rect, fromLvl) => {
+    if (!rect) return;
+    setMetaBurst(cur => {
+      const same = cur && cur.upgId === upg.id;
+      return {
+        upgId: upg.id,
+        x: rect.left + rect.width / 2,
+        y: rect.top,
+        icon: upg.icon,
+        name: upg.name,
+        gain: fmtMetaGain(upg),
+        count: same ? cur.count + 1 : 1,
+        // Keep the ORIGINAL starting level across a batch so the readout says
+        // "Lv 3 → 8" rather than resetting to "Lv 7 → 8" on the last click.
+        fromLvl: same ? cur.fromLvl : fromLvl,
+      };
+    });
+    clearTimeout(burstTimer.current);
+    // Roughly double the old dwell. There are four things to read here (name,
+    // level range, stat gain, batch count) and 1.5s was not enough time to get
+    // through them before it floated away.
+    burstTimer.current = setTimeout(() => setMetaBurst(null), 3000);
     setCampShake(true); setTimeout(() => setCampShake(false), 260);
     Audio.claimPing();
   };
+  useEffect(() => () => clearTimeout(burstTimer.current), []);
 
   const buyAttr = (attrId) => {
     const freeAttr = Math.max(0, (save.profile?.level || 1) - 1 - Object.values(save.attrs || {}).reduce((a, b) => a + b, 0));
@@ -205,10 +305,47 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
     }
     const cost = metaCost(upg, cur);
     if (save.gold < cost) { setToast('NOT ENOUGH GOLD'); setTimeout(() => setToast(''), 1200); return; }
-    setSave({ ...save, gold: save.gold - cost, meta: { ...save.meta, [upg.id]: cur + 1 } });
-    popFeedback(upg.id);
-    if (e) burstMeta(upg, e); else Audio.click();
+    // Functional update, not `{ ...save }`. Clicking fast enough to queue two
+    // purchases inside one React batch made the second one read the SAME stale
+    // `save` from this closure, so it recomputed the same level and the same
+    // cost and the first purchase was silently thrown away — you paid once and
+    // got one level for two clicks. Reading `s` from the updater means every
+    // click composes on the real latest state.
+    // The celebration used to fire unconditionally after the updater, so in
+    // exactly the rapid-click race this functional update was added to fix, a
+    // REJECTED click still played the chime and popped a "Lv N ▲ N+1" burst
+    // for a purchase that never happened.
+    //
+    // The verdict cannot be read back out of the updater — React runs it at
+    // render time, not synchronously here, so a flag set inside it is still
+    // false on the next line. Instead the updater records the outcome on a ref
+    // as it runs, and the effect below fires the feedback once React has
+    // actually committed the new level.
+    // Measure NOW, while the event is still live. React nulls `currentTarget`
+    // the moment this handler returns, so the effect below cannot read it.
+    const rect = e && e.currentTarget ? e.currentTarget.getBoundingClientRect() : null;
+    setSave(s => {
+      const lvl = s.meta[upg.id] || 0;
+      if (lvl >= upg.max) return s;
+      const c = metaCost(upg, lvl);
+      if ((s.gold || 0) < c) return s;
+      buyFxRef.current = { id: upg.id, upg, rect, from: lvl };
+      return { ...s, gold: s.gold - c, meta: { ...s.meta, [upg.id]: lvl + 1 } };
+    });
+    return;
   };
+
+  // Fires the purchase celebration only for buys that were actually committed.
+  // Keyed on save.meta so it runs after the state lands, which is also the
+  // only moment the burst's "to" value is guaranteed to match reality.
+  useEffect(() => {
+    const fx = buyFxRef.current;
+    if (!fx) return;
+    buyFxRef.current = null;
+    popFeedback(fx.id);
+    if (fx.rect) burstMeta(fx.upg, fx.rect, fx.from); else Audio.click();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [save.meta]);
 
   const claimMilestone = (m) => {
     if (save.milestones.claimed[m.id]) return;
@@ -252,11 +389,43 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
   return (
     <div className="app-shell">
       <div className={`camp ${campShake ? 'camp-shake' : ''}`} data-testid="camp-screen">
-        {metaBurst && (
-          <div className="meta-burst" style={{ left: metaBurst.x, top: metaBurst.y }} data-testid="meta-burst">
+        {/* Portalled to <body> — NOT rendered inside .camp.
+            The burst is position:fixed and placed from getBoundingClientRect(),
+            i.e. viewport coordinates. Buying also puts `.camp-shake` on .camp
+            for 260ms, and that animation sets a `transform`. A transformed
+            ancestor becomes the containing block for its position:fixed
+            descendants, so for those 260ms the burst measured `top` from
+            .camp's box — scrolled far up the page — and drew near the top of
+            the screen. The instant the shake ended the transform vanished, it
+            re-anchored to the viewport, and it snapped down onto the card.
+            Hence "it shows at the top first, then it comes down".
+            Outside .camp there is no transformed ancestor and it lands right
+            the first time. */}
+        {metaBurst && createPortal(
+          <div className={`meta-burst${metaBurst.count > 1 ? ' is-batch' : ''}`}
+            key={`${metaBurst.upgId}-${metaBurst.count}`}
+            style={{ left: metaBurst.x, top: metaBurst.y }} data-testid="meta-burst">
             <div className="meta-burst-icon">{metaBurst.icon}</div>
-            <div className="meta-burst-gain">▲ {metaBurst.gain}</div>
-          </div>
+            <div className="meta-burst-name">{metaBurst.name}</div>
+            {/* The end of the batch is read LIVE from the save, so it is right
+                however many clicks landed before React committed. */}
+            {/* Old value dimmed, new value green, with an explicit green
+                arrow. Previously both numbers rendered in the same colour, so
+                the readout said what changed but not which way — you had to
+                compare two numbers to work out you had gained something,
+                which is the one thing a purchase confirmation should never
+                make you do. */}
+            <div className="meta-burst-lvl">
+              <span className="mb-from">Lv {metaBurst.fromLvl}</span>
+              <b className="mb-arrow">▲</b>
+              <span className="mb-to">{save.meta[metaBurst.upgId] || 0}</span>
+            </div>
+            <div className="meta-burst-gain"><b>▲</b> {metaBurst.gain}</div>
+            {metaBurst.count > 1 && (
+              <div className="meta-burst-count" data-testid="meta-burst-count">×{metaBurst.count}</div>
+            )}
+          </div>,
+          document.body
         )}
         <div className="camp-sidebar">
           <div className="camp-profile-bar camp-profile-bar-framed" ref={profileBarRef}>
@@ -271,21 +440,53 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
                   color: (() => { const nc = NAME_COLORS.find(c => c.id === save.profile.nameColor); return nc && nc.color !== 'rainbow' ? nc.color : 'var(--ink)'; })(),
                 }}>{save.profile.name || 'Wanderer'}</div>
                 <div style={{ fontSize: 11, color: 'var(--rune)', letterSpacing: '0.15em' }}>{RANK_TITLES[getRank(save.profile.level)]} · Lv {save.profile.level}</div>
-                <div className="camp-rank-bar" data-testid="camp-rank-progress">
-                  <div className="camp-rank-fill" style={{ width: `${((save.profile?.xp || 0) % 200) / 200 * 100}%` }} />
-                  <span className="camp-rank-bar-label">{(save.profile?.xp || 0) % 200}/200</span>
-                </div>
+                {/* Progress against the REAL threshold, not a hardcoded 200.
+                    accountXpToNext() is 60 * 1.18^level — 70 XP at level 1,
+                    not 200 — so this bar was showing 60/200 (30%) when the
+                    player was actually at 60/70 (86%) and one run from a
+                    level. It made profile progression look roughly three
+                    times slower than it is, which is why levelling up (and
+                    therefore the rank-up screen) seemed never to happen. */}
+                {(() => {
+                  const need = accountXpToNext(save.profile?.level || 1);
+                  const have = Math.min(save.profile?.xp || 0, need);
+                  return (
+                    <div className="camp-rank-bar" data-testid="camp-rank-progress">
+                      <div className="camp-rank-fill" style={{ width: `${(have / need) * 100}%` }} />
+                      <span className="camp-rank-bar-label">{have}/{need}</span>
+                    </div>
+                  );
+                })()}
+                {/* Badges live INSIDE the identity stack, directly under the
+                    level bar and left-aligned with the name. As a separate
+                    sibling row they were a small centred cluster floating in
+                    the middle of the plaque with nothing to align to — which
+                    is what read as "weird". Here they are visibly part of the
+                    same block as the avatar, name and rank: one profile card,
+                    not three stranded rows. */}
+                <BadgeSlots save={save} onOpen={(e) => { e?.stopPropagation?.(); Audio.click(); setBadgeOpen(true); }} />
               </div>
             </div>
             {/* All currencies on ONE row — the row scrolls sideways rather
                 than wrapping, so the banner keeps a fixed height. */}
             <div className="camp-currency-row">
-              <span className="camp-currency-chip">★ <CountUp value={save.gold} /></span>
-              <span className="camp-currency-chip" style={{ color: '#4dffd4' }}>💎 <CountUp value={save.gems || 0} /></span>
-              <span className="camp-currency-chip" style={{ color: '#ffcc00' }}>🎰 <CountUp value={save.slotCoins || 0} /></span>
-              <span className="camp-currency-chip" style={{ color: '#4dff91' }}>🌿 <CountUp value={save.talentPoints || 0} /></span>
-              <span className="camp-currency-chip">◆ <CountUp value={save.sp} /></span>
-              <span className="camp-currency-chip" style={{ color: '#ff9900' }}>🎫 <CountUp value={save.gachaTokens || 0} /></span>
+              {/* Drawn icons, not emoji. The row used to be ★ 💎 🎰 🌿 ◆ 🎫 🔑
+                  — seven unrelated art styles that render differently on every
+                  phone, and 💎/🔷 and 🎰/🎫 read as the same thing at this
+                  size, so you could not tell what you had without counting. */}
+              <span className="camp-currency-chip"><GameIcon name="cur_gold" size={18} /> <CountUp value={save.gold} /></span>
+              <span className="camp-currency-chip" style={{ color: '#4dffd4' }}><GameIcon name="cur_gems" size={18} /> <CountUp value={save.gems || 0} /></span>
+              <span className="camp-currency-chip" style={{ color: '#ffcc00' }}><GameIcon name="cur_slot" size={18} /> <CountUp value={save.slotCoins || 0} /></span>
+              <span className="camp-currency-chip" style={{ color: '#7ad96b' }}><GameIcon name="cur_tp" size={18} /> <CountUp value={save.talentPoints || 0} /></span>
+              <span className="camp-currency-chip" style={{ color: '#8fe6ff' }}><GameIcon name="cur_sp" size={18} /> <CountUp value={save.sp} /></span>
+              <span className="camp-currency-chip" style={{ color: '#ff9933' }}><GameIcon name="cur_token" size={18} /> <CountUp value={save.gachaTokens || 0} /></span>
+              {/* Probe Keys gate Lootmine dives. Shown here with everything
+                  else so the player can see they have one WITHOUT opening the
+                  mine to find out — a gated mode you can only check from
+                  inside is a mode you forget exists. */}
+              <span className="camp-currency-chip" style={{ color: '#e0c98a' }} data-testid="chip-probe-keys">
+                <GameIcon name="cur_key" size={18} /> <CountUp value={save.probeKeys || 0} />
+              </span>
             </div>
             <button
               className={`camp-attr-toggle ${attrOpen ? 'open' : ''} ${attrFreePts > 0 ? 'camp-attr-pulse' : ''}`}
@@ -312,10 +513,28 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
                 ancestor's stacking context (now or from any future CSS
                 change in the sidebar) can trap it again. */}
             {attrOpen && createPortal(
-              <div className="camp-attr-panel" data-testid="camp-attr-dropdown" style={attrPanelStyle}>
+              <>
+                {/* The panel had no way out at all: portalled to <body> with no
+                    close button, no backdrop and no Escape, while covering the
+                    ⚡ ATTR toggle that opened it. On a phone that is a dead end
+                    — the only escape was reloading the page. Three exits now,
+                    because on touch there is no Escape key and no hover. */}
+                <div
+                  className="camp-attr-backdrop"
+                  data-testid="camp-attr-backdrop"
+                  onClick={() => setAttrOpen(false)}
+                  aria-hidden
+                />
+                <div className="camp-attr-panel" data-testid="camp-attr-dropdown" style={attrPanelStyle}>
                 <div className="char-attr-header">
                   <span>⚡ ATTRIBUTES</span>
                   <span className={`char-attr-free ${attrFreePts > 0 ? 'has' : ''}`}>{attrFreePts} pt{attrFreePts === 1 ? '' : 's'} free</span>
+                  <button
+                    className="camp-attr-close"
+                    onClick={() => setAttrOpen(false)}
+                    data-testid="camp-attr-close"
+                    aria-label="Close attributes"
+                  >✕</button>
                 </div>
                 <div className="char-attr-desc">Earned 1 per profile level (RANK). Permanent bonuses.</div>
                 <div className="poe-attr-grid">
@@ -338,7 +557,8 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
                     );
                   })}
                 </div>
-              </div>,
+                </div>
+              </>,
               document.body
             )}
           </div>
@@ -357,7 +577,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
             <button className={`camp-tab ${tab === 'stats' ? 'active' : ''}`} onClick={() => setTab('stats')} data-testid="tab-stats">📊 STATS</button>
             <button className={`camp-tab ${tab === 'starraid' ? 'active' : ''}`} onClick={() => setTab('starraid')} data-testid="tab-starraid">🚀 STAR RAID</button>
             <button className="camp-tab" onClick={() => setBaseOpen(true)} data-testid="tab-base">🏛 THE BASE</button>
-            <button className="camp-tab" onClick={() => setProspectorOpen(true)} data-testid="tab-prospector">⛏ PROSPECTOR</button>
+            <button className="camp-tab" onClick={() => setProspectorOpen(true)} data-testid="tab-prospector">⛏ LOOTMINE</button>
             <button className="camp-tab" onClick={() => setClickerOpen(true)} data-testid="tab-clicker" style={{ position: 'relative' }}>
               💧 THE WELL {clickerReady > 0 && <EyeBadge />}
             </button>
@@ -381,6 +601,12 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
         </div>
 
         <div className="camp-main">
+          {/* The guided chain lives in the scrolling main column, not in the
+              sidebar. The sidebar is a fixed-height band on phones and putting
+              anything else in it pushed the tab strip out of view entirely —
+              and a stub of a tracker that only shows half a row is worse than
+              none. Here it gets full width on every screen size. */}
+          <QuestTracker save={save} onGo={pathGo} />
           {tab === 'cards' && (
             <>
               <div className="camp-header">
@@ -406,8 +632,17 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
                         <div className="lvl">{lvl}/{upg.max}</div>
                       </div>
                       {upg.max > 20 ? (
-                        <div style={{ height:5, background:'#1a0a2e', borderRadius:3, overflow:'hidden', margin:'4px 0' }}>
-                          <div style={{ width:`${(lvl/upg.max)*100}%`, height:'100%', background: maxed ? '#ffd700' : isLocked ? '#3a2a5e' : 'var(--rune)', transition:'width 0.3s' }} />
+                        /* Classed rather than inline-styled so the track, the
+                           fill and the slider knob at the fill's leading edge
+                           can be styled together — an inline `overflow:hidden`
+                           would have clipped the knob off, and inline styles
+                           can't be overridden from the sheet without
+                           !important everywhere. Only the dynamic width and
+                           the state colour stay inline. */
+                        <div className={`upg-bar${maxed ? ' is-max' : ''}${isLocked ? ' is-locked' : ''}`}>
+                          <div className="upg-bar-fill"
+                            style={{ width: `${(lvl / upg.max) * 100}%`,
+                                     background: maxed ? '#ffd700' : isLocked ? '#3a2a5e' : 'var(--rune)' }} />
                         </div>
                       ) : (
                         <div className="pips">
@@ -439,9 +674,14 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
                 <button className={`gear-tab ${campaignSub === 'missions' ? 'active' : ''}`} onClick={() => setCampaignSub('missions')} data-testid="tab-missions">📋 MISSIONS</button>
                 <button className={`gear-tab ${campaignSub === 'challenges' ? 'active' : ''}`} onClick={() => setCampaignSub('challenges')} data-testid="tab-challenges">🏆 CHALLENGES</button>
               </div>
-              {campaignSub === 'campaign' && <PathPanel save={save} setSave={setSave} onGo={pathGo} />}
               {campaignSub === 'campaign' && <CampaignPanel save={save} setSave={setSave} />}
               {campaignSub === 'maps' && <MapsPanel save={save} setSave={setSave} onStart={(cfg) => onMission(cfg)} />}
+              {/* THE PATH lives under MISSIONS, not STORY. It is a chain of
+                  claimable objectives with rewards — the same kind of thing
+                  MissionsPanel lists — so having it sit on the STORY tab
+                  meant the player had claims in two unrelated places and no
+                  reason to expect it. STORY is now just the node map. */}
+              {campaignSub === 'missions' && <PathPanel save={save} setSave={setSave} onGo={pathGo} />}
               {campaignSub === 'missions' && <MissionsPanel save={save} setSave={setSave} onStart={onMission} />}
               {campaignSub === 'challenges' && <ChallengesPanel save={save} setSave={setSave} onStart={(c) => onMission({ ...c, isChallenge: true })} />}
             </>
@@ -526,35 +766,69 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
           {tab === 'stats' && (
             <>
               <div className="camp-header"><h1>Deep Statistics</h1></div>
+              {/* Grouped into named sections rather than one flat run of 22
+                  identical cells. The numbers were all there before, but with
+                  no hierarchy the screen was a wall — you could not tell a
+                  lifetime total from a boss record from a wallet balance
+                  without reading every label. Sections give the eye somewhere
+                  to land, which is the whole point of the reference sheet. */}
+              <div className="stats-sec-h">Global Performance</div>
               <div className="stats-grid">
                 <Stat label="Runs Completed" val={save.runsCompleted} />
                 <Stat label="Total Kills" val={save.totalKills} />
                 <Stat label="Best Run Time" val={fmtTime(save.bestRunTime)} />
                 <Stat label="Best Run Level" val={save.bestKills} />
+                <Stat label="Endless Mode Reached" val={save.endlessReached || 0} />
+                <Stat label="No-Hit Runs" val={save.noHitRuns || 0} />
+              </div>
+
+              <div className="stats-sec-h">Enemy Intelligence &amp; Slayings</div>
+              <div className="stats-grid">
                 <Stat label="A.I.D.A. Slain" val={save.aidaSlain} />
                 <Stat label="Necromancer Slain" val={save.necroSlain || 0} />
                 <Stat label="Void Titan Slain" val={save.voidSlain || 0} />
                 <Stat label="Eye of Horus Slain" val={save.horusSlain || 0} />
-                <Stat label="Endless Mode Reached" val={save.endlessReached || 0} />
+              </div>
+
+              <div className="stats-sec-h">Resources &amp; Progression</div>
+              <div className="stats-grid">
                 <Stat label="Account Rank" val={save.profile.level} />
                 <Stat label="Skill Points" val={save.sp} />
                 <Stat label="Gold Hoarded" val={save.gold} />
+                <Stat label="Daily Streak" val={(save.daily.streak || 0) + ' days'} />
+              </div>
+
+              <div className="stats-sec-h">Arsenal &amp; Collection</div>
+              <div className="stats-grid">
                 <Stat label="Equipment" val={(save.inventory || []).length} />
                 <Stat label="Parts" val={(save.parts || []).length} />
+                <Stat label="Legendary Parts" val={save.legendaryPartsFound || 0} />
                 <Stat label="Weapons Crafted" val={Object.keys(save.craftedWeapons || {}).length} />
                 <Stat label="Skills Learned" val={Object.values(save.skills || {}).reduce((a, b) => a + b, 0)} />
                 <Stat label="Meta Cards" val={Object.values(save.meta || {}).reduce((a, b) => a + b, 0)} />
-                <Stat label="Daily Streak" val={(save.daily.streak || 0) + ' days'} />
                 <Stat label="Shop Pulls" val={save.shopPulls || 0} />
                 <Stat label="Chests Opened" val={save.chestsOpened || 0} />
-                <Stat label="No-Hit Runs" val={save.noHitRuns || 0} />
-                <Stat label="Legendary Parts" val={save.legendaryPartsFound || 0} />
               </div>
             </>
           )}
 
           <div className="camp-actions">
             <button onClick={onBack} data-testid="camp-back">◂ Back</button>
+            {/* What you are about to walk in carrying, shown at the moment you
+                commit. Without this the selection is only visible three taps
+                deep in the smith: a player who picks the katana for the story
+                quest and forgets would find every later run mysteriously
+                gunless and blame the game. Tapping it goes straight back to
+                the shelf that sets it. */}
+            <button
+              className="camp-carry-chip"
+              data-testid="camp-carry"
+              onClick={() => pathGo('smithBlueprints')}
+              title="Change your start weapon"
+            >
+              <span className="ccc-icon">{(WEAPONS[resolveStartWeapon(save)] || {}).icon || '💧'}</span>
+              <span className="ccc-name">{(WEAPONS[resolveStartWeapon(save)] || {}).name || 'Hydro Pistol'}</span>
+            </button>
             <button onClick={onStart} data-testid="camp-fight"
               style={{ borderColor: '#ff7a1a', boxShadow: 'var(--pixel-edge), 0 6px 0 #000, 0 0 28px #ff7a1a66' }}>▸ FIGHT</button>
           </div>
@@ -563,7 +837,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
       {toast && <div className="toast">{toast}</div>}
       {shopOpen && <CardShopModal save={save} setSave={setSave} onClose={() => setShopOpen(false)} />}
       {skillOpen && <SkillTree save={save} setSave={setSave} onClose={() => setSkillOpen(false)} />}
-      {forgeOpen && <Weaponsmith save={save} setSave={setSave} onClose={() => setForgeOpen(false)} />}
+      {forgeOpen && <Weaponsmith save={save} setSave={setSave} initialSub={forgeSub} onClose={() => setForgeOpen(false)} />}
       {chestOpen && <Shop save={save} setSave={setSave} onClose={() => setChestOpen(false)} />}
       {loadoutOpen && <ActiveLoadoutPanel save={save} setSave={setSave} onClose={() => setLoadoutOpen(false)} />}
       {settingsOpen && <SettingsPanel save={save} setSave={setSave} onClose={() => setSettingsOpen(false)} onReset={handleReset} />}
@@ -576,7 +850,8 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
       {clickerOpen && <ClickerScreen save={save} setSave={setSave} onClose={() => setClickerOpen(false)} />}
       {baseOpen && <BasePanel save={save} setSave={setSave} onOpen={enterBuilding} onClose={() => setBaseOpen(false)} />}
       {defenceOpen && <BaseDefenceScreen save={save} setSave={setSave} onClose={() => setDefenceOpen(false)} />}
-      {profileOpen && <ProfilePanel save={save} setSave={setSave} onClose={() => setProfileOpen(false)} />}
+      {profileOpen && <ProfilePanel save={save} setSave={setSave} onClose={() => setProfileOpen(false)} onBadges={() => { setProfileOpen(false); setBadgeOpen(true); }} />}
+      {badgeOpen && <BadgePicker save={save} setSave={setSave} onClose={() => setBadgeOpen(false)} />}
       {save.pendingLevelUp && (
         <LevelUpOverlay save={save} onCollect={() => {
           const r = save.pendingLevelUp;
@@ -616,36 +891,267 @@ const _LASERS = [0,45,90,135,180,225,270,315];
 
 function LevelUpOverlay({ save, onCollect }) {
   const r = save.pendingLevelUp;
-  const av = AVATARS[save.profile.avatar] || AVATARS[0];
-  // The rising, gritty "rank up" fanfare plays once, the moment the overlay
-  // itself appears — the dramatic beat is the reveal, not the collect tap.
-  useEffect(() => { Audio.rankUp(); }, []);
+  // `AVATARS` is an ARRAY and `profile.avatar` is a string id, so
+  // `AVATARS[save.profile.avatar]` was always undefined and this screen has
+  // never once shown the player their own avatar — it silently fell through to
+  // AVATARS[0] every single time. Line 365 of this same file already does it
+  // correctly with `.find()`; this copy did not. That is why the level-up
+  // screen looked like a stock water drop no matter what the player had set.
+  const av = AVATARS.find(a => a.id === save.profile.avatar) || AVATARS[0];
+  const photo = save.profile.photo || null;
+  // Did the RANK actually change, or is this "only" a profile level?
+  // `fromLevel` is written by addAccountXp; older saves that were created
+  // before it existed fall back to r.level - 1, which is right for the
+  // single-level case and never claims a false rank-up.
+  const newRank = getRank(r.level);
+  const prevRank = getRank(Number.isFinite(r.fromLevel) ? r.fromLevel : r.level - 1);
+  const isRankUp = newRank > prevRank;
+  // The rising, gritty fanfare is reserved for a real rank-up; a plain level
+  // gets the lighter level-up chime, so the two are audibly different beats.
+  // Every payout on this screen, in one ordered list rather than nine
+  // conditional divs. Building it as data is what lets them be revealed one at
+  // a time — you cannot sequence JSX you have already spread across the card.
+  const rewards = React.useMemo(() => {
+    // `icon` is a GameIcon id, not an emoji — the same art the currency row in
+    // the banner uses, so what you are paid looks like what you then own. They
+    // used to be two unrelated sets of emoji and a player could reasonably not
+    // connect "🔷 Char. Pieces" here with anything at all.
+    const out = [
+      { key: 'gold', icon: 'cur_gold', label: 'Gold', amount: r.gold, color: '#ffd166' },
+      { key: 'sp', icon: 'cur_sp', label: 'SP', amount: r.sp, color: '#8fe6ff' },
+      { key: 'tp', icon: 'cur_tp', label: 'TP', amount: r.talentPoints, color: '#7ad96b' },
+      { key: 'gems', icon: 'cur_gems', label: 'Gems', amount: r.gems, color: '#4dffd4' },
+      { key: 'coins', icon: 'cur_slot', label: `Slot Coin${r.slotCoins > 1 ? 's' : ''}`, amount: r.slotCoins, color: '#ffcc00' },
+      { key: 'pieces', icon: 'cur_pieces', label: 'Char. Pieces', amount: r.pieces, color: '#b362ff' },
+      { key: 'shards', icon: 'cur_shards', label: 'Evo. Shards', amount: r.shards, color: '#ff7a1a' },
+    ].filter(x => (x.amount || 0) > 0);
+    if (r.freeSpin) out.push({ key: 'spin', icon: 'cur_slot', label: 'Free Shop Spin!', amount: null, color: '#4dffd4' });
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // What this rank actually opened. All three reference sheets carry a
+  // "NEW FEATURE UNLOCKS" block, and the game already has real rank-gated
+  // content to put in it — profile frames, headbands, name colours, ship
+  // colours and the cigar — which until now unlocked completely silently. A
+  // player could hit rank 5 and own a Bronze Ring without ever being told.
+  const unlocks = React.useMemo(() => {
+    if (!isRankUp) return [];
+    const out = [];
+    const at = (list, label) => {
+      for (const x of list) if (x.rank === newRank) out.push({ label, name: x.name });
+    };
+    at(PROFILE_FRAMES, 'Profile frame');
+    at(HEADBANDS, 'Headband');
+    at(NAME_COLORS, 'Name colour');
+    at(SHIP_COLORS, 'Ship colour');
+    if (newRank === CIGAR_UNLOCK_RANK) out.push({ label: 'Cosmetic', name: 'The cigar' });
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // How many have landed. Each one flies in, lands on the portrait and only
+  // then does the next start — "so you see and feel exactly what you get, when
+  // you get it" rather than a wall of numbers appearing at once.
+  const [shown, setShown] = useState(0);
+  const [struck, setStruck] = useState(null);   // the key currently hitting
+  const doneAll = shown >= rewards.length;
+
+  useEffect(() => {
+    if (isRankUp) Audio.rankUp();
+    else Audio.levelUp();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // The XP bar rises first, then the rewards land on top of it. Pitch climbs
+  // with the fill so the bar is audibly going somewhere.
+  useEffect(() => {
+    const ticks = [];
+    for (let i = 0; i < 9; i++) {
+      ticks.push(setTimeout(() => Audio.xpTick(i / 8), 120 + i * 82));
+    }
+    ticks.push(setTimeout(() => Audio.xpArrive(), 120 + 9 * 82));
+    return () => ticks.forEach(clearTimeout);
+  }, []);
+
+  // Reward cadence. Starts after the bar has finished so the two beats do not
+  // talk over each other.
+  useEffect(() => {
+    if (doneAll) return undefined;
+    const START = 980, GAP = 520;
+    const t = setTimeout(() => {
+      const item = rewards[shown];
+      setStruck(item.key);
+      Audio.rewardLand(shown / Math.max(1, rewards.length - 1));
+      setShown(s => s + 1);
+      setTimeout(() => setStruck(null), 320);
+    }, shown === 0 ? START : GAP);
+    return () => clearTimeout(t);
+  }, [shown, doneAll, rewards]);
+
+  // Let an impatient player skip straight to the end — a reveal you cannot
+  // interrupt stops being a reward and becomes a wait.
+  const skipOrCollect = () => {
+    if (!doneAll) { setShown(rewards.length); setStruck(null); return; }
+    onCollect();
+  };
+
   return (
-    <div className="lu-overlay" data-testid="levelup-overlay">
+    <div className="lu-overlay" data-testid="levelup-overlay" onClick={skipOrCollect}>
       {_CF.map((c,i) => <div key={i} className="lu-confetti" style={{left:`${c.l}%`,animationDelay:`${c.d}s`,background:c.c}} />)}
       {_LASERS.map(a => <div key={a} className="lu-laser" style={{transform:`translate(-50%,-50%) rotate(${a}deg)`}} />)}
+      {/* The outer frame is a WRAPPER, not a pseudo-element on the card.
+          Two reasons, both found by looking at a screenshot of it:
+            - `.lu-card` has a clip-path for its bevelled corners, and a
+              clip-path clips its own pseudo-elements too, so a frame drawn at
+              `inset:-16px` was cut away entirely and never appeared.
+            - a positioned ::before paints ABOVE non-positioned siblings, so
+              the frame was covering "★ LEVEL n ★" and the XP bar — they were
+              rendering the whole time, behind it.
+          Also NOT `oil-live`: one element has exactly one ::before, so two
+          frame classes overwrite rather than layer. */}
+      <div className="lu-frame" onClick={(e) => e.stopPropagation()}>
       <div className="lu-card">
-        <div className="lu-avatar">{av.icon}</div>
-        <div className="lu-title">RANK UP!</div>
-        <div className="lu-rank">★ RANK {r.level} ★</div>
-        <div className="lu-xp"><div className="lu-xp-fill" /></div>
-          <div className="lu-rewards">
-          <div className="lu-rwd">★ +{r.gold} Gold</div>
-          <div className="lu-rwd">◆ +{r.sp} SP</div>
-          {r.talentPoints > 0 && <div className="lu-rwd" style={{color:'#4dff91'}}>🌿 +{r.talentPoints} TP</div>}
-          {r.gems > 0 && <div className="lu-rwd" style={{color:'#4dffd4'}}>💎 +{r.gems} Gems</div>}
-          {r.slotCoins > 0 && <div className="lu-rwd" style={{color:'#ffcc00'}}>🎰 +{r.slotCoins} Slot Coin{r.slotCoins > 1 ? 's' : ''}!</div>}
-          {r.freeSpin && <div className="lu-rwd" style={{color:'#4dffd4',textShadow:'0 0 10px #4dffd4'}}>🎰 Free Shop Spin!</div>}
-          {r.pieces > 0 && <div className="lu-rwd" style={{color:'#b362ff',textShadow:'0 0 10px #b362ff88'}}>🔷 +{r.pieces} Char. Pieces</div>}
-          {r.shards > 0 && <div className="lu-rwd" style={{color:'#ff7a1a',textShadow:'0 0 10px #ff7a1a88'}}>💎 +{r.shards} Evo. Shards</div>}
-          {r.streakBonus && (
+        {/* Title banner. All three reference sheets lead with a crimson plate
+            carrying the headline, and it is the first thing your eye lands on
+            — the old layout led with a portrait and buried the actual news
+            underneath it. */}
+        <div className={`lu-banner${isRankUp ? ' is-rank' : ''}`}>
+          <span className="lu-banner-l" aria-hidden="true" />
+          <span className="lu-banner-txt">
+            {isRankUp ? `RANK UP — ${RANK_TITLES[newRank]}!` : `NEW ACCOUNT LEVEL: ${r.level}!`}
+          </span>
+          <span className="lu-banner-r" aria-hidden="true" />
+        </div>
+
+        {/* Profile row: portrait beside the name and the bars, exactly as the
+            sheets arrange it. Putting the portrait on its own line pushed the
+            rewards below the fold on a phone. */}
+        <div className="lu-profrow">
+        {/* The portrait the rewards are struck onto. A player who uploaded a
+            photo sees their photo; otherwise their chosen avatar. Either way
+            it is THEIR profile rather than a generic drop. */}
+        <div className={`lu-portrait${struck ? ' is-struck' : ''}`}>
+          {/* Layered bezel, back to front: a spinning black/crimson band, a
+              counter-spinning silver filigree, four holder claws gripping the
+              picture, then the glass. Two rings turning opposite ways is what
+              stops it reading as one flat spinning disc. */}
+          <span className="lu-bezel-outer" aria-hidden="true" />
+          <span className="lu-bezel-band" aria-hidden="true" />
+          <span className="lu-bezel-fili" aria-hidden="true" />
+          <span className="lu-portrait-sheen" aria-hidden="true" />
+          {[0, 1, 2, 3].map(i => <span key={i} className={`lu-claw c${i}`} aria-hidden="true" />)}
+          {photo
+            ? <img className="lu-portrait-img" src={photo} alt="" />
+            : <span className="lu-portrait-icon">{av.icon}</span>}
+        </div>
+        {/* A rank is every 4th profile level, so most level-ups are NOT rank
+            ups. Shouting "RANK UP!" every time (and printing the profile
+            level where the rank belongs) made the real milestone worthless —
+            there was nothing left to escalate to when it actually happened. */}
+          <div className="lu-profmeta">
+            <div className="lu-profname">{save.profile?.name || 'Local Player'}</div>
+            <div className="lu-profrank">
+              {RANK_TITLES[newRank]} — Lv {r.level}
+            </div>
+            {/* Two bars, as in every reference: the rank track above, the
+                level track below. One bar cannot show both, and which of the
+                two just moved is the whole point of the screen. */}
+            <div className="lu-bar rank"><i style={{ width: `${((r.level % 4) / 4) * 100}%` }} /></div>
+            <div className="lu-bar lvl"><i className="lu-bar-run" /></div>
+            <div className="lu-profxp">+{r.xp || r.gold || 0} Account XP</div>
+          </div>
+        </div>
+
+        {/* What is still ahead, kept as one quiet line under the row rather
+            than as a heading — it is context, not news. */}
+        {!isRankUp && (
+          <div className="lu-next-rank">
+            {(() => {
+              const toNext = (newRank + 1) * 4 - r.level;
+              return toNext > 0 && newRank < RANK_TITLES.length - 1
+                ? `${toNext} more level${toNext > 1 ? 's' : ''} to RANK ${newRank + 1} — ${RANK_TITLES[newRank + 1]}`
+                : null;
+            })()}
+          </div>
+        )}
+        {/* The one currently in flight, drawn OVER the card so it can travel
+            from the portrait outward without being clipped by the list. */}
+        {struck && (() => {
+          const it = rewards.find(x => x.key === struck);
+          return it ? (
+            <div className="lu-strike" style={{ '--rc': it.color }} aria-hidden="true">
+              <span className="lu-strike-icon"><GameIcon name={it.icon} tone={it.color} size={44} /></span>
+              <span className="lu-strike-ring" />
+            </div>
+          ) : null;
+        })()}
+
+        <div className="lu-rwd-head">REWARDS CLAIMED</div>
+        <div className="lu-rewards">
+          {/* Plaques in a row, as the sheets lay them out — a tile with the
+              icon large, the amount under it and a struck checkmark, rather
+              than a list of text lines. A row of objects reads as loot; a
+              column of sentences reads as a receipt.
+              ALL tiles mount immediately (not `.slice(0, shown)`) so the row's
+              flex-wrap footprint is fixed from frame one — Timmy: revealing
+              them one at a time by mounting each late made `justify-content:
+              center` re-centre the whole row (and wrap a new line) on every
+              reveal, so the WHOLE CARD visibly hopped each time a reward
+              landed instead of just that reward. Unrevealed tiles stay in
+              place, invisible and inert, and only animate in on their turn. */}
+          {rewards.map((it, i) => (
+            <div
+              key={it.key}
+              className={`lu-tile${i < shown ? ' lu-rwd-in' : ' lu-rwd-pending'}`}
+              style={{ '--rc': it.color }}
+              data-testid={`lu-rwd-${it.key}`}
+            >
+              <span className="lu-tile-check" aria-hidden="true">
+                <svg viewBox="0 0 16 16" width="13" height="13">
+                  <path d="M3 8.4l3.2 3.2L13 4.8" fill="none" stroke="#07160c"
+                    strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </span>
+              <span className="lu-tile-ic"><GameIcon name={it.icon} tone={it.color} size={38} /></span>
+              <span className="lu-tile-amt">{it.amount != null ? `+${it.amount}` : '✦'}</span>
+              <span className="lu-tile-lbl">{it.label}</span>
+            </div>
+          ))}
+          {r.streakBonus && doneAll && (
             <div className="lu-rwd" style={{color:'#ffd700',textShadow:'0 0 16px #ffd700aa',fontSize:15,letterSpacing:'0.15em',marginTop:6,border:'1px solid #ffd70066',padding:'4px 10px',background:'#1a1200'}}>
               ★ 2× STREAK BONUS! ★
               <div style={{fontSize:11,opacity:0.7,letterSpacing:'0.1em'}}>3 rank-ups today</div>
             </div>
           )}
         </div>
-        <button className="lu-collect" onClick={onCollect} data-testid="levelup-collect">COLLECT ▸</button>
+        {/* Only on a rank-up, and only when the rank actually opened something
+            — an empty "NEW UNLOCKS" heading is worse than none. */}
+        {doneAll && unlocks.length > 0 && (
+          <div className="lu-unlocks">
+            <div className="lu-unlocks-head">NEW UNLOCKS</div>
+            {unlocks.map((u, i) => (
+              <div className="lu-unlock" key={i} style={{ animationDelay: `${i * 110}ms` }}>
+                <span className="lu-unlock-check" aria-hidden="true">
+                  <svg viewBox="0 0 16 16" width="11" height="11">
+                    <path d="M3 8.4l3.2 3.2L13 4.8" fill="none" stroke="#07160c"
+                      strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </span>
+                <b>{u.name}</b>
+                <i>{u.label}</i>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Label follows state: while things are still landing this is a skip,
+            not a collect, and saying so is the difference between "I chose to
+            hurry it" and "did that button just eat my rewards?" */}
+        <button className="lu-collect" onClick={skipOrCollect} data-testid="levelup-collect">
+          {doneAll ? 'COLLECT ▸' : 'SKIP ▸'}
+        </button>
+      </div>
       </div>
     </div>
   );

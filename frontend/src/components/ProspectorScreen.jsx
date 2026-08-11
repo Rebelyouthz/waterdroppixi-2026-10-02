@@ -13,7 +13,8 @@ export default function ProspectorScreen({ save, setSave, onClose }) {
   // Same in-game/Star Atlas playlist as a run — swapped back to menu music
   // on close, same convention GameScreen uses.
   useEffect(() => {
-    Audio.swapToGameMusic();
+    // Menu track, not the run playlist.
+    Audio.swapToMenuMusic();
     return () => Audio.swapToMenuMusic();
   }, []);
 
@@ -28,7 +29,22 @@ export default function ProspectorScreen({ save, setSave, onClose }) {
   const [dive, setDive] = useState(null);
   // { depth, hull, cores, flux, blueprints, log: [], next: layer|null, over }
 
+  // Launching costs a Probe Key. Without a cost the mine was unlimited free
+  // income, which made every other economy in the game optional.
+  const keys = save.probeKeys || 0;
   const startDive = () => {
+    if (keys <= 0) return;
+    // Functional so a double-tap on LAUNCH cannot spend two keys for one dive
+    // — the same stale-closure trap the clicker and the meta board both had.
+    setSave(cur => {
+      if ((cur.probeKeys || 0) <= 0) return cur;
+      const next = { ...cur, probeKeys: cur.probeKeys - 1 };
+      // Dropping below the cap starts the refill clock now, rather than from
+      // whenever the save last happened to be under it. tickIdle deliberately
+      // leaves this alone while capped — see the comment there.
+      if (cur.probeKeys >= 3) next.probeKeyAt = Date.now();
+      return next;
+    });
     setDive({
       depth: 0, hull: stats.hull, cores: 0, flux: 0, blueprints: 0, tcgCards: [],
       log: [], next: null, over: false, spilled: false,
@@ -150,7 +166,7 @@ export default function ProspectorScreen({ save, setSave, onClose }) {
     <div className="modal-overlay" data-testid="prospector" onClick={(e) => { if (e.target.classList.contains('modal-overlay')) onClose(); }}>
       <div className="prosp-panel">
         <div className="prosp-header">
-          <div className="prosp-title">⛏ ASTRO PROSPECTOR</div>
+          <div className="prosp-title">⛏ LOOTMINE</div>
           <div className="prosp-wallet">
             <span className="prosp-cur cores">◈ {save.cores || 0}</span>
             <span className="prosp-cur flux">⚗ {save.flux || 0}</span>
@@ -180,7 +196,25 @@ export default function ProspectorScreen({ save, setSave, onClose }) {
                   🛡 {stats.hull} hull · ⛏ ×{stats.drillMult.toFixed(2)} · 📦 {stats.cargo} bay
                   {stats.scannerDepth > 0 && ' · 📡 scanner online'}
                 </div>
-                <button className="prosp-btn go" onClick={startDive} data-testid="prosp-start">▸ LAUNCH PROBE</button>
+                <div className="prosp-keys" data-testid="prosp-keys">
+                  <span className="prosp-key-icon">🔑</span>
+                  <b className={keys <= 0 ? 'out' : ''}>{keys}</b>
+                  <span className="prosp-key-label">PROBE {keys === 1 ? 'KEY' : 'KEYS'}</span>
+                </div>
+                <button
+                  className="prosp-btn go"
+                  onClick={startDive}
+                  disabled={keys <= 0}
+                  data-testid="prosp-start"
+                >
+                  {keys > 0 ? '▸ LAUNCH PROBE  ·  🔑 1' : 'NO PROBE KEYS'}
+                </button>
+                {keys <= 0 && (
+                  <div className="prosp-key-hint">
+                    Keys come from run rewards, rank-ups and milestones — and one
+                    refills on its own every 20 minutes.
+                  </div>
+                )}
               </div>
             ) : (
               <>

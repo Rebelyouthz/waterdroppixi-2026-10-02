@@ -26,6 +26,39 @@ export function rollRarity(luck = 0) {
 // type: 'manual' (mouse aim) or 'auto' (auto-aim nearest)
 // behaviour: 'projectile' | 'orbit' | 'aura' | 'beam' | 'aoe'
 export const WEAPONS = {
+  // The only true melee weapon. No magazine, no reload, no projectile — it
+  // trades all reach for damage, and on a killing blow it cuts the enemy in
+  // half. Its 'melee' behaviour is what makes its wounds read as slashes
+  // rather than bullet holes (see _addImpactMark).
+  katana: {
+    id: 'katana',
+    name: 'Tidecutter Katana',
+    icon: '🗡',
+    type: 'manual',
+    behaviour: 'melee',
+    desc: 'A single clean arc. Kills split the body in two.',
+    base: {
+      damage: 88,
+      fireRate: 2.1,      // swings per second
+      area: 96,           // reach, in world px
+      knockback: 40,
+      crit: 0.16,
+      color: '#dff4ff',
+      sound: 'shoot',
+    },
+    levelUps: [
+      { stat: 'damage', mult: 1.20 },
+      { stat: 'fireRate', mult: 1.12 },
+      { stat: 'area', mult: 1.14 },
+      { stat: 'crit', add: 0.05 },
+      { stat: 'damage', mult: 1.22 },
+      { stat: 'fireRate', mult: 1.10 },
+      { stat: 'area', mult: 1.12 },
+      { stat: 'damage', mult: 1.25 },
+      { stat: 'crit', add: 0.06 },
+    ],
+  },
+
   hydropistol: {
     id: 'hydropistol',
     name: 'Hydro Pistol',
@@ -50,12 +83,14 @@ export const WEAPONS = {
     levelUps: [
       { stat: 'damage', mult: 1.18 },
       { stat: 'fireRate', mult: 1.10 },
+      { stat: 'projectiles', add: 1 },
       { stat: 'magazine', add: 4 },
       { stat: 'pierce', add: 1 },
       { stat: 'damage', mult: 1.25 },
       { stat: 'projSpeed', mult: 1.2 },
       { stat: 'crit', add: 0.10 },
-      { stat: 'damage', mult: 1.4, evolve: true }, // final
+      // final,
+      { stat: 'damage', mult: 1.4, evolve: true }
     ],
   },
   bloodscythe: {
@@ -69,11 +104,14 @@ export const WEAPONS = {
     levelUps: [
       { stat: 'damage', mult: 1.2 },
       { stat: 'area', mult: 1.15 },
+      { stat: 'projectiles', add: 1 },
       { stat: 'fireRate', mult: 1.15 },
       { stat: 'damage', mult: 1.3 },
       { stat: 'area', mult: 1.2 },
       { stat: 'fireRate', mult: 1.2 },
-      { stat: 'damage', mult: 1.5, evolve: true },
+      { stat: 'damage', mult: 1.16 },
+      { stat: 'projSpeed', mult: 1.12 },
+      { stat: 'damage', mult: 1.5, evolve: true }
     ],
   },
   runebolts: {
@@ -83,15 +121,23 @@ export const WEAPONS = {
     type: 'auto',
     behaviour: 'projectile',
     desc: 'Homing cyan bolts that seek the nearest foe.',
-    base: { damage: 12, fireRate: 2.8, projSpeed: 520, projSize: 8, projectiles: 1, pierce: 0, homing: 0.08, color: '#4dffd4' },
+    // projSize 5, was 8. Runebolts is one of the two weapons the tutorial hands
+    // you, it fires 2.8 times a second on its own, and at size 8 — larger than
+    // the manual pistol's 6 — those constant slow blobs were the biggest thing
+    // on a beginner's screen while doing the least damage of anything on it.
+    // A rune bolt should read as a small fast mote, not as a lobbed rock.
+    base: { damage: 12, fireRate: 2.8, projSpeed: 620, projSize: 5, projectiles: 1, pierce: 0, homing: 0.08, color: '#4dffd4' },
     levelUps: [
-      { stat: 'projectiles', add: 1 },
       { stat: 'damage', mult: 1.2 },
       { stat: 'homing', mult: 1.5 },
       { stat: 'projectiles', add: 1 },
       { stat: 'fireRate', mult: 1.25 },
       { stat: 'pierce', add: 1 },
-      { stat: 'damage', mult: 1.5, evolve: true },
+      { stat: 'damage', mult: 1.20 },
+      { stat: 'fireRate', mult: 1.10 },
+      { stat: 'area', mult: 1.14 },
+      { stat: 'reloadTime', mult: 0.90 },
+      { stat: 'damage', mult: 1.5, evolve: true }
     ],
   },
   emberOrbs: {
@@ -105,11 +151,14 @@ export const WEAPONS = {
     levelUps: [
       { stat: 'orbitCount', add: 1 },
       { stat: 'damage', mult: 1.25 },
+      { stat: 'projectiles', add: 1 },
       { stat: 'orbitRadius', mult: 1.15 },
       { stat: 'orbitCount', add: 1 },
       { stat: 'orbitSpeed', mult: 1.2 },
       { stat: 'damage', mult: 1.4 },
-      { stat: 'orbitCount', add: 1, evolve: true },
+      { stat: 'area', mult: 1.14 },
+      { stat: 'reloadTime', mult: 0.90 },
+      { stat: 'orbitCount', add: 1, evolve: true }
     ],
   },
   shockwave: {
@@ -123,11 +172,14 @@ export const WEAPONS = {
     levelUps: [
       { stat: 'area', mult: 1.2 },
       { stat: 'damage', mult: 1.25 },
+      { stat: 'projectiles', add: 1 },
       { stat: 'fireRate', mult: 1.2 },
       { stat: 'damage', mult: 1.4 },
       { stat: 'area', mult: 1.25 },
       { stat: 'fireRate', mult: 1.25 },
-      { stat: 'damage', mult: 1.6, evolve: true },
+      { stat: 'area', mult: 1.14 },
+      { stat: 'reloadTime', mult: 0.90 },
+      { stat: 'damage', mult: 1.6, evolve: true }
     ],
   },
   voidBeam: {
@@ -141,10 +193,14 @@ export const WEAPONS = {
     levelUps: [
       { stat: 'damage', mult: 1.2 },
       { stat: 'range', mult: 1.15 },
+      { stat: 'projectiles', add: 1 },
       { stat: 'fireRate', mult: 1.2 },
       { stat: 'damage', mult: 1.3 },
       { stat: 'range', mult: 1.2 },
-      { stat: 'damage', mult: 1.5, evolve: true },
+      { stat: 'damage', mult: 1.20 },
+      { stat: 'fireRate', mult: 1.10 },
+      { stat: 'area', mult: 1.14 },
+      { stat: 'damage', mult: 1.5, evolve: true }
     ],
   },
   arcTesla: {
@@ -156,13 +212,16 @@ export const WEAPONS = {
     desc: 'Studsande blixt som kedjar till 3 fiender.',
     base: { damage: 28, fireRate: 1.0, range: 320, chainCount: 3, chainRange: 200, color: '#a0e4ff' },
     levelUps: [
-      { stat: 'chainCount', add: 1 },
       { stat: 'damage', mult: 1.22 },
+      { stat: 'chainCount', add: 1 },
+      { stat: 'chainCount', add: 1 },
       { stat: 'fireRate', mult: 1.15 },
+      { stat: 'chainCount', add: 1 },
       { stat: 'chainRange', mult: 1.2 },
       { stat: 'damage', mult: 1.3 },
-      { stat: 'chainCount', add: 1 },
-      { stat: 'damage', mult: 1.55, evolve: true },
+      { stat: 'fireRate', mult: 1.10 },
+      { stat: 'area', mult: 1.14 },
+      { stat: 'damage', mult: 1.55, evolve: true }
     ],
   },
   stormLance: {
@@ -174,8 +233,16 @@ export const WEAPONS = {
     desc: 'A precision bolt that strikes down like real lightning on impact.',
     base: { damage: 26, fireRate: 1.4, projSpeed: 900, projSize: 7, projectiles: 1, pierce: 1, spread: 0.03, crit: 0.10, color: '#fff44d', magazine: 8, reloadTime: 0.9 },
     levelUps: [
-      { stat: 'damage', mult: 1.2 }, { stat: 'pierce', add: 1 }, { stat: 'fireRate', mult: 1.15 },
-      { stat: 'damage', mult: 1.3 }, { stat: 'crit', add: 0.08 }, { stat: 'damage', mult: 1.55, evolve: true },
+      { stat: 'damage', mult: 1.2 },
+      { stat: 'pierce', add: 1 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'fireRate', mult: 1.15 },
+      { stat: 'damage', mult: 1.3 },
+      { stat: 'crit', add: 0.08 },
+      { stat: 'area', mult: 1.14 },
+      { stat: 'reloadTime', mult: 0.90 },
+      { stat: 'damage', mult: 1.16 },
+      { stat: 'damage', mult: 1.55, evolve: true }
     ],
   },
   // ===== NEW WEAPONS (unlock via Card Shop) =====
@@ -192,11 +259,14 @@ export const WEAPONS = {
     levelUps: [
       { stat: 'damage', mult: 1.24 },
       { stat: 'magazine', add: 2 },
+      { stat: 'projectiles', add: 1 },
       { stat: 'fireRate', mult: 1.16 },
       { stat: 'pierce', add: 1 },
       { stat: 'damage', mult: 1.3 },
       { stat: 'crit', add: 0.06 },
-      { stat: 'damage', mult: 1.55, evolve: true },
+      { stat: 'damage', mult: 1.16 },
+      { stat: 'projSpeed', mult: 1.12 },
+      { stat: 'damage', mult: 1.55, evolve: true }
     ],
   },
   // Charge-and-loose. Slow cadence, no magazine to speak of, but the arrow
@@ -212,11 +282,14 @@ export const WEAPONS = {
     levelUps: [
       { stat: 'pierce', add: 2 },
       { stat: 'damage', mult: 1.25 },
+      { stat: 'projectiles', add: 1 },
       { stat: 'fireRate', mult: 1.2 },
       { stat: 'crit', add: 0.07 },
       { stat: 'damage', mult: 1.3 },
-      { stat: 'projectiles', add: 1 },
-      { stat: 'damage', mult: 1.5, evolve: true },
+      { stat: 'reloadTime', mult: 0.90 },
+      { stat: 'damage', mult: 1.16 },
+      { stat: 'projSpeed', mult: 1.12 },
+      { stat: 'damage', mult: 1.5, evolve: true }
     ],
   },
   // Directional lash in the aim direction — the genre-staple whip. Uses the
@@ -230,11 +303,14 @@ export const WEAPONS = {
     levelUps: [
       { stat: 'damage', mult: 1.22 },
       { stat: 'area', mult: 1.14 },
+      { stat: 'projectiles', add: 1 },
       { stat: 'fireRate', mult: 1.18 },
       { stat: 'damage', mult: 1.3 },
       { stat: 'area', mult: 1.16 },
       { stat: 'fireRate', mult: 1.2 },
-      { stat: 'damage', mult: 1.5, evolve: true },
+      { stat: 'fireRate', mult: 1.10 },
+      { stat: 'area', mult: 1.14 },
+      { stat: 'damage', mult: 1.5, evolve: true }
     ],
   },
   chainlightning: {
@@ -242,8 +318,16 @@ export const WEAPONS = {
     desc: 'Arcing bolt that chains between up to 3 foes.',
     base: { damage: 22, fireRate: 1.8, range: 220, area: 90, chain: 2, crit: 0.07, color: '#ffe44d' },
     levelUps: [
-      { stat: 'damage', mult: 1.20 }, { stat: 'chain', add: 1 }, { stat: 'fireRate', mult: 1.12 },
-      { stat: 'damage', mult: 1.28 }, { stat: 'chain', add: 1 }, { stat: 'damage', mult: 1.5, evolve: true },
+      { stat: 'damage', mult: 1.20 },
+      { stat: 'chain', add: 1 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'fireRate', mult: 1.12 },
+      { stat: 'damage', mult: 1.28 },
+      { stat: 'chain', add: 1 },
+      { stat: 'crit', add: 0.04 },
+      { stat: 'projSize', mult: 1.12 },
+      { stat: 'damage', mult: 1.20 },
+      { stat: 'damage', mult: 1.5, evolve: true }
     ],
   },
   whirlwind: {
@@ -251,35 +335,68 @@ export const WEAPONS = {
     desc: 'Spinning blade orbits you — shreds everything nearby.',
     base: { damage: 18, fireRate: 0.0, range: 90, area: 90, orbitSpeed: 3.2, orbitCount: 1, crit: 0.06, color: '#c8e0ff' },
     levelUps: [
-      { stat: 'damage', mult: 1.2 }, { stat: 'orbitCount', add: 1 }, { stat: 'area', mult: 1.15 },
-      { stat: 'damage', mult: 1.3 }, { stat: 'orbitSpeed', mult: 1.2 }, { stat: 'damage', mult: 1.5, evolve: true },
+      { stat: 'damage', mult: 1.2 },
+      { stat: 'orbitCount', add: 1 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'area', mult: 1.15 },
+      { stat: 'damage', mult: 1.3 },
+      { stat: 'orbitSpeed', mult: 1.2 },
+      { stat: 'fireRate', mult: 1.10 },
+      { stat: 'area', mult: 1.14 },
+      { stat: 'reloadTime', mult: 0.90 },
+      { stat: 'damage', mult: 1.5, evolve: true }
     ],
   },
   boneshards: {
     id: 'boneshards', name: 'Bone Shards', icon: '💀', type: 'auto', behaviour: 'shotgun', requireUnlock: true,
     desc: 'Erupts in a burst of bone fragments every few seconds.',
-    base: { damage: 12, fireRate: 0.9, projSpeed: 360, projSize: 7, projectiles: 8, pierce: 0, spread: 1.45, crit: 0.04, color: '#f0dbb4' },
+    base: { damage: 18, fireRate: 0.9, projSpeed: 360, projSize: 7, projectiles: 3, pierce: 0, spread: 1.45, crit: 0.04, color: '#f0dbb4' },
     levelUps: [
-      { stat: 'damage', mult: 1.2 }, { stat: 'projectiles', add: 2 }, { stat: 'fireRate', mult: 1.15 },
-      { stat: 'pierce', add: 1 }, { stat: 'damage', mult: 1.3 }, { stat: 'damage', mult: 1.5, evolve: true },
+      { stat: 'damage', mult: 1.2 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'fireRate', mult: 1.15 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'pierce', add: 1 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'damage', mult: 1.3 },
+      { stat: 'damage', mult: 1.5, evolve: true }
     ],
   },
   daggers: {
     id: 'daggers', name: 'Dagger Fan', icon: '🗡️', type: 'manual', behaviour: 'projectile', requireUnlock: true,
     desc: 'Throws a fan of 3 quick daggers.',
-    base: { damage: 24, fireRate: 2.8, projSpeed: 740, projSize: 5, projectiles: 3, pierce: 0, spread: 0.20, crit: 0.14, color: '#d0d0ff', magazine: 9, reloadTime: 0.7 },
+    base: { damage: 38, fireRate: 2.8, projSpeed: 740, projSize: 5, projectiles: 1, pierce: 0, spread: 0.20, crit: 0.14, color: '#d0d0ff', magazine: 9, reloadTime: 0.7 },
     levelUps: [
-      { stat: 'damage', mult: 1.2 }, { stat: 'projectiles', add: 1 }, { stat: 'pierce', add: 1 },
-      { stat: 'fireRate', mult: 1.15 }, { stat: 'damage', mult: 1.3 }, { stat: 'damage', mult: 1.5, evolve: true },
+      { stat: 'damage', mult: 1.2 },
+      { stat: 'pierce', add: 1 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'fireRate', mult: 1.15 },
+      { stat: 'damage', mult: 1.3 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'projSize', mult: 1.12 },
+      { stat: 'damage', mult: 1.20 },
+      { stat: 'fireRate', mult: 1.10 },
+      { stat: 'damage', mult: 1.5, evolve: true }
     ],
   },
   flameburst: {
     id: 'flameburst', name: 'Flame Burst', icon: '🔥', type: 'manual', behaviour: 'shotgun', requireUnlock: true,
     desc: 'Close-range cone of fire — devastating up close.',
-    base: { damage: 34, fireRate: 1.1, projSpeed: 350, projSize: 10, projectiles: 6, pierce: 0, spread: 0.58, crit: 0.05, color: '#ff6a00', magazine: 4, reloadTime: 1.5 },
+    base: { damage: 44, fireRate: 1.1, projSpeed: 350, projSize: 10, projectiles: 3, pierce: 0, spread: 0.58, crit: 0.05, color: '#ff6a00', magazine: 4, reloadTime: 1.5 },
     levelUps: [
-      { stat: 'damage', mult: 1.25 }, { stat: 'projectiles', add: 1 }, { stat: 'fireRate', mult: 1.1 },
-      { stat: 'damage', mult: 1.3 }, { stat: 'spread', add: -0.07 }, { stat: 'damage', mult: 1.5, evolve: true },
+      { stat: 'damage', mult: 1.25 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'fireRate', mult: 1.1 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'damage', mult: 1.3 },
+      { stat: 'spread', add: -0.07 },
+      { stat: 'damage', mult: 1.16 },
+      { stat: 'damage', mult: 1.5, evolve: true }
     ],
   },
   icespike: {
@@ -287,17 +404,33 @@ export const WEAPONS = {
     desc: 'Slow, powerful shot that chills enemies on hit.',
     base: { damage: 70, fireRate: 0.9, projSpeed: 270, projSize: 13, projectiles: 1, pierce: 1, spread: 0.01, crit: 0.08, color: '#a0e8ff', magazine: 3, reloadTime: 2.0, slowOnHit: 0.45 },
     levelUps: [
-      { stat: 'damage', mult: 1.3 }, { stat: 'pierce', add: 1 }, { stat: 'slowOnHit', add: 0.10 },
-      { stat: 'damage', mult: 1.3 }, { stat: 'fireRate', mult: 1.2 }, { stat: 'damage', mult: 1.6, evolve: true },
+      { stat: 'damage', mult: 1.3 },
+      { stat: 'pierce', add: 1 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'slowOnHit', add: 0.10 },
+      { stat: 'damage', mult: 1.3 },
+      { stat: 'fireRate', mult: 1.2 },
+      { stat: 'damage', mult: 1.20 },
+      { stat: 'fireRate', mult: 1.10 },
+      { stat: 'area', mult: 1.14 },
+      { stat: 'damage', mult: 1.6, evolve: true }
     ],
   },
   staticField: {
     id: 'staticField', name: 'Static Field', icon: '🔌', type: 'auto', behaviour: 'chain', requireUnlock: true,
     desc: 'Discharges through the air, arcing between many foes at once — weaker per hit but chains far further than Arc Tesla.',
-    base: { damage: 16, fireRate: 1.6, range: 260, chainCount: 5, chainRange: 260, color: '#c8f8ff' },
+    base: { damage: 19, fireRate: 1.6, range: 260, chainCount: 3, chainRange: 260, color: '#c8f8ff' },
     levelUps: [
-      { stat: 'chainCount', add: 1 }, { stat: 'damage', mult: 1.18 }, { stat: 'chainRange', mult: 1.15 },
-      { stat: 'fireRate', mult: 1.15 }, { stat: 'chainCount', add: 1 }, { stat: 'damage', mult: 1.5, evolve: true },
+      { stat: 'damage', mult: 1.18 },
+      { stat: 'chainCount', add: 1 },
+      { stat: 'chainCount', add: 1 },
+      { stat: 'chainRange', mult: 1.15 },
+      { stat: 'chainCount', add: 1 },
+      { stat: 'fireRate', mult: 1.15 },
+      { stat: 'reloadTime', mult: 0.90 },
+      { stat: 'damage', mult: 1.16 },
+      { stat: 'projSpeed', mult: 1.12 },
+      { stat: 'damage', mult: 1.5, evolve: true }
     ],
   },
   // ===== ADDITIONAL WEAPONS =====
@@ -306,8 +439,16 @@ export const WEAPONS = {
     desc: '3 icy orbs circle you, chilling and damaging all enemies.',
     base: { damage: 9, orbitCount: 3, orbitRadius: 72, orbitSpeed: 1.6, area: 20, color: '#a0e8ff', slowOnHit: 0.28 },
     levelUps: [
-      { stat: 'orbitCount', add: 1 }, { stat: 'damage', mult: 1.22 }, { stat: 'area', mult: 1.15 },
-      { stat: 'orbitCount', add: 1 }, { stat: 'orbitSpeed', mult: 1.2 }, { stat: 'damage', mult: 1.5, evolve: true },
+      { stat: 'orbitCount', add: 1 },
+      { stat: 'damage', mult: 1.22 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'area', mult: 1.15 },
+      { stat: 'orbitCount', add: 1 },
+      { stat: 'orbitSpeed', mult: 1.2 },
+      { stat: 'damage', mult: 1.20 },
+      { stat: 'fireRate', mult: 1.10 },
+      { stat: 'area', mult: 1.14 },
+      { stat: 'damage', mult: 1.5, evolve: true }
     ],
   },
   voidPulse: {
@@ -315,8 +456,16 @@ export const WEAPONS = {
     desc: 'Emits void shockwaves outward, damaging all nearby foes.',
     base: { damage: 14, fireRate: 1.1, range: 110, area: 110, color: '#9933ff', pierce: 99 },
     levelUps: [
-      { stat: 'damage', mult: 1.2 }, { stat: 'area', mult: 1.2 }, { stat: 'fireRate', mult: 1.15 },
-      { stat: 'damage', mult: 1.3 }, { stat: 'area', mult: 1.2 }, { stat: 'damage', mult: 1.5, evolve: true },
+      { stat: 'damage', mult: 1.2 },
+      { stat: 'area', mult: 1.2 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'fireRate', mult: 1.15 },
+      { stat: 'damage', mult: 1.3 },
+      { stat: 'area', mult: 1.2 },
+      { stat: 'fireRate', mult: 1.10 },
+      { stat: 'area', mult: 1.14 },
+      { stat: 'reloadTime', mult: 0.90 },
+      { stat: 'damage', mult: 1.5, evolve: true }
     ],
   },
   sniperDrop: {
@@ -324,17 +473,33 @@ export const WEAPONS = {
     desc: 'Pinpoint shot with extreme range and damage. Reload after each shot.',
     base: { damage: 110, fireRate: 0.45, projSpeed: 1700, projSize: 4, projectiles: 1, pierce: 5, spread: 0.0, crit: 0.38, color: '#ff4dff', magazine: 1, reloadTime: 2.5 },
     levelUps: [
-      { stat: 'damage', mult: 1.35 }, { stat: 'crit', add: 0.10 }, { stat: 'pierce', add: 2 },
-      { stat: 'damage', mult: 1.40 }, { stat: 'magazine', add: 1 }, { stat: 'damage', mult: 2.0, evolve: true },
+      { stat: 'damage', mult: 1.35 },
+      { stat: 'crit', add: 0.10 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'pierce', add: 2 },
+      { stat: 'damage', mult: 1.40 },
+      { stat: 'magazine', add: 1 },
+      { stat: 'area', mult: 1.14 },
+      { stat: 'reloadTime', mult: 0.90 },
+      { stat: 'damage', mult: 1.16 },
+      { stat: 'damage', mult: 2.0, evolve: true }
     ],
   },
   acidSprayer: {
     id: 'acidSprayer', name: 'Acid Sprayer', icon: '☠️', type: 'manual', behaviour: 'shotgun', requireUnlock: true,
     desc: 'Short-range acid spray — melts everything in a cone.',
-    base: { damage: 7, fireRate: 4.2, projSpeed: 270, projSize: 9, projectiles: 7, pierce: 1, spread: 0.62, crit: 0.04, color: '#7fff00', magazine: 20, reloadTime: 2.0 },
+    base: { damage: 10, fireRate: 4.2, projSpeed: 270, projSize: 9, projectiles: 3, pierce: 1, spread: 0.62, crit: 0.04, color: '#7fff00', magazine: 20, reloadTime: 2.0 },
     levelUps: [
-      { stat: 'damage', mult: 1.22 }, { stat: 'projectiles', add: 2 }, { stat: 'fireRate', mult: 1.1 },
-      { stat: 'damage', mult: 1.28 }, { stat: 'pierce', add: 1 }, { stat: 'damage', mult: 1.5, evolve: true },
+      { stat: 'damage', mult: 1.22 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'fireRate', mult: 1.1 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'damage', mult: 1.28 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'pierce', add: 1 },
+      { stat: 'damage', mult: 1.5, evolve: true }
     ],
   },
 
@@ -349,9 +514,16 @@ export const WEAPONS = {
     desc: 'Deploys drones that independently hunt and fire at nearby foes.',
     base: { damage: 10, fireRate: 1.6, projSpeed: 520, projSize: 5, pierce: 0, crit: 0.06, range: 380, droneCount: 1, color: '#4dc4ff' },
     levelUps: [
-      { stat: 'damage', mult: 1.2 }, { stat: 'fireRate', mult: 1.15 }, { stat: 'droneCount', add: 1 },
-      { stat: 'damage', mult: 1.25 }, { stat: 'fireRate', mult: 1.15 }, { stat: 'range', add: 80 },
-      { stat: 'damage', mult: 1.5, evolve: true },
+      { stat: 'damage', mult: 1.2 },
+      { stat: 'fireRate', mult: 1.15 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'droneCount', add: 1 },
+      { stat: 'damage', mult: 1.25 },
+      { stat: 'fireRate', mult: 1.15 },
+      { stat: 'range', add: 80 },
+      { stat: 'reloadTime', mult: 0.90 },
+      { stat: 'damage', mult: 1.16 },
+      { stat: 'damage', mult: 1.5, evolve: true }
     ],
   },
   plasmaTurret: {
@@ -359,8 +531,16 @@ export const WEAPONS = {
     desc: 'Pulses a short-range plasma burst around you.',
     base: { damage: 20, fireRate: 1.4, area: 150, knockback: 30, crit: 0.05, color: '#4dc4ff' },
     levelUps: [
-      { stat: 'damage', mult: 1.2 }, { stat: 'area', mult: 1.15 }, { stat: 'fireRate', mult: 1.15 },
-      { stat: 'damage', mult: 1.3 }, { stat: 'area', mult: 1.2 }, { stat: 'damage', mult: 1.5, evolve: true },
+      { stat: 'damage', mult: 1.2 },
+      { stat: 'area', mult: 1.15 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'fireRate', mult: 1.15 },
+      { stat: 'damage', mult: 1.3 },
+      { stat: 'area', mult: 1.2 },
+      { stat: 'damage', mult: 1.16 },
+      { stat: 'projSpeed', mult: 1.12 },
+      { stat: 'crit', add: 0.04 },
+      { stat: 'damage', mult: 1.5, evolve: true }
     ],
   },
   shrapnelMine: {
@@ -368,8 +548,16 @@ export const WEAPONS = {
     desc: 'Auto-drops proximity mines that shred everything in the blast.',
     base: { damage: 55, fireRate: 0.5, area: 100, color: '#ffb347' },
     levelUps: [
-      { stat: 'damage', mult: 1.22 }, { stat: 'area', mult: 1.15 }, { stat: 'fireRate', mult: 1.15 },
-      { stat: 'damage', mult: 1.3 }, { stat: 'area', mult: 1.2 }, { stat: 'damage', mult: 1.5, evolve: true },
+      { stat: 'damage', mult: 1.22 },
+      { stat: 'area', mult: 1.15 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'fireRate', mult: 1.15 },
+      { stat: 'damage', mult: 1.3 },
+      { stat: 'area', mult: 1.2 },
+      { stat: 'damage', mult: 1.16 },
+      { stat: 'projSpeed', mult: 1.12 },
+      { stat: 'crit', add: 0.04 },
+      { stat: 'damage', mult: 1.5, evolve: true }
     ],
   },
   solarFlare: {
@@ -377,8 +565,16 @@ export const WEAPONS = {
     desc: 'A radiant burning nova erupts around you periodically.',
     base: { damage: 26, fireRate: 1.1, area: 170, knockback: 40, crit: 0.05, color: '#ff9900' },
     levelUps: [
-      { stat: 'damage', mult: 1.22 }, { stat: 'area', mult: 1.15 }, { stat: 'fireRate', mult: 1.15 },
-      { stat: 'damage', mult: 1.32 }, { stat: 'area', mult: 1.2 }, { stat: 'damage', mult: 1.5, evolve: true },
+      { stat: 'damage', mult: 1.22 },
+      { stat: 'area', mult: 1.15 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'fireRate', mult: 1.15 },
+      { stat: 'damage', mult: 1.32 },
+      { stat: 'area', mult: 1.2 },
+      { stat: 'area', mult: 1.14 },
+      { stat: 'reloadTime', mult: 0.90 },
+      { stat: 'damage', mult: 1.16 },
+      { stat: 'damage', mult: 1.5, evolve: true }
     ],
   },
   railgunArray: {
@@ -386,8 +582,16 @@ export const WEAPONS = {
     desc: 'Long-range auto-sniper — pins down the nearest foe from afar.',
     base: { damage: 46, fireRate: 0.9, range: 620, crit: 0.15, color: '#9fe0ff' },
     levelUps: [
-      { stat: 'damage', mult: 1.22 }, { stat: 'range', add: 60 }, { stat: 'fireRate', mult: 1.15 },
-      { stat: 'damage', mult: 1.3 }, { stat: 'crit', add: 0.08 }, { stat: 'damage', mult: 1.5, evolve: true },
+      { stat: 'damage', mult: 1.22 },
+      { stat: 'range', add: 60 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'fireRate', mult: 1.15 },
+      { stat: 'damage', mult: 1.3 },
+      { stat: 'crit', add: 0.08 },
+      { stat: 'damage', mult: 1.16 },
+      { stat: 'projSpeed', mult: 1.12 },
+      { stat: 'crit', add: 0.04 },
+      { stat: 'damage', mult: 1.5, evolve: true }
     ],
   },
 
@@ -401,28 +605,51 @@ export const WEAPONS = {
     desc: 'Heavy piercing harpoon — skewers everything in its path.',
     base: { damage: 30, fireRate: 2.2, projSpeed: 760, projSize: 7, magazine: 8, reloadTime: 1.3, pierce: 4, knockback: 130, spread: 0.03, crit: 0.1, color: '#1fb6ff', sound: 'shoot' },
     levelUps: [
-      { stat: 'damage', mult: 1.18 }, { stat: 'pierce', add: 2 }, { stat: 'fireRate', mult: 1.1 },
-      { stat: 'damage', mult: 1.25 }, { stat: 'magazine', add: 3 }, { stat: 'crit', add: 0.08 },
-      { stat: 'damage', mult: 1.4, evolve: true },
+      { stat: 'damage', mult: 1.18 },
+      { stat: 'pierce', add: 2 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'fireRate', mult: 1.1 },
+      { stat: 'damage', mult: 1.25 },
+      { stat: 'magazine', add: 3 },
+      { stat: 'crit', add: 0.08 },
+      { stat: 'projSpeed', mult: 1.12 },
+      { stat: 'crit', add: 0.04 },
+      { stat: 'damage', mult: 1.4, evolve: true }
     ],
   },
   twinRevolvers: {
     id: 'twinRevolvers', name: 'Twin Revolvers', icon: '🔫', type: 'manual', behaviour: 'projectile',
     desc: 'Dual-wielded sidearms — twice the lead, twice the noise.',
-    base: { damage: 12, fireRate: 6.5, projSpeed: 900, projSize: 5, projectiles: 2, magazine: 18, reloadTime: 0.9, pierce: 0, knockback: 60, spread: 0.05, crit: 0.1, color: '#ffd166', sound: 'shoot' },
+    base: { damage: 16, fireRate: 6.5, projSpeed: 900, projSize: 5, projectiles: 1, magazine: 18, reloadTime: 0.9, pierce: 0, knockback: 60, spread: 0.05, crit: 0.1, color: '#ffd166', sound: 'shoot' },
     levelUps: [
-      { stat: 'damage', mult: 1.18 }, { stat: 'fireRate', mult: 1.12 }, { stat: 'magazine', add: 6 },
-      { stat: 'damage', mult: 1.22 }, { stat: 'crit', add: 0.1 }, { stat: 'fireRate', mult: 1.15 },
-      { stat: 'damage', mult: 1.4, evolve: true },
+      { stat: 'damage', mult: 1.18 },
+      { stat: 'fireRate', mult: 1.12 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'magazine', add: 6 },
+      { stat: 'damage', mult: 1.22 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'crit', add: 0.1 },
+      { stat: 'fireRate', mult: 1.15 },
+      { stat: 'projSize', mult: 1.12 },
+      { stat: 'damage', mult: 1.4, evolve: true }
     ],
   },
   voidScatter: {
     id: 'voidScatter', name: 'Void Scattergun', icon: '🌌', type: 'manual', behaviour: 'shotgun', requireUnlock: true,
     desc: 'A void-charged blast of homing shards in a wide cone.',
-    base: { damage: 9, fireRate: 2.6, projSpeed: 400, projSize: 7, projectiles: 9, pierce: 1, spread: 0.7, crit: 0.06, color: '#b362ff', magazine: 14, reloadTime: 1.8 },
+    base: { damage: 14, fireRate: 2.6, projSpeed: 400, projSize: 7, projectiles: 3, pierce: 1, spread: 0.7, crit: 0.06, color: '#b362ff', magazine: 14, reloadTime: 1.8 },
     levelUps: [
-      { stat: 'damage', mult: 1.2 }, { stat: 'projectiles', add: 2 }, { stat: 'fireRate', mult: 1.1 },
-      { stat: 'damage', mult: 1.28 }, { stat: 'pierce', add: 1 }, { stat: 'damage', mult: 1.5, evolve: true },
+      { stat: 'damage', mult: 1.2 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'fireRate', mult: 1.1 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'damage', mult: 1.28 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'pierce', add: 1 },
+      { stat: 'damage', mult: 1.5, evolve: true }
     ],
   },
   arcCaster: {
@@ -430,9 +657,16 @@ export const WEAPONS = {
     desc: 'Manual-aim lightning sidearm — fast, sharp, precise.',
     base: { damage: 14, fireRate: 5.5, projSpeed: 950, projSize: 5, magazine: 16, reloadTime: 1.0, pierce: 1, knockback: 40, spread: 0.02, crit: 0.14, color: '#a0e4ff', sound: 'shoot' },
     levelUps: [
-      { stat: 'damage', mult: 1.18 }, { stat: 'fireRate', mult: 1.12 }, { stat: 'pierce', add: 1 },
-      { stat: 'damage', mult: 1.24 }, { stat: 'crit', add: 0.1 }, { stat: 'magazine', add: 5 },
-      { stat: 'damage', mult: 1.4, evolve: true },
+      { stat: 'damage', mult: 1.18 },
+      { stat: 'fireRate', mult: 1.12 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'pierce', add: 1 },
+      { stat: 'damage', mult: 1.24 },
+      { stat: 'crit', add: 0.1 },
+      { stat: 'magazine', add: 5 },
+      { stat: 'area', mult: 1.14 },
+      { stat: 'reloadTime', mult: 0.90 },
+      { stat: 'damage', mult: 1.4, evolve: true }
     ],
   },
   cometLauncher: {
@@ -440,8 +674,16 @@ export const WEAPONS = {
     desc: 'Fires a slow heavy comet that explodes violently on impact.',
     base: { damage: 65, fireRate: 0.9, projSpeed: 460, projSize: 12, magazine: 4, reloadTime: 2.4, pierce: 0, knockback: 160, spread: 0.04, crit: 0.08, color: '#ff7a1a', explode: 90, sound: 'shoot' },
     levelUps: [
-      { stat: 'damage', mult: 1.22 }, { stat: 'fireRate', mult: 1.12 }, { stat: 'magazine', add: 2 },
-      { stat: 'damage', mult: 1.3 }, { stat: 'fireRate', mult: 1.15 }, { stat: 'damage', mult: 1.5, evolve: true },
+      { stat: 'damage', mult: 1.22 },
+      { stat: 'fireRate', mult: 1.12 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'magazine', add: 2 },
+      { stat: 'damage', mult: 1.3 },
+      { stat: 'fireRate', mult: 1.15 },
+      { stat: 'projSpeed', mult: 1.12 },
+      { stat: 'crit', add: 0.04 },
+      { stat: 'projSize', mult: 1.12 },
+      { stat: 'damage', mult: 1.5, evolve: true }
     ],
   },
 
@@ -451,10 +693,18 @@ export const WEAPONS = {
   hydropistol_evo: {
     id: 'hydropistol_evo', name: 'Torrent Cannon', icon: '🌊', type: 'manual', behaviour: 'projectile', isEvo: true, evoFrom: 'hydropistol',
     desc: 'Evolution of Hydro Pistol. Fires 3 massive water bolts that pierce everything.',
-    base: { damage: 52, fireRate: 2.2, projSpeed: 1020, projSize: 11, projectiles: 3, pierce: 3, spread: 0.08, crit: 0.16, color: '#00b8ff', magazine: 9, reloadTime: 1.2, knockback: 120 },
+    base: { damage: 83, fireRate: 2.2, projSpeed: 1020, projSize: 11, projectiles: 1, pierce: 3, spread: 0.08, crit: 0.16, color: '#00b8ff', magazine: 9, reloadTime: 1.2, knockback: 120 },
     levelUps: [
-      { stat: 'damage', mult: 1.25 }, { stat: 'fireRate', mult: 1.12 }, { stat: 'pierce', add: 1 },
-      { stat: 'damage', mult: 1.3  }, { stat: 'projectiles', add: 1  }, { stat: 'damage', mult: 1.5, evolve: true },
+      { stat: 'damage', mult: 1.25 },
+      { stat: 'fireRate', mult: 1.12 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'pierce', add: 1 },
+      { stat: 'damage', mult: 1.3  },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'projSize', mult: 1.12 },
+      { stat: 'damage', mult: 1.20 },
+      { stat: 'fireRate', mult: 1.10 },
+      { stat: 'damage', mult: 1.5, evolve: true }
     ],
   },
   bloodscythe_evo: {
@@ -462,8 +712,16 @@ export const WEAPONS = {
     desc: 'Evolution of Blood Scythe. Massive spinning reaper — each hit restores HP.',
     base: { damage: 55, fireRate: 2.0, range: 200, area: 200, knockback: 30, crit: 0.10, color: '#8b0000', lifesteal: 0.08 },
     levelUps: [
-      { stat: 'damage', mult: 1.25 }, { stat: 'area', mult: 1.2 }, { stat: 'fireRate', mult: 1.15 },
-      { stat: 'damage', mult: 1.35 }, { stat: 'area', mult: 1.2  }, { stat: 'damage', mult: 1.6, evolve: true },
+      { stat: 'damage', mult: 1.25 },
+      { stat: 'area', mult: 1.2 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'fireRate', mult: 1.15 },
+      { stat: 'damage', mult: 1.35 },
+      { stat: 'area', mult: 1.2  },
+      { stat: 'projSize', mult: 1.12 },
+      { stat: 'damage', mult: 1.20 },
+      { stat: 'fireRate', mult: 1.10 },
+      { stat: 'damage', mult: 1.6, evolve: true }
     ],
   },
   emberOrbs_evo: {
@@ -471,17 +729,33 @@ export const WEAPONS = {
     desc: 'Evolution of Ember Orbs. 6 massive lava orbs leave a burning trail behind them.',
     base: { damage: 22, orbitCount: 6, orbitRadius: 105, orbitSpeed: 2.6, area: 32, color: '#ff3d00' },
     levelUps: [
-      { stat: 'orbitCount', add: 1 }, { stat: 'damage', mult: 1.25 }, { stat: 'area', mult: 1.2 },
-      { stat: 'orbitSpeed', mult: 1.2 }, { stat: 'damage', mult: 1.35 }, { stat: 'damage', mult: 1.5, evolve: true },
+      { stat: 'orbitCount', add: 1 },
+      { stat: 'damage', mult: 1.25 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'area', mult: 1.2 },
+      { stat: 'orbitSpeed', mult: 1.2 },
+      { stat: 'damage', mult: 1.35 },
+      { stat: 'projSpeed', mult: 1.12 },
+      { stat: 'crit', add: 0.04 },
+      { stat: 'projSize', mult: 1.12 },
+      { stat: 'damage', mult: 1.5, evolve: true }
     ],
   },
   runebolts_evo: {
     id: 'runebolts_evo', name: 'Storm Array', icon: '🌩️', type: 'auto', behaviour: 'projectile', isEvo: true, evoFrom: 'runebolts',
     desc: 'Evolution of Rune Bolts. 5 chain-lightning bolts that arc between enemies.',
-    base: { damage: 28, fireRate: 3.5, projSpeed: 700, projSize: 10, projectiles: 5, pierce: 1, homing: 0.12, color: '#00fff2', chainOnKill: true, chainRange: 180, chainDmgMult: 0.6 },
+    base: { damage: 62, fireRate: 3.5, projSpeed: 700, projSize: 10, projectiles: 1, pierce: 1, homing: 0.12, color: '#00fff2', chainOnKill: true, chainRange: 180, chainDmgMult: 0.6 },
     levelUps: [
-      { stat: 'projectiles', add: 1 }, { stat: 'damage', mult: 1.25 }, { stat: 'fireRate', mult: 1.2 },
-      { stat: 'projectiles', add: 2 }, { stat: 'pierce',  add: 1    }, { stat: 'damage', mult: 1.5, evolve: true },
+      { stat: 'damage', mult: 1.25 },
+      { stat: 'fireRate', mult: 1.2 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'pierce',  add: 1    },
+      { stat: 'reloadTime', mult: 0.90 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'projSpeed', mult: 1.12 },
+      { stat: 'crit', add: 0.04 },
+      { stat: 'projSize', mult: 1.12 },
+      { stat: 'damage', mult: 1.5, evolve: true }
     ],
   },
   frostOrb_evo: {
@@ -489,17 +763,34 @@ export const WEAPONS = {
     desc: 'Evolution of Frost Orb. 5 giant blizzard orbs that freeze all enemies on contact.',
     base: { damage: 18, orbitCount: 5, orbitRadius: 88, orbitSpeed: 1.9, area: 28, color: '#c8f4ff', slowOnHit: 0.55 },
     levelUps: [
-      { stat: 'orbitCount', add: 1 }, { stat: 'damage', mult: 1.25 }, { stat: 'area', mult: 1.2 },
-      { stat: 'orbitSpeed', mult: 1.15 }, { stat: 'slowOnHit', add: 0.10 }, { stat: 'damage', mult: 1.5, evolve: true },
+      { stat: 'orbitCount', add: 1 },
+      { stat: 'damage', mult: 1.25 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'area', mult: 1.2 },
+      { stat: 'orbitSpeed', mult: 1.15 },
+      { stat: 'slowOnHit', add: 0.10 },
+      { stat: 'damage', mult: 1.16 },
+      { stat: 'projSpeed', mult: 1.12 },
+      { stat: 'crit', add: 0.04 },
+      { stat: 'damage', mult: 1.5, evolve: true }
     ],
   },
   daggers_evo: {
     id: 'daggers_evo', name: 'Blade Storm', icon: '⚔️', type: 'manual', behaviour: 'shotgun', isEvo: true, evoFrom: 'daggers',
     desc: 'Evolution of Dagger Fan. 8 razor blades fired in a full fan — one trigger, mass carnage.',
-    base: { damage: 40, fireRate: 2.8, projSpeed: 820, projSize: 7, projectiles: 8, pierce: 2, spread: 0.85, crit: 0.18, color: '#e8e8ff', magazine: 16, reloadTime: 1.4, knockback: 50 },
+    base: { damage: 60, fireRate: 2.8, projSpeed: 820, projSize: 7, projectiles: 3, pierce: 2, spread: 0.85, crit: 0.18, color: '#e8e8ff', magazine: 16, reloadTime: 1.4, knockback: 50 },
     levelUps: [
-      { stat: 'damage', mult: 1.25 }, { stat: 'projectiles', add: 2 }, { stat: 'crit', add: 0.10 },
-      { stat: 'damage', mult: 1.30 }, { stat: 'pierce',      add: 1 }, { stat: 'damage', mult: 1.5, evolve: true },
+      { stat: 'damage', mult: 1.25 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'crit', add: 0.10 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'damage', mult: 1.30 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'projectiles', add: 1 },
+      { stat: 'pierce',      add: 1 },
+      { stat: 'damage', mult: 1.5, evolve: true }
     ],
   },
 };
@@ -510,13 +801,23 @@ export const WEAPON_EVO_MAP = Object.fromEntries(
 );
 
 // ---------- ENEMIES ----------
+// Balance pass note — the opening two minutes were the weakest stretch in the
+// game: a wall of low-HP slimes that a level-1 pistol shredded, which taught
+// the player that standing still and holding fire was a viable strategy. It is
+// not supposed to be, ever. Early HP is up across the board (slime 44→52, bat
+// 23→28, ghoul 68→80) and early damage is up enough that four hits from
+// anything is a real problem at 50 base HP — the first minute should read as
+// "I am barely holding", not as target practice.
+//
+// Everything from `brute` down was left alone: those types arrive after the
+// player has cards, and they were already tuned against that.
 export const ENEMIES = {
   slime: {
-    id: 'slime', name: 'Slime', size: 18, hp: 44, dmg: 14, speed: 60, color: '#7ad96b',
+    id: 'slime', name: 'Slime', size: 18, hp: 52, dmg: 16, speed: 62, color: '#7ad96b',
     xp: 2, gold: 1, ai: 'chase',
   },
   bat: {
-    id: 'bat', name: 'Voidbat', size: 14, hp: 23, dmg: 10, speed: 120, color: '#b362ff',
+    id: 'bat', name: 'Voidbat', size: 14, hp: 28, dmg: 12, speed: 126, color: '#b362ff',
     xp: 2, gold: 1, ai: 'chase',
   },
   brute: {
@@ -524,15 +825,15 @@ export const ENEMIES = {
     xp: 6, gold: 3, ai: 'chase',
   },
   ranger: {
-    id: 'ranger', name: 'Ranger', size: 20, hp: 59, dmg: 16, speed: 70, color: '#ffd166',
-    xp: 4, gold: 2, ai: 'ranged', shootRange: 320, shootCD: 1.8, projSpeed: 320,
+    id: 'ranger', name: 'Ranger', size: 20, hp: 66, dmg: 18, speed: 70, color: '#ffd166',
+    xp: 4, gold: 2, ai: 'ranged', shootRange: 320, shootCD: 1.7, projSpeed: 320,
   },
   charger: {
     id: 'charger', name: 'Charger', size: 22, hp: 68, dmg: 70, speed: 80, color: '#ff3146',
     xp: 5, gold: 3, ai: 'charge',
   },
   ghoul: {
-    id: 'ghoul', name: 'Ghoul', size: 19, hp: 68, dmg: 15, speed: 95, color: '#9aa6b2',
+    id: 'ghoul', name: 'Ghoul', size: 19, hp: 80, dmg: 17, speed: 98, color: '#9aa6b2',
     xp: 3, gold: 2, ai: 'chase',
   },
   necron: {
@@ -653,12 +954,21 @@ export const STAT_CARDS = [
   { id: 'mag',       icon: '📦', name: 'Bigger Mag',      desc: '+{v} magazine size',    stat: 'magBonus',      mult: false, amount: 2 },
   { id: 'luck',      icon: '🍀', name: 'Fortune\'s Favor', desc: '+{v} luck (better card/loot rarity)', stat: 'luck', mult: false, amount: 0.3 },
   { id: 'skillcd',   icon: '🔷', name: 'Overclock',       desc: '-{v}% active skill cooldown', stat: 'skillCdMult', mult: true, amount: -0.06 },
+  // Projectile speed and range. Requested by the user, and they fix a real
+  // gap: shots flew at a fixed speed and travelled a fixed (very long)
+  // distance no matter what you built, so neither was ever a decision.
+  // Range is deliberately the smaller number — extra reach is worth more per
+  // point than extra speed in a game where enemies close on you.
+  { id: 'projspd',   icon: '🚀', name: 'Swift Rounds',    desc: '+{v}% projectile speed', stat: 'projSpeedMult', mult: true,  amount: 0.08 },
+  { id: 'projrange', icon: '📏', name: 'Long Barrel',     desc: '+{v}% projectile range', stat: 'projRangeMult', mult: true,  amount: 0.06 },
 ];
 
 // ---------- META UPGRADES (permanent — tiny increments, long grind) ----------
 // Philosophy: +1 HP/level max, +0.1-0.2% for %, max 80-100 levels each.
 // Total endpoint power ≈ same as before, but requires 10-20× more upgrades.
 export const META_UPGRADES = [
+  { id: 'm_projspd',  name: 'Swift Rounds',   icon: '🚀', desc: '+0.15% projectile speed per level', stat: 'projspd',   amount: 0.0015, max: 80, baseCost: 13, curve: 1.033 },
+  { id: 'm_projrange',name: 'Long Barrel',    icon: '📏', desc: '+0.12% projectile range per level', stat: 'projrange', amount: 0.0012, max: 80, baseCost: 15, curve: 1.034 },
   { id: 'm_hp',     name: 'Hardened Core',     icon: '❤️', desc: '+1 max HP per level',            stat: 'maxHp',     amount: 1,      max: 100, baseCost: 8,   curve: 1.030 },
   { id: 'm_dmg',    name: 'Sharpened Will',    icon: '⚔️', desc: '+0.2% damage per level',          stat: 'dmg',       amount: 0.002,  max: 100, baseCost: 12,  curve: 1.035 },
   { id: 'm_atks',   name: 'Resonant Pulse',    icon: '⏱️', desc: '+0.2% attack speed per level',    stat: 'atks',      amount: 0.002,  max: 80,  baseCost: 14,  curve: 1.035 },
@@ -687,22 +997,36 @@ export function metaCost(upg, currentLvl) {
 }
 
 // ---------- WAVE / DIFFICULTY ----------
+// Retuned so the first guardian is a WALL, not a speed bump. It used to arrive
+// at t=110 — around run level 9-10 with the old XP curve, which is well past
+// the point where a starting build can handle it comfortably. Moving it to
+// t=150 against the steeper XP curve in engine.js lands the player at level
+// 5-7 when Horus shows up, which is deliberately not enough: the first several
+// attempts at a story node are SUPPOSED to end at that fight. The node pays a
+// partial tier for reaching it (see campaign.js rewardTier), so those attempts
+// are progress, not wasted time.
+//
+// The variety-before-density rule still holds throughout: every checkpoint in
+// the opening five minutes adds a new enemy TYPE at a similar-or-slightly-
+// higher spawn rate, never a new type AND a density jump in the same beat.
 export const WAVE_TIMELINE = [
-  { t: 0,   spawn: 1.4, types: ['slime'] },
-  { t: 20,  spawn: 1.8, types: ['slime', 'bat'] },
-  { t: 45,  spawn: 2.2, types: ['slime', 'bat', 'ghoul'] },
-  { t: 75,  spawn: 2.6, types: ['bat', 'ghoul', 'ranger'] },
-  { t: 110, spawn: 3.0, types: ['ghoul', 'ranger', 'brute'], event: 'bossOcular' },
-  { t: 145, spawn: 3.2, types: ['crystalite', 'soulshard', 'bat', 'ghoul'] },
-  { t: 170, spawn: 3.4, types: ['brute', 'ranger', 'charger', 'crystalite'] },
-  { t: 230, spawn: 3.8, types: ['brute', 'charger', 'bat', 'ghoul', 'soulshard'] },
-  { t: 280, spawn: 4.0, types: ['charger', 'ranger', 'necron'], event: 'bossNecromancer' },
-  { t: 310, spawn: 4.2, types: ['bonewalker', 'voidspawn', 'charger', 'ranger'] },
-  { t: 370, spawn: 4.5, types: ['charger', 'ranger', 'necron', 'bonewalker'], event: 'bossOcular' },
-  { t: 430, spawn: 5.0, types: ['necron', 'charger', 'brute'], event: 'bossVoidTitan' },
-  { t: 465, spawn: 5.2, types: ['steelbrute', 'lightningbug', 'necron', 'charger'] },
-  { t: 540, spawn: 6.0, types: ['necron', 'charger', 'brute', 'steelbrute'], event: 'bossAida' },
-  { t: 575, spawn: 6.2, types: ['techsoldier', 'nanoswarm', 'necron', 'lightningbug'] },
+  { t: 0,   spawn: 1.5, types: ['slime'] },
+  { t: 18,  spawn: 1.9, types: ['slime', 'bat'] },
+  { t: 40,  spawn: 2.2, types: ['slime', 'bat', 'ghoul'] },
+  { t: 68,  spawn: 2.5, types: ['bat', 'ghoul', 'ranger'] },
+  { t: 95,  spawn: 2.8, types: ['ghoul', 'ranger', 'brute'] },
+  { t: 122, spawn: 3.0, types: ['ghoul', 'ranger', 'brute', 'charger'] },
+  { t: 150, spawn: 3.1, types: ['ghoul', 'ranger', 'brute', 'charger'], event: 'bossOcular' },
+  { t: 185, spawn: 3.3, types: ['crystalite', 'soulshard', 'bat', 'ghoul'] },
+  { t: 220, spawn: 3.5, types: ['brute', 'ranger', 'charger', 'crystalite'] },
+  { t: 265, spawn: 3.8, types: ['brute', 'charger', 'bat', 'ghoul', 'soulshard'] },
+  { t: 310, spawn: 4.0, types: ['charger', 'ranger', 'necron'], event: 'bossNecromancer' },
+  { t: 345, spawn: 4.2, types: ['bonewalker', 'voidspawn', 'charger', 'ranger'] },
+  { t: 400, spawn: 4.5, types: ['charger', 'ranger', 'necron', 'bonewalker'], event: 'bossOcular' },
+  { t: 460, spawn: 5.0, types: ['necron', 'charger', 'brute'], event: 'bossVoidTitan' },
+  { t: 500, spawn: 5.2, types: ['steelbrute', 'lightningbug', 'necron', 'charger'] },
+  { t: 570, spawn: 6.0, types: ['necron', 'charger', 'brute', 'steelbrute'], event: 'bossAida' },
+  { t: 605, spawn: 6.2, types: ['techsoldier', 'nanoswarm', 'necron', 'lightningbug'] },
   // Endless waves (after A.I.D.A. besegras) — the 3 new bosses (Tidebreaker,
   // Sentinel Prime, Hollow Queen) are woven into the rotation alongside the
   // originals so a long endless run keeps seeing fresh attack patterns

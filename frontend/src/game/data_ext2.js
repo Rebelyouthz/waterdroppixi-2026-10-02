@@ -7,6 +7,15 @@ export const STARTER_WEAPONS = {
     id: 'hydropistol', name: 'Hydro Pistol', icon: '💧',
     blueprint: null, // already owned by default
   },
+  // Unlocked from the start, alongside the pistol, so the very first choice a
+  // player makes is "gun or blade" rather than "the gun". Its definition lives
+  // in WEAPONS (data.js) like the pistol's -- this entry only puts it on the
+  // starter shelf. `blueprint: null` means no shards are needed.
+  katana: {
+    id: 'katana', name: 'Tidecutter Katana', icon: '🗡',
+    blueprint: null,
+    desc: 'A single clean arc. Kills split the body in two.',
+  },
   twinSMG: {
     id: 'twinSMG', name: 'Twin SMG', icon: '🔫',
     blueprintCost: 5,
@@ -55,6 +64,31 @@ export const STARTER_WEAPONS = {
 // merge into WEAPONS so existing code finds them
 for (const k of Object.keys(STARTER_WEAPONS)) {
   if (!WEAPONS[k]) WEAPONS[k] = STARTER_WEAPONS[k];
+}
+
+// A starter is available to carry when it costs no shards (the pistol and the
+// katana) or when its blueprint has been forged.
+export function isStarterUnlocked(save, id) {
+  const d = STARTER_WEAPONS[id];
+  if (!d) return false;
+  if (!d.blueprintCost) return true;
+  return !!(save && save.craftedWeapons && save.craftedWeapons[id]);
+}
+
+// Which weapon a run opens with. ONE definition, shared by the Weaponsmith's
+// selector and by GameScreen, so the control and the run can never disagree
+// about what "carried" means.
+//
+// The validation is not defensive decoration. `engine.snapshot()` does
+// `WEAPONS[id].icon` on every carried weapon every frame, so handing it an id
+// WEAPONS has no entry for throws sixty times a second. A save can legitimately
+// hold a stale id — a weapon retired between versions, or a hand-edited save —
+// so anything that is not a currently unlocked starter falls back to the pistol.
+export function resolveStartWeapon(save) {
+  const id = save && save.startWeapon;
+  if (!id || id === 'hydropistol') return 'hydropistol';
+  if (!WEAPONS[id]) return 'hydropistol';
+  return isStarterUnlocked(save, id) ? id : 'hydropistol';
 }
 
 // ---------- WEAPON PARTS (AK47 style attachment system) ----------
@@ -317,6 +351,26 @@ export const ADVANCED_CARDS = [
   { id: 'c_overcharge',  icon: '⚡', name: 'Overcharge',        desc: 'Every 6th shot is double damage',               flag: 'overcharge' },
   { id: 'c_railgun',     icon: '🎯', name: 'Railgun Stance',    desc: 'Standing still 1s+ = +60% damage',              flag: 'railStance' },
   { id: 'c_juggernaut',  icon: '💪', name: 'Juggernaut',        desc: '+1 HP regen per 5 enemies in 200u',             flag: 'juggernaut' },
+  // ---- Five new STANDARD passives -----------------------------------------
+  // Always in the run pool, no unlock needed. Added because the Card Shop was
+  // handing out permanent stat bonuses instead of unlocking cards, so the
+  // in-run passive pool never actually grew — the shop made your character
+  // stronger BETWEEN runs rather than giving you more to find DURING one.
+  // These are the baseline the shop now builds on top of.
+  { id: 'c_electric',    icon: '⚡', name: 'Electric Rounds',   desc: 'Shots arc lightning through the enemy they hit', flag: 'electricRounds' },
+  { id: 'c_meleespd',    icon: '🌀', name: 'Whirl Training',    desc: '+10% melee attack speed',                       flag: 'meleeSpeed', amount: 0.10 },
+  { id: 'c_manualcd',    icon: '🔧', name: 'Cycled Action',     desc: '-5% manual weapon cooldown',                    flag: 'manualCooldown', amount: 0.05 },
+  { id: 'c_ricochet',    icon: '↩', name: 'Ricochet',          desc: 'Shots bounce once to a nearby foe',             flag: 'ricochet' },
+  { id: 'c_frostbite',   icon: '❄', name: 'Frostbite',         desc: 'Chilled foes take +20% damage',                 flag: 'frostbite' },
+  // ---- Shop-gated advanced passives ---------------------------------------
+  // These enter the run pool only once bought in the Card Shop. The
+  // shop/shopId pair mirrors the Prospector gate exactly (see engine.js), so
+  // both unlock systems share one code path instead of growing a second one.
+  { id: 'c_elec_manual', icon: '🔌', name: 'Live Wire',         desc: 'Manual weapons chain lightning between foes',   flag: 'liveWire',     shop: true, shopId: 'sh_elec_manual' },
+  { id: 'c_twinup',      icon: '⏫', name: 'Twin Ascend',       desc: 'Weapon upgrades level TWO manual weapons',      flag: 'twinAscend',   shop: true, shopId: 'sh_twinup' },
+  { id: 'c_overload',    icon: '☢', name: 'Overload Core',     desc: 'Every 10th kill detonates a chain reaction',    flag: 'overloadCore', shop: true, shopId: 'sh_overload' },
+  { id: 'c_bulletstorm', icon: '🌪', name: 'Bulletstorm',       desc: 'Reloading sprays the spent magazine',           flag: 'bulletstorm',  shop: true, shopId: 'sh_bulletstorm' },
+  { id: 'c_executioner', icon: '⛓', name: 'Executioner',       desc: 'Foes under 15% HP die instantly on any hit',    flag: 'executioner',  shop: true, shopId: 'sh_executioner' },
   // Stat-type (not flag) so re-picking it stacks: +1 bounce AND slightly
   // more damage per bounce each time, per level-up.
   { id: 'c_conductive',  icon: '🔌', name: 'Conductive Rounds', desc: 'Bullet hits arc lightning to a nearby foe (stacks: +1 bounce, +bounce damage)', stat: 'conductiveBounces', amount: 1 },
@@ -365,18 +419,24 @@ export const ADVANCED_CARDS = [
 // ---------- CAMP CARD SHOP POOL (slot-machine pulls) ----------
 // Each pull = random pick from this pool weighted by rarity. Permanent boosts and skill unlocks.
 export const SHOP_CARD_POOL = [
-  // ── Passive stat cards ──
-  { id: 'sh_hp',    icon: '❤️', name: '+30 Max HP',      category:'passive', effect: { stat: 'maxHp', amount: 30 } },
-  { id: 'sh_dmg',   icon: '⚔️', name: '+8% Damage',      category:'passive', effect: { stat: 'dmg', amount: 0.08 } },
-  { id: 'sh_atks',  icon: '⏱', name: '+6% Atk Speed',   category:'passive', effect: { stat: 'atks', amount: 0.06 } },
-  { id: 'sh_crit',  icon: '💢', name: '+4% Crit',        category:'passive', effect: { stat: 'crit', amount: 0.04 } },
-  { id: 'sh_critd', icon: '🩸', name: '+20% Crit Dmg',   category:'passive', effect: { stat: 'critd', amount: 0.20 } },
-  { id: 'sh_spd',   icon: '🥾', name: '+5% Move Speed', category:'passive', effect: { stat: 'mspd', amount: 0.05 } },
-  { id: 'sh_armor', icon: '🛡', name: '+2 Armor',        category:'passive', effect: { stat: 'armor', amount: 2 } },
-  { id: 'sh_gold',  icon: '💰', name: '+15% Gold',       category:'passive', effect: { stat: 'gold', amount: 0.15 } },
-  { id: 'sh_xp',    icon: '📖', name: '+10% XP',         category:'passive', effect: { stat: 'xp', amount: 0.10 } },
-  { id: 'sh_luck',  icon: '🍀', name: '+1 Luck',         category:'passive', effect: { stat: 'luck', amount: 1 } },
-  { id: 'sh_pick',  icon: '🧲', name: '+25% Pickup',     category:'passive', effect: { stat: 'pickup', amount: 0.25 } },
+  // ── Passive CARD UNLOCKS ──
+  // These used to be permanent stat bonuses (+30 Max HP, +8% Damage, ...),
+  // which was the wrong shape for this game in two ways:
+  //   1. A slot machine that permanently raises your stats makes the meta
+  //      upgrade tree redundant — that tree already exists and is the honest
+  //      place for permanent power.
+  //   2. It meant the in-run passive pool never grew. Spinning the shop made
+  //      your character stronger between runs instead of giving you more
+  //      interesting things to FIND during one, which is where the actual
+  //      decisions in this genre live.
+  // Each entry now unlocks an ADVANCED_CARD into the run pool instead. The
+  // power still comes from the shop, but it arrives as a choice mid-run
+  // rather than as a silent number on the sheet.
+  { id: 'sh_elec_manual', icon: '🔌', name: 'Unlock: Live Wire',    category:'passive', effect: { unlockCard: 'sh_elec_manual' } },
+  { id: 'sh_twinup',      icon: '⏫', name: 'Unlock: Twin Ascend',  category:'passive', effect: { unlockCard: 'sh_twinup' } },
+  { id: 'sh_overload',    icon: '☢', name: 'Unlock: Overload Core',category:'passive', effect: { unlockCard: 'sh_overload' } },
+  { id: 'sh_bulletstorm', icon: '🌪', name: 'Unlock: Bulletstorm',  category:'passive', effect: { unlockCard: 'sh_bulletstorm' } },
+  { id: 'sh_executioner', icon: '⛓', name: 'Unlock: Executioner',  category:'passive', effect: { unlockCard: 'sh_executioner' } },
   // ── Active skill unlocks ──
   { id: 'sh_skill_lightning', icon: '⚡', name: 'Unlock: Lightning',   category:'active', effect: { unlockSkill: 'lightning' } },
   { id: 'sh_skill_aegis',     icon: '🛡', name: 'Unlock: Aegis',       category:'active', effect: { unlockSkill: 'aegis' } },
@@ -710,15 +770,57 @@ export const STORY_BEATS = [
     text: "A.I.D.A. is gone, but the void she opened doesn't close on its own. You keep fighting — not because you were told to, but because the Lake is yours now." },
 ];
 
+// ---------- STORY MAPS ----------
+// Durations were retuned in the difficulty overhaul. They matter more than
+// they look: `duration` is what campaign.js's bossGateTime derives the
+// hold-out from (×0.72), so it is really "how long before the guardian", and
+// the old values clustered so tightly that the floor swallowed the first five
+// nodes and every early node opened its gate at the same three minutes.
+//
+// The shape now:
+//   lake_1   210s → 151s gate. The first fight, and the one the whole
+//                   difficulty pass is aimed at: reaching the guardian at
+//                   around run level 6-7, losing to it, and coming back. It
+//                   is expected to take three to five attempts, and each
+//                   failed one still pays a partial tier (see rewardTier).
+//   +70-90s per node within a map, +40s per map — so a node always feels
+//   longer than the one before it, and the first node of a new map is a
+//   step up from the last map's first node rather than a reset.
+//
+// `spawnMult` is unchanged where it was already carrying the map's identity
+// (deepcurrent's 2.2-3.4) and nudged down slightly on the earliest nodes,
+// because the global curve in data.js now supplies density that these used to
+// have to add on top.
 export const MAP_STAGES = [
+  // ---- The Rain Pool -------------------------------------------------------
+  // The onramp, and it exists because the campaign used to open on The Lake,
+  // which a fresh 70 HP player with no cards could not get meaningfully into.
+  // A player who dies before reaching level 1 has never seen a level-up card —
+  // they have not been shown the game yet, only its failure state. That is the
+  // point at which people stop playing.
+  //
+  // Tuned to be *survivable*, not trivial: spawn rates start at 45% of normal
+  // and one enemy type, so the opening minute is about learning to move and
+  // shoot rather than about being surrounded. It still ends on a real
+  // guardian — an easy map with no boss teaches nothing about how nodes work.
+  {
+    id: 'pond', name: 'The Rain Pool', icon: '💧', color: '#8fe3ff',
+    desc: 'Shallow, quiet, and the last place that still remembers being clean. Learn to move here.',
+    unlock: null,
+    nodes: [
+      { id: 'pond_1', name: 'First Drops',  diff: 0, duration: 165, spawnMult: 0.45, enemyMix: ['slime'],         rwd: { gold: 120 },          unlockGoal: null },
+      { id: 'pond_2', name: 'Ripples',      diff: 0, duration: 200, spawnMult: 0.62, enemyMix: ['slime','bat'],   rwd: { gold: 240 },          unlockGoal: 'pond_1' },
+      { id: 'pond_3', name: 'The Overflow', diff: 1, duration: 250, spawnMult: 0.85, enemyMix: ['slime','bat'],   rwd: { gold: 420, sp: 1 },   unlockGoal: 'pond_2' },
+    ],
+  },
   {
     id: 'lake', name: 'The Lake', icon: '🌊', color: '#4dc4ff',
     desc: 'Where it all began. Corrupted slimes and bats swarm the shallows.',
     unlock: null,
     nodes: [
-      { id: 'lake_1', name: 'Shallows',  diff: 1, duration: 120, spawnMult: 1.0, enemyMix: ['slime','bat'],             rwd: { gold: 200 },         unlockGoal: null },
-      { id: 'lake_2', name: 'Undertow',  diff: 2, duration: 240, spawnMult: 1.3, enemyMix: ['slime','bat','ghoul'],     rwd: { gold: 450, sp: 1 },  unlockGoal: 'lake_1' },
-      { id: 'lake_3', name: 'The Abyss', diff: 3, duration: 420, spawnMult: 1.7, enemyMix: ['bat','ghoul','ranger'],    rwd: { gold: 900, sp: 2 },  unlockGoal: 'lake_2' },
+      { id: 'lake_1', name: 'Shallows',  diff: 1, duration: 210, spawnMult: 0.95, enemyMix: ['slime','bat'],             rwd: { gold: 200 },         unlockGoal: null },
+      { id: 'lake_2', name: 'Undertow',  diff: 2, duration: 290, spawnMult: 1.15, enemyMix: ['slime','bat','ghoul'],     rwd: { gold: 450, sp: 1 },  unlockGoal: 'lake_1' },
+      { id: 'lake_3', name: 'The Abyss', diff: 3, duration: 370, spawnMult: 1.40, enemyMix: ['bat','ghoul','ranger'],    rwd: { gold: 900, sp: 2 },  unlockGoal: 'lake_2' },
     ],
   },
   {
@@ -726,9 +828,9 @@ export const MAP_STAGES = [
     desc: 'Forgotten halls where ranged threats lurk behind crumbling pillars.',
     unlock: { metric: 'totalKills', goal: 200, label: '200 kills' },
     nodes: [
-      { id: 'ruins_1', name: 'Outer Hall',    diff: 1, duration: 150, spawnMult: 1.1, enemyMix: ['ghoul','ranger'],          rwd: { gold: 350, sp: 1 }, unlockGoal: null },
-      { id: 'ruins_2', name: 'Inner Chamber', diff: 2, duration: 300, spawnMult: 1.4, enemyMix: ['ghoul','ranger','brute'],   rwd: { gold: 700, sp: 2 }, unlockGoal: 'ruins_1' },
-      { id: 'ruins_3', name: 'Throne Room',   diff: 3, duration: 480, spawnMult: 2.0, enemyMix: ['ranger','brute','charger'], rwd: { gold: 1400, sp: 4 }, unlockGoal: 'ruins_2' },
+      { id: 'ruins_1', name: 'Outer Hall',    diff: 1, duration: 260, spawnMult: 1.10, enemyMix: ['ghoul','ranger'],          rwd: { gold: 350, sp: 1 }, unlockGoal: null },
+      { id: 'ruins_2', name: 'Inner Chamber', diff: 2, duration: 340, spawnMult: 1.30, enemyMix: ['ghoul','ranger','brute'],   rwd: { gold: 700, sp: 2 }, unlockGoal: 'ruins_1' },
+      { id: 'ruins_3', name: 'Throne Room',   diff: 3, duration: 430, spawnMult: 1.60, enemyMix: ['ranger','brute','charger'], rwd: { gold: 1400, sp: 4 }, unlockGoal: 'ruins_2' },
     ],
   },
   {
@@ -736,9 +838,9 @@ export const MAP_STAGES = [
     desc: "A.I.D.A.'s abandoned research chambers. Eldritch fiends in every corridor.",
     unlock: { metric: 'runsCompleted', goal: 5, label: '5 runs' },
     nodes: [
-      { id: 'void_1', name: 'Corridor',  diff: 1, duration: 180, spawnMult: 1.2, enemyMix: ['bat','charger'],           rwd: { gold: 500, sp: 1 },  unlockGoal: null },
-      { id: 'void_2', name: 'Lab Core',  diff: 2, duration: 360, spawnMult: 1.6, enemyMix: ['charger','necron'],        rwd: { gold: 1000, sp: 3 }, unlockGoal: 'void_1' },
-      { id: 'void_3', name: 'Void Heart',diff: 3, duration: 540, spawnMult: 2.2, enemyMix: ['necron','charger','brute'],rwd: { gold: 2200, sp: 6 }, unlockGoal: 'void_2' },
+      { id: 'void_1', name: 'Corridor',  diff: 1, duration: 310, spawnMult: 1.25, enemyMix: ['bat','charger'],           rwd: { gold: 500, sp: 1 },  unlockGoal: null },
+      { id: 'void_2', name: 'Lab Core',  diff: 2, duration: 400, spawnMult: 1.50, enemyMix: ['charger','necron'],        rwd: { gold: 1000, sp: 3 }, unlockGoal: 'void_1' },
+      { id: 'void_3', name: 'Void Heart',diff: 3, duration: 490, spawnMult: 1.80, enemyMix: ['necron','charger','brute'],rwd: { gold: 2200, sp: 6 }, unlockGoal: 'void_2' },
     ],
   },
   {
@@ -746,9 +848,9 @@ export const MAP_STAGES = [
     desc: 'The final frontier. Elite units guard the control deck. A.I.D.A. waits inside.',
     unlock: { metric: 'aidaSlain', goal: 1, label: 'Defeat A.I.D.A.' },
     nodes: [
-      { id: 'ship_1', name: 'Hangar Bay',   diff: 1, duration: 240, spawnMult: 1.4, enemyMix: ['brute','ranger'],           rwd: { gold: 800, sp: 2 },  unlockGoal: null },
-      { id: 'ship_2', name: 'Command Deck', diff: 2, duration: 420, spawnMult: 1.8, enemyMix: ['brute','charger','necron'], rwd: { gold: 1600, sp: 5 }, unlockGoal: 'ship_1' },
-      { id: 'ship_3', name: 'Core Override',diff: 3, duration: 600, spawnMult: 2.5, enemyMix: ['necron','charger','brute'], rwd: { gold: 3500, sp: 10 },unlockGoal: 'ship_2' },
+      { id: 'ship_1', name: 'Hangar Bay',   diff: 1, duration: 360, spawnMult: 1.40, enemyMix: ['brute','ranger'],           rwd: { gold: 800, sp: 2 },  unlockGoal: null },
+      { id: 'ship_2', name: 'Command Deck', diff: 2, duration: 450, spawnMult: 1.70, enemyMix: ['brute','charger','necron'], rwd: { gold: 1600, sp: 5 }, unlockGoal: 'ship_1' },
+      { id: 'ship_3', name: 'Core Override',diff: 3, duration: 560, spawnMult: 2.00, enemyMix: ['necron','charger','brute'], rwd: { gold: 3500, sp: 10 },unlockGoal: 'ship_2' },
     ],
   },
   {
@@ -756,9 +858,9 @@ export const MAP_STAGES = [
     desc: "Storm-wracked ruins above the clouds. Lightning-touched fiends and swarms thrive in the charged air.",
     unlock: { metric: 'aidaSlain', goal: 1, label: 'Defeat A.I.D.A.' },
     nodes: [
-      { id: 'sky_1', name: 'Storm Deck',   diff: 1, duration: 240, spawnMult: 1.6, enemyMix: ['lightningbug','bat'],              rwd: { gold: 1200, sp: 3 }, unlockGoal: null },
-      { id: 'sky_2', name: 'Static Field', diff: 2, duration: 420, spawnMult: 2.0, enemyMix: ['lightningbug','nanoswarm','techsoldier'], rwd: { gold: 2400, sp: 6 }, unlockGoal: 'sky_1' },
-      { id: 'sky_3', name: 'Eye of Thunder', diff: 3, duration: 600, spawnMult: 2.6, enemyMix: ['techsoldier','steelbrute','lightningbug'], rwd: { gold: 4200, sp: 12 }, unlockGoal: 'sky_2' },
+      { id: 'sky_1', name: 'Storm Deck',   diff: 1, duration: 400, spawnMult: 1.60, enemyMix: ['lightningbug','bat'],              rwd: { gold: 1200, sp: 3 }, unlockGoal: null },
+      { id: 'sky_2', name: 'Static Field', diff: 2, duration: 500, spawnMult: 1.90, enemyMix: ['lightningbug','nanoswarm','techsoldier'], rwd: { gold: 2400, sp: 6 }, unlockGoal: 'sky_1' },
+      { id: 'sky_3', name: 'Eye of Thunder', diff: 3, duration: 620, spawnMult: 2.20, enemyMix: ['techsoldier','steelbrute','lightningbug'], rwd: { gold: 4200, sp: 12 }, unlockGoal: 'sky_2' },
     ],
   },
   {
@@ -766,9 +868,9 @@ export const MAP_STAGES = [
     desc: "The void A.I.D.A. left behind never closed. Endless-mode veterans push deeper than anyone should.",
     unlock: { metric: 'endlessReached', goal: 1, label: 'Reach Endless Mode' },
     nodes: [
-      { id: 'deep_1', name: 'The Undertow',   diff: 1, duration: 300, spawnMult: 2.2, enemyMix: ['voidspawn','bonewalker','soulshard'], rwd: { gold: 2000, sp: 5 }, unlockGoal: null },
-      { id: 'deep_2', name: "Warden's Trench",diff: 2, duration: 480, spawnMult: 2.8, enemyMix: ['bonewalker','crystalite','swipeWarden'], rwd: { gold: 3800, sp: 10 }, unlockGoal: 'deep_1' },
-      { id: 'deep_3', name: 'The Last Current',diff: 3, duration: 660, spawnMult: 3.4, enemyMix: ['necron','steelbrute','voidspawn'], rwd: { gold: 6000, sp: 18 }, unlockGoal: 'deep_2' },
+      { id: 'deep_1', name: 'The Undertow',   diff: 1, duration: 460, spawnMult: 2.20, enemyMix: ['voidspawn','bonewalker','soulshard'], rwd: { gold: 2000, sp: 5 }, unlockGoal: null },
+      { id: 'deep_2', name: "Warden's Trench",diff: 2, duration: 580, spawnMult: 2.60, enemyMix: ['bonewalker','crystalite','swipeWarden'], rwd: { gold: 3800, sp: 10 }, unlockGoal: 'deep_1' },
+      { id: 'deep_3', name: 'The Last Current',diff: 3, duration: 700, spawnMult: 3.00, enemyMix: ['necron','steelbrute','voidspawn'], rwd: { gold: 6000, sp: 18 }, unlockGoal: 'deep_2' },
     ],
   },
 ];
@@ -783,6 +885,42 @@ export const CHAR_RARITIES = ['common','uncommon','rare','epic','legendary','myt
 export const CHAR_RARITY_COLORS = { common:'#9a8fa6', uncommon:'#4dff91', rare:'#4dc4ff', epic:'#b362ff', legendary:'#ff7a1a', mythical:'#ff3146' };
 export const CHAR_RARITY_NAMES  = { common:'Common', uncommon:'Uncommon', rare:'Rare', epic:'Epic', legendary:'Legendary', mythical:'Mythical' };
 export const CHAR_SLOTS_BY_RARITY = { common:2, uncommon:3, rare:4, epic:5, legendary:6, mythical:7 };
+
+// ---- Weapon / active-skill slots -------------------------------------------
+// How many weapons and actives the character can carry at once. Rarity used to
+// be the only input, which made character LEVELS a pure stat trickle with no
+// structural payoff — you levelled because the panel said to, not because
+// anything opened.
+//
+// Each rarity is worth exactly one extra slot (2→3→4→5→6→7), so the rule is:
+// evolving GRANTS the previous rarity's ceiling immediately, and the new slot
+// is EARNED with levels inside that rarity. Weapons unlock at the halfway
+// point, actives at 80%, on offset schedules so most character levels open one
+// or the other rather than nothing.
+//
+// The critical property is that this is MONOTONIC. An earlier version indexed
+// a flat table by `character.level`, which resets to 0 on evolve — so taking a
+// Rare to level 10 (4 weapons / 4 actives) and then evolving to Epic dropped
+// the player to 2 weapons and 1 active. The single most expensive progression
+// action in the game was a hard downgrade. Because the floor here is the
+// previous rarity's ceiling, an evolve can never take a slot away.
+export function characterSlots(rarity, level) {
+  const idx = Math.max(0, CHAR_RARITIES.indexOf(rarity));
+  const cap = CHAR_SLOTS_BY_RARITY[rarity] || 2;
+  // Common has nothing below it, so its floor is its own cap — a starting
+  // character has both slots from the first run, as it always did.
+  const floor = idx > 0 ? (CHAR_SLOTS_BY_RARITY[CHAR_RARITIES[idx - 1]] || cap) : cap;
+  const maxLvl = CHAR_MAX_LEVELS[rarity] || 5;
+  const lvl = Math.max(0, level || 0);
+  return {
+    slots:      lvl >= Math.ceil(maxLvl * 0.5) ? cap : floor,
+    skillSlots: lvl >= Math.ceil(maxLvl * 0.8) ? cap : floor,
+    cap,
+    floor,
+    weaponAt: Math.ceil(maxLvl * 0.5),
+    skillAt:  Math.ceil(maxLvl * 0.8),
+  };
+}
 export const CHAR_LEVEL_COST = (rarity, lvl) => ({
   gold:   { common:50, uncommon:120, rare:300, epic:700, legendary:1800, mythical:4500 }[rarity] + lvl * 20,
   pieces: { common:1,  uncommon:2,   rare:4,   epic:8,   legendary:15,   mythical:30  }[rarity],

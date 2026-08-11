@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { rollPartsDrop, addParts } from '../game/gear';
 import {
   NODE_SECONDS, generatePath, rollLootNode,
   rollTrainer, stakeOptions, rollNegotiatedPrizes, rollGamblePrize,
@@ -42,7 +43,9 @@ function trainerDeck(type, level) {
 // why the shape is fixed (loot, loot, encounter, trainer, loot, loot)
 // rather than randomized.
 export default function ExplorationScreen({ save, setSave, onClose }) {
-  useEffect(() => { Audio.swapToGameMusic(); return () => Audio.swapToMenuMusic(); }, []);
+  // Menu track, not the run playlist -- Star Atlas is the only screen outside a
+  // run with music of its own.
+  useEffect(() => { Audio.swapToMenuMusic(); return () => Audio.swapToMenuMusic(); }, []);
 
   const pets = save.pets || [];
   const activePet = pets.find(p => p.active) || pets[0] || null;
@@ -77,7 +80,15 @@ export default function ExplorationScreen({ save, setSave, onClose }) {
     setSave(s => {
       const ns = { ...s };
       if (loot.type === 'gold') ns.gold = (ns.gold || 0) + loot.amount;
-      if (loot.type === 'gearParts') ns.gearParts = (ns.gearParts || 0) + loot.amount;
+      // Exploration pays its parts as SLOT parts, which is the whole point of
+      // the new currency -- a dig site gives you helmet parts or tread parts,
+      // not an anonymous pile. A little generic still comes along so the
+      // wildcard pool keeps growing too.
+      if (loot.type === 'gearParts') {
+        const p = rollPartsDrop(loot.amount / 3);
+        ns.gearSlotParts = addParts(ns, p.slot, p.amount);
+        ns.gearParts = (ns.gearParts || 0) + Math.ceil(loot.amount / 2);
+      }
       if (loot.type === 'petFood') ns.petFood = (ns.petFood || 0) + loot.amount;
       if (loot.type === 'card') ns.tcgCardInventory = [...(ns.tcgCardInventory || []), loot.card];
       if (loot.card2) ns.tcgCardInventory = [...(ns.tcgCardInventory || []), loot.card2];

@@ -1,6 +1,42 @@
 import React, { useState } from 'react';
 import { TALENT_NODES } from '../game/data_ext2';
 import { Audio } from '../game/audio';
+import GameIcon from './GameIcon';
+
+// Talent nodes shipped with emoji, and repeating ones at that — the heart
+// appeared on five different nodes and the crossed swords on four, so the
+// tree read as the same handful of pictures over and over.
+//
+// Almost every node is a tier of an existing concept (Vitality is max HP,
+// Power is damage, Looter is gold), and those concepts ALREADY have drawn
+// icons. So this maps rather than draws: no new art, and the tree
+// automatically matches the level-up cards that use the same glyphs.
+//
+// Keyed on the node's NAME because that is what carries the concept —
+// `tn01`..`tn30` say nothing, and the tier numeral is stripped so
+// "Vitality I" through "Vitality V" all resolve to the same family.
+const TALENT_ART = {
+  Vitality:   ['maxHp',       '#ff5a5a'],
+  Power:      ['damageMult',  '#ff5a5a'],
+  Agility:    ['moveMult',    '#4dffd4'],
+  Looter:     ['gold',        '#ffd166'],
+  Endurance:  ['armor',       '#8fb8ff'],
+  Scholar:    ['xpMult',      '#b362ff'],
+  // The milestone nodes between tiers — deliberately different in kind, so
+  // they get something that is not a stat glyph.
+  Foundation: ['pRail',       '#c8ccd4'],
+  Momentum:   ['pRush',       '#4dffd4'],
+  Awakening:  ['pBurn',       '#ff8c2b'],
+  Mastery:    ['pStarBurst',  '#ffd166'],
+  // Found by checking every family against this table rather than trusting the
+  // list I wrote from memory — these three were falling through to the star.
+  Cruelty:       ['pSharp',      '#ff3146'],
+  Thunderstrike: ['pLightning',  '#fff44d'],
+  Transcendence: ['pAura',       '#b362ff'],
+};
+const talentFamily = (node) => String(node.name || '').replace(/\s+[IVX]+$/, '').trim();
+export const talentGlyph = (node) => (TALENT_ART[talentFamily(node)] || ['pStarBurst'])[0];
+export const talentTone  = (node) => (TALENT_ART[talentFamily(node)] || [null, '#9a8fa6'])[1];
 
 export default function TalentTree({ save, setSave, onClose }) {
   const [popNode, setPopNode] = useState(null);
@@ -53,7 +89,7 @@ export default function TalentTree({ save, setSave, onClose }) {
     <div className="modal-overlay" data-testid="talent-tree" onClick={(e) => {
       if (e.target.classList.contains('modal-overlay')) onClose();
     }}>
-      <div className="forge-panel" style={{ maxWidth: 700, maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+      <div className="forge-panel talent-panel" style={{ maxWidth: 700, maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
         <div className="forge-header">
           <div className="forge-title">🌿 TALENT TREE</div>
           <div style={{ fontFamily: 'VT323', color: 'var(--ink-dim)', fontSize: 14, marginRight: 8 }}>
@@ -93,7 +129,7 @@ export default function TalentTree({ save, setSave, onClose }) {
                   {idx > 0 && (
                     <div className={`talent-line ${prevHasLvl ? 'lit' : ''}`} />
                   )}
-                  <div className="talent-icon">{node.icon}</div>
+                  <div className="talent-icon"><GameIcon name={talentGlyph(node)} tone={talentTone(node)} size={24} /></div>
                   <div className="talent-name">{node.name}</div>
 
                   {/* Level progress bar */}

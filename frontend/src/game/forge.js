@@ -17,7 +17,12 @@
 // Keyed by the TARGET tier index rather than by name, because the ladders
 // disagree on the second tier's label — gear calls it 'magic', artifacts and
 // runes call it 'uncommon'.
-export const MERGE_ODDS = [0, 0.75, 0.60, 0.45, 0.30, 0.18];
+// Index = the rarity being merged INTO. The last entry is Mythic+, the ceiling
+// of the ladder and the only rarity that cannot drop -- it is reachable solely
+// by forging three maxed mythicals, so it gets the steepest odds in the game.
+// Without an explicit entry it fell through to the `?? 0.18` default and the
+// final step was no harder than the one before it.
+export const MERGE_ODDS = [0, 0.75, 0.60, 0.45, 0.30, 0.18, 0.09];
 
 export const FLUX_PER_MERGE_MAX = 3;
 export const FLUX_BONUS = 0.15;

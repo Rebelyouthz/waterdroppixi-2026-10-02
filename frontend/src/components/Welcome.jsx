@@ -4,6 +4,9 @@ import { todayIdx, applyReward } from '../store';
 import { useAuth } from '../auth';
 import LeaderboardPanel from './LeaderboardPanel';
 import GameIcon from './GameIcon';
+import { Audio } from '../game/audio';
+import QuestTracker from './QuestTracker';
+import BadgeSlots, { BadgePicker } from './BadgeSlots';
 
 const openChest = (chestId) => {
   const chest = CHESTS.find(c => c.id === chestId);
@@ -49,6 +52,48 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
   const [avatar, setAvatar] = useState(save.profile.avatar || 'drop');
   const [claimedRewards, setClaimedRewards] = useState([]);
   const [showLb, setShowLb] = useState(false);
+  const [badgesOpen, setBadgesOpen] = useState(false);
+
+  // Custom avatar photo.
+  //
+  // The image is DOWNSCALED to 128x128 and re-encoded before it is stored, and
+  // that is not a nicety — the save lives in localStorage, which is a ~5MB
+  // budget for the entire profile. A modern phone photo is 3-8MB, and as a
+  // base64 data URL it grows another third. Storing one raw would blow the
+  // quota and every subsequent save would silently fail: the player would lose
+  // their whole run history because they picked a picture.
+  //
+  // 128px square at JPEG 0.82 lands around 6-10KB, which is nothing, and the
+  // avatar is never displayed larger than 80px so nothing is lost visually.
+  const onPickPhoto = (file, ev) => {
+    if (!file) return;
+    if (!/^image\//.test(file.type)) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const S = 128;
+        const c = document.createElement('canvas');
+        c.width = S; c.height = S;
+        const ctx = c.getContext('2d');
+        // Cover-crop to a square: scale by the LARGER ratio and centre, so a
+        // portrait photo is cropped rather than squashed.
+        const scale = Math.max(S / img.width, S / img.height);
+        const w = img.width * scale, h = img.height * scale;
+        ctx.drawImage(img, (S - w) / 2, (S - h) / 2, w, h);
+        let url;
+        try { url = c.toDataURL('image/jpeg', 0.82); } catch (e) { return; }
+        // Refuse anything still unreasonably large rather than risk the quota.
+        if (url.length > 120000) return;
+        setSave(cur => ({ ...cur, profile: { ...cur.profile, photo: url } }));
+        Audio.click();
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+    // Let the same file be picked again after a change of mind.
+    if (ev && ev.target) ev.target.value = '';
+  };
   const [spinning, setSpinning] = useState(false);
   const [spinResult, setSpinResult] = useState(null);
   const [spinAngle, setSpinAngle] = useState(0);
@@ -179,7 +224,23 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
       <div className="welcome" data-testid="welcome-home">
         <div className="welcome-header">
           <div className="profile-card" data-testid="profile-card">
-            <div className="profile-avatar">{AVATARS.find(a => a.id === save.profile.avatar)?.icon || '💧'}</div>
+            {/* Your own photo, or the chosen glyph. The frame is a real frame
+                now — see .profile-avatar: the flat square with a hard black
+                border read as a placeholder box rather than as a portrait. */}
+            <label className="profile-avatar" title="Tap to use your own picture">
+              {save.profile.photo
+                ? <img className="profile-avatar-img" src={save.profile.photo} alt="" />
+                : <span className="profile-avatar-glyph">{AVATARS.find(a => a.id === save.profile.avatar)?.icon || '💧'}</span>}
+              <span className="profile-avatar-ring" aria-hidden />
+              <span className="profile-avatar-edit" aria-hidden>📷</span>
+              <input
+                type="file"
+                accept="image/*"
+                className="profile-avatar-input"
+                data-testid="avatar-upload"
+                onChange={(e) => onPickPhoto(e.target.files && e.target.files[0], e)}
+              />
+            </label>
             <div style={{ flex: 1 }}>
               <div className="profile-name">{save.profile.name || 'Wanderer'}</div>
               <div className="profile-level">RANK {save.profile.level}</div>
@@ -192,8 +253,17 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
               <div><span style={{ color: 'var(--accent-2)' }}>★</span> {save.gold}</div>
               <div><span style={{ color: 'var(--rune)' }}>◆</span> {save.sp} SP</div>
             </div>
+            {/* The badges you chose to display, right on the profile card —
+                this is the screen a player lands on, so it is the screen the
+                trophy case has to be visible from. */}
+            <BadgeSlots save={save} size={24} onOpen={() => setBadgesOpen(true)} />
           </div>
         </div>
+
+        {/* Guidance follows the player out of the camp. The home screen is
+            exactly where "what was I doing?" gets asked, so the same two open
+            steps are here, tapping through to the camp rather than nowhere. */}
+        <QuestTracker save={save} onGo={() => onCamp && onCamp()} />
 
         <div className="welcome-grid">
           {/* Daily Reward */}
@@ -407,6 +477,7 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
           </div>
         </div>
       )}
+      {badgesOpen && <BadgePicker save={save} setSave={setSave} onClose={() => setBadgesOpen(false)} />}
     </div>
   );
 }

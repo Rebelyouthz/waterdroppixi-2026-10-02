@@ -6,7 +6,8 @@
 import { Application, Container, Graphics, Text, TextStyle, FillGradient, Sprite, Filter, Texture, defaultFilterVert, ColorMatrixFilter, ParticleContainer, Particle, Rectangle } from 'pixi.js';
 import { AdvancedBloomFilter } from 'pixi-filters';
 import { WEAPONS } from './data';
-import { heroHalfPoints } from './heroShape';
+import { heroHalfPoints, heroHalfWidthAt, HERO_COLORS } from './heroShape';
+import { HeroAnim } from './heroAnim';
 
 const TAU = Math.PI * 2;
 
@@ -173,19 +174,209 @@ const PET_COLORS = {
 export class PixiRenderer {
   constructor(canvas) {
     this.canvas = canvas;
+    // Only ONE renderer may own a canvas at a time.
+    //
+    // init() is async but destroy() is deferred into readyPromise.then(), so
+    // an old renderer and a new one can overlap on the same <canvas> element.
+    // Both app.init({canvas}) calls resolve getContext() to the SAME WebGL
+    // context, so when the OLD renderer's deferred teardown finally runs it
+    // destroys the context — and, with removeView, the canvas element — that
+    // the LIVE renderer is drawing into. The result is a black canvas under a
+    // perfectly healthy React HUD, with nothing thrown anywhere. Whether it
+    // happens at all depends on which init resolves first, which is why it
+    // came and went between reloads.
+    //
+    // Claiming ownership here lets the superseded renderer detect that it no
+    // longer owns the canvas and skip the teardown entirely (see destroy()).
+    const prev = canvas && canvas.__wdRenderer;
+    if (prev && prev !== this) prev._superseded = true;
+    if (canvas) canvas.__wdRenderer = this;
     this.app = new Application();
     this.ready = false;
+    // The character's animation rig (game/heroAnim.js). Owned by the renderer
+    // because it is pure presentation — the engine must not know it exists.
+    // Created here rather than in _buildLayers so it survives a resize.
+    this.heroAnim = new HeroAnim();
     this.dpr = Math.min(window.devicePixelRatio || 1, 2);
     const w = canvas.clientWidth || 800, h = canvas.clientHeight || 600;
     this._pendingSize = null;
-    this.readyPromise = this.app.init({
+    // Pixi v8's init() dynamically imports its browser-environment chunk, so
+    // starting the renderer makes a NETWORK request. On a weak link that
+    // request just fails ("Loading chunk ... failed"), init() rejects, and the
+    // canvas never draws a frame — observed on a phone over flaky wifi, and
+    // the most likely explanation for the black screen being intermittent.
+    //
+    // A chunk fetch is exactly the kind of failure worth retrying: it is
+    // transient by nature and the second attempt is usually served from a
+    // warm connection. Bounded at 3 tries with a short backoff so a genuinely
+    // offline device still fails fast and reports, rather than hanging.
+    const initOnce = () => this.app.init({
       canvas, width: w, height: h, resolution: this.dpr, autoDensity: true,
       backgroundColor: 0x06040a, antialias: true, preference: 'webgl',
-    }).then(() => {
+    });
+    const initWithRetry = async () => {
+      let lastErr;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          return await initOnce();
+        } catch (err) {
+          lastErr = err;
+          // Only retry transient LOADING failures. A shader that won't
+          // compile or a device with no WebGL will fail identically every
+          // time, and retrying it just delays the report by a second.
+          const msg = (err && (err.message || String(err))) || '';
+          if (!/loading chunk|dynamically imported|failed to fetch|networkerror|importing a module script/i.test(msg)) throw err;
+          if (attempt < 3) {
+            this._retried = attempt;
+            await new Promise(r => setTimeout(r, 350 * attempt));
+          }
+        }
+      }
+      throw lastErr;
+    };
+    this.readyPromise = initWithRetry().then(() => {
       this._buildLayers();
       this.ready = true;
+      this._watchContext();
       if (this._pendingSize) { this.resize(this._pendingSize.w, this._pendingSize.h); this._pendingSize = null; }
+    }).catch((err) => {
+      // This chain had no .catch(). If app.init() rejected — no WebGL context,
+      // a driver refusing the requested attributes — or _buildLayers() threw
+      // on a shader that won't compile, the rejection went nowhere: `ready`
+      // stayed false, draw() returned early forever, and the canvas simply
+      // never got a single frame. The React HUD renders independently, so the
+      // result was a fully-populated HUD over a black world with nothing in
+      // the console, which is unactionable on a phone.
+      this.ready = false;
+      this._fatal('renderer init', err);
     });
+  }
+
+  // On-screen render state, for diagnosing a black canvas on a device with no
+  // usable console. Opt in with ?debug=1 — it costs nothing otherwise.
+  //
+  // This exists because "black world, working HUD" has at least five distinct
+  // causes that look identical from the outside: a dead context, a torn-down
+  // Application, a zero-sized canvas, a camera pointed at empty world, or a
+  // stage with nothing in it. The numbers below separate them in one glance.
+  _debugReadout(game) {
+    if (this._dbgOff) return;
+    if (this._dbg === undefined) {
+      this._dbg = null; this._dbgOff = true;
+      try {
+        if (!/[?&]debug=1/.test(window.location.search)) return;
+      } catch (e) { return; }
+      this._dbgOff = false;
+      const el = document.createElement('div');
+      el.setAttribute('data-testid', 'renderer-debug');
+      el.style.cssText = [
+        'position:fixed', 'left:4px', 'top:4px', 'z-index:99998',
+        'background:#000000d0', 'color:#7dffc4', 'font:10px/1.3 monospace',
+        'padding:5px 7px', 'white-space:pre', 'pointer-events:none',
+        'border:1px solid #7dffc455', 'max-width:70vw',
+      ].join(';');
+      document.body.appendChild(el);
+      this._dbg = el;
+    }
+    if (!this._dbg) return;
+    // Every 12th frame — this is a text node update, not a redraw, but there
+    // is no reason to touch the DOM 60 times a second.
+    this._dbgN = (this._dbgN || 0) + 1;
+    if (this._dbgN % 12) return;
+    const c = this.canvas, p = game.player;
+    const zoom = game.viewZoom ? game.viewZoom() : 1;
+    const sx = Math.round((p.x - game.cam.x) / zoom), sy = Math.round((p.y - game.cam.y) / zoom);
+    const onScreen = sx >= 0 && sx <= game.W && sy >= 0 && sy <= game.H;
+    this._dbg.textContent =
+      `t=${game.run.time.toFixed(1)} zoom=${zoom.toFixed(2)} WH=${game.W}x${game.H}\n` +
+      `canvas css=${c.clientWidth}x${c.clientHeight} buf=${c.width}x${c.height}\n` +
+      `cam=${Math.round(game.cam.x)},${Math.round(game.cam.y)} plr=${Math.round(p.x)},${Math.round(p.y)}\n` +
+      `plrScreen=${sx},${sy} ${onScreen ? 'ON' : '*** OFF-SCREEN ***'}\n` +
+      `stage=${this.app.stage.children.length} world=${this.world ? this.world.children.length : '-'} ` +
+      `zoomRoot=${this.zoomRoot ? this.zoomRoot.scale.x.toFixed(2) : '-'}\n` +
+      `enemies=${game.enemies && game.enemies.active ? game.enemies.active.length : '?'} ready=${this.ready}`;
+  }
+
+  // Report a fatal renderer failure somewhere a phone user can actually read
+  // it. There is no console on iOS Safari without a Mac attached, and the
+  // symptom (black canvas, working HUD) looks identical for every possible
+  // cause, so the message has to reach the screen or it reaches nobody.
+  _fatal(stage, err) {
+    const msg = (err && (err.message || String(err))) || 'unknown error';
+    // eslint-disable-next-line no-console
+    console.error('[pixi ' + stage + ']', err);
+    if (typeof document === 'undefined' || this._fatalEl) return;
+    const el = document.createElement('div');
+    el.setAttribute('data-testid', 'renderer-fatal');
+    el.style.cssText = [
+      'position:fixed', 'inset:auto 8px 8px 8px', 'z-index:99999',
+      'background:#1a0408f2', 'border:2px solid #ff3146', 'color:#ffd7dc',
+      'font:12px/1.35 monospace', 'padding:10px 12px', 'white-space:pre-wrap',
+      'max-height:42vh', 'overflow:auto', 'border-radius:4px',
+    ].join(';');
+    // A chunk-load failure is a DOWNLOAD problem, not a graphics problem, and
+    // saying "renderer failed" for it sends you hunting the wrong thing —
+    // which is what happened here. Name it for what it is and offer the one
+    // action that actually fixes it.
+    const isLoad = /loading chunk|dynamically imported|failed to fetch|networkerror|importing a module script/i.test(msg);
+    el.textContent = isLoad
+      ? 'COULD NOT DOWNLOAD THE GAME\n\n' +
+        'Part of the game failed to download from the server — this is a\n' +
+        'connection problem, not your device.' +
+        (this._retried ? '\nRetried ' + this._retried + 'x already.' : '') +
+        '\n\nTap here to reload.\n\n' + msg
+      : 'RENDERER FAILED (' + stage + ')\n' + msg +
+        '\n\nWebGL2: ' + this._probeWebGL() +
+        '\nUA: ' + (navigator.userAgent || '').slice(0, 120);
+    if (isLoad) {
+      el.style.pointerEvents = 'auto';
+      el.style.cursor = 'pointer';
+      el.addEventListener('click', () => window.location.reload());
+    }
+    document.body.appendChild(el);
+    this._fatalEl = el;
+  }
+
+  // Independent probe, so the overlay can distinguish "this device has no
+  // WebGL2 at all" from "WebGL2 exists but something in our own setup threw".
+  _probeWebGL() {
+    try {
+      const c = document.createElement('canvas');
+      if (c.getContext('webgl2')) return 'yes';
+      if (c.getContext('webgl')) return 'webgl1 only';
+      return 'NO';
+    } catch (e) { return 'probe threw: ' + e.message; }
+  }
+
+  // A lost WebGL context is the other way this ends up as a black canvas with
+  // a live HUD, and it is far more likely on a phone: iOS reclaims contexts
+  // under memory pressure with no warning. The default action on
+  // `webglcontextlost` is to make the loss permanent — it MUST be
+  // preventDefault()'d for the browser to ever fire `webglcontextrestored`.
+  _watchContext() {
+    const c = this.canvas;
+    if (!c || this._ctxWatched) return;
+    this._ctxWatched = true;
+    this._onCtxLost = (e) => {
+      e.preventDefault();          // without this, restore never fires
+      this.ready = false;
+      this._fatal('webgl context lost', new Error(
+        'The GPU dropped this page\'s WebGL context (usually memory pressure). ' +
+        'Waiting for the browser to restore it.'));
+    };
+    this._onCtxRestored = () => {
+      // Every texture, filter and buffer died with the context, so this is
+      // not something we can silently resume from — the pooled sprites and
+      // generated textures all reference dead GPU objects. Say so plainly
+      // rather than pretending to recover and drawing garbage.
+      if (this._fatalEl) {
+        this._fatalEl.textContent =
+          'RENDERER: WebGL context was restored, but every texture was lost with it.\n' +
+          'Reload the page to continue.';
+      }
+    };
+    c.addEventListener('webglcontextlost', this._onCtxLost, false);
+    c.addEventListener('webglcontextrestored', this._onCtxRestored, false);
   }
 
   _textStyle(size, color, strokeColor, strokeWidth) {
@@ -629,13 +820,18 @@ void main() {
   // â€” all in world-pixel units, which cancels out camera zoom automatically
   // since vTextureCoord is always 0..1 across the object's own rendered
   // bounds regardless of what scale it was rasterized at.
-  _updateLitUniforms(filter, sprite, light) {
+  // `sizeOverride` exists for sprites that carry a rotation: PixiJS's
+  // `sprite.width` reports the AXIS-ALIGNED bounds of a rotated sprite, which
+  // grows and shrinks as it spins. Feeding that into uObjSize would make the
+  // light on the player's body breathe every time he turned. Callers that
+  // rotate pass the intended unrotated size instead.
+  _updateLitUniforms(filter, sprite, light, sizeOverride) {
     const u = filter.resources.uLight.uniforms;
     u.uLightPos = [light.x - sprite.x, light.y - sprite.y];
     u.uLightColor = light.rgb;
     u.uLightRadius = light.radius;
     u.uAmbient = light.ambient;
-    u.uObjSize = [sprite.width, sprite.height];
+    u.uObjSize = sizeOverride || [sprite.width, sprite.height];
   }
 
   resize(W, H) {
@@ -644,18 +840,57 @@ void main() {
   }
 
   destroy() {
-    this.readyPromise.then(() => { try { this.app.destroy(true, { children: true } ); } catch (e) { /* noop */ } });
+    // Tear the context listeners and the overlay down with the renderer.
+    // The canvas outlives this object across a restart, so leaving listeners
+    // bound would stack another pair on every run and report a single lost
+    // context N times.
+    if (this.canvas && this._ctxWatched) {
+      this.canvas.removeEventListener('webglcontextlost', this._onCtxLost, false);
+      this.canvas.removeEventListener('webglcontextrestored', this._onCtxRestored, false);
+      this._ctxWatched = false;
+    }
+    if (this._fatalEl) { this._fatalEl.remove(); this._fatalEl = null; }
+    // If a newer renderer has already claimed this canvas, tearing down our
+    // Application would destroy ITS WebGL context (same canvas -> same
+    // context) and, with removeView, rip the canvas out of the DOM. Leave the
+    // superseded Application alone: one orphaned object is a trivial cost
+    // next to a black screen, and it holds no context of its own to leak.
+    if (this._superseded || (this.canvas && this.canvas.__wdRenderer !== this)) return;
+    if (this.canvas) this.canvas.__wdRenderer = null;
+    // `removeView: false` — the <canvas> belongs to React, which mounts and
+    // unmounts it. Pixi deleting that element out from under React leaves the
+    // component holding a ref to a node that is no longer in the document.
+    // .catch so a renderer that failed to init can still be destroyed — the
+    // rejection is already reported, and rethrowing it here would surface as
+    // a second, misleading unhandled rejection on teardown.
+    this.readyPromise
+      .then(() => {
+        if (this._superseded) return;   // re-check: may have been claimed while awaiting
+        try { this.app.destroy({ removeView: false }, { children: true }); } catch (e) { /* noop */ }
+      })
+      .catch(() => { /* init already failed and was reported */ });
   }
 
   // ============================== MAIN FRAME ==============================
   render(game) {
     if (!this.ready) return;
+    // A renderer that is `ready` but whose Application has been torn down
+    // draws nothing and throws nothing — the exact silent failure that made
+    // the black screen so hard to place. Check once, report once.
+    if (!this._deadReported && (!this.app || !this.app.renderer)) {
+      this._deadReported = true;
+      this._fatal('renderer destroyed while still in use', new Error(
+        'The Pixi Application was torn down but is still being rendered to. ' +
+        'This usually means two renderers shared one canvas.'));
+      return;
+    }
+    this._debugReadout(game);
     const W = game.W, H = game.H;
 
     const shakeX = (Math.random() - 0.5) * game.cam.shake;
     const shakeY = (Math.random() - 0.5) * game.cam.shake;
     this.world.position.set(-game.cam.x + shakeX, -game.cam.y + shakeY);
-    const zoom = game._visionZoom || 1;
+    const zoom = game.viewZoom ? game.viewZoom() : (game._visionZoom || 1);
     this.zoomRoot.scale.set(1 / zoom);
 
     this._drawDeepSpace(game);
@@ -764,13 +999,22 @@ void main() {
       this.muzzleFlashSprite.rotation = ang;
       this.muzzleFlashSprite.tint = L.hex;
       this.muzzleFlashSprite.alpha = L.mt;
-      this.muzzleFlashSprite.scale.set(0.5 + L.mt * 0.22);
+      // Starburst shortened 20% alongside the light's reach — the sprite is
+      // what you actually read as the flash's LENGTH, so trimming only the
+      // light would have left the visible streak the same size.
+      this.muzzleFlashSprite.scale.set(0.40 + L.mt * 0.176);
 
       this.muzzleCoreSprite.visible = true;
       this.muzzleCoreSprite.position.set(L.x, L.y);
       this.muzzleCoreSprite.tint = L.hex;
-      this.muzzleCoreSprite.alpha = L.mt * 0.8;
-      const coreSize = 34 + L.mt * 26;
+      // 0.8 -> 0.5 and 34..60px -> 20..33px. The character is ~28px across, so
+      // the core was a white lamp LARGER than he is, sitting just off his head
+      // — and under sustained fire it never got a chance to decay, which is
+      // why it read as a bright spot that would not go away rather than as a
+      // gunshot. The starburst above still carries the flash's shape; this
+      // sprite is only its hot centre and does not need to out-size him.
+      this.muzzleCoreSprite.alpha = L.mt * 0.5;
+      const coreSize = 20 + L.mt * 13;
       this.muzzleCoreSprite.width = coreSize;
       this.muzzleCoreSprite.height = coreSize;
     }
@@ -800,13 +1044,35 @@ void main() {
         // right in front of the barrel and leave the rest of the field dark,
         // which is also what makes it read as bright. Ambient is pushed up to
         // compensate, so the flash got hotter as it got shorter.
-        radius: 78, ambient: (0.30 + 0.70 * mt) * WORLD_LIGHT, mt,
+        // Pulled in from 78 to 52 and dimmed. The flash was throwing light
+        // most of a screen-width and washing the field out on every shot,
+        // which also stole the projectiles' own contribution — with the whole
+        // area already lit, a bolt flying through had nothing left to light.
+        // A muzzle flash should blow out what is directly in front of the
+        // barrel and leave everything past that to the bolts.
+        // 52 -> 38. Reported as still reaching too far: at 52 the flash was
+        // lighting roughly three enemy bodies out, which is far enough that
+        // it reads as a flare rather than a gunshot AND it keeps stealing the
+        // bolts' own contribution — with the field already lit, a projectile
+        // flying through has nothing left to light. Brightness is raised to
+        // compensate, so the flash gets hotter as it gets shorter: it should
+        // blow out what is directly in front of the barrel and leave
+        // everything past that to the bolts.
+        // 38 -> 30: another 20% off the reach, per playtest. The trade the
+        // note above describes still holds — shorter means hotter, and the
+        // brightness compensation is already in the ambient term.
+        radius: 30, ambient: (0.30 + 0.52 * mt) * WORLD_LIGHT, mt,
       };
     }
     return {
       x: p.x + Math.cos(aimAng) * 32, y: p.y + Math.sin(aimAng) * 32,
       rgb: hexToRgb01('#fff3d0'), hex: '#fff3d0',
-      radius: 96, ambient: 0.16 * WORLD_LIGHT, mt: 0,
+      // Ambient carry-light on the character himself. Raised from 0.16:
+      // reported as "he is a bit black" — with the flash pulled in there was
+      // almost nothing lighting him between shots, so the drop read as a
+      // silhouette and every one of the six facial expressions was being
+      // drawn into shadow. This is the one light that is always on.
+      radius: 96, ambient: 0.30 * WORLD_LIGHT, mt: 0,
     };
   }
 
@@ -825,13 +1091,17 @@ void main() {
     const L = this._testLight;
     if (L && L.mt > 0.02 && idx < pool.length) {
       const { sprite, filter } = pool[idx++];
-      const light = { x: L.x, y: L.y, rgb: L.rgb, radius: 46, ambient: 0.35 + L.mt * 0.3 };
+      // Matched to the tighter muzzle light in _computeTestLight — this is the
+      // visible ground pool under the flash, and leaving it wide while the
+      // light itself shrank would just move the "too far" complaint from the
+      // shading to the glow.
+      const light = { x: L.x, y: L.y, rgb: L.rgb, radius: 32, ambient: 0.32 + L.mt * 0.24 };
       sprite.visible = true;
       sprite.position.set(L.x, L.y);
-      const size = 70 + L.mt * 30;
+      const size = 46 + L.mt * 20;
       sprite.width = size; sprite.height = size;
       sprite.tint = L.hex;
-      sprite.alpha = 0.3 * L.mt;
+      sprite.alpha = 0.24 * L.mt;
       this._updateLitUniforms(filter, sprite, light);
     }
     game.projs.forEach(pr => {
@@ -844,13 +1114,28 @@ void main() {
       // before (was reading as barely-there) but pulled to a tighter radius
       // (was bleeding too far into a wide wash) so it reads as "bright but
       // local to the bolt" instead of "faint but wide".
-      const light = { x: pr.x, y: pr.y, rgb: hexToRgb01(boltColor), radius: isHydro ? 20 : 26, ambient: 0.5 };
+      // Roughly doubled in reach and lifted in brightness. With the muzzle
+      // flash pulled back, the bolts are now what actually lights the field —
+      // they were tuned tight on the assumption that the flash was doing the
+      // heavy work, and on their own they read as barely-there.
+      // Reach RAISED (44/56 -> 58/72) while the muzzle flash was pulled in.
+      // These two lights are in competition: whatever the flash already lit,
+      // a bolt flying through cannot light again. Trading reach from the
+      // flash to the bolts is what makes projectiles visibly wash their own
+      // colour over enemies they pass — which is the effect asked for — and
+      // it costs nothing, because the flash was covering that ground anyway.
+      const light = { x: pr.x, y: pr.y, rgb: hexToRgb01(boltColor), radius: isHydro ? 58 : 72, ambient: 0.70 };
       sprite.visible = true;
       sprite.position.set(pr.x, pr.y);
-      const size = (pr.size || 6) * (isHydro ? 2.2 : 3.0);
+      // Halo trimmed (4.6/6.2 -> 3.6/4.8). The hydropistol bolt in
+      // particular read as an orb rather than a bullet: its glow was wider
+      // than the character is tall. The LIGHT it casts is unchanged above —
+      // this only shrinks the visible ball, so the bolt still lights the
+      // field just as far while looking like a round instead of a planet.
+      const size = (pr.size || 6) * (isHydro ? 3.6 : 4.8);
       sprite.width = size; sprite.height = size;
       sprite.tint = boltColor;
-      sprite.alpha = isHydro ? 0.32 : 0.5;
+      sprite.alpha = isHydro ? 0.52 : 0.72;
       this._updateLitUniforms(filter, sprite, light);
     });
     for (let i = idx; i < pool.length; i++) pool[i].sprite.visible = false;
@@ -957,13 +1242,22 @@ void main() {
         for (let gy = sY; gy < fy + H + pad; gy += cell) {
           const h = ((gx * 92821) ^ (gy * 68917)) >>> 0;
           if (h % 2 !== 0) continue;
-          const px = gx + (h % cell), py = gy + ((h >> 6) % cell);
+          // `>>>` throughout, not `>>`. `h` is coerced unsigned above, so any
+          // hash with the top bit set is above 2^31 — a SIGNED shift brings
+          // that back as a negative number, `negative % len` is negative in
+          // JS, and `gasPalette[-3]` is undefined. That undefined reached
+          // Graphics.fill() as a colour and threw "Unable to convert color
+          // undefined", which aborted the whole deep-space pass for that
+          // frame (the render call is wrapped in a try/catch, so it showed up
+          // as nebulae flickering out rather than as a crash). Roughly half
+          // of all cloud cells were affected.
+          const px = gx + (h % cell), py = gy + ((h >>> 6) % cell);
           const size = 190 + (h % 320);
           const col = gasPalette[h % gasPalette.length];
           // A second, offset colour on each cloud so the gas has internal
           // variation instead of being one flat tint fading out.
-          const col2 = gasPalette[(h >> 4) % gasPalette.length];
-          const squash = 0.42 + ((h >> 3) % 5) * 0.09;
+          const col2 = gasPalette[(h >>> 4) % gasPalette.length];
+          const squash = 0.42 + ((h >>> 3) % 5) * 0.09;
           for (let li = 6; li >= 1; li--) {
             g.ellipse(px, py, size * (li / 6), size * (li / 6) * squash)
               .fill({ color: col, alpha: 0.030 });
@@ -1007,7 +1301,7 @@ void main() {
         for (let gy = sY; gy < my + H + pad; gy += cell) {
           const h = ((gx * 41143) ^ (gy * 30983)) >>> 0;
           if (h % 3 !== 0) continue;
-          const px = gx + (h % cell), py = gy + ((h >> 5) % cell);
+          const px = gx + (h % cell), py = gy + ((h >>> 5) % cell);
           const hue = h % 4;
           const color = hue === 0 ? '#7a3ab3' : hue === 1 ? '#2a6a8a' : hue === 2 ? '#8a2a5a' : '#2a8a5a';
           const coreColor = hue === 0 ? '#e0c8ff' : hue === 1 ? '#c8f0ff' : hue === 2 ? '#ffc8e8' : '#c8ffe0';
@@ -1055,11 +1349,11 @@ void main() {
         for (let gy = sY; gy < ny + H + pad; gy += cell) {
           const h = ((gx * 12841) ^ (gy * 19661)) >>> 0;
           if (h % 5 !== 0) continue;
-          const px = gx + (h % cell), py = gy + ((h >> 4) % cell);
+          const px = gx + (h % cell), py = gy + ((h >>> 4) % cell);
           const sz = 3 + (h % 6);
           const rotBase = (h % 628) / 100;
           const pts = [];
-          for (let i = 0; i < 6; i++) { const a = rotBase + (i / 6) * TAU; const rr = sz * (0.7 + ((h >> i) % 3) * 0.15); pts.push(px + Math.cos(a) * rr, py + Math.sin(a) * rr); }
+          for (let i = 0; i < 6; i++) { const a = rotBase + (i / 6) * TAU; const rr = sz * (0.7 + ((h >>> i) % 3) * 0.15); pts.push(px + Math.cos(a) * rr, py + Math.sin(a) * rr); }
           g.poly(pts).fill({ color: '#6b6258', alpha: 0.5 });
         }
       }
@@ -1109,10 +1403,28 @@ void main() {
     // for a thousand pixels of camera movement, which does not read as
     // parallax at all, it reads as being glued to the screen. These are the
     // values that actually make the sky feel like it is behind the world.
+    // Spread across the whole backdrop rather than clustered. The galaxy and
+    // the planet used to sit at (0.52, 0.34) and (0.74, 0.26) — a couple of
+    // hundred pixels apart with the galaxy's 190px halo reaching straight into
+    // the planet, so the two biggest features in the sky read as one crowded
+    // smudge. They are now on opposite diagonals with the star anchoring the
+    // third corner, which is also what lets each one's parallax be legible:
+    // three objects moving at different rates only reads as depth if you can
+    // see them separately.
     this._heroBodies = [
-      { g: this.gHeroGalaxy, bx: W * 0.52, by: H * 0.34, f: 0.10, driftX: -2.6, driftY: 0.7, pad: 460, alpha: 0.80 },
-      { g: this.gHeroWorld,  bx: W * 0.74, by: H * 0.26, f: 0.14, driftX: -4.2, driftY: 1.1, pad: 340, alpha: 0.92 },
-      { g: this.gHeroStar,   bx: W * 0.24, by: H * 0.62, f: 0.18, driftX:  3.6, driftY: -0.9, pad: 240, alpha: 0.88 },
+      // Now that parallax is anchored to the spawn camera, these fractions are
+      // literally where each body sits on screen at t=0 — so they are composed
+      // AROUND the player, who is at (0.5W, 0.5H): galaxy up-left, planet
+      // right-and-low, star down-left. Roughly equal spread in each direction
+      // rather than everything piled off one edge.
+      //
+      // The planet came in from 0.82W to 0.70W on purpose: it is drawn at
+      // R=190, so on a 393px phone it is *wider than the screen*. At 0.82 it
+      // hung two-thirds off the right edge. At 0.70 the crop reads as "close
+      // and enormous", which is the look, instead of "mostly missing".
+      { g: this.gHeroGalaxy, bx: W * 0.18, by: H * 0.24, f: 0.10, driftX: -2.6, driftY: 0.7, pad: 460, alpha: 0.80 },
+      { g: this.gHeroWorld,  bx: W * 0.70, by: H * 0.60, f: 0.14, driftX: -4.2, driftY: 1.1, pad: 340, alpha: 0.92 },
+      { g: this.gHeroStar,   bx: W * 0.34, by: H * 0.86, f: 0.18, driftX:  3.6, driftY: -0.9, pad: 240, alpha: 0.88 },
     ];
     for (const b of this._heroBodies) b.g.alpha = b.alpha;
   }
@@ -1152,7 +1464,7 @@ void main() {
             for (let k = 0; k < perCell; k++) {
               const h = ((gx2 * 73856093) ^ (gy2 * 19349663) ^ (k * 83492791)) >>> 0;
               const sx2 = gx2 + (h % cell);
-              const sy2 = gy2 + ((h >> 9) % cell);
+              const sy2 = gy2 + ((h >>> 9) % cell);
               const m = (h >> 3) & 15;
               const tier = m < 9 ? 0 : m < 14 ? 1 : 2;
               // Colour skewed hard toward blue-white; warm and red are the
@@ -1207,29 +1519,88 @@ void main() {
   // The sun sits behind it, deliberately: a full disc would blow out the
   // frame, but an occluded one gives a rim of hard light and a bloom around
   // the limb for free, which is far more attractive than the star itself.
+  // The star behind the planet. Split out of _drawDistantWorld because it grew
+  // its own set of concerns: a corona with structure, a real ray fan, an
+  // anamorphic streak and a lens-ghost chain down the optical axis.
+  //
+  // `lx, ly` is the unit vector from the planet toward the star — the same one
+  // the terminator and the city lights use, so everything agrees on where the
+  // light is coming from.
+  _drawSunBehind(g, sunX, sunY, R, lx, ly) {
+    // --- outer bloom, falling off in steps rather than one flat disc ---
+    for (let i = 9; i >= 1; i--) {
+      const f = i / 9;
+      g.circle(sunX, sunY, R * 0.34 * i)
+        .fill({ color: i > 5 ? '#ffdca0' : '#ffe9b0', alpha: 0.016 * (1 - f * 0.35) });
+    }
+
+    // --- ray fan ---
+    // 44 rays of alternating length with a slight irregular jitter. A fan of
+    // identical evenly-spaced spokes reads as a cartoon sun; the variation is
+    // the whole difference between "drawn" and "photographed".
+    const RAYS = 44;
+    for (let i = 0; i < RAYS; i++) {
+      const a = (i / RAYS) * TAU;
+      // Deterministic pseudo-noise so the star does not shimmer between the
+      // rare rebuilds of this layer.
+      const h = ((i * 2654435761) >>> 0) / 4294967295;
+      const long = i % 4 === 0;
+      const len = R * (long ? 1.5 + h * 1.5 : 0.55 + h * 0.7);
+      const w = long ? 1.9 : 1.0;
+      g.moveTo(sunX + Math.cos(a) * R * 0.22, sunY + Math.sin(a) * R * 0.22)
+        .lineTo(sunX + Math.cos(a) * len, sunY + Math.sin(a) * len)
+        .stroke({ width: w, color: long ? '#fff3d0' : '#ffe1a4', alpha: long ? 0.16 : 0.09 });
+    }
+
+    // --- corona: an irregular rim, not a clean circle ---
+    const cor = [];
+    for (let i = 0; i <= 48; i++) {
+      const a = (i / 48) * TAU;
+      const wob = 1 + Math.sin(a * 5.3) * 0.045 + Math.sin(a * 11.7) * 0.025;
+      cor.push(sunX + Math.cos(a) * R * 0.42 * wob, sunY + Math.sin(a) * R * 0.42 * wob);
+    }
+    g.poly(cor).fill({ color: '#ffdfa0', alpha: 0.16 });
+
+    // --- the disc itself ---
+    g.circle(sunX, sunY, R * 0.30).fill({ color: '#fff6dc', alpha: 0.62 });
+    g.circle(sunX, sunY, R * 0.21).fill({ color: '#fffdf2', alpha: 0.85 });
+    g.circle(sunX, sunY, R * 0.13).fill({ color: '#ffffff', alpha: 1 });
+
+    // --- anamorphic streak: the long horizontal flare a real lens throws ---
+    for (const [len, w, a, col] of [
+      [R * 5.2, 1.2, 0.20, '#cfe4ff'],
+      [R * 3.0, 2.6, 0.13, '#ffeec4'],
+      [R * 1.4, 5.0, 0.08, '#ffd9a0'],
+    ]) {
+      g.moveTo(sunX - len, sunY).lineTo(sunX + len, sunY)
+        .stroke({ width: w, color: col, alpha: a });
+    }
+    // A shorter cross streak along the light axis so it is not purely
+    // horizontal.
+    for (const [len, w, a] of [[R * 2.4, 1.4, 0.14], [R * 1.1, 3.0, 0.09]]) {
+      g.moveTo(sunX - lx * len, sunY - ly * len).lineTo(sunX + lx * len, sunY + ly * len)
+        .stroke({ width: w, color: '#ffeec4', alpha: a });
+    }
+
+    // --- lens ghosts down the optical axis, tinted apart so the chain reads
+    // as glass elements rather than as copies ---
+    for (const [t, r, a, col] of [
+      [-0.35, 0.09, 0.10, '#ffd0a0'], [-0.62, 0.15, 0.07, '#a0ffd8'],
+      [-0.95, 0.06, 0.09, '#cfd0ff'], [-1.30, 0.19, 0.05, '#ffe0a0'],
+      [-1.70, 0.10, 0.06, '#ffa0c8'],
+    ]) {
+      const gx = sunX + lx * R * 2.6 * t, gy = sunY + ly * R * 2.6 * t;
+      g.circle(gx, gy, R * r).fill({ color: col, alpha: a });
+      g.circle(gx, gy, R * r).stroke({ width: 1, color: col, alpha: a * 1.6 });
+    }
+  }
+
   _drawDistantWorld(g, cx, cy, R) {
     // Light comes from up and slightly right, behind the planet.
     const lx = 0.62, ly = -0.78;
     const sunX = cx + lx * R * 1.06, sunY = cy + ly * R * 1.06;
 
-    // --- the sun behind, drawn first so the planet occludes its core ---
-    for (let i = 7; i >= 1; i--) {
-      g.circle(sunX, sunY, R * 0.30 * i).fill({ color: '#ffe9b0', alpha: 0.020 });
-    }
-    g.circle(sunX, sunY, R * 0.30).fill({ color: '#fff6dc', alpha: 0.55 });
-    g.circle(sunX, sunY, R * 0.17).fill({ color: '#ffffff', alpha: 0.85 });
-    // sun glare — two long streaks and a couple of ghosts down the axis
-    for (const [len, w, a] of [[R * 3.4, 1.6, 0.22], [R * 1.5, 3.2, 0.12]]) {
-      g.moveTo(sunX - lx * len, sunY - ly * len).lineTo(sunX + lx * len, sunY + ly * len)
-        .stroke({ width: w, color: '#ffeec4', alpha: a });
-      g.moveTo(sunX + ly * len * 0.55, sunY - lx * len * 0.55)
-        .lineTo(sunX - ly * len * 0.55, sunY + lx * len * 0.55)
-        .stroke({ width: w * 0.7, color: '#ffeec4', alpha: a * 0.6 });
-    }
-    for (const [t, r, a] of [[-0.45, 0.10, 0.10], [-0.85, 0.16, 0.07], [-1.3, 0.07, 0.06]]) {
-      g.circle(sunX + lx * R * 2.4 * t, sunY + ly * R * 2.4 * t, R * r)
-        .fill({ color: '#ffe0a0', alpha: a });
-    }
+    this._drawSunBehind(g, sunX, sunY, R, lx, ly);
 
     // --- atmosphere halo ---
     for (let i = 5; i >= 1; i--) {
@@ -1237,33 +1608,181 @@ void main() {
     }
 
     // --- ocean body ---
-    g.circle(cx, cy, R).fill('#12406e');
-    // deep/shallow banding so the sea is not one flat blue
-    g.ellipse(cx, cy - R * 0.35, R * 0.92, R * 0.30).fill({ color: '#1a5c96', alpha: 0.55 });
-    g.ellipse(cx, cy + R * 0.42, R * 0.86, R * 0.26).fill({ color: '#0c2f52', alpha: 0.5 });
+    g.circle(cx, cy, R).fill('#0e3a66');
+    // Depth banding, plus a subtropical brightening either side of the equator
+    // — the sea is not one flat blue at any scale.
+    g.ellipse(cx, cy - R * 0.35, R * 0.92, R * 0.30).fill({ color: '#1a5c96', alpha: 0.45 });
+    g.ellipse(cx, cy + R * 0.42, R * 0.86, R * 0.26).fill({ color: '#0a2a4a', alpha: 0.5 });
+    g.ellipse(cx, cy + R * 0.02, R * 0.99, R * 0.16).fill({ color: '#237bbd', alpha: 0.20 });
 
-    // --- land: a few blobby continents, hand-placed so they read as
-    // landmasses rather than as noise ---
-    const LAND = [
-      [-0.34, -0.30, 0.30, 0.20], [-0.10, -0.05, 0.22, 0.30],
-      [0.30, -0.42, 0.20, 0.13], [0.26, 0.22, 0.30, 0.18],
-      [-0.46, 0.34, 0.18, 0.12], [0.02, 0.55, 0.24, 0.11],
-    ];
-    for (const [ox, oy, rx, ry] of LAND) {
-      g.ellipse(cx + ox * R, cy + oy * R, rx * R, ry * R).fill({ color: '#2f7a45', alpha: 0.92 });
-      g.ellipse(cx + ox * R - rx * R * 0.18, cy + oy * R - ry * R * 0.22, rx * R * 0.5, ry * R * 0.42)
-        .fill({ color: '#48965a', alpha: 0.7 });
+    // ---- REAL GEOGRAPHY ---------------------------------------------------
+    // This is an actual orthographic globe projection of coarse coastline
+    // outlines, not a scatter of green blobs. The hemisphere is centred on
+    // 12°E / 22°N, which frames Africa in the middle and puts Europe — and
+    // Scandinavia specifically — clearly in the upper half where it can be
+    // recognised. Everything past the limb is clipped by the projection
+    // itself, so continents wrap out of sight correctly instead of being
+    // squashed against the edge.
+    const LON0 = 12 * Math.PI / 180, LAT0 = 22 * Math.PI / 180;
+    const sinLat0 = Math.sin(LAT0), cosLat0 = Math.cos(LAT0);
+    // Returns null when the point is on the far side of the globe.
+    const project = (lonDeg, latDeg) => {
+      const lon = lonDeg * Math.PI / 180, lat = latDeg * Math.PI / 180;
+      const dl = lon - LON0;
+      const cosC = sinLat0 * Math.sin(lat) + cosLat0 * Math.cos(lat) * Math.cos(dl);
+      if (cosC < 0) return null; // behind the horizon
+      const x = Math.cos(lat) * Math.sin(dl);
+      const y = cosLat0 * Math.sin(lat) - sinLat0 * Math.cos(lat) * Math.cos(dl);
+      return [cx + x * R, cy - y * R];
+    };
+    // Fills a lat/lon ring. Points that fall behind the limb are dropped; a
+    // landmass straddling the edge still fills correctly because the remaining
+    // points hug the rim.
+    const landmass = (ring, fill, alpha = 1) => {
+      const pts = [];
+      for (const [lo, la] of ring) {
+        const p = project(lo, la);
+        if (p) pts.push(p[0], p[1]);
+      }
+      if (pts.length >= 6) g.poly(pts).fill({ color: fill, alpha });
+      return pts;
+    };
+
+    const GREEN = '#2f7a45', GREEN_HI = '#47955a', SAND = '#b89a5e', TUNDRA = '#6f8a6a';
+
+    // Africa — the anchor of this hemisphere, so it gets the most points.
+    landmass([[-17,14],[-16,20],[-12,25],[-6,31],[2,33],[10,34],[19,31],[26,32],[32,31],
+      [35,24],[38,17],[43,12],[51,12],[48,5],[42,-1],[40,-9],[36,-18],[33,-26],[27,-33],
+      [19,-35],[15,-27],[12,-17],[9,-4],[9,4],[3,6],[-4,5],[-9,5],[-13,9],[-17,14]], GREEN);
+    // The Sahara. Africa reading as uniformly green is the single most
+    // obviously-wrong thing about a stylised Earth.
+    landmass([[-12,25],[-6,31],[10,32],[24,31],[32,30],[34,22],[28,17],[16,15],[4,15],
+      [-8,17],[-12,25]], SAND, 0.85);
+    // Congo basin — darker, wetter green.
+    landmass([[10,4],[24,3],[28,-4],[22,-9],[13,-6],[10,4]], '#1f5f33', 0.75);
+
+    // Arabia + the Near East.
+    landmass([[34,29],[40,32],[48,30],[56,26],[59,22],[52,16],[44,12],[38,16],[35,23],[34,29]], SAND, 0.9);
+    // Western Asia / Anatolia and the run east toward the Caspian.
+    landmass([[26,40],[30,41],[36,41],[42,42],[50,45],[60,46],[70,45],[80,48],[88,50],
+      [95,52],[100,55],[95,60],[85,62],[72,66],[60,68],[48,68],[38,66],[32,62],[30,56],
+      [28,50],[26,44],[26,40]], GREEN, 0.92);
+
+    // ---- Europe -----------------------------------------------------------
+    // Iberia, France, the Alps and the Balkans as one connected mass.
+    landmass([[-9,37],[-9,43],[-2,44],[0,46],[-2,48],[-4,49],[0,51],[4,52],[8,54],[12,54],
+      [16,54],[20,54],[24,52],[28,50],[28,46],[24,44],[20,42],[16,40],[14,38],[16,41],
+      [12,44],[8,44],[4,43],[0,42],[-3,43],[-6,43],[-9,37]], GREEN);
+    // The British Isles, separate so they read as islands.
+    landmass([[-5,50],[-5,53],[-3,55],[-3,58],[-5,58],[-6,56],[-6,52],[-5,50]], GREEN);
+    landmass([[-10,52],[-10,54],[-7,55],[-6,53],[-8,51],[-10,52]], GREEN);
+
+    // ---- Scandinavia, and Sweden picked out inside it ----------------------
+    // Norway's fjord coast up and over the cap, down through Finland and back
+    // along the Baltic. Drawn as its own mass so the peninsula shape survives.
+    landmass([[5,58],[5,61],[7,63],[11,65],[14,68],[18,69],[22,70],[26,70],[30,70],[31,66],
+      [28,63],[25,61],[24,66],[22,66],[21,63],[19,61],[17,59],[14,56],[12,55],[11,58],[8,58],[5,58]],
+      TUNDRA, 0.95);
+    // Sweden itself, a shade lighter so it is picked out of the peninsula
+    // rather than hidden inside it.
+    const swedePts = landmass([[11,58.5],[12,59.5],[13,61],[15,63],[17,64],[19,65.5],[21,66],
+      [23,66],[23.5,65],[21,63],[19,61],[18,59.5],[17,58],[16,56.5],[14,55.8],[12.5,56],
+      [11,57],[11,58.5]], '#5fae6d', 0.95);
+    // And a pinprick of light on Stockholm. At this scale it is a single
+    // pixel of warm white — the kind of detail you only notice once, which is
+    // exactly the point.
+    const sthlm = project(18.07, 59.33);
+    if (sthlm) {
+      g.circle(sthlm[0], sthlm[1], R * 0.028).fill({ color: '#ffe9a8', alpha: 0.35 });
+      g.circle(sthlm[0], sthlm[1], R * 0.011).fill({ color: '#fffdf0', alpha: 0.95 });
     }
-    // polar caps
-    g.ellipse(cx, cy - R * 0.88, R * 0.44, R * 0.16).fill({ color: '#dff2ff', alpha: 0.8 });
-    g.ellipse(cx, cy + R * 0.90, R * 0.36, R * 0.13).fill({ color: '#dff2ff', alpha: 0.7 });
+    if (swedePts.length >= 6) {
+      g.poly(swedePts).stroke({ width: Math.max(0.5, R * 0.006), color: '#9fe0b0', alpha: 0.5 });
+    }
+
+    // Greenland and Iceland on the north-west limb.
+    landmass([[-45,60],[-50,64],[-46,69],[-38,72],[-28,73],[-20,71],[-22,66],[-32,61],[-45,60]],
+      '#e4f3ff', 0.85);
+    landmass([[-24,64],[-22,66],[-16,66],[-14,64],[-19,63],[-24,64]], TUNDRA, 0.9);
+
+    // South America's shoulder, riding the south-west limb.
+    landmass([[-52,-2],[-45,-2],[-38,-6],[-35,-8],[-38,-14],[-42,-23],[-48,-27],[-53,-34],
+      [-58,-38],[-62,-40],[-66,-45],[-70,-50],[-72,-45],[-70,-35],[-68,-25],[-70,-18],
+      [-72,-10],[-77,-6],[-80,-2],[-70,0],[-60,2],[-52,-2]], GREEN, 0.9);
+
+    // North America's eastern seaboard, mostly past the limb — which is
+    // correct for this hemisphere and sells the curvature.
+    landmass([[-52,47],[-60,46],[-66,44],[-70,42],[-74,40],[-76,36],[-80,32],[-81,26],
+      [-80,30],[-76,34],[-72,40],[-66,46],[-58,50],[-52,52],[-52,47]], GREEN, 0.85);
+
+    // Coastal highlight — a lighter rim on the sun-facing side of each mass,
+    // faked cheaply by re-drawing Africa and Europe slightly offset toward the
+    // light and clipping to a thin sliver.
+    landmass([[-15,16],[-10,24],[0,31],[12,33],[22,31],[30,30],[33,24],[36,17],[41,13],
+      [46,12],[43,9],[38,5],[34,0],[30,-6],[26,-14],[22,-24],[16,-30],[13,-20],[10,-6],
+      [10,2],[4,5],[-3,4],[-11,8],[-15,16]], GREEN_HI, 0.30);
+
+    // Polar caps, projected rather than pasted so they curve with the globe.
+    landmass([[-180,72],[-120,74],[-60,76],[0,78],[60,76],[120,74],[180,72],
+      [180,90],[-180,90],[-180,72]], '#dff2ff', 0.75);
+    // Antarctic. Pulled up from -66° to -58°: from a viewpoint centred at 22°N
+    // the horizon sits at about latitude -68, so a cap ring drawn at -66 fell
+    // entirely behind the limb and rendered nothing at all. -58 puts a correct
+    // sliver of ice on the southern edge.
+    landmass([[-70,-58],[-40,-60],[-10,-62],[20,-62],[50,-60],[80,-58],
+      [80,-90],[-70,-90],[-70,-58]], '#eaf7ff', 0.8);
 
     // --- cloud bands, offset from the land so they read as above it ---
     for (const [ox, oy, rx, ry, a] of [
-      [-0.20, -0.52, 0.42, 0.10, 0.30], [0.24, -0.12, 0.36, 0.09, 0.26],
-      [-0.30, 0.16, 0.40, 0.09, 0.24], [0.10, 0.44, 0.34, 0.08, 0.20],
+      [-0.20, -0.52, 0.42, 0.10, 0.26], [0.24, -0.12, 0.36, 0.09, 0.22],
+      [-0.30, 0.16, 0.40, 0.09, 0.20], [0.10, 0.44, 0.34, 0.08, 0.18],
+      [0.44, -0.36, 0.22, 0.07, 0.20], [-0.48, -0.10, 0.20, 0.06, 0.18],
     ]) {
       g.ellipse(cx + ox * R, cy + oy * R, rx * R, ry * R).fill({ color: '#ffffff', alpha: a });
+    }
+    // A cyclone — one spiral is enough to imply weather across the whole disc.
+    const stx = cx - R * 0.40, sty = cy + R * 0.30;
+    for (let s = 0; s < 22; s++) {
+      const f = s / 22, aa = f * 5.4, rr = R * 0.05 + f * R * 0.16;
+      g.circle(stx + Math.cos(aa) * rr, sty + Math.sin(aa) * rr * 0.7, R * (0.030 - f * 0.016))
+        .fill({ color: '#ffffff', alpha: 0.30 - f * 0.16 });
+    }
+
+    // --- specular sun-glint on the ocean -----------------------------------
+    // The one thing a water world was missing. Land scatters light in every
+    // direction; water throws a mirror image of the star back at you, and that
+    // hard bright spot on the day side is what separates "a painted ball" from
+    // "a planet with oceans on it".
+    //
+    // Sits on the sun side (`lx, ly` is the unit vector toward the star, the
+    // same one the terminator and the city lights use), pulled in from the limb
+    // so it lands on the sphere rather than on its edge. Elongated across the
+    // light direction because a reflection off a curved, moving surface smears
+    // — a round dot reads as a lens flare stuck to the screen.
+    {
+      const gx = cx + lx * R * 0.42;
+      const gy = cy + ly * R * 0.42;
+      const ang = Math.atan2(ly, lx) + Math.PI / 2;
+      // Three stacked lobes, widest and faintest first.
+      for (const [w, h, a] of [[0.30, 0.13, 0.10], [0.20, 0.08, 0.16], [0.11, 0.045, 0.30]]) {
+        const ca = Math.cos(ang), sa = Math.sin(ang);
+        const pts = [];
+        for (let i = 0; i < 16; i++) {
+          const t2 = (i / 16) * Math.PI * 2;
+          const ex = Math.cos(t2) * R * w, ey = Math.sin(t2) * R * h;
+          pts.push(gx + ex * ca - ey * sa, gy + ex * sa + ey * ca);
+        }
+        g.poly(pts).fill({ color: '#ffffff', alpha: a });
+      }
+      // A few broken glints trailing off it, so the highlight reads as a
+      // rippled surface rather than as one polished spot.
+      for (let i = 0; i < 5; i++) {
+        const f = (i + 1) / 6;
+        const jx = gx - lx * R * f * 0.34 + Math.sin(i * 2.3) * R * 0.07;
+        const jy = gy - ly * R * f * 0.34 + Math.cos(i * 1.7) * R * 0.05;
+        g.ellipse(jx, jy, R * (0.045 - f * 0.02), R * (0.018 - f * 0.008))
+          .fill({ color: '#ffffff', alpha: 0.18 * (1 - f) });
+      }
     }
 
     // --- terminator ---
@@ -1276,6 +1795,34 @@ void main() {
         .fill({ color: '#02060f', alpha: a });
     }
 
+    // ---- City lights on the night side -------------------------------------
+    // Real coordinates, drawn AFTER the terminator so they glow out of the
+    // dark rather than being washed out by it, and faded by how far into the
+    // night each one has rotated. This is the detail that makes it read as an
+    // inhabited planet instead of a textured ball.
+    const CITIES = [
+      [-0.13, 51.5, 1.0],  [2.35, 48.9, 1.0],   [13.4, 52.5, 0.9],
+      [12.5, 41.9, 0.8],   [-3.7, 40.4, 0.8],   [18.07, 59.33, 0.9],
+      [10.75, 59.91, 0.7], [12.57, 55.68, 0.7], [24.94, 60.17, 0.7],
+      [37.6, 55.75, 0.9],  [28.98, 41.0, 0.9],  [31.24, 30.04, 0.9],
+      [3.38, 6.52, 0.8],   [28.03, -26.2, 0.7], [18.42, -33.92, 0.6],
+      [55.27, 25.2, 0.8],  [72.87, 19.07, 0.9], [-43.2, -22.9, 0.8],
+      [-58.4, -34.6, 0.7], [-74.0, 40.7, 1.0],
+    ];
+    for (const [lo, la, w] of CITIES) {
+      const p = project(lo, la);
+      if (!p) continue;
+      // How far onto the night side this point sits: project the offset from
+      // the planet centre onto the light direction. Positive = lit, so only
+      // negative values get a light.
+      const nx = (p[0] - cx) / R, ny = (p[1] - cy) / R;
+      const litness = nx * lx + ny * ly;
+      if (litness > -0.02) continue;             // still in daylight
+      const night = Math.min(1, -litness / 0.55); // full brightness deep in night
+      g.circle(p[0], p[1], R * 0.030 * w).fill({ color: '#ffcf7a', alpha: 0.16 * night });
+      g.circle(p[0], p[1], R * 0.012 * w).fill({ color: '#fff0c0', alpha: 0.75 * night });
+    }
+
     // --- lit limb: a hard crescent of daylight where the sun clips the edge ---
     g.circle(cx + lx * R * 0.10, cy + ly * R * 0.10, R * 0.985)
       .stroke({ width: R * 0.06, color: '#ffe9c0', alpha: 0.55 });
@@ -1286,36 +1833,148 @@ void main() {
       .stroke({ width: R * 0.05, color: '#8fd6ff', alpha: 0.30 });
   }
 
+  // A blue dwarf. This was the last flat thing in the sky: eight concentric
+  // circles, a white dot and four straight lines, next to a planet with real
+  // coastlines and a galaxy with dust lanes. It read as a bullet hole.
+  //
+  // Everything here is static — the body is drawn once into its own Graphics
+  // and only repositioned per frame (see _positionHeroBodies) — so the detail
+  // is free at runtime. Determinism matters for the same reason: a hashed
+  // pseudo-random keeps the star identical across redraws instead of
+  // reshuffling its corona whenever the layer is rebuilt.
   _drawDwarfStar(g, cx, cy) {
-    for (let ri = 7; ri >= 1; ri--) {
-      g.circle(cx, cy, ri * 22).fill({ color: '#9fd4ff', alpha: 0.028 });
+    // Deterministic 0..1 from an integer. No Math.random: this must look the
+    // same every time it is redrawn.
+    const rnd = (i) => {
+      const h = Math.sin(i * 127.1 + 311.7) * 43758.5453;
+      return h - Math.floor(h);
+    };
+
+    // --- corona, hot core to cold edge -------------------------------------
+    // A real star's corona shifts colour outward as well as fading. Stepping
+    // through three colour stops instead of one blue is most of what separates
+    // this from a stack of circles.
+    const CORONA = ['#eaf6ff', '#bfe2ff', '#8cc4ff', '#5f8fdd'];
+    for (let ri = 16; ri >= 1; ri--) {
+      const f = ri / 16;
+      const ci = Math.min(CORONA.length - 1, Math.floor(f * CORONA.length));
+      // Squashed very slightly and rotated, so the halo is an ellipse rather
+      // than a perfect disc — perfect circles are what make glows look CG.
+      g.ellipse(cx, cy, 14 + f * 150, (14 + f * 150) * 0.93)
+        .fill({ color: CORONA[ci], alpha: 0.030 * (1 - f * 0.55) });
     }
-    g.circle(cx, cy, 26).fill({ color: '#cfe8ff', alpha: 0.30 });
-    g.circle(cx, cy, 15).fill({ color: '#eaf6ff', alpha: 0.75 });
-    g.circle(cx, cy, 8).fill('#ffffff');
-    // uneven diffraction spikes, so it doesn't read as a compass rose
-    const spikes = [[0, 78], [Math.PI / 2, 52], [Math.PI, 70], [-Math.PI / 2, 46]];
-    for (const [a, len] of spikes) {
-      g.moveTo(cx - Math.cos(a) * len, cy - Math.sin(a) * len)
+
+    // --- coronal rays -------------------------------------------------------
+    // Fine, uneven rays of varying length and opacity. This is the detail that
+    // makes it read as something burning rather than something glowing.
+    for (let i = 0; i < 46; i++) {
+      const a = (i / 46) * Math.PI * 2 + rnd(i) * 0.14;
+      const len = 34 + rnd(i * 3 + 1) * 96;
+      const w = 0.6 + rnd(i * 7 + 2) * 1.5;
+      g.moveTo(cx + Math.cos(a) * 16, cy + Math.sin(a) * 16)
         .lineTo(cx + Math.cos(a) * len, cy + Math.sin(a) * len)
-        .stroke({ width: 1.4, color: '#dcefff', alpha: 0.34 });
+        .stroke({ width: w, color: i % 5 === 0 ? '#dff1ff' : '#9ecdff', alpha: 0.05 + rnd(i * 11 + 3) * 0.10 });
+    }
+
+    // --- the disc -----------------------------------------------------------
+    g.circle(cx, cy, 27).fill({ color: '#8cc4ff', alpha: 0.22 });
+    g.circle(cx, cy, 19).fill({ color: '#cfe8ff', alpha: 0.42 });
+    g.circle(cx, cy, 12).fill({ color: '#eaf6ff', alpha: 0.85 });
+    g.circle(cx, cy, 7).fill('#ffffff');
+    // Limb brightening — the edge of a hot star is brighter than the space
+    // just outside it, and the hard rim is what gives it a physical surface.
+    g.circle(cx, cy, 12).stroke({ width: 1.2, color: '#ffffff', alpha: 0.55 });
+
+    // --- diffraction spikes -------------------------------------------------
+    // Tapered diamonds rather than strokes, so each spike has a silhouette
+    // that thins to a point. Lengths stay uneven so it is not a compass rose.
+    const spikes = [[0, 128], [Math.PI / 2, 74], [Math.PI, 108], [-Math.PI / 2, 66]];
+    for (const [a, len] of spikes) {
+      const ca = Math.cos(a), sa = Math.sin(a);
+      const px = -sa, py = ca;          // perpendicular
+      const w = 2.6;
+      g.poly([
+        cx + ca * len, cy + sa * len,
+        cx + px * w,   cy + py * w,
+        cx - ca * len * 0.16, cy - sa * len * 0.16,
+        cx - px * w,   cy - py * w,
+      ]).fill({ color: '#dcefff', alpha: 0.30 });
+    }
+    // Faint secondary spikes at 45°, much shorter — real optics rarely give
+    // exactly four clean points.
+    for (let k = 0; k < 4; k++) {
+      const a = Math.PI / 4 + k * Math.PI / 2;
+      const len = 30 + rnd(k + 40) * 22;
+      g.moveTo(cx, cy).lineTo(cx + Math.cos(a) * len, cy + Math.sin(a) * len)
+        .stroke({ width: 1, color: '#cfe8ff', alpha: 0.16 });
+    }
+
+    // --- anamorphic streak --------------------------------------------------
+    // The horizontal smear a real lens puts on a point source. Drawn as a thin
+    // lens shape so it fades along its length instead of stopping dead.
+    for (let s = 0; s < 3; s++) {
+      const L = 190 - s * 46;
+      const h = 1.6 + s * 1.5;
+      g.poly([cx - L, cy, cx, cy - h, cx + L, cy, cx, cy + h])
+        .fill({ color: '#9ecdff', alpha: 0.10 - s * 0.025 });
+    }
+
+    // --- lens ghosts --------------------------------------------------------
+    // A chain of faint discs down the optical axis, decreasing in size. Cheap,
+    // and it is the single strongest cue that we are looking THROUGH something
+    // at a very bright object.
+    for (let i = 1; i <= 5; i++) {
+      const t = i / 5;
+      const gx = cx - t * 210, gy = cy + t * 128;
+      const gr = 16 - i * 2.1;
+      g.circle(gx, gy, gr).fill({ color: i % 2 ? '#7fb6ff' : '#bfe2ff', alpha: 0.055 });
+      g.circle(gx, gy, gr).stroke({ width: 0.8, color: '#cfe8ff', alpha: 0.07 });
     }
   }
 
   _positionHeroBodies(game, W, H, cx, cy) {
     const t = game.run ? game.run.time : 0;
+    // Parallax is measured from where the run STARTED, not from world origin.
+    //
+    // These offsets used to be `cx * f` against the absolute camera position,
+    // so the composition below (galaxy left, planet right, star low) was only
+    // true if the camera happened to sit at world 0,0. Spawn is at ~3200,3200,
+    // which at f=0.14 shoved the planet to x = -99 and the galaxy to -214:
+    // both hard off the left edge before the player had moved a pixel. The
+    // best-looking thing in the scene was never seen.
+    //
+    // Anchoring to the spawn camera makes the layout mean what it says: at
+    // t=0 every body sits exactly at its authored fraction of the screen,
+    // spread around the player, and parallax proceeds from there.
+    // Derived from the PLAYER, not from the camera passed in. The camera is
+    // seeded on the first engine update, but render order is not something
+    // this function should have to depend on — if it ever ran before that
+    // seed, capturing cx would pin the whole sky to world origin again and
+    // silently reintroduce the bug. The player's spawn position is stable
+    // from the moment the run exists.
+    if (!this._paraOrigin && game.player) {
+      const z = game.viewZoom ? game.viewZoom() : 1;
+      this._paraOrigin = { x: game.player.x - (W / 2) * z, y: game.player.y - (H / 2) * z };
+    }
+    const o = this._paraOrigin || { x: cx, y: cy };
+    const dcx = cx - o.x;
+    const dcy = cy - o.y;
     for (const b of this._heroBodies) {
       // X wraps: a body that sails off one edge returns from the other, so
       // the sky never empties out on a long run. pad >= the body's own radius
       // means the wrap always happens while it is fully off-screen.
       const spanX = W + b.pad * 2;
-      let sx = b.bx - cx * b.f + b.driftX * t;
+      let sx = b.bx - dcx * b.f + b.driftX * t;
       sx = ((((sx + b.pad) % spanX) + spanX) % spanX) - b.pad;
-      // Y does NOT wrap â€” a vertical jump would be visible while the body is
+      // Y does NOT wrap — a vertical jump would be visible while the body is
       // still on screen horizontally. Unbounded vertical drift is folded
       // through a sine instead, so it rises and falls smoothly forever.
-      const rawY = b.by - cy * b.f + b.driftY * t;
-      const sy = H * 0.5 + Math.sin(rawY / (H * 0.75)) * (H * 0.40);
+      // Folded around the body's OWN base rather than around H/2, so that at
+      // t=0 the sine contributes nothing and `by` is the actual start height.
+      // Folding around H/2 collapsed all three bodies into the lower half of
+      // the screen at spawn regardless of what `by` said.
+      const wobble = -dcy * b.f + b.driftY * t;
+      const sy = b.by + Math.sin(wobble / (H * 0.75)) * (H * 0.34);
       // Each body is drawn at its layer's LOCAL origin, so the layer's
       // position is its screen position outright. Subtracting the base
       // offset here pushed the galaxy half a screen off to the left, which
@@ -1352,7 +2011,38 @@ void main() {
         g.stroke({ width: w, color: col, alpha: al });
       }
     }
-    // bright star knots scattered along the arms
+    // Dust lanes riding the INSIDE edge of each arm. Real spirals are defined
+    // as much by the dark lanes as by the bright ones — without them the arms
+    // read as painted stripes rather than as material orbiting a centre.
+    for (let arm = 0; arm < 2; arm++) {
+      const base = arm * Math.PI;
+      g.moveTo(cx, cy);
+      for (let s = 1; s <= 26; s++) {
+        const f = s / 26;
+        const rr = 14 + f * R;
+        const aa = base + f * 3.1 - 0.14; // trailing just inside the arm
+        g.lineTo(cx + Math.cos(aa) * rr, cy + Math.sin(aa) * rr * 0.54);
+      }
+      g.stroke({ width: 5, color: '#150a2a', alpha: 0.34 });
+    }
+
+    // Outer wisps — a few faint fragments beyond where the arms resolve, so
+    // the disc fades into the void instead of stopping at a hard radius.
+    for (let i = 0; i < 7; i++) {
+      const base = (i % 2) * Math.PI;
+      const f0 = 0.80 + (i % 3) * 0.05;
+      g.moveTo(cx + Math.cos(base + f0 * 3.1) * (14 + f0 * R),
+               cy + Math.sin(base + f0 * 3.1) * (14 + f0 * R) * 0.54);
+      for (let s = 1; s <= 6; s++) {
+        const f = f0 + s * 0.03;
+        const rr = 14 + f * R * (1 + (i % 4) * 0.04);
+        const aa = base + f * 3.1 + (i - 3) * 0.05;
+        g.lineTo(cx + Math.cos(aa) * rr, cy + Math.sin(aa) * rr * 0.54);
+      }
+      g.stroke({ width: 2.2, color: '#8f7ce8', alpha: 0.10 });
+    }
+
+    // Bright star knots scattered along the arms
     for (let i = 0; i < 40; i++) {
       const f = 0.18 + (i % 13) / 13 * 0.82;
       const aa = (i % 2) * Math.PI + f * 3.1 + ((i * 37) % 20 - 10) * 0.012;
@@ -1360,12 +2050,31 @@ void main() {
       g.circle(cx + Math.cos(aa) * rr, cy + Math.sin(aa) * rr * 0.54, 0.9 + (i % 3) * 0.5)
         .fill({ color: i % 4 === 0 ? '#ffd9f0' : '#dfe6ff', alpha: 0.55 });
     }
-    // core bulge
+
+    // HII regions — the pink star-forming knots that give a real spiral its
+    // colour variation. Deliberately few and only on the arms; scattering them
+    // everywhere would just re-flatten the disc.
+    for (let i = 0; i < 11; i++) {
+      const f = 0.30 + (i % 7) / 7 * 0.62;
+      const aa = (i % 2) * Math.PI + f * 3.1 + ((i * 29) % 14 - 7) * 0.014;
+      const rr = 14 + f * R + ((i * 41) % 20 - 10);
+      const hx = cx + Math.cos(aa) * rr, hy = cy + Math.sin(aa) * rr * 0.54;
+      g.circle(hx, hy, 5.5 + (i % 3) * 2).fill({ color: '#ff6ad5', alpha: 0.09 });
+      g.circle(hx, hy, 2.2 + (i % 2)).fill({ color: '#ffb3ea', alpha: 0.30 });
+    }
+
+    // Core bulge, now with a warmer inner gradient — galactic cores are old
+    // yellow stars, not the same violet as the arms.
     g.ellipse(cx, cy, 62, 34).fill({ color: '#b98adf', alpha: 0.20 });
-    g.ellipse(cx, cy, 38, 21).fill({ color: '#e6c8ff', alpha: 0.34 });
-    g.ellipse(cx, cy, 20, 11).fill({ color: '#fff4ff', alpha: 0.72 });
-    // dust lane cutting across the core
+    g.ellipse(cx, cy, 44, 24).fill({ color: '#d9b0f5', alpha: 0.26 });
+    g.ellipse(cx, cy, 30, 17).fill({ color: '#ffe6c8', alpha: 0.30 });
+    g.ellipse(cx, cy, 18, 10).fill({ color: '#fff8ee', alpha: 0.80 });
+    // A faint bar across the core — this is a BARRED spiral, and the bar is
+    // what makes the two arms look like they are launched from something.
+    g.ellipse(cx, cy, 74, 12).fill({ color: '#e0c0ff', alpha: 0.10 });
+    // Dust lane cutting across the core
     g.ellipse(cx - 6, cy + 4, 96, 7).fill({ color: '#1a0f30', alpha: 0.45 });
+    g.ellipse(cx + 18, cy - 6, 62, 4).fill({ color: '#1a0f30', alpha: 0.26 });
   }
 
   // ---------------------------- GROUND / BG ------------------------------
@@ -1432,19 +2141,127 @@ void main() {
     g.rect(-8, -8, game.world.w + 16, game.world.h + 16).stroke({ width: 16, color: '#ff7a1a', alpha: 0.2 });
   }
 
+  // Scale a hex colour toward black. Used so a pool's clotted centre is a
+  // darker shade of that pool's OWN colour -- an ice pool must not clot black
+  // any more than blood should.
+  _darken(hex, k) {
+    const n = typeof hex === 'number' ? hex : parseInt(String(hex).replace('#', ''), 16);
+    const r = ((n >> 16) & 255) * k, gg = ((n >> 8) & 255) * k, b = (n & 255) * k;
+    return ((r & 255) << 16) | ((gg & 255) << 8) | (b & 255);
+  }
+
   _drawDecals(game) {
     const g = this.gDecals; g.clear();
     for (const d of game.bloodDecals) {
       // Pools grow into place over ~0.4s instead of popping in at full size,
       // and get a darker clotted core once they've settled â€” real pooling.
-      // Weapon-dependent: color comes from whichever weapon dealt the killing
-      // blow (fire=ember, ice=frost, electric=arc, etc.) instead of always red.
+      // Blood is always blood-red (`d.color` is BLOOD_RED from engine.js's
+      // gore functions) regardless of enemy or weapon â€” the one deliberate
+      // exception is slime "ooze", which was never blood to begin with and
+      // keeps the slime's own color.
       const age = Math.max(0, game.time - (d.bornAt ?? game.time));
       const grow = Math.min(1, age / 0.4);
       const r = d.r * (0.35 + grow * 0.65);
       const bc = d.color || '#780a12';
-      g.circle(d.x, d.y, r).fill({ color: bc, alpha: d.a });
-      if (grow > 0.5) g.circle(d.x, d.y, r * 0.5).fill({ color: '#000000', alpha: d.a * 0.45 });
+
+      // Deterministic per-decal wobble. Seeded from the decal's own position so
+      // a pool keeps its shape for its whole life instead of writhing every
+      // frame, and so two pools never come out identical.
+      const seed = (d.x * 12.9898 + d.y * 78.233);
+      const lobes = 9;
+      const pts = [];
+      for (let i = 0; i < lobes; i++) {
+        const a = (i / lobes) * TAU;
+        // Two octaves: a big lopsided bias plus finer edge noise. A pool of
+        // liquid on uneven ground is never a circle, and the circle is what
+        // made these read as stickers.
+        const n = Math.sin(seed + i * 2.399) * 0.20 + Math.sin(seed * 1.7 + i * 5.1) * 0.10;
+        const rr = r * (1 + n);
+        pts.push(d.x + Math.cos(a) * rr, d.y + Math.sin(a) * rr);
+      }
+
+      // Soak halo: blood wicking outward into the ground, always wider and
+      // fainter than the pool itself.
+      g.circle(d.x, d.y, r * 1.35).fill({ color: bc, alpha: d.a * 0.16 });
+      // The pool.
+      g.poly(pts).fill({ color: bc, alpha: d.a });
+
+      if (grow > 0.5) {
+        const ox2 = Math.cos(seed) * r * 0.16, oy2 = Math.sin(seed) * r * 0.16;
+
+        // What settles in the middle depends on what killed them. Every kind
+        // shares the same irregular pool above, so they read as one family.
+        if (d.kind === 'fire') {
+          // Scorched ground with embers still alive in it, cooling from the
+          // rim inward.
+          g.circle(d.x + ox2, d.y + oy2, r * 0.6).fill({ color: 0x1a0b04, alpha: d.a * 0.7 });
+          for (let em = 0; em < 4; em++) {
+            const ea = seed + em * 1.9;
+            const er = r * (0.25 + ((Math.sin(ea * 3.1) + 1) * 0.3));
+            const ex2 = d.x + Math.cos(ea) * er, ey2 = d.y + Math.sin(ea) * er;
+            // Embers breathe. This is the one animated decal, and it is what
+            // makes a burn site feel like it happened rather than was painted.
+            const beat = 0.45 + 0.55 * Math.sin(game.time * 3.4 + em * 2.1 + seed);
+            g.circle(ex2, ey2, r * 0.10).fill({ color: 0xffa53a, alpha: d.a * 0.75 * beat });
+            g.circle(ex2, ey2, r * 0.20).fill({ color: 0xff6a1a, alpha: d.a * 0.22 * beat });
+          }
+        } else if (d.kind === 'ice') {
+          // A frozen splash: pale crust, with shards locked into it pointing
+          // out from the centre.
+          g.circle(d.x + ox2, d.y + oy2, r * 0.5).fill({ color: 0xdff4ff, alpha: d.a * 0.5 });
+          for (let sh = 0; sh < 5; sh++) {
+            const sa2 = seed * 0.7 + sh * (TAU / 5);
+            const L = r * (0.55 + (Math.sin(sa2 * 2.3) + 1) * 0.3);
+            const w2 = r * 0.13;
+            g.poly([
+              d.x + Math.cos(sa2) * L, d.y + Math.sin(sa2) * L,
+              d.x - Math.sin(sa2) * w2, d.y + Math.cos(sa2) * w2,
+              d.x + Math.sin(sa2) * w2, d.y - Math.cos(sa2) * w2,
+            ]).fill({ color: 0xeafaff, alpha: d.a * 0.6 });
+          }
+          g.circle(d.x, d.y, r * 0.9).stroke({ width: 1, color: 0xbfe8ff, alpha: d.a * 0.45 });
+        } else if (d.kind === 'poison') {
+          // Caustic sludge: gas bubbles rising and popping in it.
+          g.circle(d.x + ox2, d.y + oy2, r * 0.55).fill({ color: this._darken(bc, 0.5), alpha: d.a * 0.6 });
+          for (let bb = 0; bb < 5; bb++) {
+            const ba = seed * 1.3 + bb * 1.7;
+            // Each bubble swells then pops on its own offset cycle.
+            const ph = (game.time * 0.8 + bb * 0.37 + seed * 0.1) % 1;
+            const br2 = r * 0.22 * Math.sin(ph * Math.PI);
+            if (br2 <= 0.01) continue;
+            const bx2 = d.x + Math.cos(ba) * r * 0.45, by2 = d.y + Math.sin(ba) * r * 0.45;
+            g.circle(bx2, by2, br2).fill({ color: 0xc4ff6a, alpha: d.a * 0.35 * (1 - ph) });
+            g.circle(bx2, by2, br2).stroke({ width: 0.7, color: 0xe8ffb0, alpha: d.a * 0.45 * (1 - ph) });
+          }
+        } else if (d.kind === 'electric') {
+          // Charged residue: a scorched centre still ticking over with fine
+          // arcs that snap between points on the pool.
+          g.circle(d.x + ox2, d.y + oy2, r * 0.5).fill({ color: 0x16113a, alpha: d.a * 0.6 });
+          const snap = Math.sin(game.time * 11 + seed) > 0.3;
+          if (snap) {
+            for (let ai = 0; ai < 3; ai++) {
+              const a1 = seed + ai * 2.1, a2b = seed * 1.4 + ai * 3.9;
+              g.moveTo(d.x + Math.cos(a1) * r * 0.7, d.y + Math.sin(a1) * r * 0.7)
+                .lineTo(d.x + Math.cos(a2b) * r * 0.6, d.y + Math.sin(a2b) * r * 0.6)
+                .stroke({ width: 0.8, color: 0x9fd8ff, alpha: d.a * 0.55 });
+            }
+          }
+        } else {
+          // Blood. The clotted centre used to be pure BLACK at half the
+          // radius, which punched what looked like a bullet hole through the
+          // middle of every pool -- the "kulhål i blodet" on the ground. It is
+          // now a darkened shade of the pool's OWN colour, pushed off-centre so
+          // it reads as thicker liquid settling to one side.
+          g.circle(d.x + ox2, d.y + oy2, r * 0.55)
+            .fill({ color: this._darken(bc, 0.45), alpha: d.a * 0.55 });
+        }
+
+        // Wet specular skim, on every kind except the burn -- ash is not wet.
+        if (d.kind !== 'fire') {
+          g.ellipse(d.x - ox2 * 1.6, d.y - oy2 * 1.6 - r * 0.12, r * 0.34, r * 0.19)
+            .fill({ color: '#ffffff', alpha: d.a * 0.13 });
+        }
+      }
     }
   }
 
@@ -1645,7 +2462,7 @@ void main() {
           // the light only really asserts itself during the muzzle flash
           // (L.mt), which is the moment it is supposed to.
           const ld = Math.hypot(e.x - L.x, e.y - L.y);
-          const str = Math.max(0, 1 - ld / L.radius) * (0.06 + L.mt * 0.34);
+          const str = Math.max(0, 1 - ld / L.radius) * (0.05 + L.mt * 0.22);
           if (str > bestStrength) { bestStrength = str; bestHex = L.hex; }
         }
         // Broadphase instead of scanning every projectile per enemy â€” see
@@ -1655,14 +2472,28 @@ void main() {
         // Tight and hot rather than wide and weak: a bolt should wash its own
         // colour hard over the enemy it is passing and leave the one behind
         // it untouched. Falloff is squared so the bright zone stays close.
-        game.projGrid.query(e.x, e.y, game.maxProjSize * 5 + s, pr => {
+        // Capped. The query radius decides how many 96px grid cells get
+        // scanned PER ENEMY, and the cost is quadratic in it — a boss (s≈100)
+        // with a big projectile would otherwise ask for a ~230px radius, i.e.
+        // 5×5 cells, and at fifty enemies that is over a thousand bucket
+        // walks every frame. 170 keeps the worst case at 4×4 while still
+        // covering the reach any real bolt has.
+        const qr = Math.min(170, game.maxProjSize * 10 + s * 1.1);
+        game.projGrid.query(e.x, e.y, qr, pr => {
           if (!pr.alive || pr.friendly === false) return;
-          const rad = (pr.size || 6) * 5 + s * 0.55;
+          // Reach: about two to three enemy-widths, which is the range asked
+          // for — enough that a bolt clearly lights what it flies past, short
+          // enough that the enemy behind that one stays dark.
+          const rad = Math.min(170, (pr.size || 6) * 10 + s * 1.1);
           const pd = Math.hypot(e.x - pr.x, e.y - pr.y);
           if (pd >= rad) return;
           const f = 1 - pd / rad;
-          const str = f * f * 1.0;
-          if (str > bestStrength) { bestStrength = str; bestHex = pr.color || '#5fd6ff'; bestIsProj = true; }
+          // Falloff eased rather than squared. Squared kept the bright zone so
+          // tight that only a direct pass registered; this keeps a real,
+          // readable pool of light around the bolt without extending its
+          // reach.
+          const str = f * (0.45 + f * 0.55) * 1.35;
+          if (str > bestStrength) { bestStrength = str; bestHex = pr.litHex || pr.color || '#5fd6ff'; bestIsProj = true; }
         });
         // Gems no longer light anything â€” XP/gold orbs read as faceted
         // crystals now (see _drawGems), and the old wide pickup glow was
@@ -1671,8 +2502,24 @@ void main() {
         // far enough to overwrite the enemy's identity — the whole point of
         // an enemy having a colour is that you can tell what it is. Ambient
         // is kept very low so an unlit enemy simply looks like itself.
-        const mixCap = bestIsProj ? 0.46 : 0.16;
-        let litColor = (bestHex && bestStrength > 0.03) ? mixHex(t.color, bestHex, Math.min(mixCap, bestStrength)) : t.color;
+        // A bullet's own colour may push harder than ambient light, but not far
+        // enough to overwrite the enemy's identity. Raised from 0.46 to 0.62:
+        // the light on a passing enemy was reading as a faint tint rather than
+        // as illumination, and at 0.62 the enemy's own hue is still the one
+        // you name when you look at it.
+        const mixCap = bestIsProj ? 0.62 : 0.16;
+        // Projectile light desaturates toward its own bright core as it gets
+        // strong — real light does not stay a flat saturated hue at intensity,
+        // it blows out toward white. This is what removes the harsh
+        // colour-on-colour contrast: the hot centre reads white-green rather
+        // than solid green, and the tint only shows at the edges of the pool.
+        let bestMixHex = bestHex;
+        if (bestIsProj && bestHex) {
+          const hot = Math.min(1, Math.max(0, (bestStrength - 0.42) / 0.58));
+          if (hot > 0) bestMixHex = mixHex(bestHex, '#ffffff', hot * 0.55);
+        }
+        let litColor = (bestMixHex && bestStrength > 0.03)
+          ? mixHex(t.color, bestMixHex, Math.min(mixCap, bestStrength)) : t.color;
 
         // Wind-up tell. A melee enemy about to strike plants, rocks back and
         // charges up â€” without a read on that the attack is unfair, and
@@ -1736,11 +2583,85 @@ void main() {
                 g.moveTo(mx, my).lineTo(mx + Math.cos(sa) * m.r * 2.6, my + Math.sin(sa) * m.r * 2.6)
                   .stroke({ width: 0.9, color: '#dff4ff', alpha: 0.5 });
               }
+            } else if (m.kind === 'gash') {
+              // Blade: an open cut ACROSS the blow, with lips that part and a
+              // wet interior. Oriented perpendicular to the impact angle, so a
+              // katana slash reads as a slash and not as a dot.
+              const a = (m.ang || 0) + Math.PI / 2;
+              const ca = Math.cos(a), sa = Math.sin(a);
+              const L = m.r * 3.4, w = m.r * 0.85;
+              // dark cut cavity
+              g.poly([
+                mx + ca * L, my + sa * L,
+                mx - sa * w, my + ca * w,
+                mx - ca * L, my - sa * L,
+                mx + sa * w, my - ca * w,
+              ]).fill({ color: '#2a0509', alpha: 0.88 });
+              // wet inner line
+              g.moveTo(mx + ca * L * 0.8, my + sa * L * 0.8)
+                .lineTo(mx - ca * L * 0.8, my - sa * L * 0.8)
+                .stroke({ width: Math.max(0.7, m.r * 0.5), color: '#8f1420', alpha: 0.85 });
+              // bright parted lip on the leading edge
+              g.moveTo(mx + ca * L * 0.7 - sa * w * 0.8, my + sa * L * 0.7 + ca * w * 0.8)
+                .lineTo(mx - ca * L * 0.7 - sa * w * 0.8, my - sa * L * 0.7 + ca * w * 0.8)
+                .stroke({ width: 0.6, color: '#e06a72', alpha: 0.45 });
+            } else if (m.kind === 'sear') {
+              // Beam: a cauterised streak along the beam's path. Glowing core
+              // fading to charred edges -- no cavity, because it burned shut.
+              const a = m.ang || 0;
+              const ca = Math.cos(a), sa = Math.sin(a);
+              const L = m.r * 3.0;
+              g.moveTo(mx - ca * L, my - sa * L).lineTo(mx + ca * L, my + sa * L)
+                .stroke({ width: m.r * 1.9, color: '#1b0a06', alpha: 0.6 });
+              g.moveTo(mx - ca * L * 0.85, my - sa * L * 0.85).lineTo(mx + ca * L * 0.85, my + sa * L * 0.85)
+                .stroke({ width: m.r * 0.9, color: '#7a2a0c', alpha: 0.75 });
+              g.moveTo(mx - ca * L * 0.6, my - sa * L * 0.6).lineTo(mx + ca * L * 0.6, my + sa * L * 0.6)
+                .stroke({ width: m.r * 0.35, color: '#ffb066', alpha: 0.55 });
+            } else if (m.kind === 'arc') {
+              // Electric: a Lichtenberg burn -- a small dark entry with fine
+              // branching veins crawling out of it. Branches are derived from
+              // the mark's own position so they never re-randomise per frame.
+              g.circle(mx, my, m.r * 0.75).fill({ color: '#1a1030', alpha: 0.8 });
+              const seed = Math.abs(m.lx * 12.9898 + m.ly * 78.233);
+              for (let br = 0; br < 4; br++) {
+                const f = (Math.sin(seed + br * 2.3) + 1) * 0.5;
+                let a2 = f * TAU;
+                let px2 = mx, py2 = my;
+                const segs = 3;
+                for (let s2 = 0; s2 < segs; s2++) {
+                  const len = m.r * (1.7 - s2 * 0.4);
+                  const nx2 = px2 + Math.cos(a2) * len;
+                  const ny2 = py2 + Math.sin(a2) * len;
+                  g.moveTo(px2, py2).lineTo(nx2, ny2)
+                    .stroke({ width: Math.max(0.4, 0.9 - s2 * 0.25), color: '#9fd8ff', alpha: 0.55 - s2 * 0.13 });
+                  px2 = nx2; py2 = ny2;
+                  a2 += (Math.sin(seed + br * 7.1 + s2 * 3.7)) * 0.9;
+                }
+              }
+            } else if (m.kind === 'blunt') {
+              // Concussive: no puncture at all. A bruise that darkens toward
+              // the centre, with the skin split in a couple of short tears.
+              g.circle(mx, my, m.r * 2.4).fill({ color: '#3a1030', alpha: 0.28 });
+              g.circle(mx, my, m.r * 1.5).fill({ color: '#4a0d22', alpha: 0.45 });
+              g.circle(mx, my, m.r * 0.8).fill({ color: '#6b1020', alpha: 0.6 });
+              const seed = Math.abs(m.lx * 3.7 + m.ly * 9.1);
+              for (let t2 = 0; t2 < 2; t2++) {
+                const a2 = (Math.sin(seed + t2 * 4.4) + 1) * Math.PI;
+                g.moveTo(mx, my)
+                  .lineTo(mx + Math.cos(a2) * m.r * 2.0, my + Math.sin(a2) * m.r * 2.0)
+                  .stroke({ width: 0.8, color: '#8f1420', alpha: 0.5 });
+              }
             } else {
-              // bullet hole: dark punch-through with a bright torn lip
-              g.circle(mx, my, m.r * 1.25).fill({ color: '#000000', alpha: 0.55 });
-              g.circle(mx, my, m.r * 0.7).fill({ color: '#12060a', alpha: 0.9 });
-              g.circle(mx - m.r * 0.35, my - m.r * 0.35, m.r * 0.4).fill({ color: '#c9424f', alpha: 0.45 });
+              // Bullet: a real punch-through. Dark cavity, a torn lip catching
+              // the light on the side the round came from, and a faint bruise
+              // ring where the impact drove the flesh in.
+              const a = m.ang || 0;
+              g.circle(mx, my, m.r * 1.9).fill({ color: '#4a0d18', alpha: 0.30 });
+              g.circle(mx, my, m.r * 1.25).fill({ color: '#000000', alpha: 0.6 });
+              g.circle(mx, my, m.r * 0.7).fill({ color: '#12060a', alpha: 0.92 });
+              // torn lip, on the entry side
+              g.circle(mx - Math.cos(a) * m.r * 0.45, my - Math.sin(a) * m.r * 0.45, m.r * 0.42)
+                .fill({ color: '#c9424f', alpha: 0.5 });
             }
           }
         }
@@ -2098,11 +3019,17 @@ void main() {
   // waterdrop, so they are stubby capsules rather than jointed limbs — enough
   // to make the gun read as held rather than floating, which is what the
   // reload pantomime needs to land.
-  _drawArms(gf, p, bodyAng, r, gx, gy, gunAng, hand) {
+  // `bodyX/bodyY` are the sloshed body position (see _drawPlayer's bx/by).
+  // The shoulders must hang off THAT, not off the raw player coordinate, or
+  // the arms visibly detach from the body every time he takes a recoil kick.
+  // Defaulted to p.x/p.y so any other caller keeps working unchanged.
+  _drawArms(gf, p, bodyAng, r, gx, gy, gunAng, hand, bodyX, bodyY) {
     const armCol = '#2b7fa8', armDark = '#06121e';
+    const ox = bodyX === undefined ? p.x : bodyX;
+    const oy = bodyY === undefined ? p.y : bodyY;
     const shoulder = (side) => {
       const [sx, sy] = rot(side * r * 0.62, r * 0.05, bodyAng);
-      return [p.x + sx, p.y + sy];
+      return [ox + sx, oy + sy];
     };
     // main hand always on the grip
     const [gripX, gripY] = rot(0, 1, gunAng);
@@ -2125,19 +3052,271 @@ void main() {
     gf.circle(supportHand[0], supportHand[1], 2.2).fill(armCol).stroke({ width: 1, color: armDark });
   }
 
+  // ---- The face ------------------------------------------------------------
+  // Drawn from the expression PARAMETERS the rig produces (brow angle, eye
+  // openness, pupil scale, mouth curve) rather than from six fixed drawings,
+  // so the face blends continuously — "two-thirds of the way from focused to
+  // rage" is a real face here, not a crossfade between two pictures.
+  //
+  // Facing is handled by the same two axes the rig tracks:
+  //   faceY  — aiming up (-) turns him away and the face slides off; aiming
+  //            down (+) brings it fully toward the camera.
+  //   faceX  — pushes the features to one side into a profile, and squashes
+  //            the far eye the way a real head in three-quarter view does.
+  //
+  // Everything is drawn on `gf` (the front layer) so the face always sits on
+  // top of the lit body sprite.
+  _drawHeroFace(gf, bx, by, r, bodyAng, sqx, sqy, A, p) {
+    // How much of the face is toward the camera. Only a steep upward aim
+    // hides it entirely — at a horizontal aim he is in profile, which is still
+    // fully readable and must not fade.
+    const faceVis = Math.max(0, Math.min(1, (A.faceY + 0.85) / 0.75));
+    if (faceVis <= 0.02) {
+      // Facing away: draw the back instead of nothing. A spine of surface
+      // tension down the middle plus the light rim reads unmistakably as
+      // "you are looking at his back".
+      const [sx0, sy0] = rot(0, -r * 0.55, bodyAng);
+      const [sx1, sy1] = rot(0, r * 0.55, bodyAng);
+      gf.moveTo(bx + sx0, by + sy0).lineTo(bx + sx1, by + sy1)
+        .stroke({ width: 2, color: '#bff0ff', alpha: 0.22 });
+      return;
+    }
+
+    const E = A.expr;
+    const a = bodyAng;
+    // Features ride toward the side he is facing, and sit slightly lower as he
+    // turns toward the camera — the same foreshortening a real head has.
+    //
+    // Sizing note, and it is the whole reason this reads at all: the body is
+    // only ~14 world px of radius, which is roughly 30 px on screen. The first
+    // pass used anatomically sensible proportions (eyes at r*0.155) and they
+    // came out barely two pixels across — invisible in play. Everything here
+    // is deliberately oversized and pushed into the UPPER third of the drop,
+    // both so it is legible at the real rendered size and so the arms, which
+    // radiate from the shoulders at r*0.62, cannot cross it.
+    const cx = A.faceX * r * 0.24;
+    const cy = -r * 0.34 + A.faceY * r * 0.08;
+    // Perspective squeeze on the axis he is turning around.
+    const persp = 1 - Math.abs(A.faceX) * 0.42;
+
+    const eyeDX = r * 0.33;
+    const eyeY = cy;
+
+    // Eyes ride a turning head, not a flat face.
+    //
+    // The old layout placed them at `cx + side * eyeDX * persp` and shrank
+    // whichever eye was on the far side of the turn. Two things were wrong with
+    // that, and together they are what Timmy reported as "ögonen glider ut,
+    // blir 2" when walking and aiming right:
+    //
+    //   1. `cx` pushed the whole face outward while `persp` only narrowed the
+    //      SPREAD, so the near eye MIGRATED off the body as he turned — from
+    //      0.010r outside the silhouette at rest to 0.112r outside at a full
+    //      profile, a fifth of the body's half-width hanging in open space.
+    //   2. The wrong eye vanished. Turning right, it kept the RIGHT eye at full
+    //      width out at the edge and shrank the LEFT one. A head that turns
+    //      right does the opposite: the right eye is the one that swings around
+    //      the edge and disappears. So instead of a profile you got a big eye
+    //      off the rim plus a shrunken one near the middle — two disconnected
+    //      blobs rather than one face.
+    //
+    // `faceX` and `faceY` are the normalised aim vector, so they ARE the sine
+    // and cosine of the head's turn: atan2 recovers the angle directly. Each
+    // eye sits at a fixed angle either side of "forward" on the head, and its
+    // position and foreshortening both fall out of where that angle has
+    // rotated to. The correct eye now hides itself, for the right reason.
+    // NOT clamped to the front hemisphere. `faceY` goes negative when he aims
+    // away from the camera, and the turn angle has to be allowed past 90° for
+    // that to mean anything — otherwise "walking up" reads as a hard profile
+    // and an eye stays on screen when he is facing away from you. Past 90°
+    // both eyes fall behind the head on their own, which is the whole point of
+    // modelling it this way instead of special-casing it.
+    const headTurn = Math.atan2(A.faceX, A.faceY);
+    // Head radius taken from the drop's OWN half-width at eye height, so an eye
+    // on its surface is on the body by construction rather than by luck.
+    const headR = Math.max(r * 0.35, heroHalfWidthAt(cy / r) * r);
+    const eyeAng = Math.asin(Math.min(0.95, eyeDX / headR));
+    const cosRest = Math.cos(eyeAng) || 1;
+
+    for (let side = -1; side <= 1; side += 2) {
+      const ang = headTurn + side * eyeAng;
+      const depth = Math.cos(ang);
+      // Rotated past the edge of the head: gone, not squeezed to a sliver.
+      if (depth <= 0.06) continue;
+      // Normalised so both eyes are full width when he faces the camera.
+      const wScale = Math.min(1.15, depth / cosRest);
+
+      const openAmt = Math.max(0.05, E.eyeOpen * (1 - A.blink));
+      let eyeRx = r * 0.235 * wScale;
+      const eyeRy = r * 0.270 * openAmt;
+
+      // Where the eye projects to, then held inside the silhouette. The clamp
+      // measures at the TOP of the eye because that is where the teardrop is
+      // narrowest across the eye's own height, and so where an overhang shows
+      // first. Same guard the brows already had — the eyes never got it.
+      let ex = headR * Math.sin(ang);
+      const bodyHalf = heroHalfWidthAt((eyeY - eyeRy) / r) * r;
+      if (bodyHalf > eyeRx) {
+        const limit = bodyHalf * 0.97 - eyeRx;
+        ex = Math.max(-limit, Math.min(limit, ex));
+      } else if (bodyHalf > 0) {
+        // Degenerate: the drop is narrower than the eye. Shrink to fit rather
+        // than drawing a wide eye on a narrow head.
+        eyeRx = bodyHalf * 0.9;
+        ex = 0;
+      }
+
+      const [px0, py0] = rot(ex, eyeY, a);
+      const wx = bx + px0, wy = by + py0;
+
+      // Sclera. Kept a cold near-white so it reads against the blue body.
+      gf.ellipse(wx, wy, eyeRx, eyeRy).fill({ color: '#f2fbff', alpha: 0.94 * faceVis });
+
+      // Pupil, offset by where he is looking.
+      const pupR = Math.min(eyeRx, eyeRy) * 0.58 * E.pupil;
+      if (pupR > 0.3 && A.blink < 0.7) {
+        const lookOffX = A.lookX * eyeRx * 0.55;
+        const lookOffY = A.lookY * eyeRy * 0.55;
+        const [ppx, ppy] = rot(ex + lookOffX, eyeY + lookOffY, a);
+        gf.circle(bx + ppx, by + ppy, pupR).fill({ color: '#07141f', alpha: faceVis });
+        // Catchlight — one tiny dot, and the single cheapest thing that makes
+        // eyes look alive rather than printed on.
+        const [gpx, gpy] = rot(ex + lookOffX - pupR * 0.34, eyeY + lookOffY - pupR * 0.4, a);
+        gf.circle(bx + gpx, by + gpy, Math.max(0.5, pupR * 0.30))
+          .fill({ color: '#ffffff', alpha: 0.9 * faceVis });
+      }
+
+      // Brow. One thick stroke whose inner end rises or falls — this carries
+      // more of the expression than the eye or the mouth does.
+      // Brow tilt. `innerY`/`outerY` are SIDE-INDEPENDENT heights — how high
+      // the nose-end of a brow sits versus its temple-end — and the mirroring
+      // is done once, below, when they are assigned to the two ends. An
+      // earlier version also multiplied by `side` here, which applied the
+      // mirror twice and left the character with one angry brow and one sad
+      // one: a permanent quizzical look no matter what he was feeling.
+      //
+      // Sign: negative browAng is angry, and angry means the nose-end drops.
+      // Screen Y grows downward, so "drops" is +Y — hence the minus.
+      // The brow sits 0.40r above the eye, and a raised brow (rage, surprise)
+      // pushes it another 0.34r. That put it at y = -1.14r in a hard profile --
+      // the very tip of the teardrop, where the body is 0.009r wide -- while
+      // the stroke still reached out to 0.70r. The result was a brow hanging
+      // in open space beside his head, which is what read as "the eye goes
+      // weird when aiming and running right".
+      //
+      // Two clamps, because either one alone leaves a case broken: cap how
+      // high the brow may travel, then pull its ENDS inside whatever the
+      // silhouette actually is at that height. Both are proportional, so the
+      // brow still animates -- it just cannot leave the body.
+      const BROW_CEIL = -r * 0.92;   // highest a brow may sit and still be on the body
+      const browRaw = eyeY - r * 0.40 + E.browY * r * 0.34;
+      const browBaseY = Math.max(browRaw, BROW_CEIL);
+      // The tilt has to be clamped as well as the base height. Clamping only
+      // the base still let a hard angry/surprised tilt lift the inner end past
+      // the tip of the drop, where the silhouette has no width at all and the
+      // horizontal clamp below had nothing to clamp against.
+      const innerY = Math.max(browBaseY - E.browAng * r * 0.36, BROW_CEIL);
+      const outerY = Math.max(browBaseY + E.browAng * r * 0.14, BROW_CEIL);
+      // 0.90 keeps the stroke's round cap off the outline rather than exactly
+      // on it. Guard the degenerate case where the clamp height still lands
+      // outside the body by falling back to the eye's own half-width.
+      const browHalfW = heroHalfWidthAt(Math.min(innerY, outerY) / r) * r;
+      const browLimit = (browHalfW > 0 ? browHalfW : eyeRx) * 0.90;
+      const bx0 = Math.max(-browLimit, Math.min(browLimit, ex - eyeRx * 1.15));
+      const bx1 = Math.max(-browLimit, Math.min(browLimit, ex + eyeRx * 1.15));
+      // side +1 is the right eye, whose nose-end is its LEFT (smaller x) end.
+      const [b0x, b0y] = rot(bx0, side > 0 ? innerY : outerY, a);
+      const [b1x, b1y] = rot(bx1, side > 0 ? outerY : innerY, a);
+      gf.moveTo(bx + b0x, by + b0y).lineTo(bx + b1x, by + b1y)
+        .stroke({ width: Math.max(1.6, r * 0.12), color: '#08202e', alpha: 0.88 * faceVis, cap: 'round' });
+    }
+
+    // Mouth. A quadratic arc sampled to points: `E.mouth` bends it from a deep
+    // frown to a grin, `E.mouthOpen` gives it height.
+    const mouthY = cy + r * 0.44;
+    const mouthW = r * 0.34 * persp;
+    const curve = E.mouth * r * 0.26;
+    const open = E.mouthOpen * r * 0.30;
+    const mpts = [];
+    for (let i = 0; i <= 8; i++) {
+      const t = i / 8, mt = 1 - t;
+      const lx = cx - mouthW + t * mouthW * 2;
+      const ly = mouthY + (mt * mt * 0 + 2 * mt * t * curve + t * t * 0);
+      const [wx2, wy2] = rot(lx, ly, a);
+      mpts.push(bx + wx2, by + wy2);
+    }
+    // Threshold on the NORMALISED parameter, not on the pixel result. `open`
+    // is scaled by r, so a pixel threshold meant the same expression drew an
+    // open mouth on a big character and a closed one on a small character —
+    // the calm face was open-mouthed in the preview harness and closed in the
+    // actual game.
+    if (E.mouthOpen > 0.12) {
+      // Open mouth: mirror the upper curve downward into a closed shape.
+      const lower = [];
+      for (let i = 8; i >= 0; i--) {
+        const t = i / 8, mt = 1 - t;
+        const lx = cx - mouthW + t * mouthW * 2;
+        const ly = mouthY + (2 * mt * t * curve) + Math.sin(t * Math.PI) * open;
+        const [wx2, wy2] = rot(lx, ly, a);
+        lower.push(bx + wx2, by + wy2);
+      }
+      gf.poly([...mpts, ...lower]).fill({ color: '#0a1b26', alpha: 0.85 * faceVis });
+    } else {
+      gf.poly(mpts, false).stroke({ width: Math.max(1.4, r * 0.105), color: '#08202e', alpha: 0.85 * faceVis, cap: 'round' });
+    }
+
+    // Rage vents steam. Cheap, and it is the one expression that should be
+    // obvious from across the screen without reading the face at all.
+    if (A.exprId === 'rage' && Math.random() < 0.5) {
+      for (let s = -1; s <= 1; s += 2) {
+        const [vx, vy] = rot(cx + s * r * 0.42, cy + r * 0.05, a);
+        gf.circle(bx + vx, by + vy, 1.2 + Math.random() * 1.6)
+          .fill({ color: '#ffb066', alpha: 0.35 });
+      }
+    }
+  }
+
+  // Turns the rig's skid-spray requests into real particles. Kept here rather
+  // than in heroAnim so that module never has to know the pool exists.
+  _emitSlideSpray(game, A) {
+    const list = A.takeSpray();
+    if (!list || !game.parts) return;
+    const p = game.player;
+    for (const s of list) {
+      const pt = game.parts.acquire();
+      if (!pt) return;
+      pt.x = p.x - Math.cos(s.ang) * p.r * 0.5;
+      pt.y = p.y - Math.sin(s.ang) * p.r * 0.5 + p.r * 0.4;
+      pt.vx = Math.cos(s.ang) * s.spd;
+      pt.vy = Math.sin(s.ang) * s.spd - 30;
+      pt.life = 0.32 + Math.random() * 0.3; pt.max = pt.life;
+      pt.color = HERO_COLORS.body; pt.size = s.size; pt.type = 'blood';
+    }
+  }
+
   _drawPlayer(game) {
     const g = this.gPlayer; g.clear();
     const gf = this.gPlayerFront; gf.clear();
     const p = game.player;
     const aimAng = Math.atan2(p.aimY, p.aimX);
-    // Idle animation: a slow breathing scale pulse + gentle sway when
-    // standing still (dirX/dirY ~0), layered onto the existing squish/tilt
-    // "weight" system instead of a parallel one â€” same water-drop-simulator
-    // feel, just alive even when not actively moving.
-    const idleT = Math.hypot(p.dirX || 0, p.dirY || 0) < 0.08;
+
+    // The whole rig — facing, gait, water springs, slide, recoil kick and the
+    // face — is computed in game/heroAnim.js. This function only draws what it
+    // reports. See that file for why every value there is a spring.
+    const A = this.heroAnim.update(game, game.dt || 0.016);
+    this._emitSlideSpray(game, A);
+
+    // Idle animation: a slow breathing pulse when standing still, layered onto
+    // the existing squish/tilt "weight" system rather than as a parallel one.
+    const idleT = A.speed < 0.08;
     const breathe = idleT ? Math.sin((p.bob || 0) * 0.6) * 0.02 : 0;
-    const sway = idleT ? Math.sin((p.bob || 0) * 0.4) * 0.05 : 0;
-    const sqx = 1 + p.squish * 0.25 + breathe, sqy = 1 - p.squish * 0.18 - breathe * 0.6;
+    // The idle SETTLE (heroAnim) spreads him downward the longer he stands —
+    // an unsupported drop does not hold a perfect teardrop indefinitely.
+    const settle = A.settle;
+    // Water squash/stretch. `A.stretch` is signed: positive elongates him
+    // along travel, negative pancakes him on a hard stop.
+    const sqx = 1 + p.squish * 0.25 + breathe - A.stretch * 0.55 + settle * 0.10;
+    const sqy = 1 - p.squish * 0.18 - breathe * 0.6 + A.stretch * 0.65 - settle * 0.09;
 
     // Shadow â€” offset directionally AWAY from the current merged light
     // (flashlight normally, muzzle-flash when firing) so it visibly reacts
@@ -2156,40 +3335,165 @@ void main() {
     }
     g.ellipse(p.x + shOffX, p.y + shOffY, p.r * 0.9 * sqx * shElong, p.r * 0.32).fill({ color: '#000000', alpha: shDark });
 
-    const r = p.r;
-    const bodyAng = (p.tilt || 0) + sway;
+    // Drawn LARGER than the collision radius.
+    //
+    // `p.r` is 14 world px, which is the hitbox and should stay 14 — it is
+    // what every dodge, every contact ring and every spawn distance is tuned
+    // against, and growing it would silently make the player easier to hit.
+    // But 14 renders him about 30px across on a phone, and at that size the
+    // bandage wraps, the knot, the tails and the cigar's paper band are each
+    // under a pixel: detail that physically cannot resolve.
+    //
+    // Separating the two lets the character actually be a character without
+    // touching a single balance number.
+    const r = p.r * 1.22;
+    // ---- Where the body actually sits this frame ---------------------------
+    // Three offsets, all from the rig, all in world pixels:
+    //   wob   — the water inside him sloshing after an acceleration change
+    //   kick  — the recoil punch, straight back along the aim
+    //   shake — a short high-frequency rattle right after a shot
+    const shake = A.shakeT > 0 ? A.shakeT * 7 : 0;
+    const bx = p.x
+      + A.wobX * r * 0.55
+      - (p.aimX || 0) * A.kick * 2.6
+      + (shake ? (Math.random() - 0.5) * shake : 0);
+    const by = p.y
+      + A.wobY * r * 0.55
+      - (p.aimY || 0) * A.kick * 2.6
+      + (shake ? (Math.random() - 0.5) * shake : 0)
+      + settle * r * 0.06;
+
+    // Lean: into the strafe, back against a skid, and whipped by a fast turn.
+    // A backpedal (gait < 0) leans him away from the aim, which is what makes
+    // "walking backwards while shooting" read as reluctance rather than as
+    // sliding on ice.
+    const bodyAng = (p.tilt || 0)
+      + A.strafe * 0.30
+      - A.gait * 0.10
+      + A.turn * 0.22
+      - A.slide * 0.34 * Math.sign(A.slideX || 1)
+      + (idleT ? Math.sin((p.bob || 0) * 0.4) * 0.05 : 0);
     // Outline comes from game/heroShape.js, which the equipment paperdoll
     // also reads — the two used to be unrelated drawings and looked like
     // different characters. Sampled as points here because Graphics needs
     // points; the paperdoll asks the same module for an SVG path.
-    const half = heroHalfPoints(r, 8);
+    // Outline points, with a per-vertex surface ripple applied. A rigid
+    // silhouette is the single biggest thing that stopped him reading as
+    // liquid — the shape has to breathe along its own edge, not just scale.
+    // Sampled at 14 steps rather than 8 now that each vertex moves
+    // independently; below that the ripple looks like a polygon glitching.
+    const half = heroHalfPoints(r, 14);
     const localPts = [];
-    for (let i = 0; i < half.length; i += 2) localPts.push(half[i], half[i + 1]);
-    for (let i = half.length - 2; i >= 0; i -= 2) localPts.push(-half[i], half[i + 1]);
-    const rotated = rotPoly(p.x, p.y, bodyAng, scalePts(localPts, sqx, sqy));
+    const jig = A.jiggle;
+    const nHalf = half.length / 2;
+    const ripple = (i) => {
+      // Two out-of-phase waves so the edge never looks like one clean sine.
+      const t = i / nHalf;
+      return 1 + (Math.sin(A.jigglePh * 1.7 + t * 7.1) * 0.030
+                + Math.sin(A.jigglePh * 2.6 - t * 4.3) * 0.018) * jig;
+    };
+    for (let i = 0; i < half.length; i += 2) {
+      const k = ripple(i / 2);
+      localPts.push(half[i] * k, half[i + 1] * k);
+    }
+    for (let i = half.length - 2; i >= 0; i -= 2) {
+      const k = ripple(i / 2 + 0.5); // offset so the two halves don't mirror perfectly
+      localPts.push(-half[i] * k, half[i + 1] * k);
+    }
+    const rotated = rotPoly(bx, by, bodyAng, scalePts(localPts, sqx, sqy));
 
-    // === LIGHTING TEST: the body is now a real normal-mapped lit sprite ===
-    // (baked sphere normal map + a single moving light â€” flashlight/muzzle
-    // flash merged into one uniform, per the step-1 smoke test) instead of a
-    // flat poly fill. This REPLACES the old ambient/point-light-sprite
-    // system entirely for the body â€” no legacy glow left underneath it.
+    // === The body is a real normal-mapped lit sprite ===
+    // Baked sphere normal map + the single merged moving light (flashlight /
+    // muzzle flash), per the project's one approved lighting technique — NOT
+    // a glow filter and not a gradient sprite. See the waterdrop-lighting
+    // skill. This replaces any ambient/point-light-sprite fill for the body.
     const bodyDiam = r * 2.05;
     this.playerBodySprite.visible = true;
-    this.playerBodySprite.position.set(p.x, p.y - r * 0.05);
-    this.playerBodySprite.width = bodyDiam; this.playerBodySprite.height = bodyDiam;
-    this.playerBodySprite.tint = p.hit > 0 ? this.playerBodyFlash : this.playerBodyColor;
-    this._updateLitUniforms(this.playerBodyFilter, this.playerBodySprite, this._testLight);
+    // Follows the sloshed/kicked body position, so the lit shading and the
+    // drawn outline never separate during a recoil punch.
+    this.playerBodySprite.position.set(bx, by - r * 0.05);
+    // scale, not width/height: PixiJS's width setter derives from the LOCAL
+    // bounds, so assigning it on a rotated sprite feeds the rotated bounds
+    // back in and the body creeps in size as he turns. Scaling from the
+    // texture's own size is rotation-independent.
+    const texW = this.litDiffuseTex.width || 1, texH = this.litDiffuseTex.height || 1;
+    this.playerBodySprite.scale.set((bodyDiam * sqx) / texW, (bodyDiam * sqy) / texH);
+    this.playerBodySprite.rotation = bodyAng;
+    // The expression tints the body: hurt pushes red, rage pushes hot orange.
+    // Damage flash still wins outright — being hit must never be ambiguous.
+    let bodyTint = this.playerBodyColor;
+    if (p.hit > 0) bodyTint = this.playerBodyFlash;
+    else if (A.expr.tint && A.expr.tintMix > 0.01) {
+      bodyTint = mixHex(HERO_COLORS.body, A.expr.tint, A.expr.tintMix);
+    }
+    this.playerBodySprite.tint = bodyTint;
+    this._updateLitUniforms(this.playerBodyFilter, this.playerBodySprite, this._testLight,
+      [bodyDiam * sqx, bodyDiam * sqy]);
     gf.poly(rotated).stroke({ width: 2.4, color: '#06121e' });
 
-    // highlight droplets (rotated with body)
-    const [hx1, hy1] = rot(-r * 0.35, -r * 0.5, bodyAng);
-    gf.ellipse(p.x + hx1, p.y + hy1, 2.6, 4.2).fill({ color: '#ffffff', alpha: 0.85 });
+    // Meniscus — the bright surface-tension rim a real drop carries where the
+    // light hits it. Drawn as a partial arc on the lit side rather than a full
+    // ring, so it reads as a highlight and not as an outline.
+    const Lm = this._testLight;
+    if (Lm) {
+      const la = Math.atan2(Lm.y - by, Lm.x - bx);
+      const rimR = r * 0.94;
+      const seg = [];
+      for (let i = 0; i <= 10; i++) {
+        const a = la - 0.95 + (i / 10) * 1.9;
+        seg.push(bx + Math.cos(a) * rimR * sqx, by + Math.sin(a) * rimR * sqy);
+      }
+      gf.poly(seg, false).stroke({ width: 1.6, color: '#dffbff', alpha: 0.30 + (Lm.mt || 0) * 0.4 });
+    }
+
+    // Internal refraction band — a soft lens of concentrated colour that
+    // shifts opposite the slosh, the way the mass inside a drop lags behind
+    // its skin. This is the detail that makes the body look FULL of water
+    // instead of being a coloured shell.
+    const refX = bx - A.wobX * r * 0.9, refY = by - A.wobY * r * 0.9 + r * 0.12;
+    gf.ellipse(refX, refY, r * 0.52 * sqx, r * 0.40 * sqy)
+      .fill({ color: '#bff0ff', alpha: 0.10 + A.speed * 0.05 });
+
+    // Highlight droplets (rotated with the body, riding the slosh).
+    //
+    // The big one used to be 2.6 x 4.2 of pure white at alpha 0.85, sitting at
+    // (-0.35r, -0.50r). The eyes are 3.3 x 3.8 of #f2fbff at 0.94 and live at
+    // -0.34r +/- 0.27r — so this glint was eye-sized, eye-coloured, and INSIDE
+    // the eye band. Worse, it rotates only with `bodyAng`, not with the head's
+    // turn: aim right, both eyes swing right, and this white blob stays up on
+    // the left. That is the "third eye" Timmy kept seeing, and why "one eye
+    // became two" survived the eye-layout fix.
+    //
+    // Now: lifted clear of the eye band, shrunk well below eye size, dimmed,
+    // and pushed to the side the face is turning AWAY from, so it reads as
+    // light on a wet surface instead of competing with the face.
+    // The asymmetry Timmy found is what proves this is the culprit: the glint
+    // is always on the drop's LEFT. Aim left and an eye lands on top of it, so
+    // the two merge and nothing looks wrong — he reported left as fine, and
+    // "the pupil goes straight into it" when aiming down-left. Aim RIGHT and
+    // both eyes swing away, leaving it stranded on its own as a white blob
+    // that reads as an eye which refuses to disappear.
+    const glintX = -r * 0.34 + A.wobX * r * 0.5;
+    const glintY = -r * 0.74 + A.wobY * r * 0.4;
+    const [hx1, hy1] = rot(glintX, glintY, bodyAng);
+    // Gone completely by a 3/4 turn rather than merely dimmed. A specular
+    // highlight is the reflection of one light source; on a head in profile it
+    // has no business still sitting on the cheek, and leaving even a faint one
+    // there is what let it keep reading as a second eye.
+    const glintA = 0.42 * Math.max(0, 1 - Math.abs(A.faceX) * 1.25);
+    if (glintA > 0.01) {
+      gf.ellipse(bx + hx1, by + hy1, 1.7, 2.6).fill({ color: '#eafaff', alpha: glintA });
+    }
     const [hx2, hy2] = rot(r * 0.3, r * 0.25, bodyAng);
-    gf.circle(p.x + hx2, p.y + hy2, 1.6).fill({ color: '#ffffff', alpha: 0.45 });
+    gf.circle(bx + hx2, by + hy2, 1.4).fill({ color: '#ffffff', alpha: 0.30 });
+
+    // ---- The face ----------------------------------------------------------
+    this._drawHeroFace(gf, bx, by, r, bodyAng, sqx, sqy, A, p);
+
     if (p.iframes > 0) {
       const [ex1, ey1] = rot(-2, -2, bodyAng), [ex2, ey2] = rot(3, -2, bodyAng);
-      gf.circle(p.x + ex1, p.y + ey1, 1.6).fill('#ffd166');
-      gf.circle(p.x + ex2, p.y + ey2, 1.6).fill('#ffd166');
+      gf.circle(bx + ex1, by + ey1, 1.6).fill('#ffd166');
+      gf.circle(bx + ex2, by + ey2, 1.6).fill('#ffd166');
     }
 
     // Level-up: an energy fill rising bottom-to-top over the body, like the
@@ -2202,34 +3506,95 @@ void main() {
       const t = game._levelUpShieldT;
       const prog = Math.min(1, 1 - t / dur);           // 0 at start, 1 once fully risen
       const fadeOut = Math.min(1, t / (dur * 0.22));    // holds, then fades in the last ~fifth
-      const bodyTop = p.y - r * 1.2, bodyBottom = p.y + r * 1.05;
+      const bodyTop = by - r * 1.2, bodyBottom = by + r * 1.05;
       const fillY = bodyBottom - prog * (bodyBottom - bodyTop);
       const halfW = r * 0.8;
       const fillH = bodyBottom - fillY;
       if (fillH > 1) {
-        gf.rect(p.x - halfW, fillY, halfW * 2, fillH).fill({ color: '#8fffe0', alpha: 0.24 * fadeOut });
+        gf.rect(bx - halfW, fillY, halfW * 2, fillH).fill({ color: '#8fffe0', alpha: 0.24 * fadeOut });
       }
       // Bright leading edge — the crest of the rising energy.
-      gf.ellipse(p.x, fillY, halfW * 1.05, 4.5).fill({ color: '#ffffff', alpha: 0.8 * fadeOut });
-      glow(gf, p.x, fillY, r * 0.95, '#ffd166', 1.5 * fadeOut);
+      gf.ellipse(bx, fillY, halfW * 1.05, 4.5).fill({ color: '#ffffff', alpha: 0.8 * fadeOut });
+      glow(gf, bx, fillY, r * 0.95, '#ffd166', 1.5 * fadeOut);
     }
 
     // ===== Rank-unlocked cosmetics (see ProfilePanel) =====
     const cos = game.cosmetics || {};
+
+    // The headband and the cigar are the character, not unlockables.
+    //
+    // Both already existed but were gated behind rank cosmetics
+    // (`cos.headbandColor` / `cos.cigarOn`), so the drop spent the whole early
+    // game as a plain blob and only became the character on the concept art
+    // after enough profile levels. They are now the DEFAULT look; the cosmetic
+    // fields only override the colour.
+    //
+    // Wrapped, not flat: three offset bands with a knot and two loose tails,
+    // because a single rectangle reads as a sweatband and the reference is a
+    // field dressing that has been through something.
+    // In play he is about 40px across. Everything the concept art gets its
+    // character from — three bandage wraps, seams, a knot, two tails, the
+    // cigar's paper band, smoke — is under a pixel each at that size. Drawing
+    // it anyway produced mush, which is exactly how it looked on the phone.
+    //
+    // So the in-game version is the SILHOUETTE only: one band, one tail, one
+    // dark cigar with an ember. The full construction lives in the Character
+    // panel and the equipment paperdoll, where he is drawn large enough for it
+    // to resolve. Same character, drawn for the distance it is seen at.
+    // Menus only.
+    //
+    // He is ~34px across in play. The bandage and the cigar are what give the
+    // concept art its character, and at that size they are a smear across the
+    // top of his head — thinning them helped and did not fix it, because the
+    // problem is not detail density, it is that there are not enough pixels
+    // for ANY of it to resolve. Drawn only where he is big enough to earn it:
+    // the Character panel and the equipment paperdoll.
+    //
+    // The cosmetic flags still turn them on for anyone who unlocked them and
+    // wants them regardless.
+    const bandCol = cos.headbandColor || '#d9cba8';
     if (cos.headbandColor) {
-      gf.poly(rotPoly(p.x, p.y, bodyAng, [-r * 0.55, -r * 0.85, r * 0.55, -r * 0.85, r * 0.5, -r * 0.62, -r * 0.5, -r * 0.62]))
-        .fill(cos.headbandColor).stroke({ width: 1, color: '#000000', alpha: 0.4 });
-      const [knotX, knotY] = rot(r * 0.55, -r * 0.74, bodyAng);
-      gf.circle(p.x + knotX, p.y + knotY, 2.2).fill(cos.headbandColor);
+      const bandY = -r * 0.70;
+      gf.poly(rotPoly(bx, by, bodyAng, [
+        -r * 0.58, bandY - r * 0.13,
+         r * 0.58, bandY - r * 0.13,
+         r * 0.55, bandY + r * 0.13,
+        -r * 0.55, bandY + r * 0.13,
+      ])).fill({ color: bandCol, alpha: 0.97 });
+      // One tail, and only when it reads. The threshold is well clear of the
+      // actual drawn radius (14 * 1.22 = 17.1) rather than sitting right on
+      // it — a cutoff a tenth of a pixel from the value it tests makes the
+      // tail blink in and out on any future scale tweak.
+      if (r > 15) {
+        const sway = Math.sin(game.time * 2.2) * 0.2;
+        const ta = bodyAng + 0.75 + sway;
+        gf.poly(rotPoly(bx, by, bodyAng, [
+          r * 0.56, bandY - r * 0.06,
+          r * 0.56 + Math.cos(ta) * r * 0.44, bandY + Math.sin(ta) * r * 0.44 - r * 0.02,
+          r * 0.56 + Math.cos(ta) * r * 0.44, bandY + Math.sin(ta) * r * 0.44 + r * 0.09,
+          r * 0.56, bandY + r * 0.09,
+        ])).fill({ color: bandCol, alpha: 0.9 });
+      }
     }
+
+    // Cigar: menus only, same reasoning as the bandage above. Kept behind the
+    // cosmetic flag for anyone who unlocked it and wants it in play anyway.
     if (cos.cigarOn) {
-      const cigarAng = bodyAng + 0.3;
-      gf.poly(rotPoly(p.x, p.y, cigarAng, [r * 0.35, -r * 0.16, r * 0.35 + 8, -r * 0.16 - 1, r * 0.35 + 8, -r * 0.16 + 1, r * 0.35, -r * 0.16 + 2]))
-        .fill('#5a4632');
-      const [tipX, tipY] = rot(r * 0.35 + 8, -r * 0.16, cigarAng);
-      const tipPulse = 0.5 + 0.5 * Math.sin(game.time * 6);
-      glow(gf, p.x + tipX, p.y + tipY, 3, '#ff6a1a', tipPulse * 1.4);
-      gf.circle(p.x + tipX, p.y + tipY, 1.2).fill(tipPulse > 0.5 ? '#ffb347' : '#ff6a1a');
+      const side = (A && A.faceX >= 0) ? 1 : -1;
+      const cigarAng = bodyAng + 0.26 * side;
+      const x0 = r * 0.30 * side, y0 = -r * 0.08;
+      const L = r * 0.55;
+      gf.poly(rotPoly(bx, by, cigarAng, [
+        x0, y0 - r * 0.055,
+        x0 + L * side, y0 - r * 0.06,
+        x0 + L * side, y0 + r * 0.06,
+        x0, y0 + r * 0.065,
+      ])).fill('#5a4632');
+      const [tipX, tipY] = rot(x0 + L * side, y0, cigarAng);
+      const tipPulse = 0.5 + 0.5 * Math.sin(game.time * 2.4);
+      gf.circle(bx + tipX, by + tipY, r * 0.06)
+        .fill({ color: tipPulse > 0.5 ? 0xffb347 : 0xff6a1a });
+      glow(gf, bx + tipX, by + tipY, r * 0.18, '#ff6a1a', 0.45 + tipPulse * 0.6);
     }
 
     // ===== Reload pose =====
@@ -2250,12 +3615,22 @@ void main() {
     const aimDrawAng = aimAng + rl.angOff + sw.angOff;
 
     // ===== Gun (rotated in aim direction) =====
+    // Anchored to the SLOSHED body position (bx/by), not the raw player
+    // coordinate, so the weapon rides the recoil punch and the water wobble
+    // with him. Anchoring it to p.x/p.y made the body kick out from under a
+    // gun that stayed perfectly still, which read as the drop flinching away
+    // from its own weapon.
     const recoil = -p.recoil * 4;
-    const gx = p.x + Math.cos(aimDrawAng) * (recoil + rl.pull + sw.pull) + rl.offX;
-    const gy = p.y + 1 + Math.sin(aimDrawAng) * (recoil + rl.pull + sw.pull) + rl.offY + sw.drop;
+    const gx = bx + Math.cos(aimDrawAng) * (recoil + rl.pull + sw.pull) + rl.offX;
+    // +3.5 rather than +1: the weapon sat high enough to cross the face, and
+    // the face is the thing the player looks at for an entire run — six
+    // expressions, blinking and the reload reaction are all wasted if a gun
+    // barrel is parked across them. Deliberately a small nudge: any further
+    // and the hands stop reading as holding it at the shoulder.
+    const gy = by + 3.5 + Math.sin(aimDrawAng) * (recoil + rl.pull + sw.pull) + rl.offY + sw.drop;
     // Arms go down BEFORE the gun so the hands read as gripping it, not
     // hovering in front of it.
-    this._drawArms(gf, p, bodyAng, r, gx, gy, aimDrawAng, rl.hand);
+    this._drawArms(gf, p, bodyAng, r, gx, gy, aimDrawAng, rl.hand, bx, by);
 
     // Every manual weapon draws its own model — the player used to hold one
     // generic pistol whichever weapon was equipped, which made switching
@@ -2271,7 +3646,7 @@ void main() {
       gf.circle(gx + mx, gy + my, muzzleR).fill(accentColor);
     }
     if (p.reloading) {
-      const headX = p.x, headY = p.y - r * 1.55 - 8; // above the character's head, not on the gun
+      const headX = bx, headY = by - r * 1.55 - 8; // above the character's head, not on the gun
       const isRevolver = p._reloadWid === 'hydropistol' || p._reloadWid === 'hydropistol_evo';
       const prog = p.reloadTotal ? Math.min(1, Math.max(0, 1 - p.reloadT / p.reloadTotal)) : 0;
 
@@ -2324,8 +3699,10 @@ void main() {
 
     // crosshair
     if (!game.input.joyAim || (!game.input.joyAim.x && !game.input.joyAim.y)) {
-      const wmx = game.input.mx - game.W / 2 + game.cam.x;
-      const wmy = game.input.my - game.H / 2 + game.cam.y;
+      // Same conversion the aim itself uses (engine.screenToWorld), so the
+      // crosshair is guaranteed to sit exactly where the shot will go. This
+      // used to be its own copy of the arithmetic and drifted from the aim.
+      const [wmx, wmy] = game.screenToWorld(game.input.mx, game.input.my);
       gf.moveTo(wmx - 8, wmy).lineTo(wmx - 3, wmy)
         .moveTo(wmx + 3, wmy).lineTo(wmx + 8, wmy)
         .moveTo(wmx, wmy - 8).lineTo(wmx, wmy - 3)
@@ -2584,15 +3961,34 @@ void main() {
           break;
         }
         default: {
-          // Every weapon without a bespoke render case (all 10 new weapons
-          // added this session included) still gets a real light glow
-          // around the bolt itself, not just a flat-filled circle â€” this
-          // is what actually casts visible light near where it flies,
-          // separate from the invisible enemy-tint blend in _drawEnemies.
-          glow(g, x, y, sz * 1.3 * lvlBoost, pr.color, 0.85);
-          g.circle(x, y, sz * lvlBoost).fill(pr.color);
-          const [dtx, dty] = rot(-sz * 1.6, 0, ang);
-          g.circle(x + dtx, y + dty, sz * 0.7).fill({ color: pr.color, alpha: 0.4 });
+          // Every weapon without a bespoke render case (roughly two thirds
+          // of the roster) lands here. Real light glow around the bolt, not
+          // just a flat-filled circle â€” this is what actually casts visible
+          // light near where it flies, separate from the invisible
+          // enemy-tint blend in _drawEnemies.
+          //
+          // The core used to be one plain circle plus a single static trail
+          // dot regardless of speed or direction, so most of the roster's
+          // bolts all read as "a coloured marble" with no sense of travel.
+          // Stretching the core along its own heading and tapering three
+          // trail dots (not one) is what makes a fast bolt look fast and a
+          // slow orb look slow, without needing bespoke art per weapon.
+          const r0 = sz * lvlBoost;
+          const speed = Math.hypot(pr.vx || 0, pr.vy || 0);
+          const stretch = Math.min(1.9, 1 + speed / 900);
+          glow(g, x, y, r0 * 1.3, pr.color, 0.85);
+          const core = rotPoly(x, y, ang, [
+            r0 * 1.15 * stretch, 0,
+            r0 * 0.15, r0 * 0.82,
+            -r0 * 0.85 * stretch, 0,
+            r0 * 0.15, -r0 * 0.82,
+          ]);
+          g.poly(core).fill(pr.color);
+          g.circle(x, y, r0 * 0.42).fill({ color: '#ffffff', alpha: 0.75 });
+          for (let i = 1; i <= 3; i++) {
+            const [dtx, dty] = rot(-r0 * (1.4 + i * 1.1) * stretch, 0, ang);
+            g.circle(x + dtx, y + dty, r0 * (0.62 - i * 0.14)).fill({ color: pr.color, alpha: 0.34 - i * 0.09 });
+          }
         }
       }
     });
@@ -2653,14 +4049,274 @@ void main() {
         if (gi >= gorePool.length) return;
         const q = gorePool[gi++];
         const spd = Math.hypot(p.vx, p.vy);
-        const stretch = spd > 90 ? Math.min(6, spd * 0.010) : 0;
+        // Three grades of droplet, and they must not just be three sizes.
+        // Mist smears into long thin streaks because it is light and fast; a
+        // fat drop barely deforms at all because it is heavy and slow. That
+        // difference in STRETCH is what sells them as different substances
+        // rather than the same dot at different scales.
+        let stretch = spd > 90 ? Math.min(6, spd * 0.010) : 0;
+        if (p._mist) stretch = Math.min(14, spd * 0.030);
+        else if (p._heavy) stretch = Math.min(2, spd * 0.004);
         q.x = p.x; q.y = p.y;
         q.rotation = spd > 1 ? Math.atan2(p.vy, p.vx) : 0;
         q.scaleX = (p.size + stretch) / TR;
-        q.scaleY = p.size / TR;
+        // Heavy drops squash slightly across travel as they wobble; mist thins.
+        q.scaleY = (p.size * (p._heavy ? 1.18 : p._mist ? 0.62 : 1)) / TR;
         q.tint = p.color;
-        q.alpha = Math.min(1, a + 0.2);
+        // Mist is thinner and reads as a haze; fat drops are near-opaque.
+        q.alpha = Math.min(1, a + (p._mist ? -0.15 : p._heavy ? 0.35 : 0.2));
         goreArr.push(q);
+      } else if (p.type === 'bloodCone') {
+        // The arterial fan. Built as a polygon whose outer edge is a RAGGED
+        // arc, not a clean one — a smooth triangle reads as a cone of light,
+        // and the whole point is that this is liquid tearing out of a cut.
+        //
+        // It grows fast and thins as it goes, so the silhouette is widest
+        // early (the moment of the cut) and has broken into strands by the end.
+        const t01 = 1 - p.life / p.max;
+        const reach = p.size * (0.25 + t01 * 1.05);
+        const spread = p._spread * (1 + t01 * 0.35);
+        const seed = p._seed || 0;
+        const SEG = 11;
+
+        const outer = [];
+        const inner = [];
+        for (let s2 = 0; s2 <= SEG; s2++) {
+          const f = s2 / SEG;
+          const a = p._ang - spread + f * spread * 2;
+          // Ragged outer edge: two frequencies so no two spikes match, and the
+          // ends pulled in so the fan tapers to points rather than to a wall.
+          const taper = Math.sin(f * Math.PI);
+          const noise = 0.72 + Math.sin(seed + f * 9.1) * 0.16 + Math.sin(seed * 1.7 + f * 21.3) * 0.11;
+          const r2 = reach * taper * noise;
+          outer.push(p.x + Math.cos(a) * r2, p.y + Math.sin(a) * r2);
+          const ri = r2 * (0.10 + t01 * 0.42);   // hollows out as it flies
+          inner.unshift(p.y + Math.sin(a) * ri);
+          inner.unshift(p.x + Math.cos(a) * ri);
+        }
+        const alpha = (1 - t01) * (1 - t01);     // fades fast at the end
+        g.poly(outer.concat(inner)).fill({ color: p.color, alpha: 0.85 * alpha });
+        // A darker core along the middle of the sheet gives it thickness.
+        const ca2 = Math.cos(p._ang), sa2 = Math.sin(p._ang);
+        g.moveTo(p.x, p.y)
+          .lineTo(p.x + ca2 * reach * 0.9, p.y + sa2 * reach * 0.9)
+          .stroke({ width: Math.max(1.5, reach * 0.09), color: this._darken(p.color, 0.55), alpha: 0.7 * alpha });
+        // Wet highlight on the leading edge — the only part still catching
+        // light while the rest is already falling.
+        g.moveTo(outer[0], outer[1]);
+        for (let s2 = 1; s2 <= SEG; s2++) g.lineTo(outer[s2 * 2], outer[s2 * 2 + 1]);
+        g.stroke({ width: 1.2, color: 0xff6a78, alpha: 0.45 * alpha });
+      } else if (p.type === 'skinFlake') {
+        // A torn-off piece of hide, not a dot. Drawn as a small irregular
+        // quad that tumbles as it flies and darkens on its trailing face, so a
+        // spray of these reads as material coming OFF something rather than as
+        // more sparks. The tumble is why it needs a polygon: a rotating circle
+        // looks identical to a still one.
+        const t01 = 1 - p.life / p.max;
+        const rot = (p._rot || 0) + (p._spin || 0) * t01;
+        const s2 = p.size * (1 - t01 * 0.25);
+        const ca = Math.cos(rot), sa = Math.sin(rot);
+        // Foreshorten across the spin axis so it flips edge-on and back.
+        const flip = Math.abs(Math.cos(rot * 1.7));
+        const w2 = s2 * (0.35 + flip * 0.9);
+        const pts = [
+          p.x + ca * s2 - sa * w2, p.y + sa * s2 + ca * w2,
+          p.x + ca * s2 * 0.6 + sa * w2, p.y + sa * s2 * 0.6 - ca * w2,
+          p.x - ca * s2 + sa * w2 * 0.7, p.y - sa * s2 - ca * w2 * 0.7,
+          p.x - ca * s2 * 0.7 - sa * w2, p.y - sa * s2 * 0.7 + ca * w2,
+        ];
+        g.poly(pts).fill({ color: p.color, alpha: (1 - t01) * 0.95 });
+        // Wet underside — the face that was against the body.
+        g.moveTo(pts[0], pts[1]).lineTo(pts[6], pts[7])
+          .stroke({ width: 0.9, color: 0x5a0a12, alpha: (1 - t01) * 0.8 });
+      } else if (p.type === 'spikeTrap') {
+        // Armed trap on the ground: a ring of teeth that glints while live and
+        // snaps shut when it fires. Drawn flat (squashed) so it reads as lying
+        // on the floor rather than standing in the air.
+        const t01 = 1 - p.life / p.max;
+        const live = !p._used;
+        const R = p.size * (live ? 1 : 1.25);
+        const a = live ? 0.5 + 0.2 * Math.sin(game.time * 4) : 0.9 * (1 - t01 * 4);
+        // This branch runs inside a forEach callback, not a loop body, so the
+        // skip has to be a guard rather than `continue`.
+        if (a > 0) {
+        g.ellipse(p.x, p.y, R, R * 0.42).stroke({ width: 1.4, color: 0x9fb4c8, alpha: a * 0.7 });
+        for (let k = 0; k < 10; k++) {
+          const ang = (k / 10) * TAU;
+          const inner = live ? R * 0.55 : R * 0.2;
+          g.moveTo(p.x + Math.cos(ang) * R * 0.9, p.y + Math.sin(ang) * R * 0.9 * 0.42)
+            .lineTo(p.x + Math.cos(ang) * inner, p.y + Math.sin(ang) * inner * 0.42)
+            .stroke({ width: 1.6, color: live ? 0xdfe8ff : 0xff5a5a, alpha: a });
+        }
+        }
+      } else if (p.type === 'katanaSlash') {
+        // A blade arc, not a puff. Drawn as a crescent that sweeps through the
+        // aim direction, thin at the tips and wide in the middle, with a white
+        // leading edge — the edge is what reads as "sharp".
+        const t01 = 1 - p.life / p.max;
+        // Span comes from the swing STYLE now (engine's KATANA_STYLES) rather
+        // than being a fixed 78-degree fan on every strike. Defaults keep the
+        // old shape for any caller that has not been updated.
+        // `_span` is the FULL sweep in radians, not a half-angle — doubling it
+        // here once made the "level cut" 120 degrees, wider than the single
+        // fixed arc it was meant to tighten.
+        const swSpan = p._span != null ? p._span : 1.36;
+        const a0 = p._ang - (swSpan / 2) * p._dir;
+        const span = swSpan * p._dir;
+        const lead = a0 + span * Math.min(1, t01 * 1.5);   // where the tip is now
+        const fade = 1 - t01;
+        const R = p.size;
+        const SEG = 10;
+        // Trailing body of the arc, fading behind the tip.
+        for (let s2 = 0; s2 < SEG; s2++) {
+          const f0 = s2 / SEG, f1 = (s2 + 1) / SEG;
+          const swept = Math.min(1, t01 * 1.5);
+          if (f1 > swept) break;
+          const aa = a0 + span * f0, ab = a0 + span * f1;
+          // Thickness peaks mid-swing so the crescent has a belly.
+          const th = Math.sin(f0 * Math.PI) * (p._th != null ? p._th : 0.22) + 0.05;
+          g.poly([
+            p.x + Math.cos(aa) * R, p.y + Math.sin(aa) * R,
+            p.x + Math.cos(ab) * R, p.y + Math.sin(ab) * R,
+            p.x + Math.cos(ab) * R * (1 - th), p.y + Math.sin(ab) * R * (1 - th),
+            p.x + Math.cos(aa) * R * (1 - th), p.y + Math.sin(aa) * R * (1 - th),
+          ]).fill({ color: p.color, alpha: 0.42 * fade * (0.35 + f0 * 0.65) });
+        }
+        // The edge itself: a hot white line at the leading tip.
+        g.moveTo(p.x + Math.cos(lead) * R * 0.35, p.y + Math.sin(lead) * R * 0.35)
+          .lineTo(p.x + Math.cos(lead) * R, p.y + Math.sin(lead) * R)
+          .stroke({ width: p._lead != null ? p._lead : 2.4, color: 0xffffff, alpha: 0.9 * fade });
+      } else if (p.type === 'cutLine') {
+        // The instant of the cut: a white line straight through where the body
+        // was, blooming and vanishing.
+        const t01 = 1 - p.life / p.max;
+        const L = p.size * (0.6 + t01 * 0.9);
+        const ca = Math.cos(p._ang), sa = Math.sin(p._ang);
+        g.moveTo(p.x - ca * L, p.y - sa * L).lineTo(p.x + ca * L, p.y + sa * L)
+          .stroke({ width: 5 * (1 - t01), color: 0xffffff, alpha: 0.85 * (1 - t01) });
+        g.moveTo(p.x - ca * L, p.y - sa * L).lineTo(p.x + ca * L, p.y + sa * L)
+          .stroke({ width: 1.4, color: 0xdff4ff, alpha: 1 - t01 });
+      } else if (p.type === 'bisectHalf') {
+        // Half a body, sliding away from the cut and toppling as it goes. Drawn
+        // as a half-disc clipped along the cut line, so the flat face reads as
+        // the cut and the round side as the body it came from.
+        const t01 = 1 - p.life / p.max;
+        const R = p.size;
+        const spin = t01 * 0.9 * p._side;
+        const a = p._ang + spin;
+        const ca = Math.cos(a), sa = Math.sin(a);
+        // Perpendicular, pointing away from the cut on this half's side.
+        const px2 = -sa * p._side, py2 = ca * p._side;
+        const pts = [];
+        for (let k = 0; k <= 8; k++) {
+          const th = (k / 8) * Math.PI;
+          const ox2 = ca * Math.cos(th) * R + px2 * Math.sin(th) * R;
+          const oy2 = sa * Math.cos(th) * R + py2 * Math.sin(th) * R;
+          pts.push(p.x + ox2, p.y + oy2);
+        }
+        g.poly(pts).fill({ color: p.color, alpha: 0.9 * (1 - t01 * 0.7) });
+
+        // The cut face — the INSIDE of the thing you just opened.
+        //
+        // This was a single 2.6px dark line, which is why nothing read as
+        // "cleaved": a line is where two shapes meet, not a surface you are
+        // looking into. It is a filled wedge now, drawn back from the cut edge
+        // so the half is visibly hollow, with a wet rim on the lip and a
+        // darker core behind it. The wedge opens as the piece topples, because
+        // a face you are seeing edge-on at the moment of the cut should widen
+        // as it rotates toward you.
+        const open = 0.16 + t01 * 0.5;         // how far the interior is seen
+        const face = [];
+        for (let k = 0; k <= 6; k++) {
+          const f = k / 6;
+          // Along the cut line, from one end to the other.
+          const lx = p.x + ca * R * (1 - 2 * f);
+          const ly = p.y + sa * R * (1 - 2 * f);
+          face.push(lx, ly);
+        }
+        for (let k = 6; k >= 0; k--) {
+          const f = k / 6;
+          // Bowed back into the body, deepest in the middle — a cut through a
+          // round body exposes an ellipse, not a rectangle.
+          const depth = Math.sin(f * Math.PI) * R * open;
+          face.push(
+            p.x + ca * R * (1 - 2 * f) + px2 * depth,
+            p.y + sa * R * (1 - 2 * f) + py2 * depth,
+          );
+        }
+        const fade = 1 - t01 * 0.55;
+        g.poly(face).fill({ color: 0x3d0308, alpha: 0.95 * fade });
+        // Wet rim on the lip, brighter than the core so the edge catches.
+        g.moveTo(p.x - ca * R, p.y - sa * R).lineTo(p.x + ca * R, p.y + sa * R)
+          .stroke({ width: 2.2, color: 0xa8121f, alpha: 0.95 * fade });
+        // A bead of blood welling at the deepest point of the cut.
+        g.circle(
+          p.x + px2 * R * open * 0.55,
+          p.y + py2 * R * open * 0.55,
+          R * 0.16 * (1 - t01 * 0.5),
+        ).fill({ color: 0x7e0812, alpha: 0.85 * fade });
+      } else if (p.type === 'skyBolt') {
+        // Lightning from above, in three beats: a telegraph ring warning where
+        // it will land, the bolt itself dropping out of frame, then the burn.
+        // The old skill drew a chain crawling out of the player, which looked
+        // identical to the Arc Tesla weapon and nothing like a strike.
+        const age = p.max - p.life;
+        const wait = p._delay || 0;
+        const R = p.size;
+        if (age < wait) {
+          // Telegraph: a tightening ring so the player can read where it lands.
+          const w = age / Math.max(0.0001, wait);
+          g.circle(p.x, p.y, R * (1.7 - w * 0.7))
+            .stroke({ width: 1.6, color: 0x9fd8ff, alpha: 0.30 + w * 0.35 });
+        } else {
+          const t01 = Math.min(1, (age - wait) / (p.max - wait));
+          const seed = p._seed || 0;
+          // --- the bolt: a jagged column from off the top of the screen ---
+          if (t01 < 0.45) {
+            const boltA = 1 - t01 / 0.45;
+            const TOP = p.y - 620;
+            const segs = 11;
+            for (const pass of [
+              { w: 9, col: 0x2b6bd6, a: 0.22 },   // outer glow
+              { w: 4.2, col: 0x9fd8ff, a: 0.55 }, // body
+              { w: 1.6, col: 0xffffff, a: 0.95 }, // hot core
+            ]) {
+              let px2 = p.x + Math.sin(seed) * 26, py2 = TOP;
+              for (let s2 = 1; s2 <= segs; s2++) {
+                const f = s2 / segs;
+                // Deviation narrows toward the ground so the bolt converges on
+                // its impact point instead of wandering off it.
+                const dev = (1 - f) * 34;
+                const nx2 = p.x + Math.sin(seed + s2 * 2.7) * dev;
+                const ny2 = TOP + (p.y - TOP) * f;
+                g.moveTo(px2, py2).lineTo(nx2, ny2)
+                  .stroke({ width: pass.w, color: pass.col, alpha: pass.a * boltA });
+                px2 = nx2; py2 = ny2;
+              }
+            }
+            // Forks that branch off and die partway down.
+            for (let fk = 0; fk < 3; fk++) {
+              const f0 = 0.35 + fk * 0.18;
+              const sx2 = p.x + Math.sin(seed + f0 * 9) * (1 - f0) * 34;
+              const sy2 = TOP + (p.y - TOP) * f0;
+              const dir = Math.sin(seed + fk * 5.1) > 0 ? 1 : -1;
+              g.moveTo(sx2, sy2)
+                .lineTo(sx2 + dir * 40, sy2 + 46)
+                .lineTo(sx2 + dir * 26, sy2 + 96)
+                .stroke({ width: 1.6, color: 0xbfe8ff, alpha: 0.5 * boltA });
+            }
+          }
+          // --- ground burst: expanding scorched ring + flash ---
+          const bt = Math.min(1, t01 / 0.6);
+          const br = R * (0.25 + bt * 1.15);
+          g.ellipse(p.x, p.y, br, br * 0.42)
+            .stroke({ width: 3 * (1 - bt), color: 0xdff4ff, alpha: 0.85 * (1 - bt) });
+          g.ellipse(p.x, p.y, br * 0.6, br * 0.26)
+            .fill({ color: 0x9fd8ff, alpha: 0.30 * (1 - bt) });
+          // Afterglow: the impact point stays lit as it cools.
+          g.circle(p.x, p.y, R * 0.5 * (1 - t01))
+            .fill({ color: 0xffffff, alpha: 0.5 * (1 - t01) });
+        }
       } else if (p.type === 'meteorMark') {
         const t01 = 1 - (p.life / p.max);
         const shR = 10 + t01 * (p._radius * 0.35);

@@ -132,6 +132,12 @@ export const SKILL_INDEX = (() => {
 
 // ---------- WEAPON PARTS (Weaponsmith) ----------
 // Each part has 4 tiers. Applied to one weapon owned permanently across runs.
+//
+// NOTE ON SHAPE: these six tracks are the MECHANICS. Which of them a given
+// weapon actually offers, and what they are called, is decided by
+// `weaponTracks()` further down — a katana has no magazine and no bullets, and
+// offering it "Extended Magazine" made the whole screen read as a spreadsheet
+// bolted onto the weapons rather than as a smith who knows what he is holding.
 export const WEAPON_PARTS = {
   magazine: { name: 'Magazine', icon: '📦', tiers: [
     { name: 'Standard',  bonus: 0,   cost: 0 },
@@ -177,7 +183,10 @@ export const WEAPON_PARTS = {
 // Each weapon may override what each "slot" is called + the tier names so the
 // upgrades feel native to that weapon. Mechanics stay the same; only labels change.
 export const WEAPON_PART_OVERRIDES = {
-  meteor: {
+  // Was keyed `meteor` — the BEHAVIOUR, not a weapon id — so it was never
+  // read by anything. The real weapon is `meteorRain`, and these names were
+  // clearly written for it.
+  meteorRain: {
     magazine: { name: 'Meteor Volume',  icon: '☄️', tierNames: ['Solo', 'Pair', 'Cluster', 'Swarm'] },
     sight:    { name: 'Targeting',      icon: '🎯', tierNames: ['Manual', 'Tracking', 'Predictive', 'Eye of Horus'] },
     barrel:   { name: 'Impact',         icon: '💥', tierNames: ['Light', 'Heavy', 'Devastating', 'Annunaki'] },
@@ -195,13 +204,11 @@ export const WEAPON_PART_OVERRIDES = {
     barrel:   { name: 'Ember Power',    icon: '🔥', tierNames: ['Spark', 'Flame', 'Inferno', 'Annunaki'] },
     bullets:  { name: 'Burn',           icon: '🔥', tierNames: ['None', 'Brief', 'Lasting', 'Voidburn'] },
   },
-  shotgun: {
-    magazine: { name: 'Shell Box',      icon: '📦', tierNames: ['Standard', 'Extended', 'Drum', 'Cosmic'] },
-    sight:    { name: 'Choke',          icon: '🎯', tierNames: ['Open', 'Modified', 'Full', 'Eye of Horus'] },
-    barrel:   { name: 'Barrel Length',  icon: '🔫', tierNames: ['Sawed', 'Standard', 'Long', 'Annunaki'] },
-    bullets:  { name: 'Shell Type',     icon: '🟡', tierNames: ['Buckshot', 'Slugs', 'Incendiary', 'Voidshell'] },
-  },
-  tidal: {
+  // (A `shotgun:` block lived here. Same mistake as `meteor` — keyed to the
+  // behaviour rather than to a weapon, so never read — and its contents are
+  // now ARCHETYPES.shotgun, which reaches every scattergun in the game
+  // instead of one id that does not exist.)
+  tidalShotgun: {
     magazine: { name: 'Shell Box',      icon: '📦', tierNames: ['Standard', 'Extended', 'Drum', 'Cosmic'] },
     sight:    { name: 'Choke',          icon: '🎯', tierNames: ['Open', 'Modified', 'Tight', 'Eye of Horus'] },
     barrel:   { name: 'Wave Length',    icon: '🌊', tierNames: ['Ripple', 'Wave', 'Tidal', 'Tsunami'] },
@@ -231,13 +238,13 @@ export const WEAPON_PART_OVERRIDES = {
     barrel:   { name: 'Twin Barrel',    icon: '🔫', tierNames: ['Short', 'Standard', 'Long', 'Annunaki'] },
     bullets:  { name: 'Bullets',        icon: '🔥', tierNames: ['FMJ', 'AP', 'Incendiary', 'Voidlash'] },
   },
-  runeBolts: {
+  runebolts: {
     magazine: { name: 'Bolt Quiver',    icon: '🏹', tierNames: ['Standard', 'Extended', 'Bound', 'Cosmic'] },
     sight:    { name: 'Rune Sight',     icon: '👁', tierNames: ['Plain', 'Etched', 'Bound', 'Eye of Horus'] },
     barrel:   { name: 'Bow Tension',    icon: '🪶', tierNames: ['Standard', 'Heavy', 'Master', 'Annunaki'] },
     bullets:  { name: 'Bolt Type',      icon: '🔮', tierNames: ['Wood', 'Pierce', 'Burning', 'Voidrune'] },
   },
-  scythe: {
+  bloodscythe_legacy: {
     magazine: { name: 'Swing Range',    icon: '📏', tierNames: ['Short', 'Extended', 'Wide', 'Cosmic'] },
     sight:    { name: 'Focus',          icon: '🎯', tierNames: ['Iron', 'Sharp', 'Razor', 'Eye of Horus'] },
     barrel:   { name: 'Blade',          icon: '🌑', tierNames: ['Standard', 'Heavy', 'Long', 'Annunaki'] },
@@ -262,6 +269,133 @@ export const WEAPON_PART_OVERRIDES = {
     bullets:  { name: 'Tesla Type',     icon: '🔌', tierNames: ['Static', 'Pulse', 'Chain', 'Voidbolt'] },
   },
 };
+
+// ---------- WHICH TRACKS A WEAPON EVEN HAS -----------------------------------
+// Every weapon used to be offered the same six upgrades. A katana was sold an
+// "Extended Magazine" and "AP Bullets"; a beam was sold a "Barrel Length". The
+// NAMES could be overridden per weapon, but the SET could not, so the screen
+// always described a rifle no matter what was selected.
+//
+// Tracks are derived from the weapon's own behaviour, so a newly added weapon
+// is sensible immediately rather than whenever someone remembers to write an
+// override for it. Overrides still apply on top: the archetype makes a weapon
+// SENSIBLE, the override makes it SPECIFIC.
+//
+// `rarity` and `element` are deliberately universal — they are the only two
+// tracks that mean the same thing on every weapon in the game.
+const ARCHETYPES = {
+  melee: {
+    label: 'Blade',
+    tracks: ['barrel', 'sight', 'rarity', 'element'],
+    names: {
+      barrel: { name: 'Edge',   icon: '⚔️', tierNames: ['Dull', 'Honed', 'Razor', 'Annunaki'] },
+      sight:  { name: 'Temper', icon: '🔥', tierNames: ['Soft', 'Tempered', 'Folded', 'Eye of Horus'] },
+    },
+  },
+  beam: {
+    label: 'Emitter',
+    // No magazine: a beam draws from a cell rather than carrying rounds, and
+    // that cell is what the `bullets` track represents here.
+    tracks: ['barrel', 'sight', 'bullets', 'rarity', 'element'],
+    names: {
+      barrel:  { name: 'Aperture',  icon: '🌀', tierNames: ['Narrow', 'Standard', 'Wide', 'Annunaki'] },
+      sight:   { name: 'Lens',      icon: '🔭', tierNames: ['Plain', 'Coated', 'Prismatic', 'Eye of Horus'] },
+      bullets: { name: 'Beam Type', icon: '✨', tierNames: ['Pure', 'Piercing', 'Burning', 'Voidlash'] },
+    },
+  },
+  orbit: {
+    label: 'Orbital',
+    tracks: ['magazine', 'barrel', 'bullets', 'rarity', 'element'],
+    names: {
+      magazine: { name: 'Orb Count',  icon: '🟠', tierNames: ['Two', 'Three', 'Four', 'Six'] },
+      barrel:   { name: 'Orb Power',  icon: '🔥', tierNames: ['Spark', 'Flame', 'Inferno', 'Annunaki'] },
+      bullets:  { name: 'Orb Effect', icon: '🌟', tierNames: ['Plain', 'Searing', 'Lasting', 'Voidburn'] },
+    },
+  },
+  chain: {
+    label: 'Conductor',
+    tracks: ['barrel', 'sight', 'bullets', 'rarity', 'element'],
+    names: {
+      barrel:  { name: 'Arc Range', icon: '🌩️', tierNames: ['Short', 'Standard', 'Long', 'Annunaki'] },
+      sight:   { name: 'Conductor', icon: '⚡', tierNames: ['Copper', 'Silver', 'Gold', 'Eye of Horus'] },
+      bullets: { name: 'Arc Type',  icon: '🔌', tierNames: ['Static', 'Pulse', 'Chaining', 'Voidbolt'] },
+    },
+  },
+  aoe: {
+    label: 'Ordnance',
+    tracks: ['barrel', 'sight', 'bullets', 'rarity', 'element'],
+    names: {
+      barrel:  { name: 'Yield',   icon: '💥', tierNames: ['Light', 'Heavy', 'Devastating', 'Annunaki'] },
+      sight:   { name: 'Focus',   icon: '🎯', tierNames: ['Loose', 'Tuned', 'Precise', 'Eye of Horus'] },
+      bullets: { name: 'Payload', icon: '☣️', tierNames: ['Plain', 'Piercing', 'Burning', 'Voidcharge'] },
+    },
+  },
+  shotgun: {
+    label: 'Scattergun',
+    tracks: ['magazine', 'sight', 'barrel', 'bullets', 'rarity', 'element'],
+    names: {
+      magazine: { name: 'Shell Box',  icon: '📦', tierNames: ['Standard', 'Extended', 'Drum', 'Cosmic'] },
+      sight:    { name: 'Choke',      icon: '🎯', tierNames: ['Open', 'Modified', 'Full', 'Eye of Horus'] },
+      barrel:   { name: 'Barrel',     icon: '🔫', tierNames: ['Sawn-Off', 'Standard', 'Long', 'Annunaki'] },
+      bullets:  { name: 'Shell Type', icon: '🟡', tierNames: ['Buckshot', 'Slugs', 'Incendiary', 'Voidshell'] },
+    },
+  },
+  meteor: {
+    label: 'Bombardment',
+    tracks: ['magazine', 'sight', 'barrel', 'bullets', 'rarity', 'element'],
+    names: {
+      magazine: { name: 'Volume',    icon: '☄️', tierNames: ['Solo', 'Pair', 'Cluster', 'Swarm'] },
+      sight:    { name: 'Targeting', icon: '🎯', tierNames: ['Manual', 'Tracking', 'Predictive', 'Eye of Horus'] },
+      barrel:   { name: 'Impact',    icon: '💥', tierNames: ['Light', 'Heavy', 'Devastating', 'Annunaki'] },
+      bullets:  { name: 'Warhead',   icon: '🔥', tierNames: ['Stone', 'Burning', 'Splitting', 'Voidshard'] },
+    },
+  },
+  drone: {
+    label: 'Wing',
+    tracks: ['magazine', 'sight', 'barrel', 'rarity', 'element'],
+    names: {
+      magazine: { name: 'Bay Size', icon: '🛩', tierNames: ['One', 'Two', 'Three', 'Squadron'] },
+      sight:    { name: 'Optics',   icon: '🎯', tierNames: ['Plain', 'Tracking', 'Smart', 'Eye of Horus'] },
+      barrel:   { name: 'Ordnance', icon: '💥', tierNames: ['Light', 'Standard', 'Heavy', 'Annunaki'] },
+    },
+  },
+  projectile: {
+    label: 'Firearm',
+    tracks: ['magazine', 'sight', 'barrel', 'bullets', 'rarity', 'element'],
+    names: {},   // the base WEAPON_PARTS names already describe a firearm
+  },
+};
+
+// The set of tracks one weapon offers.
+//
+// An auto-firing weapon with no magazine in its base stats has nothing to
+// extend, so the magazine track is dropped for it whatever its archetype says.
+// This is the rule that stops "Extended Magazine" appearing on a turret. Orbit
+// and drone keep theirs because for them it counts orbs and bays, not rounds.
+export function weaponTracks(wid, weapon) {
+  const arch = ARCHETYPES[(weapon && weapon.behaviour) || 'projectile'] || ARCHETYPES.projectile;
+  const countsUnits = arch === ARCHETYPES.orbit || arch === ARCHETYPES.drone || arch === ARCHETYPES.meteor;
+  const hasMag = !!(weapon && weapon.base && weapon.base.magazine);
+  const tracks = (!hasMag && !countsUnits)
+    ? arch.tracks.filter(t => t !== 'magazine')
+    : arch.tracks.slice();
+  return { tracks, label: arch.label };
+}
+
+// Display name/icon/tier names for one track on one weapon. Three layers, most
+// specific wins: the base mechanic, then the behaviour archetype, then the
+// weapon's own override.
+export function trackInfo(wid, weapon, track) {
+  const base = WEAPON_PARTS[track] || {};
+  const arch = ARCHETYPES[(weapon && weapon.behaviour) || 'projectile'] || ARCHETYPES.projectile;
+  const a = (arch.names || {})[track] || {};
+  const o = (WEAPON_PART_OVERRIDES[wid] || {})[track] || {};
+  return {
+    name: o.name || a.name || base.name,
+    icon: o.icon || a.icon || base.icon,
+    tierNames: o.tierNames || a.tierNames || null,
+  };
+}
 
 // ---------- EQUIPMENT (chest drops) ----------
 export const EQUIP_SLOTS = ['head', 'chest', 'boots', 'trinket'];
@@ -437,6 +571,22 @@ export const DAILY_REWARDS = [
   { day: 5, icon: '⭐', label: '+2 SP',      type: 'sp',   amount: 2 },
   { day: 6, icon: '💰', label: '+800 Gold',  type: 'gold', amount: 800 },
   { day: 7, icon: '🏆', label: 'Gold Chest', type: 'chest', chestId: 'gold' },
+  // Days 8-14. A seven-day track resets the week you finally get into a habit,
+  // right at the point it starts paying — the second week is where a login
+  // streak actually becomes one. The curve steepens rather than repeating, so
+  // day 14 is a genuine destination and not just another Tuesday.
+  { day: 8,  icon: '🔩', label: '+30 Parts',   type: 'gearParts', amount: 30 },
+  { day: 9,  icon: '💰', label: '+1200 Gold',  type: 'gold', amount: 1200 },
+  { day: 10, icon: '🔑', label: '+2 Probe Keys', type: 'probeKeys', amount: 2 },
+  { day: 11, icon: '⭐', label: '+3 SP',       type: 'sp',   amount: 3 },
+  { day: 12, icon: '📦', label: 'Iron Chest',  type: 'chest', chestId: 'iron' },
+  { day: 13, icon: '💎', label: '+5 Gems',     type: 'gems', amount: 5 },
+  // 'annunaki' is the top chest that actually exists. I first wrote 'prism',
+  // which is not a chest id — CHESTS is looked up with `find(c => c.id === x)`,
+  // so a wrong id resolves to undefined and the day pays NOTHING while still
+  // ticking the streak. Exactly the silent class the wiring sweep exists for,
+  // which is why it now has a check for this.
+  { day: 14, icon: '👑', label: 'Annunaki Chest', type: 'chest', chestId: 'annunaki' },
 ];
 
 // ---------- ACCOUNT LEVEL XP CURVE ----------
@@ -511,10 +661,26 @@ export const EXTRA_WEAPONS = {
 Object.assign(WEAPONS, EXTRA_WEAPONS);
 
 // ---------- AIDA INTRO DIALOGUE ----------
+// The opening. It used to be four lines of A.I.D.A. explaining the plot to
+// you — a character you do not meet until she is a boss, narrating exposition
+// at someone who has not been given a reason to care yet.
+//
+// This version has no narrator. It is the drop's own deadpan, and it earns the
+// premise by stating the absurd thing flatly and then not apologising for it:
+// you are one drop of water, alone in space, and everything you have ever
+// known is gone. The joke and the loss are the same sentence. Short lines,
+// because a wall of text at the very start is the fastest way to be skipped.
+//
+// `emote` drives the visual beat behind each line (see IntroDialogue).
 export const AIDA_INTRO = [
-  { who: 'A.I.D.A.', text: 'Signal stabilising… you hear me, waterdrop?', emote: '◈' },
-  { who: 'A.I.D.A.', text: 'The Lake has fractured. The collective is silent.', emote: '◈' },
-  { who: 'A.I.D.A.', text: 'I will guide you. Survive the contamination. Return home.', emote: '◈' },
-  { who: 'A.I.D.A.', text: 'Begin at the camp. Build. Grow. Ascend.', emote: '◈' },
+  { who: '', text: 'Space is mostly nothing.', emote: 'void' },
+  { who: '', text: 'You are a very small amount of water in it.', emote: 'drop' },
+  { who: '', text: 'This is statistically the worst place you could be.', emote: 'drop' },
+  { who: '', text: 'Behind you: the Lake. Every drop you have ever known.', emote: 'lake' },
+  { who: '', text: 'It is on fire. Water can do that now, apparently.', emote: 'burn' },
+  { who: '', text: 'Nobody is coming. There is nobody left to come.', emote: 'void' },
+  { who: '', text: 'So.', emote: 'beat' },
+  { who: '', text: 'Evaporate quietly, or go and be a problem.', emote: 'choice' },
+  { who: 'THE DROP', text: 'Problem it is.', emote: 'resolve' },
 ];
 

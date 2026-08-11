@@ -244,6 +244,28 @@ export default function SkillTree({ save, setSave, onClose }) {
                   <feGaussianBlur stdDeviation="8" result="b"/>
                   <feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
                 </filter>
+                {/* Timmy: nodes should feel carved/gem-set, not flat discs.
+                    One shared "glass" shading overlay, layered on top of
+                    every node's own flat colour fill regardless of branch —
+                    a bright facet catching light near the top-left, falling
+                    through to a dark socket shadow at the bottom-right. Only
+                    a handful of defs for ~65 nodes rather than one gradient
+                    per node keeps this cheap. */}
+                <radialGradient id="poe-gem-shade" cx="32%" cy="26%" r="85%">
+                  <stop offset="0%" stopColor="#ffffff" stopOpacity="0.55" />
+                  <stop offset="38%" stopColor="#ffffff" stopOpacity="0.08" />
+                  <stop offset="72%" stopColor="#000000" stopOpacity="0.12" />
+                  <stop offset="100%" stopColor="#000000" stopOpacity="0.58" />
+                </radialGradient>
+                {/* The locked/unpurchased socket: an empty carved hollow
+                    rather than a flat dim ring — dark at the rim, darker
+                    still at the base, with the faint bevel doing the work
+                    unlit nodes used to need a coloured stroke for. */}
+                <radialGradient id="poe-socket-shade" cx="50%" cy="42%" r="75%">
+                  <stop offset="0%" stopColor="#000000" stopOpacity="0" />
+                  <stop offset="60%" stopColor="#000000" stopOpacity="0.25" />
+                  <stop offset="100%" stopColor="#000000" stopOpacity="0.62" />
+                </radialGradient>
               </defs>
 
               <g style={{ transform: `translate(${pan.x}px,${pan.y}px) scale(${scale})`, transformOrigin: '0px 0px' }}>
@@ -323,13 +345,27 @@ export default function SkillTree({ save, setSave, onClose }) {
                         <line x1={fnNode.rx} y1={fnNode.ry} x2={toNode.rx} y2={toNode.ry}
                           stroke={bCol} strokeWidth={8} opacity={0.15} strokeLinecap="round" />
                       )}
+                      {/* A dark groove under every line — even the faint,
+                          unowned ones — so it reads as a channel cut into the
+                          panel instead of a line drawn on top of it. */}
                       <line x1={fnNode.rx} y1={fnNode.ry} x2={toNode.rx} y2={toNode.ry}
-                        stroke={active ? bCol : partial ? bCol : bCol}
+                        stroke="#000000" strokeWidth={(active ? 3 : 2) + 1.6}
+                        opacity={active ? 0.5 : partial ? 0.3 : 0.18} strokeLinecap="round" />
+                      <line x1={fnNode.rx} y1={fnNode.ry} x2={toNode.rx} y2={toNode.ry}
+                        stroke={bCol}
                         strokeWidth={active ? 3 : 2}
                         opacity={active ? 0.85 : partial ? 0.4 : 0.16}
                         strokeLinecap="round"
                         strokeDasharray={partial ? '6 4' : undefined}
                       />
+                      {/* A thin bright core down the middle of ACTIVE lines
+                          only — the "energy running through it" read the
+                          reference asked for, without adding one on every
+                          faint unowned line where it would just look noisy. */}
+                      {active && (
+                        <line x1={fnNode.rx} y1={fnNode.ry} x2={toNode.rx} y2={toNode.ry}
+                          stroke="#ffffff" strokeWidth={0.9} opacity={0.55} strokeLinecap="round" />
+                      )}
                     </g>
                   );
                 })}
@@ -397,9 +433,23 @@ export default function SkillTree({ save, setSave, onClose }) {
                         return <polygon points={pts} fill={fill} stroke={stroke} strokeWidth={sw * 0.5} opacity={0.4} />;
                       })()}
 
-                      {/* Main circle */}
+                      {/* Main circle: flat colour fill first, exactly as before... */}
+                      <circle cx={nx} cy={ny} r={r} fill={fill} stroke="none" />
+                      {/* ...then the carved/gem shading on top — an empty
+                          socket while locked, a lit facet once something is
+                          actually set into it — and a real bevel edge
+                          (dark outer ring, bright inner ring) in place of
+                          the old single flat stroke. */}
                       <circle cx={nx} cy={ny} r={r}
-                        fill={fill} stroke={stroke} strokeWidth={sw} />
+                        fill={`url(#${unlk ? 'poe-gem-shade' : 'poe-socket-shade'})`} stroke="none" />
+                      <circle cx={nx} cy={ny} r={r} fill="none"
+                        stroke="#000000" strokeOpacity={0.55} strokeWidth={sw + 1.4} />
+                      <circle cx={nx} cy={ny} r={r - Math.max(1, sw * 0.35)} fill="none"
+                        stroke={stroke} strokeWidth={sw} />
+                      {unlk && (
+                        <circle cx={nx} cy={ny} r={r - Math.max(1, sw * 0.35)} fill="none"
+                          stroke="#ffffff" strokeOpacity={0.35} strokeWidth={1} />
+                      )}
 
                       {/* Filled arc to show level progress */}
                       {purd && !maxd && node.max > 1 && (() => {

@@ -32,11 +32,60 @@ export function clickUpgradeCost(lvl) {
   return Math.ceil(CLICK_UPGRADE.base * Math.pow(CLICK_UPGRADE.growth, lvl));
 }
 
+// ---- Springs (prestige) ----------------------------------------------------
+// The loop a clicker actually runs on. Without a reset layer the whole mode is
+// one long curve that flattens and then stops meaning anything: buildings get
+// unaffordable, the rate stops moving, and there is no reason to open it
+// again. Springs are the answer — you give up the run and keep a permanent
+// multiplier, so the next pass is faster and going further is worth doing.
+//
+// Square-root gain is the genre standard for a good reason: linear gain makes
+// resetting strictly better than continuing (so you reset constantly), while
+// exponential gain makes the first reset the only one that matters. Sqrt
+// means each reset is worth roughly the same effort as the last.
+export const SPRING_THRESHOLD = 1e6;   // lifetime drops before the first Spring
+export const SPRING_BONUS = 0.05;      // +5% to ALL production per Spring
+
+export function springsFor(total) {
+  if (!total || total < SPRING_THRESHOLD) return 0;
+  return Math.floor(Math.sqrt(total / SPRING_THRESHOLD));
+}
+
+// How many Springs a reset would pay RIGHT NOW — always the amount the total
+// has earned minus what has already been banked, so it can never go negative
+// and can never pay for the same production twice.
+export function prestigeGain(clicker) {
+  return Math.max(0, springsFor(clicker?.total || 0) - (clicker?.springs || 0));
+}
+
+export function prestigeMult(clicker) {
+  return 1 + (clicker?.springs || 0) * SPRING_BONUS;
+}
+
+// Returns a NEW clicker state; does not mutate. Lifetime `total`, claimed
+// milestones and banked Springs survive — resetting must never cost you a
+// milestone you already earned, or the reset becomes a punishment.
+export function doPrestige(clicker) {
+  const gain = prestigeGain(clicker);
+  if (gain <= 0) return clicker;
+  return {
+    ...clicker,
+    drops: 0,
+    buildings: {},
+    clickLvl: 0,
+    springs: (clicker.springs || 0) + gain,
+    prestiges: (clicker.prestiges || 0) + 1,
+    // `total` is deliberately kept: it is lifetime production and the
+    // milestone ladder is paid against it. Zeroing it here would silently
+    // revoke every milestone the player has already claimed.
+  };
+}
+
 export function dropsPerSec(clicker) {
   const owned = clicker?.buildings || {};
   let rate = 0;
   for (const def of CLICKER_BUILDINGS) rate += (owned[def.id] || 0) * def.rate;
-  return rate;
+  return rate * prestigeMult(clicker);
 }
 
 export function dropsPerClick(clicker) {

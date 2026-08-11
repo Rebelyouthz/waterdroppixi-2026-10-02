@@ -13,7 +13,8 @@
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
-    "test": "react-scripts test"
+    "test": "react-scripts test",
+    "test:logic": "node --import ./test/resolver-register.mjs test/logic.test.mjs && node --import ./test/resolver-register.mjs test/cards.test.mjs && node --import ./test/resolver-register.mjs test/parallax.test.mjs && node --import ./test/resolver-register.mjs test/icons.test.mjs && node --import ./test/resolver-register.mjs test/layout.test.mjs && node --import ./test/resolver-register.mjs test/gear.test.mjs && node --import ./test/resolver-register.mjs test/flags.test.mjs && node --import ./test/resolver-register.mjs test/physics.test.mjs && node --import ./test/resolver-register.mjs test/wiring.test.mjs && node --import ./test/resolver-register.mjs test/clicker.test.mjs && node --import ./test/resolver-register.mjs test/stag.mjs && node --import ./test/resolver-register.mjs test/eye-measure.mjs"
   },
   "eslintConfig": {
     "extends": [

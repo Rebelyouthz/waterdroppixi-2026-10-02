@@ -1,12 +1,22 @@
 import React, { useState } from 'react';
 import { AVATARS, getRank, RANK_TITLES, MAX_RANK, PROFILE_FRAMES, HEADBANDS, NAME_COLORS, SHIP_COLORS, CIGAR_UNLOCK_RANK } from '../game/data_ext';
 import { Audio } from '../game/audio';
+import BadgeIcon from './BadgeIcon';
+import { BadgePicker } from './BadgeSlots';
+import { BADGES, equippedBadges, isEarned } from '../game/badges';
 
 // Clicking the avatar/name in Camp's sidebar opens this — avatar/name
 // editing (previously only settable once, at first-run onboarding) plus
 // the full rank ladder and every cosmetic unlocked so far.
-export default function ProfilePanel({ save, setSave, onClose }) {
+export default function ProfilePanel({ save, setSave, onClose, onBadges }) {
   const [nameEdit, setNameEdit] = useState(save.profile.name || '');
+  const [ownPicker, setOwnPicker] = useState(false);
+  const eq = equippedBadges(save);
+  const earnedCount = BADGES.filter(b => isEarned(save, b.id)).length;
+  // The camp hands down an `onBadges` that swaps this panel for the picker.
+  // Opened from anywhere else (or by a future caller that does not pass one)
+  // the panel owns its own picker rather than the button doing nothing.
+  const openBadges = () => { Audio.click(); if (onBadges) onBadges(); else setOwnPicker(true); };
   const level = save.profile?.level || 1;
   const rank = getRank(level);
   const nextRankLevel = Math.min(100, (rank + 1) * 4);
@@ -58,7 +68,7 @@ export default function ProfilePanel({ save, setSave, onClose }) {
 
   return (
     <div className="modal-overlay" data-testid="profile-panel" onClick={(e) => { if (e.target.classList.contains('modal-overlay')) onClose(); }}>
-      <div className="forge-panel forge-panel-scrollable" style={{ maxWidth: 560 }}>
+      <div className="forge-panel forge-panel-scrollable profile-panel" style={{ maxWidth: 560 }}>
         <div className="forge-header">
           <div className="forge-title">👤 PROFILE</div>
           <button onClick={onClose} style={{ padding: '6px 12px', fontSize: 12 }}>✕</button>
@@ -74,6 +84,29 @@ export default function ProfilePanel({ save, setSave, onClose }) {
           <div className="camp-rank-bar" style={{ maxWidth: 260, margin: '6px auto' }}>
             <div className="camp-rank-fill" style={{ width: `${rankProgress * 100}%` }} />
             <span className="camp-rank-bar-label">{rank >= MAX_RANK ? 'MAX RANK' : `Lv ${level} → Lv ${nextRankLevel}`}</span>
+          </div>
+
+          {/* Badges get their own row above the cosmetics rather than being a
+              sixth cosmetic option — a frame colour and a proof of clearing
+              Nightmare are not the same kind of thing, and putting them in one
+              list would say they are. */}
+          <div className="profile-badge-row">
+            <div className="profile-badge-head">
+              <span>🎗 BADGES</span>
+              <span className="profile-badge-count">{earnedCount}/{BADGES.length} earned</span>
+            </div>
+            <div className="profile-badge-slots">
+              {eq.map((b, i) => (
+                <button key={i} className={`profile-badge-slot${b ? ' filled' : ''}`}
+                  data-testid={`profile-badge-${i}`} onClick={openBadges} title={b ? `${b.name} — ${b.desc}` : 'Empty slot'}>
+                  <BadgeIcon badge={b} size={44} />
+                  <span>{b ? b.name : 'Empty'}</span>
+                </button>
+              ))}
+            </div>
+            <button className="profile-badge-manage" onClick={openBadges} data-testid="profile-open-badges">
+              MANAGE BADGES ▸
+            </button>
           </div>
         </div>
 
@@ -106,6 +139,7 @@ export default function ProfilePanel({ save, setSave, onClose }) {
           )}
         </div>
       </div>
+      {ownPicker && <BadgePicker save={save} setSave={setSave} onClose={() => setOwnPicker(false)} />}
     </div>
   );
 }

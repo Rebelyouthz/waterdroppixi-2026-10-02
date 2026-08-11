@@ -3,8 +3,10 @@ import {
   CLICKER_BUILDINGS, buildingCost, clickUpgradeCost,
   dropsPerSec, dropsPerClick, pendingMilestones, nextMilestone,
   CLICKER_MILESTONES, fmtDrops,
+  prestigeGain, prestigeMult, doPrestige, SPRING_BONUS,
 } from '../game/clicker';
 import { rollRune } from '../game/runes';
+import { rollPartsDrop, addParts } from '../game/gear';
 import { rollCard } from '../game/petTcg';
 import { clickerRateMult } from '../game/base';
 import { Audio } from '../game/audio';
@@ -13,7 +15,9 @@ import GameIcon from './GameIcon';
 
 export default function ClickerScreen({ save, setSave, onClose }) {
   useEffect(() => {
-    Audio.swapToGameMusic();
+    // The clicker keeps waterdrop.mp3, the menu track. The 3-track run playlist
+    // is reserved for an actual run -- it made a slow idle game feel like combat.
+    Audio.swapToMenuMusic();
     return () => Audio.swapToMenuMusic();
   }, []);
 
@@ -52,9 +56,17 @@ export default function ClickerScreen({ save, setSave, onClose }) {
 
   const tap = (e) => {
     const gain = perClick;
-    setSave({
-      ...save,
-      clicker: { ...cl, drops: (cl.drops || 0) + gain, total: (cl.total || 0) + gain },
+    // Functional update, and it is the whole reason fast tapping works.
+    // `setSave({ ...save, ... })` reads `save` and `cl` from THIS render's
+    // closure, so several taps landing inside one React batch all computed
+    // from the same stale drop count and every one but the last was silently
+    // thrown away — which reads exactly as "tapping fast does nothing".
+    setSave(cur => {
+      const c = cur.clicker || {};
+      return {
+        ...cur,
+        clicker: { ...c, drops: (c.drops || 0) + gain, total: (c.total || 0) + gain },
+      };
     });
     const rect = e.currentTarget.getBoundingClientRect();
     const id = splashId.current++;
@@ -69,21 +81,34 @@ export default function ClickerScreen({ save, setSave, onClose }) {
   };
 
   const buy = (def) => {
-    const owned = cl.buildings?.[def.id] || 0;
-    const cost = buildingCost(def, owned);
-    if ((cl.drops || 0) < cost) return;
-    setSave({
-      ...save,
-      clicker: { ...cl, drops: cl.drops - cost, buildings: { ...(cl.buildings || {}), [def.id]: owned + 1 } },
+    // Same stale-closure trap as `tap`: buying several in a row inside one
+    // batch would each read the same drop count and the same owned count, so
+    // you would pay once and get one building for three clicks. The updater
+    // recomputes both from the live state, which also means the price rises
+    // correctly across a rapid sequence.
+    setSave(cur => {
+      const c = cur.clicker || {};
+      const owned = c.buildings?.[def.id] || 0;
+      const cost = buildingCost(def, owned);
+      if ((c.drops || 0) < cost) return cur;
+      return {
+        ...cur,
+        clicker: { ...c, drops: c.drops - cost, buildings: { ...(c.buildings || {}), [def.id]: owned + 1 } },
+      };
     });
-    Audio.claimPing();
+    // Machinery engaging, not a UI click — buying a producer is a different
+    // KIND of event from confirming a menu action and should not share a voice.
+    Audio.clickerBuy();
   };
 
   const buyClick = () => {
-    const cost = clickUpgradeCost(cl.clickLvl || 0);
-    if ((cl.drops || 0) < cost) return;
-    setSave({ ...save, clicker: { ...cl, drops: cl.drops - cost, clickLvl: (cl.clickLvl || 0) + 1 } });
-    Audio.claimPing();
+    setSave(cur => {
+      const c = cur.clicker || {};
+      const cost = clickUpgradeCost(c.clickLvl || 0);
+      if ((c.drops || 0) < cost) return cur;
+      return { ...cur, clicker: { ...c, drops: c.drops - cost, clickLvl: (c.clickLvl || 0) + 1 } };
+    });
+    Audio.clickerBuy();
   };
 
   const claimAll = () => {
@@ -98,6 +123,13 @@ export default function ClickerScreen({ save, setSave, onClose }) {
       if (r.slotCoins) ns.slotCoins = (ns.slotCoins || 0) + r.slotCoins;
       if (r.gachaTokens) ns.gachaTokens = (ns.gachaTokens || 0) + r.gachaTokens;
       if (r.gearParts) ns.gearParts = (ns.gearParts || 0) + r.gearParts;
+      // Every milestone also pays a slot part. The clicker is a place players
+      // leave running, so it is the steadiest trickle of the new currency --
+      // small per hit, meaningful over a session.
+      {
+        const p = rollPartsDrop(1);
+        ns.gearSlotParts = addParts(ns, p.slot, p.amount);
+      }
       if (r.flux) ns.flux = (ns.flux || 0) + r.flux;
       if (r.rune) {
         const runes = [...(ns.runeInventory || [])];
@@ -143,6 +175,50 @@ export default function ClickerScreen({ save, setSave, onClose }) {
             <span key={s.id} className="clk-splash" style={{ left: s.x, top: s.y }}>+{fmtDrops(s.gain)}</span>
           ))}
         </div>
+
+        {/* ---- Springs (prestige) --------------------------------------
+            The loop that turns this from a curve that flattens into a
+            game. Only shown once it can actually pay, because an always-
+            visible button reading '0 Springs' teaches nothing. */}
+        {(() => {
+          const gain = prestigeGain(cl);
+          const mult = prestigeMult(cl);
+          const springs = cl.springs || 0;
+          if (springs <= 0 && gain <= 0) return null;
+          return (
+            <div className="clk-spring" data-testid="clk-spring">
+              <div className="clk-spring-head">
+                <span className="clk-spring-title">✧ SPRINGS</span>
+                <span className="clk-spring-mult">
+                  {springs} banked · ×{mult.toFixed(2)} production
+                </span>
+              </div>
+              {gain > 0 ? (
+                <>
+                  <div className="clk-spring-desc">
+                    Reset the well to bank <b>+{gain}</b> Spring{gain > 1 ? 's' : ''}.
+                    Buildings and taps go back to zero — lifetime total,
+                    claimed milestones and banked Springs all stay.
+                  </div>
+                  <button className="clk-spring-btn" data-testid="clk-prestige"
+                    onClick={() => {
+                      const ns = { ...save, clicker: doPrestige(cl) };
+                      setSave(ns); Audio.rankUp && Audio.rankUp();
+                      pushToast('✧ +' + gain + ' Spring' + (gain > 1 ? 's' : '') +
+                        ' — production ×' + prestigeMult(ns.clicker).toFixed(2));
+                    }}>
+                    ✧ DRAW THE SPRING · +{gain}
+                  </button>
+                </>
+              ) : (
+                <div className="clk-spring-desc">
+                  Each Spring is +{Math.round(SPRING_BONUS * 100)}% forever.
+                  Keep producing — the next one is earned from lifetime drops.
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Milestone ladder — the only bridge out of the clicker */}
         <div className="clk-mile">

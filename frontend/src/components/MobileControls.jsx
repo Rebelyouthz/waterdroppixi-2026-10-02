@@ -23,22 +23,51 @@ import React, { useEffect, useRef, useState } from 'react';
 // can't steal the gesture for zoom/scroll.
 // =============================================================
 
-const MAX_D = 44;
-const DIAL = 176;         // SVG viewBox size, so half of it is the layout radius
+const MAX_D = 35;         // 0.80 of the old 44, matching the DIAL rescale
+// SVG viewBox size, so half of it is the layout radius. 20% down from 176:
+// the dials were crowding the combo meter that sits between them, and the
+// toast banner had nowhere to go at the bottom of the screen.
+//
+// Changed here rather than with a CSS transform on `.joy-dial` on purpose —
+// the edge clamping, the home positions and the touch anchoring all derive
+// from this constant, so scaling only the visual would leave the hit area at
+// the old size and the two would silently disagree.
+const DIAL = 141;
+// EVERY number below this line that describes the dial's artwork is in
+// viewBox units, and the viewBox is 176 wide however big the dial actually
+// renders. So converting one to CSS pixels means multiplying by S. Mixing
+// the two is what broke the pad after the rescale:
+//
+//   - the SVG was positioned at `origin - DIAL/2` (141) while its CSS box was
+//     still 176 wide, so the dial drew 17.5px down-and-right of its own
+//     centre while the knob sat correctly on the centre. That gap is exactly
+//     the misalignment visible on the phone.
+//   - the skill pod was seated at `BEZEL_R` (62) CSS px from the centre, but
+//     the bezel it seats into is only 62 × S ≈ 50px out, so it floated 12px
+//     above its housing.
+//
+// Both are now derived, not restated, so the artwork and the layout cannot
+// disagree again at any dial size.
+const VIEWBOX = 176;
+const S = DIAL / VIEWBOX;
 const BEZEL_R = 62;       // SVG radius the charge arc is stroked on (also the pod seat radius)
 const BEZEL_C = 2 * Math.PI * BEZEL_R;
-const KNOB_R = 26;
+const BEZEL_R_PX = BEZEL_R * S;   // the same ring, in CSS pixels
+// Knob radius in CSS px. Load-bearing again: the knob's rendered size comes
+// from this, so `KNOB_R + MAX_D` (the furthest the bead can travel from the
+// centre) stays inside the plate at any dial size.
+const KNOB_R = 21;
 // The skill console is a wide screen seated in the bezel's top edge, not a
 // round button — see .joy-pod in index.css.
-const POD_W = 62;
-const POD_H = 46;
+const POD_W = 50;         // 0.80 of the old 62
+const POD_H = 37;         // 0.80 of the old 46
 
 // Resting position each dial returns to when untouched. The dials are
 // dynamic — they relocate to wherever the thumb lands — but they still need
 // a home so the pad is visible and readable before you touch anything.
 const homeOrigin = () => ({
-  left:  { x: 90, y: window.innerHeight - 133 },
-  right: { x: window.innerWidth - 90, y: window.innerHeight - 133 },
+  left:  { x: 74, y: window.innerHeight - 133 },
+  right: { x: window.innerWidth - 74, y: window.innerHeight - 133 },
 });
 // Keep a relocated dial fully on screen.
 const clampOrigin = (x, y) => ({
@@ -102,9 +131,14 @@ function JoyDial({ side, accent, charge, armed, active, origin }) {
   const dash = BEZEL_C * Math.max(0, Math.min(1, charge));
 
   return (
-    <svg className={cls} viewBox="0 0 176 176" aria-hidden
+    <svg className={cls} viewBox={`0 0 ${VIEWBOX} ${VIEWBOX}`} aria-hidden
          style={{
            '--joy-accent': accent, '--joy-charge': charge,
+           // Size set here, not in CSS. `left/top` centre the dial by
+           // subtracting half its width, which is only true while the width
+           // really is DIAL — so the two have to come from the same constant
+           // or the dial drifts off its own centre the moment either changes.
+           width: `${DIAL}px`, height: `${DIAL}px`,
            left: `${origin.x - DIAL / 2}px`, top: `${origin.y - DIAL / 2}px`,
          }}>
       <defs>
@@ -369,7 +403,9 @@ export default function MobileControls({
         style={{
           '--pod-charge': `${charge * 360}deg`,
           left: `${c.x - POD_W / 2}px`,
-          top: `${c.y - BEZEL_R - POD_H + 16}px`,
+          // BEZEL_R_PX, not BEZEL_R: the seat is where the bezel actually
+          // renders, which is 62 viewBox units scaled into CSS pixels.
+          top: `${c.y - BEZEL_R_PX - POD_H + 13}px`,
         }}
         onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); onActiveSkill(skillIdx); }}
         onClick={(e) => { e.stopPropagation(); onActiveSkill(skillIdx); }}
@@ -402,15 +438,17 @@ export default function MobileControls({
       {/* Knobs — water-bead caps that ride the dial they belong to */}
       <div className="static-knob static-knob-left"  data-testid="joy-knob-left"
            style={{
-             left: `${origin.left.x - KNOB_R}px`, top: `${origin.left.y - KNOB_R}px`,
-             transform: `translate(${leftVis.vx * MAX_D}px, ${leftVis.vy * MAX_D}px)`,
+             width: `${KNOB_R * 2}px`, height: `${KNOB_R * 2}px`,
+             left: `${origin.left.x}px`, top: `${origin.left.y}px`,
+             transform: `translate(-50%, -50%) translate(${leftVis.vx * MAX_D}px, ${leftVis.vy * MAX_D}px)`,
            }}>
         <span className="knob-gloss" />
       </div>
       <div className="static-knob static-knob-right" data-testid="joy-knob-right"
            style={{
-             left: `${origin.right.x - KNOB_R}px`, top: `${origin.right.y - KNOB_R}px`,
-             transform: `translate(${rightVis.vx * MAX_D}px, ${rightVis.vy * MAX_D}px)`,
+             width: `${KNOB_R * 2}px`, height: `${KNOB_R * 2}px`,
+             left: `${origin.right.x}px`, top: `${origin.right.y}px`,
+             transform: `translate(-50%, -50%) translate(${rightVis.vx * MAX_D}px, ${rightVis.vy * MAX_D}px)`,
            }}>
         <span className="knob-gloss" />
       </div>

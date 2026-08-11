@@ -283,7 +283,11 @@ export default function PetPanel({ save, setSave, onClose, onOpenTcg }) {
     <div className="modal-overlay" data-testid="pet-panel" onClick={(e) => {
       if (e.target.classList.contains('modal-overlay')) onClose();
     }}>
-      <div className="forge-panel" style={{ maxWidth: 700, maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}>
+      {/* `pet-panel` is a theme hook. The shell is shared with the
+          Weaponsmith, which now carries an ember treatment — right for a
+          forge, wrong for a menagerie. One structure, re-tinted per screen,
+          rather than a second copy of the same panel CSS. */}
+      <div className="forge-panel pet-panel" style={{ maxWidth: 700, maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}>
         {/* Header */}
         <div className="forge-header">
           <div className="forge-title">🐾 PETS</div>

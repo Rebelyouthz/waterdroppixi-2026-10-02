@@ -54,6 +54,46 @@ export function heroHalfPoints(r, steps = 8) {
   return out;
 }
 
+// Half-width of the silhouette at a given height. Both `y` and the result are
+// in units of the body radius, matching the rest of this module.
+//
+// This exists because the face is laid out as if the head were a circle, and
+// it is not -- the body is a teardrop that narrows to a point at the top. Eyes
+// sit in the upper third and brows sit higher still, so features that were
+// comfortably inside a circle could be drawn well outside the actual drop. The
+// brow was the worst of it: at a raised brow in a full profile it landed at
+// y = -1.14r, where the drop is 0.009r wide, while reaching out to 0.70r --
+// a stroke hanging in empty space beside his head.
+//
+// Sampled into a lookup table once at module load rather than solved per call:
+// this runs twice per frame per hero and the curve never changes.
+const HALFW_STEPS = 128;
+const HALFW_LUT = (() => {
+  const lut = new Float32Array(HALFW_STEPS + 1);
+  const p0 = HERO_BODY.tip, c1 = HERO_BODY.ctrl1, c2 = HERO_BODY.ctrl2, p1 = HERO_BODY.base;
+  const yTop = p0[1], yBot = p1[1];
+  // Walk the curve and record the widest x seen in each y bucket. The curve is
+  // not monotonic in y near the base, so "widest wins" is the correct rule.
+  for (let i = 0; i <= 2048; i++) {
+    const t = i / 2048, mt = 1 - t;
+    const x = mt ** 3 * p0[0] + 3 * mt * mt * t * c1[0] + 3 * mt * t * t * c2[0] + t ** 3 * p1[0];
+    const y = mt ** 3 * p0[1] + 3 * mt * mt * t * c1[1] + 3 * mt * t * t * c2[1] + t ** 3 * p1[1];
+    const k = Math.round(((y - yTop) / (yBot - yTop)) * HALFW_STEPS);
+    if (k >= 0 && k <= HALFW_STEPS && x > lut[k]) lut[k] = x;
+  }
+  return lut;
+})();
+
+export function heroHalfWidthAt(y) {
+  const yTop = HERO_BODY.tip[1], yBot = HERO_BODY.base[1];
+  const f = (y - yTop) / (yBot - yTop);
+  if (f <= 0 || f >= 1) return 0;             // above the tip or below the base
+  const k = f * HALFW_STEPS;
+  const i = Math.floor(k), frac = k - i;
+  const a = HALFW_LUT[i], b = HALFW_LUT[Math.min(HALFW_STEPS, i + 1)];
+  return a + (b - a) * frac;
+}
+
 // Closed outline as an SVG path, centred on (cx, cy).
 export function heroBodyPath(r, cx = 0, cy = 0) {
   const t = [cx + HERO_BODY.tip[0] * r, cy + HERO_BODY.tip[1] * r];
