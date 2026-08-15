@@ -12,7 +12,6 @@ import { loadSave, saveLocal, syncSave, postRunResult, DEFAULT_SAVE, getPlayerId
 import { settleProgression } from './game/progression';
 import { markNodeCleared, lootMult } from './game/difficulty';
 import RewardScreen from './components/RewardScreen';
-import PayoutScreen from './components/PayoutScreen';
 import { rollMissionRewards, MISSION_DEFS, CHALLENGES, ACHIEVEMENTS, CHAR_RARITY_COLORS } from './game/data_ext2';
 import { AuthProvider, StripeReturnHandler, AuthCallback, useAuth } from './auth';
 import { Audio } from './game/audio';
@@ -540,21 +539,23 @@ function AppInner() {
   }
   if (view === 'game') {
     return (<>
+      {/* payout used to be its own screen (PayoutScreen), stacked on top of
+          GameOver for every campaign run — Timmy wanted one death screen
+          that shows everything, so GameOver now reads the ledger directly
+          and PayoutScreen is retired. Cleared on every exit path (camp,
+          retry, menu) so a later non-campaign run never inherits stale
+          chest/tier data from a previous one. */}
       <GameScreen key={runKey} save={save} setSave={setSave} mission={activeMission}
         onRunEnd={onRunEnd}
+        payout={campaignPayout}
         onExit={(where) => {
+          setCampaignPayout(null);
           if (where === 'retry') { setRunKey(k => k + 1); }
           else if (where === 'menu') setView('welcome');
           else setView(where);
         }} />
       <ToastHost />
       {missionReward && <MissionReveal rewards={missionReward} onClose={() => { setMissionReward(null); setView('camp'); }} />}
-      {campaignPayout && (
-        <PayoutScreen
-          payout={campaignPayout}
-          onClose={() => { setCampaignPayout(null); setView('camp'); }}
-        />
-      )}
     </>);
   }
   return null;

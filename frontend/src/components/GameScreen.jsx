@@ -195,7 +195,7 @@ function buildMetaEffects(save) {
   return result;
 }
 
-export default function GameScreen({ save, setSave, onExit, onRunEnd, mission }) {
+export default function GameScreen({ save, setSave, onExit, onRunEnd, mission, payout }) {
   const canvasRef = useRef(null);
   const gameRef = useRef(null);
   const [snap, setSnap] = useState(null);
@@ -481,7 +481,7 @@ export default function GameScreen({ save, setSave, onExit, onRunEnd, mission })
         </div>
       )}
       {gameOverResult && (
-        <GameOver result={gameOverResult} extras={gameOverExtras} save={save} onMenu={() => onExit('menu')} onCamp={() => onExit('camp')} onRetry={() => onExit('retry')} />
+        <GameOver result={gameOverResult} extras={gameOverExtras} save={save} payout={payout} onMenu={() => onExit('menu')} onCamp={() => onExit('camp')} onRetry={() => onExit('retry')} />
       )}
     </div>
   );
