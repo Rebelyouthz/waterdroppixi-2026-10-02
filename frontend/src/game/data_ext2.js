@@ -322,71 +322,71 @@ export const ACTIVE_SKILL_KEYS = Object.keys(ACTIVE_SKILLS);
 
 // ---------- NEW LEVEL UP CARDS (15+ interesting passive/active) ----------
 export const ADVANCED_CARDS = [
-  { id: 'c_lightning',   icon: '⚡', name: 'Lightning Crit',  desc: 'Crits arc lightning to 2 nearby foes',           flag: 'lightningOnCrit' },
-  { id: 'c_aura',        icon: '🔥', name: 'Damage Aura',     desc: 'Burning aura damages foes around you',           flag: 'damageAura' },
-  { id: 'c_vamp',        icon: '🩸', name: 'Vampirism',       desc: '0.1% lifesteal on hit (upgrade in Meta)',        flag: 'vampire', amount: 0.001 },
-  { id: 'c_chain',       icon: '🔗', name: 'Chain Strike',    desc: 'Kills chain to nearby for 50% dmg',              flag: 'chainOnKill' },
-  { id: 'c_slow',        icon: '❄', name: 'Slow Field',      desc: 'Aura slows enemies 30%',                         flag: 'slowField' },
-  { id: 'c_burn',        icon: '🔥', name: 'Burn',            desc: 'Hits apply burn DoT',                            flag: 'burnDoT' },
-  { id: 'c_poison',      icon: '☠', name: 'Poison Cloud',    desc: 'On kill leave poison patch',                     flag: 'poisonOnKill' },
-  { id: 'c_glass',       icon: '💀', name: 'Glass Cannon',    desc: '+150% damage, -50% HP',                          flag: 'glassCannon' },
-  { id: 'c_reflect',     icon: '🪞', name: 'Reflect',         desc: 'Reflect 30% damage back',                        flag: 'reflect', amount: 0.30 },
-  { id: 'c_explode',     icon: '💥', name: 'Explosive Death', desc: 'Killed enemies explode for 30 dmg',              flag: 'explosiveDeath' },
-  { id: 'c_lifeline',    icon: '🛟', name: 'Lifeline',        desc: 'Below 20% HP gain temporary shield',             flag: 'lifeline' },
-  { id: 'c_mirror',      icon: '👯', name: 'Mirror Image',    desc: 'Spawn a decoy every 12s',                        flag: 'mirrorAura' },
-  { id: 'c_knockback',   icon: '💨', name: 'Knockback Wave',  desc: 'Every 8s a wave knocks all back',                flag: 'knockbackWave' },
-  { id: 'c_starburst',   icon: '🌟', name: 'Star Burst',      desc: 'Every 5 kills → AoE burst',                      flag: 'starBurst' },
-  { id: 'c_doublehit',   icon: '⚔️', name: 'Multistrike',     desc: '20% chance to double-hit',                       flag: 'doubleHit', amount: 0.20 },
-  { id: 'c_grit',        icon: '🪨', name: 'Grit',            desc: 'When hit, -30% dmg for 2s',                      flag: 'grit' },
-  { id: 'c_vision',      icon: '🔭', name: 'Eagle Vision',     desc: '+25% vision range (camera zoom out)',           flag: 'vision' },
-  { id: 'c_double_dmg',  icon: '🗡', name: 'Sharp Steel',      desc: '+25% damage permanently this run',              flag: 'sharpSteel' },
-  { id: 'c_speed',       icon: '💨', name: 'Bloodrush',        desc: '+15% move speed + reload',                      flag: 'bloodrush' },
-  { id: 'c_magnet',      icon: '🧲', name: 'Iron Pull',        desc: '+80% pickup range',                             flag: 'ironPull' },
+  { id: 'c_lightning',   icon: 'lightningOnCrit', name: 'Lightning Crit',  desc: 'Crits arc lightning to 2 nearby foes',           flag: 'lightningOnCrit' },
+  { id: 'c_aura',        icon: 'damageAura', name: 'Damage Aura',     desc: 'Burning aura damages foes around you',           flag: 'damageAura' },
+  { id: 'c_vamp',        icon: 'vampire', name: 'Vampirism',       desc: '0.1% lifesteal on hit (upgrade in Meta)',        flag: 'vampire', amount: 0.001 },
+  { id: 'c_chain',       icon: 'chainOnKill', name: 'Chain Strike',    desc: 'Kills chain to nearby for 50% dmg',              flag: 'chainOnKill' },
+  { id: 'c_slow',        icon: 'slowField', name: 'Slow Field',      desc: 'Aura slows enemies 30%',                         flag: 'slowField' },
+  { id: 'c_burn',        icon: 'burnDoT', name: 'Burn',            desc: 'Hits apply burn DoT',                            flag: 'burnDoT' },
+  { id: 'c_poison',      icon: 'poisonOnKill', name: 'Poison Cloud',    desc: 'On kill leave poison patch',                     flag: 'poisonOnKill' },
+  { id: 'c_glass',       icon: 'glassCannon', name: 'Glass Cannon',    desc: '+150% damage, -50% HP',                          flag: 'glassCannon' },
+  { id: 'c_reflect',     icon: 'reflect', name: 'Reflect',         desc: 'Reflect 30% damage back',                        flag: 'reflect', amount: 0.30 },
+  { id: 'c_explode',     icon: 'explosiveDeath', name: 'Explosive Death', desc: 'Killed enemies explode for 30 dmg',              flag: 'explosiveDeath' },
+  { id: 'c_lifeline',    icon: 'lifeline', name: 'Lifeline',        desc: 'Below 20% HP gain temporary shield',             flag: 'lifeline' },
+  { id: 'c_mirror',      icon: 'mirrorAura', name: 'Mirror Image',    desc: 'Spawn a decoy every 12s',                        flag: 'mirrorAura' },
+  { id: 'c_knockback',   icon: 'knockbackWave', name: 'Knockback Wave',  desc: 'Every 8s a wave knocks all back',                flag: 'knockbackWave' },
+  { id: 'c_starburst',   icon: 'starBurst', name: 'Star Burst',      desc: 'Every 5 kills → AoE burst',                      flag: 'starBurst' },
+  { id: 'c_doublehit',   icon: 'doubleHit', name: 'Multistrike',     desc: '20% chance to double-hit',                       flag: 'doubleHit', amount: 0.20 },
+  { id: 'c_grit',        icon: 'grit', name: 'Grit',            desc: 'When hit, -30% dmg for 2s',                      flag: 'grit' },
+  { id: 'c_vision',      icon: 'vision', name: 'Eagle Vision',     desc: '+25% vision range (camera zoom out)',           flag: 'vision' },
+  { id: 'c_double_dmg',  icon: 'sharpSteel', name: 'Sharp Steel',      desc: '+25% damage permanently this run',              flag: 'sharpSteel' },
+  { id: 'c_speed',       icon: 'bloodrush', name: 'Bloodrush',        desc: '+15% move speed + reload',                      flag: 'bloodrush' },
+  { id: 'c_magnet',      icon: 'ironPull', name: 'Iron Pull',        desc: '+80% pickup range',                             flag: 'ironPull' },
   // --- new passive auto-weapons & effects ---
-  { id: 'c_thunder',     icon: '🌩', name: 'Thunder Cult',      desc: 'Every 4s strike random foe for 60 dmg',         flag: 'thunderCult' },
-  { id: 'c_iceShard',    icon: '🧊', name: 'Ice Shards',        desc: 'Auto-launch homing ice shards every 1.6s',      flag: 'iceShards' },
-  { id: 'c_holyWater',   icon: '💧', name: 'Holy Water',        desc: 'Heal ring pulses every 6s (+15 HP)',            flag: 'holyWater' },
-  { id: 'c_swarm',       icon: '🐝', name: 'Swarm',             desc: 'Orbiting bees pierce + sting nearby foes',      flag: 'swarmAura' },
-  { id: 'c_spike',       icon: '🪤', name: 'Spike Plates',      desc: 'Drop spike traps on dash/spawn (60 dmg)',       flag: 'spikePlates' },
-  { id: 'c_overcharge',  icon: '⚡', name: 'Overcharge',        desc: 'Every 6th shot is double damage',               flag: 'overcharge' },
-  { id: 'c_railgun',     icon: '🎯', name: 'Railgun Stance',    desc: 'Standing still 1s+ = +60% damage',              flag: 'railStance' },
-  { id: 'c_juggernaut',  icon: '💪', name: 'Juggernaut',        desc: '+1 HP regen per 5 enemies in 200u',             flag: 'juggernaut' },
+  { id: 'c_thunder',     icon: 'thunderCult', name: 'Thunder Cult',      desc: 'Every 4s strike random foe for 60 dmg',         flag: 'thunderCult' },
+  { id: 'c_iceShard',    icon: 'iceShards', name: 'Ice Shards',        desc: 'Auto-launch homing ice shards every 1.6s',      flag: 'iceShards' },
+  { id: 'c_holyWater',   icon: 'holyWater', name: 'Holy Water',        desc: 'Heal ring pulses every 6s (+15 HP)',            flag: 'holyWater' },
+  { id: 'c_swarm',       icon: 'swarmAura', name: 'Swarm',             desc: 'Orbiting bees pierce + sting nearby foes',      flag: 'swarmAura' },
+  { id: 'c_spike',       icon: 'spikePlates', name: 'Spike Plates',      desc: 'Drop spike traps on dash/spawn (60 dmg)',       flag: 'spikePlates' },
+  { id: 'c_overcharge',  icon: 'overcharge', name: 'Overcharge',        desc: 'Every 6th shot is double damage',               flag: 'overcharge' },
+  { id: 'c_railgun',     icon: 'railStance', name: 'Railgun Stance',    desc: 'Standing still 1s+ = +60% damage',              flag: 'railStance' },
+  { id: 'c_juggernaut',  icon: 'juggernaut', name: 'Juggernaut',        desc: '+1 HP regen per 5 enemies in 200u',             flag: 'juggernaut' },
   // ---- Five new STANDARD passives -----------------------------------------
   // Always in the run pool, no unlock needed. Added because the Card Shop was
   // handing out permanent stat bonuses instead of unlocking cards, so the
   // in-run passive pool never actually grew — the shop made your character
   // stronger BETWEEN runs rather than giving you more to find DURING one.
   // These are the baseline the shop now builds on top of.
-  { id: 'c_electric',    icon: '⚡', name: 'Electric Rounds',   desc: 'Shots arc lightning through the enemy they hit', flag: 'electricRounds' },
-  { id: 'c_meleespd',    icon: '🌀', name: 'Whirl Training',    desc: '+10% melee attack speed',                       flag: 'meleeSpeed', amount: 0.10 },
-  { id: 'c_manualcd',    icon: '🔧', name: 'Cycled Action',     desc: '-5% manual weapon cooldown',                    flag: 'manualCooldown', amount: 0.05 },
-  { id: 'c_ricochet',    icon: '↩', name: 'Ricochet',          desc: 'Shots bounce once to a nearby foe',             flag: 'ricochet' },
-  { id: 'c_frostbite',   icon: '❄', name: 'Frostbite',         desc: 'Chilled foes take +20% damage',                 flag: 'frostbite' },
+  { id: 'c_electric',    icon: 'electricRounds', name: 'Electric Rounds',   desc: 'Shots arc lightning through the enemy they hit', flag: 'electricRounds' },
+  { id: 'c_meleespd',    icon: 'meleeSpeed', name: 'Whirl Training',    desc: '+10% melee attack speed',                       flag: 'meleeSpeed', amount: 0.10 },
+  { id: 'c_manualcd',    icon: 'manualCooldown', name: 'Cycled Action',     desc: '-5% manual weapon cooldown',                    flag: 'manualCooldown', amount: 0.05 },
+  { id: 'c_ricochet',    icon: 'ricochet', name: 'Ricochet',          desc: 'Shots bounce once to a nearby foe',             flag: 'ricochet' },
+  { id: 'c_frostbite',   icon: 'frostbite', name: 'Frostbite',         desc: 'Chilled foes take +20% damage',                 flag: 'frostbite' },
   // ---- Shop-gated advanced passives ---------------------------------------
   // These enter the run pool only once bought in the Card Shop. The
   // shop/shopId pair mirrors the Prospector gate exactly (see engine.js), so
   // both unlock systems share one code path instead of growing a second one.
-  { id: 'c_elec_manual', icon: '🔌', name: 'Live Wire',         desc: 'Manual weapons chain lightning between foes',   flag: 'liveWire',     shop: true, shopId: 'sh_elec_manual' },
-  { id: 'c_twinup',      icon: '⏫', name: 'Twin Ascend',       desc: 'Weapon upgrades level TWO manual weapons',      flag: 'twinAscend',   shop: true, shopId: 'sh_twinup' },
-  { id: 'c_overload',    icon: '☢', name: 'Overload Core',     desc: 'Every 10th kill detonates a chain reaction',    flag: 'overloadCore', shop: true, shopId: 'sh_overload' },
-  { id: 'c_bulletstorm', icon: '🌪', name: 'Bulletstorm',       desc: 'Reloading sprays the spent magazine',           flag: 'bulletstorm',  shop: true, shopId: 'sh_bulletstorm' },
-  { id: 'c_executioner', icon: '⛓', name: 'Executioner',       desc: 'Foes under 15% HP die instantly on any hit',    flag: 'executioner',  shop: true, shopId: 'sh_executioner' },
+  { id: 'c_elec_manual', icon: 'liveWire', name: 'Live Wire',         desc: 'Manual weapons chain lightning between foes',   flag: 'liveWire',     shop: true, shopId: 'sh_elec_manual' },
+  { id: 'c_twinup',      icon: 'twinAscend', name: 'Twin Ascend',       desc: 'Weapon upgrades level TWO manual weapons',      flag: 'twinAscend',   shop: true, shopId: 'sh_twinup' },
+  { id: 'c_overload',    icon: 'overloadCore', name: 'Overload Core',     desc: 'Every 10th kill detonates a chain reaction',    flag: 'overloadCore', shop: true, shopId: 'sh_overload' },
+  { id: 'c_bulletstorm', icon: 'bulletstorm', name: 'Bulletstorm',       desc: 'Reloading sprays the spent magazine',           flag: 'bulletstorm',  shop: true, shopId: 'sh_bulletstorm' },
+  { id: 'c_executioner', icon: 'executioner', name: 'Executioner',       desc: 'Foes under 15% HP die instantly on any hit',    flag: 'executioner',  shop: true, shopId: 'sh_executioner' },
   // Stat-type (not flag) so re-picking it stacks: +1 bounce AND slightly
   // more damage per bounce each time, per level-up.
-  { id: 'c_conductive',  icon: '🔌', name: 'Conductive Rounds', desc: 'Bullet hits arc lightning to a nearby foe (stacks: +1 bounce, +bounce damage)', stat: 'conductiveBounces', amount: 1 },
+  { id: 'c_conductive',  icon: 'chainOnKill', name: 'Conductive Rounds', desc: 'Bullet hits arc lightning to a nearby foe (stacks: +1 bounce, +bounce damage)', stat: 'conductiveBounces', amount: 1 },
   // ─── New passives ───────────────────────────────────────────
-  { id: 'c_ironHide',   icon: '⚙️', name: 'Iron Hide',          desc: '+4 flat armor permanently this run',            stat: 'armor', amount: 4 },
-  { id: 'c_soulHarvest',icon: '💀', name: 'Soul Harvest',       desc: 'Every 25 kills restore +1 HP',                  flag: 'soulHarvest' },
-  { id: 'c_quickstep',  icon: '💨', name: 'Quickstep',          desc: '+20% speed for 1.5s after taking damage',       flag: 'quickstep' },
-  { id: 'c_thorns',     icon: '🌵', name: 'Thorns',             desc: 'Return 25% of dmg received as melee',           flag: 'thorns', amount: 0.25 },
-  { id: 'c_berserker',  icon: '🔥', name: 'Berserker',          desc: 'Below 30% HP: +40% attack speed',               flag: 'berserkerMode' },
-  { id: 'c_deathmark',  icon: '☠️', name: 'Death Mark',         desc: 'Your shots slow-marked foes take +30% dmg',     flag: 'deathMark' },
+  { id: 'c_ironHide',   icon: 'armor', name: 'Iron Hide',          desc: '+4 flat armor permanently this run',            stat: 'armor', amount: 4 },
+  { id: 'c_soulHarvest',icon: 'soulHarvest', name: 'Soul Harvest',       desc: 'Every 25 kills restore +1 HP',                  flag: 'soulHarvest' },
+  { id: 'c_quickstep',  icon: 'quickstep', name: 'Quickstep',          desc: '+20% speed for 1.5s after taking damage',       flag: 'quickstep' },
+  { id: 'c_thorns',     icon: 'thorns', name: 'Thorns',             desc: 'Return 25% of dmg received as melee',           flag: 'thorns', amount: 0.25 },
+  { id: 'c_berserker',  icon: 'berserkerMode', name: 'Berserker',          desc: 'Below 30% HP: +40% attack speed',               flag: 'berserkerMode' },
+  { id: 'c_deathmark',  icon: 'deathMark', name: 'Death Mark',         desc: 'Your shots slow-marked foes take +30% dmg',     flag: 'deathMark' },
   // ─── 5 new passives (see engine.js tickCardFlags/killEnemy for hooks) ───
-  { id: 'c_tidalWave',   icon: '🌊', name: 'Tidal Wave',       desc: 'Every 10s, a wave knocks back + damages all nearby foes', flag: 'tidalWave' },
-  { id: 'c_staticChain', icon: '⚡', name: 'Static Chain',     desc: 'Kills have 25% chance to chain-lightning 2 nearby foes',   flag: 'staticChainKill' },
-  { id: 'c_secondWind',  icon: '🌬️', name: 'Second Wind',      desc: 'Once per run, dropping below 15% HP grants a shield + heal', flag: 'secondWind' },
-  { id: 'c_gravityCharge', icon: '🌀', name: 'Gravity Charge', desc: 'Every 15 kills, pull all nearby foes toward you',          flag: 'gravityPull' },
-  { id: 'c_venomBite',   icon: '☠️', name: 'Venom Bite',       desc: 'Foes that touch you get poisoned',                          flag: 'venomBite' },
+  { id: 'c_tidalWave',   icon: 'tidalWave', name: 'Tidal Wave',       desc: 'Every 10s, a wave knocks back + damages all nearby foes', flag: 'tidalWave' },
+  { id: 'c_staticChain', icon: 'staticChainKill', name: 'Static Chain',     desc: 'Kills have 25% chance to chain-lightning 2 nearby foes',   flag: 'staticChainKill' },
+  { id: 'c_secondWind',  icon: 'secondWind', name: 'Second Wind',      desc: 'Once per run, dropping below 15% HP grants a shield + heal', flag: 'secondWind' },
+  { id: 'c_gravityCharge', icon: 'gravityPull', name: 'Gravity Charge', desc: 'Every 15 kills, pull all nearby foes toward you',          flag: 'gravityPull' },
+  { id: 'c_venomBite',   icon: 'venomBite', name: 'Venom Bite',       desc: 'Foes that touch you get poisoned',                          flag: 'venomBite' },
 
   // ─── Weapon-class passives ───────────────────────────────────────────
   // Every offensive card used to be another flat global bump, so two runs
@@ -397,23 +397,23 @@ export const ADVANCED_CARDS = [
   // multiplier (1.0 -> 1.14 -> 1.28 ...) rather than being added to a raw
   // stat, so they can be re-offered and stack predictably. See
   // computeWeaponStats for where they land.
-  { id: 'c_rifledBore',   icon: '🔫', name: 'Rifled Bore',      desc: '+14% damage with manual weapons',        stat: 'manualDmgMult',  amount: 0.14, mult: true },
-  { id: 'c_lightTrigger', icon: '⚡', name: 'Light Trigger',    desc: '+12% fire rate with manual weapons',     stat: 'manualRateMult', amount: 0.12, mult: true },
-  { id: 'c_extendedMag',  icon: '📦', name: 'Extended Mag',     desc: '+25% magazine on manual weapons',        stat: 'manualMagMult',  amount: 0.25, mult: true },
-  { id: 'c_autoLoader',   icon: '⚙️', name: 'Servo Loader',     desc: '+13% fire rate for auto weapons',        stat: 'autoRateMult',   amount: 0.13, mult: true },
-  { id: 'c_powerCore',    icon: '🔋', name: 'Power Core',       desc: '+15% damage for auto weapons',           stat: 'autoDmgMult',    amount: 0.15, mult: true },
-  { id: 'c_fieldCoils',   icon: '📡', name: 'Field Coils',      desc: '+18% area on auto weapons',              stat: 'autoAreaMult',   amount: 0.18, mult: true },
+  { id: 'c_rifledBore',   icon: 'damageMult', name: 'Rifled Bore',      desc: '+14% damage with manual weapons',        stat: 'manualDmgMult',  amount: 0.14, mult: true },
+  { id: 'c_lightTrigger', icon: 'fireRateMult', name: 'Light Trigger',    desc: '+12% fire rate with manual weapons',     stat: 'manualRateMult', amount: 0.12, mult: true },
+  { id: 'c_extendedMag',  icon: 'magBonus', name: 'Extended Mag',     desc: '+25% magazine on manual weapons',        stat: 'manualMagMult',  amount: 0.25, mult: true },
+  { id: 'c_autoLoader',   icon: 'ui_cog', name: 'Servo Loader',     desc: '+13% fire rate for auto weapons',        stat: 'autoRateMult',   amount: 0.13, mult: true },
+  { id: 'c_powerCore',    icon: 'ui_bolt', name: 'Power Core',       desc: '+15% damage for auto weapons',           stat: 'autoDmgMult',    amount: 0.15, mult: true },
+  { id: 'c_fieldCoils',   icon: 'areaMult', name: 'Field Coils',      desc: '+18% area on auto weapons',              stat: 'autoAreaMult',   amount: 0.18, mult: true },
 
   // ─── Astro Prospector uniques ────────────────────────────────────────
   // Gated behind `prospect` + `prospectId`: buildLevelUpChoices skips these
   // entirely unless the card has been unlocked in the Prospector, which is
   // the whole reason that mode exists. Deliberately build-defining rather
   // than another percentage — see game/prospector.js.
-  { id: 'c_prismCore',   icon: '🔷', name: 'Prism Core',         desc: 'Projectiles split into two shards on their first hit',      flag: 'prismCore',         prospect: true, prospectId: 'pc_prism' },
-  { id: 'c_tempoEngine', icon: '🎼', name: 'Tempo Engine',       desc: 'Each kill: +4% fire rate for 4s, stacking to 10',           flag: 'tempoEngine',       prospect: true, prospectId: 'pc_tempo' },
-  { id: 'c_singularity', icon: '🕳', name: 'Singularity Rounds', desc: 'Kills collapse into a vortex that drags nearby foes in',    flag: 'singularityRounds', prospect: true, prospectId: 'pc_singularity' },
-  { id: 'c_echoChamber', icon: '🔊', name: 'Echo Chamber',       desc: 'Every 5th shot fires a second time, free',                  flag: 'echoChamber',       prospect: true, prospectId: 'pc_echo' },
-  { id: 'c_coreOverload',icon: '☢️', name: 'Core Overload',      desc: '+12% crit chance, and crits pierce everything',             flag: 'coreOverload',      prospect: true, prospectId: 'pc_overload' },
+  { id: 'c_prismCore',   icon: 'prismCore', name: 'Prism Core',         desc: 'Projectiles split into two shards on their first hit',      flag: 'prismCore',         prospect: true, prospectId: 'pc_prism' },
+  { id: 'c_tempoEngine', icon: 'tempoEngine', name: 'Tempo Engine',       desc: 'Each kill: +4% fire rate for 4s, stacking to 10',           flag: 'tempoEngine',       prospect: true, prospectId: 'pc_tempo' },
+  { id: 'c_singularity', icon: 'singularityRounds', name: 'Singularity Rounds', desc: 'Kills collapse into a vortex that drags nearby foes in',    flag: 'singularityRounds', prospect: true, prospectId: 'pc_singularity' },
+  { id: 'c_echoChamber', icon: 'echoChamber', name: 'Echo Chamber',       desc: 'Every 5th shot fires a second time, free',                  flag: 'echoChamber',       prospect: true, prospectId: 'pc_echo' },
+  { id: 'c_coreOverload',icon: 'coreOverload', name: 'Core Overload',      desc: '+12% crit chance, and crits pierce everything',             flag: 'coreOverload',      prospect: true, prospectId: 'pc_overload' },
 ];
 
 // ---------- CAMP CARD SHOP POOL (slot-machine pulls) ----------

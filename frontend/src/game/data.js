@@ -934,62 +934,66 @@ export const ENEMIES = {
 // ---------- LEVEL UP CARD POOL (in-run) ----------
 // Cards mutate run-state stats or grant/upgrade weapons.
 export const STAT_CARDS = [
-  { id: 'dmg',       icon: '⚔️', name: 'Sharpened Edge',  desc: '+{v}% damage',          stat: 'damageMult',    mult: true,  amount: 0.05 },
-  { id: 'atks',      icon: '⏱️', name: 'Quickened Hand',  desc: '+{v}% attack speed',    stat: 'fireRateMult',  mult: true,  amount: 0.05 },
-  { id: 'spd',       icon: '🥾', name: 'Light Step',      desc: '+{v}% move speed',      stat: 'moveMult',      mult: true,  amount: 0.04 },
-  { id: 'maxhp',     icon: '❤️', name: 'Vital Surge',     desc: '+{v} max HP',           stat: 'maxHp',         mult: false, amount: 3 },
-  { id: 'heal',      icon: '✨', name: 'Cleansing Wave',  desc: 'Heal {v} HP now',       stat: 'heal',          mult: false, amount: 5 },
-  { id: 'regen',     icon: '🌿', name: 'Regrowth',        desc: '+{v} HP / sec',         stat: 'regen',         mult: false, amount: 0.025 },
-  { id: 'armor',     icon: '🛡️', name: 'Iron Skin',       desc: '+{v} armor',            stat: 'armor',         mult: false, amount: 1 },
-  { id: 'crit',      icon: '💢', name: 'Lucky Strikes',   desc: '+{v}% crit chance',     stat: 'crit',          mult: false, amount: 0.03 },
-  { id: 'critdmg',   icon: '🩸', name: 'Critical Mass',   desc: '+{v}% crit damage',     stat: 'critDmgMult',   mult: true,  amount: 0.12 },
-  { id: 'area',      icon: '🌀', name: 'Wider Wake',      desc: '+{v}% area',            stat: 'areaMult',      mult: true,  amount: 0.05 },
-  { id: 'proj',      icon: '🎯', name: 'Projectile Up',   desc: '+{v} extra projectile', stat: 'projBonus',     mult: false, amount: 1 },
-  { id: 'pickup',    icon: '🧲', name: 'Magnet',          desc: '+{v}% pickup range',    stat: 'pickupMult',    mult: true,  amount: 0.10 },
-  { id: 'xpgain',    icon: '📖', name: 'Wisdom',          desc: '+{v}% XP gain',         stat: 'xpMult',        mult: true,  amount: 0.08 },
-  { id: 'gold',      icon: '💰', name: 'Greed',           desc: '+{v}% gold drops',      stat: 'goldMult',      mult: true,  amount: 0.10 },
-  { id: 'pierce',    icon: '➰', name: 'Piercing Shot',   desc: '+{v} pierce',           stat: 'pierceBonus',   mult: false, amount: 1 },
-  { id: 'dodge',     icon: '👻', name: 'Phasing',         desc: '+{v}% dodge',           stat: 'dodge',         mult: false, amount: 0.03 },
-  { id: 'reload',    icon: '🔄', name: 'Fast Reload',     desc: '-{v}% reload time',     stat: 'reloadMult',    mult: true,  amount: -0.08 },
-  { id: 'mag',       icon: '📦', name: 'Bigger Mag',      desc: '+{v} magazine size',    stat: 'magBonus',      mult: false, amount: 2 },
-  { id: 'luck',      icon: '🍀', name: 'Fortune\'s Favor', desc: '+{v} luck (better card/loot rarity)', stat: 'luck', mult: false, amount: 0.3 },
-  { id: 'skillcd',   icon: '🔷', name: 'Overclock',       desc: '-{v}% active skill cooldown', stat: 'skillCdMult', mult: true, amount: -0.06 },
+  { id: 'dmg',       icon: 'damageMult', name: 'Sharpened Edge',  desc: '+{v}% damage',          stat: 'damageMult',    mult: true,  amount: 0.05 },
+  { id: 'atks',      icon: 'fireRateMult', name: 'Quickened Hand',  desc: '+{v}% attack speed',    stat: 'fireRateMult',  mult: true,  amount: 0.05 },
+  { id: 'spd',       icon: 'moveMult', name: 'Light Step',      desc: '+{v}% move speed',      stat: 'moveMult',      mult: true,  amount: 0.04 },
+  { id: 'maxhp',     icon: 'maxHp', name: 'Vital Surge',     desc: '+{v} max HP',           stat: 'maxHp',         mult: false, amount: 3 },
+  { id: 'heal',      icon: 'heal', name: 'Cleansing Wave',  desc: 'Heal {v} HP now',       stat: 'heal',          mult: false, amount: 5 },
+  { id: 'regen',     icon: 'regen', name: 'Regrowth',        desc: '+{v} HP / sec',         stat: 'regen',         mult: false, amount: 0.025 },
+  { id: 'armor',     icon: 'armor', name: 'Iron Skin',       desc: '+{v} armor',            stat: 'armor',         mult: false, amount: 1 },
+  { id: 'crit',      icon: 'crit', name: 'Lucky Strikes',   desc: '+{v}% crit chance',     stat: 'crit',          mult: false, amount: 0.03 },
+  { id: 'critdmg',   icon: 'critDmgMult', name: 'Critical Mass',   desc: '+{v}% crit damage',     stat: 'critDmgMult',   mult: true,  amount: 0.12 },
+  { id: 'area',      icon: 'areaMult', name: 'Wider Wake',      desc: '+{v}% area',            stat: 'areaMult',      mult: true,  amount: 0.05 },
+  { id: 'proj',      icon: 'projBonus', name: 'Projectile Up',   desc: '+{v} extra projectile', stat: 'projBonus',     mult: false, amount: 1 },
+  { id: 'pickup',    icon: 'pickupMult', name: 'Magnet',          desc: '+{v}% pickup range',    stat: 'pickupMult',    mult: true,  amount: 0.10 },
+  { id: 'xpgain',    icon: 'xpMult', name: 'Wisdom',          desc: '+{v}% XP gain',         stat: 'xpMult',        mult: true,  amount: 0.08 },
+  { id: 'gold',      icon: 'goldMult', name: 'Greed',           desc: '+{v}% gold drops',      stat: 'goldMult',      mult: true,  amount: 0.10 },
+  { id: 'pierce',    icon: 'pierceBonus', name: 'Piercing Shot',   desc: '+{v} pierce',           stat: 'pierceBonus',   mult: false, amount: 1 },
+  { id: 'dodge',     icon: 'dodge', name: 'Phasing',         desc: '+{v}% dodge',           stat: 'dodge',         mult: false, amount: 0.03 },
+  { id: 'reload',    icon: 'reloadMult', name: 'Fast Reload',     desc: '-{v}% reload time',     stat: 'reloadMult',    mult: true,  amount: -0.08 },
+  { id: 'mag',       icon: 'magBonus', name: 'Bigger Mag',      desc: '+{v} magazine size',    stat: 'magBonus',      mult: false, amount: 2 },
+  { id: 'luck',      icon: 'luck', name: 'Fortune\'s Favor', desc: '+{v} luck (better card/loot rarity)', stat: 'luck', mult: false, amount: 0.3 },
+  { id: 'skillcd',   icon: 'skillCdMult', name: 'Overclock',       desc: '-{v}% active skill cooldown', stat: 'skillCdMult', mult: true, amount: -0.06 },
   // Projectile speed and range. Requested by the user, and they fix a real
   // gap: shots flew at a fixed speed and travelled a fixed (very long)
   // distance no matter what you built, so neither was ever a decision.
   // Range is deliberately the smaller number — extra reach is worth more per
   // point than extra speed in a game where enemies close on you.
-  { id: 'projspd',   icon: '🚀', name: 'Swift Rounds',    desc: '+{v}% projectile speed', stat: 'projSpeedMult', mult: true,  amount: 0.08 },
-  { id: 'projrange', icon: '📏', name: 'Long Barrel',     desc: '+{v}% projectile range', stat: 'projRangeMult', mult: true,  amount: 0.06 },
+  { id: 'projspd',   icon: 'projSpeedMult', name: 'Swift Rounds',    desc: '+{v}% projectile speed', stat: 'projSpeedMult', mult: true,  amount: 0.08 },
+  { id: 'projrange', icon: 'projRangeMult', name: 'Long Barrel',     desc: '+{v}% projectile range', stat: 'projRangeMult', mult: true,  amount: 0.06 },
 ];
 
 // ---------- META UPGRADES (permanent — tiny increments, long grind) ----------
 // Philosophy: +1 HP/level max, +0.1-0.2% for %, max 80-100 levels each.
 // Total endpoint power ≈ same as before, but requires 10-20× more upgrades.
+// `icon` is a GameIcon id (see components/GameIcon.jsx's ICONS table), not
+// emoji — reuses existing weapon-stat/passive glyphs rather than drawing 22
+// new ones from scratch, since e.g. "Lightfoot" and the boot ICONS already
+// used for moveMult on level-up cards are the same idea twice.
 export const META_UPGRADES = [
-  { id: 'm_projspd',  name: 'Swift Rounds',   icon: '🚀', desc: '+0.15% projectile speed per level', stat: 'projspd',   amount: 0.0015, max: 80, baseCost: 13, curve: 1.033 },
-  { id: 'm_projrange',name: 'Long Barrel',    icon: '📏', desc: '+0.12% projectile range per level', stat: 'projrange', amount: 0.0012, max: 80, baseCost: 15, curve: 1.034 },
-  { id: 'm_hp',     name: 'Hardened Core',     icon: '❤️', desc: '+1 max HP per level',            stat: 'maxHp',     amount: 1,      max: 100, baseCost: 8,   curve: 1.030 },
-  { id: 'm_dmg',    name: 'Sharpened Will',    icon: '⚔️', desc: '+0.2% damage per level',          stat: 'dmg',       amount: 0.002,  max: 100, baseCost: 12,  curve: 1.035 },
-  { id: 'm_atks',   name: 'Resonant Pulse',    icon: '⏱️', desc: '+0.2% attack speed per level',    stat: 'atks',      amount: 0.002,  max: 80,  baseCost: 14,  curve: 1.035 },
-  { id: 'm_spd',    name: 'Lightfoot',         icon: '🥾', desc: '+0.2% move speed per level',      stat: 'mspd',      amount: 0.002,  max: 80,  baseCost: 10,  curve: 1.030 },
-  { id: 'm_crit',   name: 'Eye of Fortune',    icon: '💢', desc: '+0.1% crit chance per level',     stat: 'crit',      amount: 0.001,  max: 100, baseCost: 16,  curve: 1.038 },
-  { id: 'm_critd',  name: 'Vorpal Mind',       icon: '🩸', desc: '+0.5% crit damage per level',     stat: 'critd',     amount: 0.005,  max: 100, baseCost: 18,  curve: 1.040 },
-  { id: 'm_superCrit', name: 'Super Strike',   icon: '💥', desc: '+0.5% Super Crit per level',      stat: 'superCrit', amount: 0.005,  max: 30,  baseCost: 25,  curve: 1.050 },
-  { id: 'm_megaCrit',  name: 'Mega Strike',    icon: '💢', desc: '+0.2% Mega Crit per level',       stat: 'megaCrit',  amount: 0.002,  max: 25,  baseCost: 40,  curve: 1.055 },
-  { id: 'm_armor',  name: 'Annunaki Plating',  icon: '🛡️', desc: '+0.1 armor per level',            stat: 'armor',     amount: 0.1,    max: 80,  baseCost: 18,  curve: 1.038 },
-  { id: 'm_regen',  name: 'Flow of Nirvana',   icon: '🌿', desc: '+0.003 HP/s per level',           stat: 'regen',     amount: 0.003,  max: 80,  baseCost: 20,  curve: 1.040 },
-  { id: 'm_lvlBoomDmg', name: 'Shockwave Mastery', icon: '💥', desc: '+10 explosion dmg per level',  stat: 'levelUpDmg',amount: 10,   max: 20,  baseCost: 280, curve: 1.06, unlock: 'poe_awk1' },
-  { id: 'm_lvlBoomKB',  name: 'Earthshaker',        icon: '🌍', desc: '+20 explosion knockback/lvl', stat: 'levelUpKB', amount: 20,   max: 20,  baseCost: 240, curve: 1.05, unlock: 'poe_awk2' },
-  { id: 'm_pickup', name: 'Tidal Pull',        icon: '🧲', desc: '+1% pickup range per level',      stat: 'pickup',    amount: 0.01,   max: 80,  baseCost: 12,  curve: 1.030 },
-  { id: 'm_xp',     name: 'Memory of Lake',    icon: '📖', desc: '+0.5% XP per level',              stat: 'xp',        amount: 0.005,  max: 80,  baseCost: 22,  curve: 1.040 },
-  { id: 'm_gold',   name: 'Goldsense',         icon: '💰', desc: '+0.5% gold per level',            stat: 'gold',      amount: 0.005,  max: 80,  baseCost: 18,  curve: 1.038 },
-  { id: 'm_luck',   name: 'Eldritch Luck',     icon: '🍀', desc: '+0.05 luck per level',            stat: 'luck',      amount: 0.05,   max: 60,  baseCost: 25,  curve: 1.045 },
-  { id: 'm_heal',   name: 'Vital Drops',       icon: '💊', desc: '+0.5 HP from heart drops / lvl',  stat: 'heartHeal', amount: 0.5,    max: 40,  baseCost: 20,  curve: 1.040 },
-  { id: 'm_zoom',   name: 'Eagle Eye',         icon: '🔭', desc: '+0.5% view range per level',      stat: 'zoom',      amount: 0.005,  max: 35,  baseCost: 30,  curve: 1.048 },
-  { id: 'm_revive', name: 'Phoenix Echo',      icon: '🪽', desc: 'Revive once per run (50% HP)',    stat: 'revive',    amount: 1,      max: 1,   baseCost: 800, curve: 1.0 },
-  { id: 'm_dodge',  name: 'Veil Walker',       icon: '👻', desc: '+0.1% dodge per level',           stat: 'dodge',     amount: 0.001,  max: 50,  baseCost: 35,  curve: 1.048 },
-  { id: 'm_start',  name: 'Survivor\'s Cache', icon: '🎁', desc: 'Start runs with +1 random card',  stat: 'startBoon', amount: 1,      max: 3,   baseCost: 600, curve: 2.0 },
+  { id: 'm_projspd',  name: 'Swift Rounds',   icon: 'projSpeedMult', desc: '+0.15% projectile speed per level', stat: 'projspd',   amount: 0.0015, max: 80, baseCost: 13, curve: 1.033 },
+  { id: 'm_projrange',name: 'Long Barrel',    icon: 'projRangeMult', desc: '+0.12% projectile range per level', stat: 'projrange', amount: 0.0012, max: 80, baseCost: 15, curve: 1.034 },
+  { id: 'm_hp',     name: 'Hardened Core',     icon: 'maxHp', desc: '+1 max HP per level',            stat: 'maxHp',     amount: 1,      max: 100, baseCost: 8,   curve: 1.030 },
+  { id: 'm_dmg',    name: 'Sharpened Will',    icon: 'damageMult', desc: '+0.2% damage per level',          stat: 'dmg',       amount: 0.002,  max: 100, baseCost: 12,  curve: 1.035 },
+  { id: 'm_atks',   name: 'Resonant Pulse',    icon: 'fireRateMult', desc: '+0.2% attack speed per level',    stat: 'atks',      amount: 0.002,  max: 80,  baseCost: 14,  curve: 1.035 },
+  { id: 'm_spd',    name: 'Lightfoot',         icon: 'moveMult', desc: '+0.2% move speed per level',      stat: 'mspd',      amount: 0.002,  max: 80,  baseCost: 10,  curve: 1.030 },
+  { id: 'm_crit',   name: 'Eye of Fortune',    icon: 'crit', desc: '+0.1% crit chance per level',     stat: 'crit',      amount: 0.001,  max: 100, baseCost: 16,  curve: 1.038 },
+  { id: 'm_critd',  name: 'Vorpal Mind',       icon: 'critDmgMult', desc: '+0.5% crit damage per level',     stat: 'critd',     amount: 0.005,  max: 100, baseCost: 18,  curve: 1.040 },
+  { id: 'm_superCrit', name: 'Super Strike',   icon: 'starBurst', desc: '+0.5% Super Crit per level',      stat: 'superCrit', amount: 0.005,  max: 30,  baseCost: 25,  curve: 1.050 },
+  { id: 'm_megaCrit',  name: 'Mega Strike',    icon: 'doubleHit', desc: '+0.2% Mega Crit per level',       stat: 'megaCrit',  amount: 0.002,  max: 25,  baseCost: 40,  curve: 1.055 },
+  { id: 'm_armor',  name: 'Annunaki Plating',  icon: 'armor', desc: '+0.1 armor per level',            stat: 'armor',     amount: 0.1,    max: 80,  baseCost: 18,  curve: 1.038 },
+  { id: 'm_regen',  name: 'Flow of Nirvana',   icon: 'regen', desc: '+0.003 HP/s per level',           stat: 'regen',     amount: 0.003,  max: 80,  baseCost: 20,  curve: 1.040 },
+  { id: 'm_lvlBoomDmg', name: 'Shockwave Mastery', icon: 'areaMult', desc: '+10 explosion dmg per level',  stat: 'levelUpDmg',amount: 10,   max: 20,  baseCost: 280, curve: 1.06, unlock: 'poe_awk1' },
+  { id: 'm_lvlBoomKB',  name: 'Earthshaker',        icon: 'knockbackWave', desc: '+20 explosion knockback/lvl', stat: 'levelUpKB', amount: 20,   max: 20,  baseCost: 240, curve: 1.05, unlock: 'poe_awk2' },
+  { id: 'm_pickup', name: 'Tidal Pull',        icon: 'ironPull', desc: '+1% pickup range per level',      stat: 'pickup',    amount: 0.01,   max: 80,  baseCost: 12,  curve: 1.030 },
+  { id: 'm_xp',     name: 'Memory of Lake',    icon: 'ui_codex', desc: '+0.5% XP per level',              stat: 'xp',        amount: 0.005,  max: 80,  baseCost: 22,  curve: 1.040 },
+  { id: 'm_gold',   name: 'Goldsense',         icon: 'ui_moneybag', desc: '+0.5% gold per level',            stat: 'gold',      amount: 0.005,  max: 80,  baseCost: 18,  curve: 1.038 },
+  { id: 'm_luck',   name: 'Eldritch Luck',     icon: 'luck', desc: '+0.05 luck per level',            stat: 'luck',      amount: 0.05,   max: 60,  baseCost: 25,  curve: 1.045 },
+  { id: 'm_heal',   name: 'Vital Drops',       icon: 'heal', desc: '+0.5 HP from heart drops / lvl',  stat: 'heartHeal', amount: 0.5,    max: 40,  baseCost: 20,  curve: 1.040 },
+  { id: 'm_zoom',   name: 'Eagle Eye',         icon: 'vision', desc: '+0.5% view range per level',      stat: 'zoom',      amount: 0.005,  max: 35,  baseCost: 30,  curve: 1.048 },
+  { id: 'm_revive', name: 'Phoenix Echo',      icon: 'lifeline', desc: 'Revive once per run (50% HP)',    stat: 'revive',    amount: 1,      max: 1,   baseCost: 800, curve: 1.0 },
+  { id: 'm_dodge',  name: 'Veil Walker',       icon: 'dodge', desc: '+0.1% dodge per level',           stat: 'dodge',     amount: 0.001,  max: 50,  baseCost: 35,  curve: 1.048 },
+  { id: 'm_start',  name: 'Survivor\'s Cache', icon: 'ui_chest', desc: 'Start runs with +1 random card',  stat: 'startBoon', amount: 1,      max: 3,   baseCost: 600, curve: 2.0 },
 ];
 
 export function metaCost(upg, currentLvl) {

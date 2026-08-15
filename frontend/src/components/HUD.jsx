@@ -2,6 +2,7 @@ import React from 'react';
 import { SET_INDEX } from '../game/data_ext2';
 import { nodeObjectives } from '../game/campaign';
 import { pushToast } from '../game/toastBus';
+import GameIcon from './GameIcon';
 
 const fmt = (t) => { const m = Math.floor(t / 60); const s = Math.floor(t % 60); return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; };
 
@@ -440,13 +441,13 @@ export default function HUD({ snap, isTutorial, mission, levelUpOpen = false }) 
       <div className="weapon-strip">
         <div style={{ display: 'flex', gap: 8 }}>
           {snap.weapons.map(w => (
-            <div className="weapon-chip" key={w.id} title={w.name}>{w.icon}<span className="lv">Lv{w.lvl}</span></div>
+            <div className="weapon-chip" key={w.id} title={w.name}><GameIcon name={w.id} size={20} /><span className="lv">Lv{w.lvl}</span></div>
           ))}
         </div>
         {snap.passiveIcons && snap.passiveIcons.length > 0 && (
           <div className="passive-strip">
             {snap.passiveIcons.map((p, i) => (
-              <div key={i} className="passive-chip" title={p.name}>{p.icon}</div>
+              <div key={i} className="passive-chip" title={p.name}><GameIcon name={p.icon} size={18} /></div>
             ))}
           </div>
         )}

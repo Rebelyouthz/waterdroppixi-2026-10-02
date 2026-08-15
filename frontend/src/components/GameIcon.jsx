@@ -1014,6 +1014,175 @@ const GLYPHS = {
       </g>
     ))}
   </>),
+
+  // ---- General UI glyphs ---------------------------------------------------
+  // Replacing the sweep of literal emoji left in tab labels, toasts and reward
+  // rows across Camp/Shop/Pets/Prospector/Weaponsmith — see no-emoji-rule.
+  // Same 32x32 box, same Defs gradients, so they sit on the same shelf as
+  // every weapon/passive/currency glyph above rather than reading as a
+  // second, cheaper art style bolted on for "just UI".
+  lock: (u) => (<>
+    <path d="M10 14V10a6 6 0 0 1 12 0v4" fill="none" stroke={`url(#${u}-body)`} strokeWidth="3" />
+    <rect x="6" y="14" width="20" height="14" rx="2.5" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1.2" />
+    <circle cx="16" cy="20" r="2.2" fill={DARK} />
+    <rect x="15" y="20" width="2" height="4" fill={DARK} />
+  </>),
+  chest: (u) => (<>
+    <path d="M4 14a3 3 0 0 1 3-3h18a3 3 0 0 1 3 3v11H4z" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1.2" />
+    <path d="M4 15h24" stroke={DARK} strokeWidth="1.4" />
+    <path d="M4 15h24v2H4z" fill={`url(#${u}-live)`} opacity="0.85" />
+    <circle cx="16" cy="17" r="2" fill={STEEL_LO} stroke={DARK} strokeWidth="0.9" />
+  </>),
+  scroll: (u) => (<>
+    <rect x="7" y="6" width="18" height="20" fill={`url(#${u}-live)`} opacity="0.9" />
+    <ellipse cx="7" cy="6" rx="3" ry="3" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1" />
+    <ellipse cx="25" cy="26" rx="3" ry="3" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1" />
+    <path d="M11 12h11M11 16h11M11 20h7" stroke={DARK} strokeWidth="1.1" opacity="0.55" strokeLinecap="round" />
+  </>),
+  map: (u) => (<>
+    <path d="M4 7l9-3 9 3 6-2v20l-6 2-9-3-9 3z" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1.2" />
+    <path d="M13 4v20M22 7v20" stroke={DARK} strokeWidth="0.9" opacity="0.4" />
+    <path d="M8 11l6 6 8-5" fill="none" stroke={`url(#${u}-live)`} strokeWidth="2" strokeLinecap="round" />
+    <circle cx="22" cy="12" r="2" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="0.8" />
+  </>),
+  compass: (u) => (<>
+    <circle cx="16" cy="16" r="13" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1.3" />
+    <circle cx="16" cy="16" r="13" fill="none" stroke={STEEL_HI} strokeWidth="1" opacity="0.4" />
+    <path d="M16 8l4 8-4 8-4-8z" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1" />
+    <circle cx="16" cy="16" r="1.6" fill="#ffffff" opacity="0.8" />
+  </>),
+  rocket: (u) => (<>
+    <path d="M16 3c5 4 6 10 6 15l-6 4-6-4c0-5 1-11 6-15z" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1.2" />
+    <circle cx="16" cy="13" r="3" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="0.9" />
+    <path d="M10 18l-4 6 6-2M22 18l4 6-6-2" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1" />
+    <path d="M13 22l3 8 3-8z" fill={`url(#${u}-live)`} opacity="0.9" />
+  </>),
+  pillars: (u) => (<>
+    <path d="M4 9 16 3 28 9v3H4z" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1.2" />
+    <rect x="6" y="13" width="4" height="14" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1" />
+    <rect x="14" y="13" width="4" height="14" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1" />
+    <rect x="22" y="13" width="4" height="14" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1" />
+    <rect x="4" y="27" width="24" height="3" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1" />
+  </>),
+  person: (u) => (<>
+    <circle cx="16" cy="10" r="6" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1.2" />
+    <path d="M5 28c1-7 6-11 11-11s10 4 11 11z" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1.2" />
+  </>),
+  paw: (u) => (<>
+    <ellipse cx="16" cy="21" rx="8" ry="6.5" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1.2" />
+    <ellipse cx="7" cy="11" rx="3" ry="4" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1" />
+    <ellipse cx="14" cy="7" rx="3" ry="4" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1" />
+    <ellipse cx="21" cy="7" rx="3" ry="4" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1" />
+    <ellipse cx="27" cy="12" rx="2.8" ry="3.6" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1" />
+  </>),
+  brain: (u) => (<>
+    <path d="M11 5a5 5 0 0 0-4 8 5 5 0 0 0 1 9 5 5 0 0 0 8 3 5 5 0 0 0 8-3 5 5 0 0 0 1-9 5 5 0 0 0-4-8 5 5 0 0 0-5 2 5 5 0 0 0-5-2z"
+      fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1.2" />
+    <path d="M16 6v20M11 10c2 1 3 3 2 5M22 10c-2 1-3 3-2 5M10 18c2 0 3 1 4 3M23 18c-2 0-3 1-4 3"
+      stroke={`url(#${u}-live)`} strokeWidth="1.3" fill="none" opacity="0.8" strokeLinecap="round" />
+  </>),
+  hammer: (u) => (<>
+    <rect x="13.2" y="12" width="3.6" height="17" rx="1.4" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1" />
+    <path d="M6 4h16l4 5-4 5H6l-4-5z" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1.2" />
+  </>),
+  reticle: (u) => (<>
+    <circle cx="16" cy="16" r="12" fill="none" stroke={`url(#${u}-body)`} strokeWidth="2.4" />
+    <circle cx="16" cy="16" r="5" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1" />
+    <path d="M16 1v6M16 25v6M1 16h6M25 16h6" stroke={`url(#${u}-live)`} strokeWidth="2.4" strokeLinecap="round" />
+  </>),
+  book: (u) => (<>
+    <path d="M16 8c-3-2-8-3-12-2v18c4-1 9 0 12 2z" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1.2" />
+    <path d="M16 8c3-2 8-3 12-2v18c-4-1-9 0-12 2z" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1.2" />
+    <path d="M16 8v18" stroke={DARK} strokeWidth="1" opacity="0.5" />
+  </>),
+  magnifier: (u) => (<>
+    <circle cx="14" cy="14" r="9" fill={`url(#${u}-live)`} opacity="0.35" stroke={`url(#${u}-body)`} strokeWidth="2.6" />
+    <path d="M21 21l7 7" stroke={`url(#${u}-body)`} strokeWidth="3.2" strokeLinecap="round" />
+  </>),
+  skull: (u) => (<>
+    <path d="M16 4a10 10 0 0 0-10 10c0 4 2 6 3 8h14c1-2 3-4 3-8A10 10 0 0 0 16 4z" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1.2" />
+    <ellipse cx="12" cy="15" rx="2.6" ry="3.2" fill={DARK} />
+    <ellipse cx="20" cy="15" rx="2.6" ry="3.2" fill={DARK} />
+    <path d="M14 22h1l1 2 1-2h1l1 2 1-2h1" fill="none" stroke={`url(#${u}-live)`} strokeWidth="1.3" />
+  </>),
+  boltPart: (u) => (<>
+    <path d="M16 3l11 6v14l-11 6-11-6V9z" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1.2" />
+    <circle cx="16" cy="16" r="6.5" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1" />
+    <circle cx="16" cy="16" r="2.4" fill={DARK} />
+  </>),
+  egg: (u) => (<>
+    <path d="M16 4C10 4 6 15 6 21a10 8 0 0 0 20 0c0-6-4-17-10-17z" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1.2" />
+    <path d="M11 15l3 3-2 3 4 4" fill="none" stroke="#ffffff" strokeWidth="1.3" opacity="0.55" strokeLinecap="round" />
+  </>),
+  hatchling: (u) => (<>
+    <path d="M16 6C11 6 8 14 8 19a8 7 0 0 0 16 0c0-5-3-13-8-13z" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1.2" />
+    <path d="M16 6l-4-4 6 1z" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1" />
+    <circle cx="19" cy="14" r="1.3" fill={DARK} />
+  </>),
+  ghost: (u) => (<>
+    <path d="M8 27V14a8 8 0 0 1 16 0v13l-3-3-2.5 3-2.5-3-2.5 3-2.5-3z" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1.2" opacity="0.92" />
+    <ellipse cx="12.5" cy="14" rx="1.7" ry="2.2" fill={DARK} />
+    <ellipse cx="19.5" cy="14" rx="1.7" ry="2.2" fill={DARK} />
+  </>),
+  orb: (u) => (<>
+    <circle cx="16" cy="17" r="10" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1.2" opacity="0.92" />
+    <ellipse cx="12.5" cy="13" rx="3" ry="2" fill="#ffffff" opacity="0.5" />
+    <rect x="10" y="27" width="12" height="3" rx="1.2" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1" />
+  </>),
+  ticket: (u) => (<>
+    <rect x="3" y="10" width="26" height="12" rx="2" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1.2" />
+    <circle cx="3" cy="16" r="3" fill="#0d141f" />
+    <circle cx="29" cy="16" r="3" fill="#0d141f" />
+    <path d="M18 10v12" stroke={DARK} strokeWidth="1" strokeDasharray="2 2" opacity="0.6" />
+    <path d="M6 16h9" stroke={`url(#${u}-live)`} strokeWidth="2" strokeLinecap="round" />
+  </>),
+  moneybag: (u) => (<>
+    <path d="M13 6h6l2 4c3 2 5 5 5 9a10 8 0 0 1-20 0c0-4 2-7 5-9z" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1.2" />
+    <path d="M12 6c0-2 2-3 4-3s4 1 4 3" fill="none" stroke={STEEL} strokeWidth="1.6" />
+    <path d="M16 15v9M13.5 17a3 3 0 0 1 5 2c0 2-2 2.5-2.5 2.5" fill="none" stroke={DARK} strokeWidth="1.2" opacity="0.6" />
+  </>),
+  trash: (u) => (<>
+    <path d="M8 10h16l-2 17a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2z" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1.2" />
+    <path d="M5 10h22M12 6h8l1.5 4h-11z" fill="none" stroke={DARK} strokeWidth="1.4" />
+    <path d="M13 14v10M16 14v10M19 14v10" stroke={`url(#${u}-live)`} strokeWidth="1.4" strokeLinecap="round" />
+  </>),
+  trident: (u) => (<>
+    <path d="M16 4v24" stroke={`url(#${u}-body)`} strokeWidth="2.6" />
+    <path d="M9 4v9M9 4h6M16 4h-1M23 4v9M23 4h-6" fill="none" stroke={`url(#${u}-live)`} strokeWidth="2.2" strokeLinecap="round" />
+    <path d="M9 13l7 8 7-8" fill="none" stroke={`url(#${u}-live)`} strokeWidth="2.2" strokeLinecap="round" />
+  </>),
+  tornado: (u) => (<>
+    <path d="M4 7h24M7 14h18M10 21h12M13 28h6" stroke={`url(#${u}-live)`} strokeWidth="2.6" strokeLinecap="round" opacity="0.95" />
+    <path d="M4 7h24" stroke={DARK} strokeWidth="0.8" opacity="0.4" />
+  </>),
+  waterdrop: (u) => (<>
+    <path d="M16 3c6 8 10 14 10 19a10 10 0 0 1-20 0c0-5 4-11 10-19z" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1.2" />
+    <ellipse cx="12.5" cy="18" rx="2.2" ry="3.2" fill="#ffffff" opacity="0.4" />
+  </>),
+  pickaxe: (u) => (<>
+    <path d="M4 12c6-8 18-8 24 0-8-2-16-2-24 0z" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1.2" />
+    <rect x="14.5" y="10" width="3" height="19" rx="1.3" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1" transform="rotate(8 16 20)" />
+  </>),
+  leaf: (u) => (<>
+    <path d="M6 26C4 14 12 5 26 4c1 14-8 22-20 22z" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1.2" />
+    <path d="M8 24C10 15 16 9 23 6" fill="none" stroke={DARK} strokeWidth="1.1" opacity="0.5" />
+  </>),
+  medal: (u) => (<>
+    <path d="M11 3h10l-3 11h-4z" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1" />
+    <circle cx="16" cy="20" r="9" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1.2" />
+    <path d="M16 15l2.4 4.6 5.1.7-3.7 3.6.9 5.1-4.7-2.5-4.7 2.5.9-5.1-3.7-3.6 5.1-.7z" fill="#ffffff" opacity="0.35" />
+  </>),
+  cog: (u) => (<>
+    <path d="M16 4l2 3.4 3.8-1.2 1 3.9 4 .4-1 3.9 3 2.6-3 2.6 1 3.9-4 .4-1 3.9-3.8-1.2L16 28l-2-3.4-3.8 1.2-1-3.9-4-.4 1-3.9-3-2.6 3-2.6-1-3.9 4-.4 1-3.9 3.8 1.2z"
+      fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1" />
+    <circle cx="16" cy="16" r="6" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1.1" />
+  </>),
+  chart: (u) => (<>
+    <path d="M4 28V6M4 28h24" stroke={DARK} strokeWidth="1.6" />
+    <rect x="8" y="18" width="4" height="10" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1" />
+    <rect x="15" y="12" width="4" height="16" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1" />
+    <rect x="22" y="8" width="4" height="20" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1" />
+  </>),
 };
 
 // ---- Second glyph set ------------------------------------------------------
@@ -1843,6 +2012,54 @@ export const ICONS = {
   gear:      ['shield', '#7cd6ff'],
   heart:     ['heart',  '#ff3146'],
   speed:     ['boot',   '#4dff91'],
+
+  // ---- General UI glyphs ---------------------------------------------------
+  // Tab labels, toasts, locked-state tags and reward-row icons that were
+  // still literal emoji (📦🔒🗺🚀🏛👤🐾🧠🔨🎯📚🔍💀🔩🥚👻🔮🎫💰🗑🔱🌪️),
+  // found by the no-emoji sweep. A handful reuse glyphs already built above
+  // (flame, star, shield, gem, coin, token, bolt, blade, rune, trophy) rather
+  // than redraw the same shape twice.
+  ui_lock:      ['lock',      '#ff5a5a'],
+  ui_chest:     ['chest',     '#ffb066'],
+  ui_scroll:    ['scroll',    '#e0c98a'],
+  ui_map:       ['map',       '#7ad9c8'],
+  ui_compass:   ['compass',   '#8fe6ff'],
+  ui_rocket:    ['rocket',    '#7cd6ff'],
+  ui_base:      ['pillars',   '#c8ccd4'],
+  ui_character: ['person',    '#8fe6ff'],
+  ui_pets:      ['paw',       '#ffb066'],
+  ui_skills:    ['brain',     '#b362ff'],
+  ui_smith:     ['hammer',    '#ffb066'],
+  ui_loadout:   ['reticle',   '#ff9a3c'],
+  ui_codex:     ['book',      '#e0c98a'],
+  ui_search:    ['magnifier', '#8fe6ff'],
+  ui_void:      ['skull',     '#b362ff'],
+  ui_part:      ['boltPart',  '#c8ccd4'],
+  ui_egg:       ['egg',       '#ffd9a0'],
+  ui_hatchling: ['hatchling', '#ffd9a0'],
+  ui_ghost:     ['ghost',     '#c8b8ff'],
+  ui_orb:       ['orb',       '#b362ff'],
+  ui_ticket:    ['ticket',    '#ff9933'],
+  ui_moneybag:  ['moneybag',  '#ffd166'],
+  ui_trash:     ['trash',     '#ff5a5a'],
+  ui_trident:   ['trident',   '#7cd6ff'],
+  ui_tornado:   ['tornado',   '#9fe8c8'],
+  ui_waterdrop: ['waterdrop', '#4dc4ff'],
+  ui_flame:     ['flame',     '#ff7a1a'],
+  ui_star:      ['star',      '#ffd166'],
+  ui_shield:    ['shield',    '#9fb4c8'],
+  ui_blade:     ['blade',     '#ff5a5a'],
+  ui_bolt:      ['bolt',      '#fff44d'],
+  ui_gem:       ['gem',       '#4dffd4'],
+  ui_coin:      ['coin',      '#ffd166'],
+  ui_token:     ['token',     '#ffcc00'],
+  ui_trophy:    ['trophy',    '#ffd166'],
+  ui_daggers:   ['daggerFan', '#b9f0ff'],
+  ui_pickaxe:   ['pickaxe',   '#e0c98a'],
+  ui_leaf:      ['leaf',      '#7ad96b'],
+  ui_medal:     ['medal',     '#ffd166'],
+  ui_cog:       ['cog',       '#c8ccd4'],
+  ui_chart:     ['chart',     '#8fe6ff'],
 };
 
 let uidCounter = 0;

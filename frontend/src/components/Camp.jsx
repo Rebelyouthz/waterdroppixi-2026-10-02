@@ -299,7 +299,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
     const reqNodeId = META_UNLOCK_REQS[upg.id];
     if (reqNodeId && !(save.skills[reqNodeId] >= 1)) {
       const reqNode = POE_INDEX[reqNodeId];
-      setToast(`🔒 Requires Skill Tree: ${reqNode?.name || reqNodeId}`);
+      setToast(`Requires Skill Tree: ${reqNode?.name || reqNodeId}`);
       setTimeout(() => setToast(''), 2000);
       return;
     }
@@ -491,7 +491,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
             <button
               className={`camp-attr-toggle ${attrOpen ? 'open' : ''} ${attrFreePts > 0 ? 'camp-attr-pulse' : ''}`}
               data-testid="camp-attr-points" onClick={() => setAttrOpen(o => !o)}>
-              ⚡ {attrFreePts} ATTR <span className="camp-attr-caret">{attrOpen ? '▲' : '▼'}</span>
+              <GameIcon name="ui_bolt" size={15} /> {attrFreePts} ATTR <span className="camp-attr-caret">{attrOpen ? '▲' : '▼'}</span>
             </button>
 
             {/* Third attempt at this panel, and the first two both failed for
@@ -516,7 +516,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
               <>
                 {/* The panel had no way out at all: portalled to <body> with no
                     close button, no backdrop and no Escape, while covering the
-                    ⚡ ATTR toggle that opened it. On a phone that is a dead end
+                    ATTR toggle that opened it. On a phone that is a dead end
                     — the only escape was reloading the page. Three exits now,
                     because on touch there is no Escape key and no hover. */}
                 <div
@@ -527,7 +527,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
                 />
                 <div className="camp-attr-panel" data-testid="camp-attr-dropdown" style={attrPanelStyle}>
                 <div className="char-attr-header">
-                  <span>⚡ ATTRIBUTES</span>
+                  <span><GameIcon name="ui_bolt" size={14} /> ATTRIBUTES</span>
                   <span className={`char-attr-free ${attrFreePts > 0 ? 'has' : ''}`}>{attrFreePts} pt{attrFreePts === 1 ? '' : 's'} free</span>
                   <button
                     className="camp-attr-close"
@@ -573,30 +573,30 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
                 <span className="camp-story-go">▸</span>
               </button>
             )}
-            <button className={`camp-tab ${tab==='campaign'?'active':''}`} onClick={() => setTab('campaign')} data-testid="tab-campaign" style={{position:'relative'}}>📜 CAMPAIGN {pathReady && <EyeBadge/>}</button>
-            <button className={`camp-tab ${tab === 'stats' ? 'active' : ''}`} onClick={() => setTab('stats')} data-testid="tab-stats">📊 STATS</button>
-            <button className={`camp-tab ${tab === 'starraid' ? 'active' : ''}`} onClick={() => setTab('starraid')} data-testid="tab-starraid">🚀 STAR RAID</button>
-            <button className="camp-tab" onClick={() => setBaseOpen(true)} data-testid="tab-base">🏛 THE BASE</button>
-            <button className="camp-tab" onClick={() => setProspectorOpen(true)} data-testid="tab-prospector">⛏ LOOTMINE</button>
+            <button className={`camp-tab ${tab==='campaign'?'active':''}`} onClick={() => setTab('campaign')} data-testid="tab-campaign" style={{position:'relative'}}><GameIcon name="ui_scroll" size={15} /> CAMPAIGN {pathReady && <EyeBadge/>}</button>
+            <button className={`camp-tab ${tab === 'stats' ? 'active' : ''}`} onClick={() => setTab('stats')} data-testid="tab-stats"><GameIcon name="ui_chart" size={15} /> STATS</button>
+            <button className={`camp-tab ${tab === 'starraid' ? 'active' : ''}`} onClick={() => setTab('starraid')} data-testid="tab-starraid"><GameIcon name="ui_rocket" size={15} /> STAR RAID</button>
+            <button className="camp-tab" onClick={() => setBaseOpen(true)} data-testid="tab-base"><GameIcon name="ui_base" size={15} /> THE BASE</button>
+            <button className="camp-tab" onClick={() => setProspectorOpen(true)} data-testid="tab-prospector"><GameIcon name="ui_pickaxe" size={15} /> LOOTMINE</button>
             <button className="camp-tab" onClick={() => setClickerOpen(true)} data-testid="tab-clicker" style={{ position: 'relative' }}>
-              💧 THE WELL {clickerReady > 0 && <EyeBadge />}
+              <GameIcon name="ui_waterdrop" size={15} /> THE WELL {clickerReady > 0 && <EyeBadge />}
             </button>
             <div className="camp-tab-divider" />
-            <button className="camp-tab" onClick={() => setCharacterOpen(true)} data-testid="tab-character">👤 CHARACTER</button>
-            <button className="camp-tab" onClick={() => setPetOpen(true)} data-testid="tab-pets">🐾 PETS</button>
-            <button className="camp-tab" onClick={() => setTalentOpen(true)} data-testid="tab-talent">🌿 TALENTS</button>
-            <button className="camp-tab" onClick={() => setSkillOpen(true)} data-testid="open-skills">🧠 SKILLS</button>
-            <button className={`camp-tab ${tab==='cards'?'active':''}`} onClick={() => setTab('cards')} data-testid="tab-cards">💠 META</button>
-            <button className={`camp-tab ${tab==='gear'?'active':''}`} onClick={() => setTab('gear')} data-testid="tab-gear">🪖 GEAR</button>
-            <button className={`camp-tab ${tab==='pass'?'active':''}`} onClick={() => setTab('pass')} data-testid="tab-pass" style={{position:'relative'}}>🎖 SEASON PASS {passNew && <EyeBadge/>}</button>
-            <button className={`camp-tab ${tab==='patrol'?'active':''}`} onClick={() => setTab('patrol')} data-testid="tab-patrol" style={{position:'relative'}}>🗺 PATROL {patrolNew && <EyeBadge/>}</button>
-            <button className={`camp-tab ${tab==='codex'?'active':''}`} onClick={() => setTab('codex')} data-testid="tab-codex" style={{position:'relative'}}>📚 CODEX {(codexNew || achNew) && <EyeBadge/>}</button>
+            <button className="camp-tab" onClick={() => setCharacterOpen(true)} data-testid="tab-character"><GameIcon name="ui_character" size={15} /> CHARACTER</button>
+            <button className="camp-tab" onClick={() => setPetOpen(true)} data-testid="tab-pets"><GameIcon name="ui_pets" size={15} /> PETS</button>
+            <button className="camp-tab" onClick={() => setTalentOpen(true)} data-testid="tab-talent"><GameIcon name="ui_leaf" size={15} /> TALENTS</button>
+            <button className="camp-tab" onClick={() => setSkillOpen(true)} data-testid="open-skills"><GameIcon name="ui_skills" size={15} /> SKILLS</button>
+            <button className={`camp-tab ${tab==='cards'?'active':''}`} onClick={() => setTab('cards')} data-testid="tab-cards"><GameIcon name="ui_gem" size={15} /> META</button>
+            <button className={`camp-tab ${tab==='gear'?'active':''}`} onClick={() => setTab('gear')} data-testid="tab-gear"><GameIcon name="gear" size={15} /> GEAR</button>
+            <button className={`camp-tab ${tab==='pass'?'active':''}`} onClick={() => setTab('pass')} data-testid="tab-pass" style={{position:'relative'}}><GameIcon name="ui_medal" size={15} /> SEASON PASS {passNew && <EyeBadge/>}</button>
+            <button className={`camp-tab ${tab==='patrol'?'active':''}`} onClick={() => setTab('patrol')} data-testid="tab-patrol" style={{position:'relative'}}><GameIcon name="ui_map" size={15} /> PATROL {patrolNew && <EyeBadge/>}</button>
+            <button className={`camp-tab ${tab==='codex'?'active':''}`} onClick={() => setTab('codex')} data-testid="tab-codex" style={{position:'relative'}}><GameIcon name="ui_codex" size={15} /> CODEX {(codexNew || achNew) && <EyeBadge/>}</button>
             <div className="camp-tab-divider" />
-            <button className="camp-tab" onClick={() => setShopOpen(true)} data-testid="open-card-shop">🎰 CARD SHOP</button>
-            <button className="camp-tab" onClick={() => setForgeOpen(true)} data-testid="open-forge">🔨 SMITH</button>
-            <button className="camp-tab" onClick={() => setChestOpen(true)} data-testid="open-chest">📦 CHESTS</button>
-            <button className="camp-tab" onClick={() => setLoadoutOpen(true)} data-testid="open-loadout">🎯 LOADOUT</button>
-            <button className="camp-tab" onClick={() => setSettingsOpen(true)} data-testid="open-settings">⚙ SETTINGS</button>
+            <button className="camp-tab" onClick={() => setShopOpen(true)} data-testid="open-card-shop"><GameIcon name="ui_token" size={15} /> CARD SHOP</button>
+            <button className="camp-tab" onClick={() => setForgeOpen(true)} data-testid="open-forge"><GameIcon name="ui_smith" size={15} /> SMITH</button>
+            <button className="camp-tab" onClick={() => setChestOpen(true)} data-testid="open-chest"><GameIcon name="ui_chest" size={15} /> CHESTS</button>
+            <button className="camp-tab" onClick={() => setLoadoutOpen(true)} data-testid="open-loadout"><GameIcon name="ui_loadout" size={15} /> LOADOUT</button>
+            <button className="camp-tab" onClick={() => setSettingsOpen(true)} data-testid="open-settings"><GameIcon name="ui_cog" size={15} /> SETTINGS</button>
           </div>
         </div>
 
@@ -628,7 +628,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
                   return (
                     <div className={`upgrade-card ${maxed ? 'maxed' : ''} ${isLocked ? 'meta-locked' : ''} ${popCard === upg.id ? 'card-pop' : ''}`} key={upg.id} data-testid={`meta-${upg.id}`}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div className="name">{upg.icon} {upg.name}</div>
+                        <div className="name"><GameIcon name={upg.icon} size={15} /> {upg.name}</div>
                         <div className="lvl">{lvl}/{upg.max}</div>
                       </div>
                       {upg.max > 20 ? (
@@ -652,7 +652,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
                       <div className="desc">{upg.desc}</div>
                       {isLocked ? (
                         <div className="meta-lock-msg" data-testid={`meta-lock-${upg.id}`}>
-                          🔒 Unlock in Skill Tree: <em>{reqNodeName}</em>
+                          <GameIcon name="ui_lock" size={13} /> Unlock in Skill Tree: <em>{reqNodeName}</em>
                         </div>
                       ) : maxed ? (
                         <div style={{ color: 'var(--accent-2)', fontFamily: 'VT323', letterSpacing: '0.2em' }}>MAX</div>
@@ -669,10 +669,10 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
           {tab === 'campaign' && (
             <>
               <div className="gear-tabs" style={{ marginBottom: 12 }}>
-                <button className={`gear-tab ${campaignSub === 'campaign' ? 'active' : ''}`} onClick={() => setCampaignSub('campaign')} data-testid="tab-campaign-story">📜 STORY</button>
-                <button className={`gear-tab ${campaignSub === 'maps' ? 'active' : ''}`} onClick={() => setCampaignSub('maps')} data-testid="tab-maps">🗺 MAPS</button>
-                <button className={`gear-tab ${campaignSub === 'missions' ? 'active' : ''}`} onClick={() => setCampaignSub('missions')} data-testid="tab-missions">📋 MISSIONS</button>
-                <button className={`gear-tab ${campaignSub === 'challenges' ? 'active' : ''}`} onClick={() => setCampaignSub('challenges')} data-testid="tab-challenges">🏆 CHALLENGES</button>
+                <button className={`gear-tab ${campaignSub === 'campaign' ? 'active' : ''}`} onClick={() => setCampaignSub('campaign')} data-testid="tab-campaign-story"><GameIcon name="ui_scroll" size={14} /> STORY</button>
+                <button className={`gear-tab ${campaignSub === 'maps' ? 'active' : ''}`} onClick={() => setCampaignSub('maps')} data-testid="tab-maps"><GameIcon name="ui_map" size={14} /> MAPS</button>
+                <button className={`gear-tab ${campaignSub === 'missions' ? 'active' : ''}`} onClick={() => setCampaignSub('missions')} data-testid="tab-missions"><GameIcon name="ui_scroll" size={14} /> MISSIONS</button>
+                <button className={`gear-tab ${campaignSub === 'challenges' ? 'active' : ''}`} onClick={() => setCampaignSub('challenges')} data-testid="tab-challenges"><GameIcon name="ui_trophy" size={14} /> CHALLENGES</button>
               </div>
               {campaignSub === 'campaign' && <CampaignPanel save={save} setSave={setSave} />}
               {campaignSub === 'maps' && <MapsPanel save={save} setSave={setSave} onStart={(cfg) => onMission(cfg)} />}
@@ -691,7 +691,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
             <>
               <div className="camp-header"><h1>Patrol</h1><div className="camp-header-sub">Send on missions while you're away · Active pet gives +20% reward</div></div>
               <button className="expl-launch" onClick={() => setExplorationOpen(true)} data-testid="explore-launch">
-                🧭 EXPLORE — a short, active walk. Loot, a fight, and one trainer worth wagering on.
+                <GameIcon name="ui_compass" size={15} /> EXPLORE — a short, active walk. Loot, a fight, and one trainer worth wagering on.
               </button>
               <PatrolPanel save={save} setSave={setSave} />
             </>
@@ -701,11 +701,11 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
             <>
               <div className="camp-header"><h1>Star Raid</h1><div className="camp-header-sub">One-thumb space raid — earn Scrap for ship upgrades and Gacha Tokens for artifacts</div></div>
               <div style={{ padding: 20, textAlign: 'center' }}>
-                <div style={{ fontSize: 48, marginBottom: 10 }}>🚀</div>
+                <div style={{ marginBottom: 10, display: 'flex', justifyContent: 'center' }}><GameIcon name="ui_rocket" size={48} /></div>
                 <div style={{ fontFamily: 'VT323', color: 'var(--ink-dim)', marginBottom: 16 }}>
                   Fly, autofire, and dodge through 3 stages. Clear the final stage for a Gacha Token.
                 </div>
-                <button className="go-btn go-btn-retry" onClick={onStarRaid} data-testid="starraid-launch-camp">🚀 LAUNCH STAR RAID</button>
+                <button className="go-btn go-btn-retry" onClick={onStarRaid} data-testid="starraid-launch-camp"><GameIcon name="ui_rocket" size={15} /> LAUNCH STAR RAID</button>
               </div>
             </>
           )}
@@ -727,8 +727,8 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
           {tab === 'codex' && (
             <>
               <div className="gear-tabs" style={{ marginBottom: 12 }}>
-                <button className={`gear-tab ${codexSub === 'codex' ? 'active' : ''}`} onClick={() => setCodexSub('codex')} data-testid="tab-codex-sub">📚 CODEX</button>
-                <button className={`gear-tab ${codexSub === 'achievements' ? 'active' : ''}`} onClick={() => setCodexSub('achievements')} data-testid="tab-ach" style={{ position: 'relative' }}>🎖 ACHIEVEMENTS {achNew && <EyeBadge />}</button>
+                <button className={`gear-tab ${codexSub === 'codex' ? 'active' : ''}`} onClick={() => setCodexSub('codex')} data-testid="tab-codex-sub"><GameIcon name="ui_codex" size={14} /> CODEX</button>
+                <button className={`gear-tab ${codexSub === 'achievements' ? 'active' : ''}`} onClick={() => setCodexSub('achievements')} data-testid="tab-ach" style={{ position: 'relative' }}><GameIcon name="ui_medal" size={14} /> ACHIEVEMENTS {achNew && <EyeBadge />}</button>
                 <button className={`gear-tab ${codexSub === 'milestones' ? 'active' : ''}`} onClick={() => setCodexSub('milestones')} data-testid="tab-milestones">⭐ MILESTONES</button>
               </div>
               {codexSub === 'codex' && (<>
@@ -747,7 +747,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
                       const claimed = save.milestones.claimed[m.id];
                       return (
                         <div className="upgrade-card" key={m.id} data-testid={`ms-${m.id}`}>
-                          <div className="name">🏆 {m.name}</div>
+                          <div className="name"><GameIcon name="ui_trophy" size={14} /> {m.name}</div>
                           <div className="desc">{m.desc}</div>
                           <div className="hud-xpbar" style={{ width: '100%' }}><div className="hud-xpbar-fill" style={{ width: pct + '%' }} /></div>
                           <div className="lvl">{Math.min(val, m.goal)} / {m.goal}</div>
@@ -826,7 +826,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
               onClick={() => pathGo('smithBlueprints')}
               title="Change your start weapon"
             >
-              <span className="ccc-icon">{(WEAPONS[resolveStartWeapon(save)] || {}).icon || '💧'}</span>
+              <span className="ccc-icon"><GameIcon name={resolveStartWeapon(save)} size={20} /></span>
               <span className="ccc-name">{(WEAPONS[resolveStartWeapon(save)] || {}).name || 'Hydro Pistol'}</span>
             </button>
             <button onClick={onStart} data-testid="camp-fight"
