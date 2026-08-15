@@ -843,6 +843,25 @@ export const ENEMIES = {
     id: 'sludgeWarden', name: 'Silt Warden', size: 38, hp: 220, dmg: 20, speed: 52, color: '#8a9c3a',
     xp: 25, gold: 20, ai: 'boss', boss: true, shootCD: 2.0,
   },
+  // pond_2's ("Ripples") own cast — same forceBaseline katana-only shape as
+  // pond_1, same HP math (see sludgeling's comment above), just a harder
+  // trio: a quick 2-hit swarmer, a tankier 4-hit brute, and a nastier
+  // 12-hit guardian.
+  briner: {
+    // 48*3=144: 88*1=88 doesn't kill it, 88*2=176 does. Two hits.
+    id: 'briner', name: 'Briner', size: 17, hp: 48, dmg: 18, speed: 70, color: '#4ec9a8',
+    xp: 3, gold: 2, ai: 'chase',
+  },
+  bogHusk: {
+    // 105*3=315: 88*3=264 doesn't kill it, 88*4=352 does. Four hits.
+    id: 'bogHusk', name: 'Bog Husk', size: 24, hp: 105, dmg: 28, speed: 50, color: '#7a6a3a',
+    xp: 4, gold: 3, ai: 'chase',
+  },
+  theDredger: {
+    // 335*3=1005: 88*11=968 doesn't kill it, 88*12=1056 does. Twelve hits.
+    id: 'theDredger', name: 'The Dredger', size: 42, hp: 335, dmg: 24, speed: 48, color: '#c98a2f',
+    xp: 38, gold: 30, ai: 'boss', boss: true, shootCD: 1.8,
+  },
   bat: {
     id: 'bat', name: 'Voidbat', size: 14, hp: 28, dmg: 12, speed: 126, color: '#b362ff',
     xp: 2, gold: 1, ai: 'chase',

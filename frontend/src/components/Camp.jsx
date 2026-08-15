@@ -117,29 +117,57 @@ const openChest = (chestId) => {
   return c ? rollChest(c, 0.5) : [];
 };
 
-// The one-time "why build the camp" briefing. Timmy retired the combat
-// tutorial — a fresh save now lands straight in the (mostly locked) camp,
-// so it needs its own explanation for why the first thing to do is build a
-// camp instead of fight. English, continuing the dry, dark-humor voice
-// AIDA_INTRO's "THE DROP" already speaks in (IntroDialogue.jsx) — this is
-// the same character, one scene later.
-const CAMP_BRIEFING_LINES = [
-  "Half a hull, some crates, and whatever didn't melt on the way down. This is the camp.",
-  "Somewhere in that wreck is a black box with a location burned into it. Somebody wrote that down on purpose.",
-  "Nirvana to this. There's a joke in there and you're too wet to laugh at it.",
-  "Nav array's dead. Lights are dead. Everything here is dead except you, technically.",
-  "Fix that first. Bleed on some things, bring back what they drop, get the camp running.",
-  "Then go ask your new friends some very pointed questions.",
-];
+// The one-time "why build the camp" briefings, one per pond stage. Timmy
+// retired the combat tutorial — a fresh save now lands straight in the
+// (mostly locked) camp, so each stage needs its own explanation for why
+// there's more building to do before the next fight. English, continuing
+// the dry, dark-humor voice AIDA_INTRO's "THE DROP" already speaks in
+// (IntroDialogue.jsx) — this is the same character, one scene later each
+// time. Keyed by `campUnlockStage(save)` — stage 0 (nothing cleared) shows
+// the first, stage 1 (pond_1 cleared, pond_2 next) shows the second, and so
+// on; a stage with no entry here just doesn't show a briefing.
+const CAMP_BRIEFINGS = {
+  0: {
+    kicker: 'SITREP',
+    title: 'So. This is the camp.',
+    lines: [
+      "Half a hull, some crates, and whatever didn't melt on the way down. This is the camp.",
+      "Somewhere in that wreck is a black box with a location burned into it. Somebody wrote that down on purpose.",
+      "Nirvana to this. There's a joke in there and you're too wet to laugh at it.",
+      "Nav array's dead. Lights are dead. Everything here is dead except you, technically.",
+      "Fix that first. Bleed on some things, bring back what they drop, get the camp running.",
+      "Then go ask your new friends some very pointed questions.",
+    ],
+    cta: 'FIRST DROPS ▸',
+  },
+  1: {
+    kicker: 'SITREP // UPDATE',
+    title: 'Ripples. Someone noticed.',
+    lines: [
+      "Word travels through mud faster than it does through water. Whatever's out there heard the Warden go down.",
+      "Good news: the nav array's got power now. Bad news: so does whatever's coming to check on it.",
+      "Two more rooms to wire up before this camp does anything you'd call useful. Meta upgrades. Skills. Talents. Don't ask what half the buttons do yet.",
+      "The company's gotten uglier, and something out there learned to duck.",
+      "Five minutes this time. Try not to bleed out before the interesting part.",
+    ],
+    cta: 'RIPPLES ▸',
+  },
+};
 
 export default function Camp({ save, setSave, onBack, onStart, onMission, onStory, onStarRaid }) {
   const storyNode = nextCampaignNode(save);
-  // Shown once, only in the "nothing built yet" window the tab-hiding
-  // cascade also uses — never re-fires once dismissed. Never blocks: both
-  // buttons dismiss it, one of them just also starts the mission.
-  const showBriefing = campUnlockStage(save) === 0 && !save.campBriefingSeen;
+  // Shown once per stage — never re-fires once dismissed for that stage.
+  // Never blocks: both buttons dismiss it, one of them just also starts
+  // the mission. Old saves may carry the pre-migration boolean
+  // `campBriefingSeen: true`; treated as "stage 0 already seen".
+  const briefSeen = typeof save.campBriefingSeen === 'object' && save.campBriefingSeen
+    ? save.campBriefingSeen
+    : (save.campBriefingSeen ? { 0: true } : {});
+  const briefStage = campUnlockStage(save);
+  const briefing = CAMP_BRIEFINGS[briefStage];
+  const showBriefing = !!briefing && !briefSeen[briefStage];
   const dismissBriefing = (thenStory) => {
-    setSave({ ...save, campBriefingSeen: true });
+    setSave({ ...save, campBriefingSeen: { ...briefSeen, [briefStage]: true } });
     if (thenStory && onStory) onStory();
   };
   // Camp starts locked and opens up panel by panel as the Rain Pool nodes
@@ -513,14 +541,14 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
         {showBriefing && createPortal(
           <div className="camp-brief-overlay" data-testid="camp-briefing">
             <div className="camp-brief-card">
-              <div className="camp-brief-kicker">SITREP</div>
-              <div className="camp-brief-title">So. This is the camp.</div>
+              <div className="camp-brief-kicker">{briefing.kicker}</div>
+              <div className="camp-brief-title">{briefing.title}</div>
               <div className="camp-brief-body">
-                {CAMP_BRIEFING_LINES.map((line, i) => <p key={i}>{line}</p>)}
+                {briefing.lines.map((line, i) => <p key={i}>{line}</p>)}
               </div>
               <div className="camp-brief-actions">
                 <button className="camp-brief-skip" onClick={() => dismissBriefing(false)} data-testid="camp-briefing-skip">Look around first</button>
-                <button className="camp-brief-go" onClick={() => dismissBriefing(true)} data-testid="camp-briefing-go">FIRST DROPS ▸</button>
+                <button className="camp-brief-go" onClick={() => dismissBriefing(true)} data-testid="camp-briefing-go">{briefing.cta}</button>
               </div>
             </div>
           </div>,

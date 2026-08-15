@@ -830,7 +830,12 @@ export const MAP_STAGES = [
       // 600g) on its own, no chest RNG required — that purchase is what
       // fires the camp's first unlock batch (Meta/Skilltree/Talents).
       { id: 'pond_1', name: 'First Drops',  diff: 0, duration: 250, spawnMult: 0.45, enemyMix: ['slime','sludgeling'], rwd: { gold: 700 }, unlockGoal: null, forceBaseline: true, startWeapons: ['katana'], bossId: 'sludgeWarden' },
-      { id: 'pond_2', name: 'Ripples',      diff: 0, duration: 200, spawnMult: 0.62, enemyMix: ['slime','bat'],   rwd: { gold: 240 },          unlockGoal: 'pond_1' },
+      // Same scripted shape as pond_1, one notch harder — 'briner'/'bogHusk'/
+      // 'theDredger' (data.js) die in 2/4/12 katana hits at this same forced
+      // baseline. Duration bumped 200->420 so bossGateTime lands near 300s
+      // (5 minutes), per Timmy's "5 min sen boss". Gold bumped 240->900 so a
+      // clear can afford a second building purchase on its own.
+      { id: 'pond_2', name: 'Ripples',      diff: 0, duration: 420, spawnMult: 0.55, enemyMix: ['briner','bogHusk'], rwd: { gold: 900 }, unlockGoal: 'pond_1', forceBaseline: true, startWeapons: ['katana'], bossId: 'theDredger' },
       { id: 'pond_3', name: 'The Overflow', diff: 1, duration: 250, spawnMult: 0.85, enemyMix: ['slime','bat'],   rwd: { gold: 420, sp: 1 },   unlockGoal: 'pond_2' },
     ],
   },
