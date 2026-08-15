@@ -405,7 +405,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
           <div className={`meta-burst${metaBurst.count > 1 ? ' is-batch' : ''}`}
             key={`${metaBurst.upgId}-${metaBurst.count}`}
             style={{ left: metaBurst.x, top: metaBurst.y }} data-testid="meta-burst">
-            <div className="meta-burst-icon">{metaBurst.icon}</div>
+            <div className="meta-burst-icon"><GameIcon name={metaBurst.icon} size={26} /></div>
             <div className="meta-burst-name">{metaBurst.name}</div>
             {/* The end of the batch is read LIVE from the save, so it is right
                 however many clicks landed before React committed. */}
@@ -569,7 +569,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
             {storyNode && (
               <button className="camp-story-btn" onClick={onStory} data-testid="continue-story">
                 <span className="camp-story-kicker">CONTINUE STORY</span>
-                <span className="camp-story-node">{storyNode.mapIcon} {storyNode.mapName} — {storyNode.name}</span>
+                <span className="camp-story-node"><GameIcon name={storyNode.mapIcon} size={13} /> {storyNode.mapName} — {storyNode.name}</span>
                 <span className="camp-story-go">▸</span>
               </button>
             )}

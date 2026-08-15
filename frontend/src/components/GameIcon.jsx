@@ -1183,6 +1183,71 @@ const GLYPHS = {
     <rect x="15" y="12" width="4" height="16" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1" />
     <rect x="22" y="8" width="4" height="20" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1" />
   </>),
+
+  // ---- Weapon-part slot glyphs (Weaponsmith / Forge) -----------------------
+  // Five slots keyed 1:1 to PART_SLOT_INFO in game/data_ext2.js. `sight`
+  // reuses `reticle` and `magazine` reuses `mag` above rather than redrawing.
+  partBarrel: (u) => (<>
+    <rect x="4" y="13" width="22" height="6" rx="1.4" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1.2" />
+    <rect x="24" y="12" width="5" height="8" rx="1" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1" />
+    <circle cx="27" cy="16" r="1.6" fill={DARK} />
+    <path d="M4 14h20" stroke="#ffffff" strokeWidth="1" opacity="0.4" />
+  </>),
+  partMuzzle: (u) => (<>
+    <circle cx="16" cy="16" r="11" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1.2" />
+    <circle cx="16" cy="16" r="5.5" fill="#05070d" stroke={DARK} strokeWidth="1" />
+    {[0, 60, 120, 180, 240, 300].map(a => (
+      <rect key={a} x="15" y="4" width="2" height="5" fill={`url(#${u}-live)`} transform={`rotate(${a} 16 16)`} />
+    ))}
+  </>),
+  partStock: (u) => (<>
+    <path d="M5 12h9v4h6l4-3v10l-4-3h-6v4H5z" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1.2" />
+    <path d="M14 12v12" stroke={DARK} strokeWidth="1" opacity="0.4" />
+    <path d="M20 16h4" stroke={`url(#${u}-live)`} strokeWidth="1.6" />
+  </>),
+  partBullet: (u) => (<>
+    <path d="M11 6h6l3 6v14H8V12z" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1.2" />
+    <path d="M8 16h12" stroke={DARK} strokeWidth="1" opacity="0.5" />
+    <path d="M11 6h6l2 4h-10z" fill={`url(#${u}-live)`} />
+  </>),
+  partGrip: (u) => (<>
+    <path d="M10 4h9v10l4 4v9a2 2 0 0 1-2 2h-7a2 2 0 0 1-2-2v-7H9a2 2 0 0 1-2-2V9a5 5 0 0 1 3-5z"
+      fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1.2" />
+    <path d="M10 12h9" stroke={`url(#${u}-live)`} strokeWidth="1.6" opacity="0.85" />
+  </>),
+
+  clock: (u) => (<>
+    <circle cx="16" cy="17" r="12" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1.2" />
+    <circle cx="16" cy="17" r="12" fill="none" stroke={STEEL_HI} strokeWidth="1" opacity="0.4" />
+    <path d="M16 9v8l6 4" fill="none" stroke={`url(#${u}-live)`} strokeWidth="2.2" strokeLinecap="round" />
+    <rect x="13" y="2" width="6" height="3" rx="1" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1" />
+  </>),
+  infinity: (u) => (<>
+    <path d="M9 16a5 5 0 1 0 5 5c0-6 4-10 9-10a5 5 0 1 1-5 5c0 6-4 10-9 10a5 5 0 0 1 0-10z"
+      fill="none" stroke={`url(#${u}-body)`} strokeWidth="4" strokeLinecap="round" />
+    <path d="M9 16a5 5 0 1 0 5 5c0-6 4-10 9-10a5 5 0 1 1-5 5c0 6-4 10-9 10a5 5 0 0 1 0-10z"
+      fill="none" stroke={`url(#${u}-live)`} strokeWidth="1.6" strokeLinecap="round" />
+  </>),
+  eye: (u) => (<>
+    <path d="M2 16c4-7 10-10 14-10s10 3 14 10c-4 7-10 10-14 10S6 23 2 16z" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1.2" />
+    <circle cx="16" cy="16" r="7" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1.1" />
+    <circle cx="16" cy="16" r="3" fill={DARK} />
+    <circle cx="14" cy="14" r="1.2" fill="#ffffff" opacity="0.7" />
+  </>),
+  calendar: (u) => (<>
+    <rect x="4" y="6" width="24" height="22" rx="2" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1.2" />
+    <rect x="4" y="6" width="24" height="6" fill={`url(#${u}-live)`} />
+    <rect x="9" y="2" width="2.6" height="7" rx="1" fill={STEEL_HI} />
+    <rect x="20.4" y="2" width="2.6" height="7" rx="1" fill={STEEL_HI} />
+    {[[9,17],[15,17],[21,17],[9,22],[15,22],[21,22]].map(([x,y],i) => (
+      <rect key={i} x={x} y={y} width="4" height="3.4" fill={i===0 ? `url(#${u}-live)` : STEEL_LO} stroke={DARK} strokeWidth="0.6" />
+    ))}
+  </>),
+  cards: (u) => (<>
+    <rect x="4" y="10" width="16" height="20" rx="2" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1.2" transform="rotate(-8 12 20)" />
+    <rect x="12" y="8" width="16" height="20" rx="2" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1.2" />
+    <circle cx="20" cy="14" r="2.4" fill="#ffffff" opacity="0.55" />
+  </>),
 };
 
 // ---- Second glyph set ------------------------------------------------------
@@ -2060,6 +2125,18 @@ export const ICONS = {
   ui_medal:     ['medal',     '#ffd166'],
   ui_cog:       ['cog',       '#c8ccd4'],
   ui_chart:     ['chart',     '#8fe6ff'],
+  part_barrel:  ['partBarrel', '#c8ccd4'],
+  part_magazine:['mag',        '#ffd166'],
+  part_sight:   ['reticle',    '#8fe6ff'],
+  part_muzzle:  ['partMuzzle', '#ff9a3c'],
+  part_stock:   ['partStock',  '#e0c98a'],
+  part_bullets: ['partBullet', '#ff7a1a'],
+  part_grip:    ['partGrip',   '#b9a48a'],
+  ui_clock:     ['clock',      '#8fe6ff'],
+  ui_infinity:  ['infinity',   '#b362ff'],
+  ui_eye:       ['eye',        '#b362ff'],
+  ui_calendar:  ['calendar',   '#7ad9c8'],
+  ui_cards:     ['cards',      '#ff9a3c'],
 };
 
 let uidCounter = 0;

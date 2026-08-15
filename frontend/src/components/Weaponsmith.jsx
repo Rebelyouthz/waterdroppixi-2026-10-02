@@ -246,7 +246,7 @@ export default function Weaponsmith({ save, setSave, onClose, initialSub }) {
             {setProgress(ownedForSyn).map(({ set, missing, complete, matched }) => (
               <div key={set.id} className={`syn-row${complete ? ' done' : ''}`} style={{ '--sc': set.accent }}
                    data-testid={`syn-${set.id}`}>
-                <span className="syn-icon">{set.icon}</span>
+                <span className="syn-icon"><GameIcon name={set.icon} size={20} /></span>
                 <div className="syn-body">
                   <div className="syn-name">
                     {set.name}
@@ -346,7 +346,7 @@ export default function Weaponsmith({ save, setSave, onClose, initialSub }) {
                       style={{ fontSize: 11, padding: '6px 8px', borderColor: on ? el.color : undefined, opacity: full ? 0.4 : 1 }}
                       title={el.desc}
                     >
-                      <div style={{ color: el.color }}>{el.icon} {el.name}</div>
+                      <div style={{ color: el.color, display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'center' }}><GameIcon name={el.icon} size={14} /> {el.name}</div>
                       {on && <div style={{ fontSize: 10, color: 'var(--rune)' }}>✓ active</div>}
                     </button>
                   );

@@ -6434,7 +6434,16 @@
 .lu-canvas {
   width: 100% !important;
   height: auto !important;
-  max-width: 1180px;
+  /* Zoomed out from the canvas's own native size (was max-width: 1180px) —
+     Timmy's read on the PixiJS card rewrite was that the ART is right but it
+     displays much bigger than the old CSS cards ever did. Nothing about the
+     cards changed to get here: same CARD.W/H in cardRenderer.js, same paint
+     code in cardArt.js — this is purely "the same picture shown smaller",
+     the CSS display-size lever the file comment above already earmarks for
+     exactly this kind of tuning. Smaller on-screen size is also a free win
+     for the chunky half-res pixel look: more source pixels land in each
+     screen pixel, so the graininess reads as texture instead of blockiness. */
+  max-width: 820px;
   display: block;
   /* The frame layer is drawn at half resolution and upscaled on purpose — the
      chunky pixel look Timmy built the reference with. Smoothing it here would

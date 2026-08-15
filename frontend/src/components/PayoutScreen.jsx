@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { REWARD_TIERS } from '../game/campaign';
 import { Audio } from '../game/audio';
+import GameIcon from './GameIcon';
 
 // =============================================
 // PAYOUT SCREEN — what the run actually paid
@@ -117,7 +118,7 @@ export default function PayoutScreen({ payout, onClose }) {
 
         <div className="payout-head">
           <span className="payout-node" style={{ color: node.mapColor }}>
-            {node.mapIcon} {node.mapName} — {node.name}
+            <GameIcon name={node.mapIcon} size={14} /> {node.mapName} — {node.name}
           </span>
           <h2 className={`payout-tier t${tier}`}>{REWARD_TIERS[tier].label}</h2>
         </div>

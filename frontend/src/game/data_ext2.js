@@ -102,14 +102,15 @@ export const PART_SLOTS = ['barrel', 'magazine', 'sight', 'muzzle', 'stock', 'bu
 export const PART_RARITIES = ['common', 'magic', 'rare', 'epic', 'legendary', 'mythical'];
 export const PART_RARITY_COLORS = { common: '#9a8fa6', magic: '#4dc4ff', rare: '#ffd166', epic: '#b362ff', legendary: '#ff7a1a', mythical: '#ff3146' };
 export const PART_RARITY_MULT  = { common: 1.0, magic: 1.5, rare: 2.1, epic: 2.9, legendary: 4.0, mythical: 6.0 };
+// `icon` is a GameIcon id (part_* in GameIcon.jsx's ICONS table), not emoji.
 export const PART_SLOT_INFO = {
-  barrel:   { icon: '🔫', primary: 'damage', secondary: ['range', 'projSpeed'] },
-  magazine: { icon: '📦', primary: 'magBonus', secondary: ['reloadMult', 'magBonus'] },
-  sight:    { icon: '🎯', primary: 'crit', secondary: ['critd', 'headshot'] },
-  muzzle:   { icon: '💢', primary: 'fireRate', secondary: ['knockback', 'spreadReduce'] },
-  stock:    { icon: '🪵', primary: 'recoil', secondary: ['atks', 'reloadMult'] },
-  bullets:  { icon: '🔸', primary: 'pierce', secondary: ['damage', 'burn', 'shock'] },
-  grip:     { icon: '🪢', primary: 'mspd', secondary: ['atks', 'reloadMult'] },
+  barrel:   { icon: 'part_barrel', primary: 'damage', secondary: ['range', 'projSpeed'] },
+  magazine: { icon: 'part_magazine', primary: 'magBonus', secondary: ['reloadMult', 'magBonus'] },
+  sight:    { icon: 'part_sight', primary: 'crit', secondary: ['critd', 'headshot'] },
+  muzzle:   { icon: 'part_muzzle', primary: 'fireRate', secondary: ['knockback', 'spreadReduce'] },
+  stock:    { icon: 'part_stock', primary: 'recoil', secondary: ['atks', 'reloadMult'] },
+  bullets:  { icon: 'part_bullets', primary: 'pierce', secondary: ['damage', 'burn', 'shock'] },
+  grip:     { icon: 'part_grip', primary: 'mspd', secondary: ['atks', 'reloadMult'] },
 };
 const PART_NAME_BASE = {
   barrel: ['Stub', 'Heavy', 'Annunaki', 'Voidsteel', 'Eldritch', 'Genesis'],
@@ -120,10 +121,18 @@ const PART_NAME_BASE = {
   bullets: ['FMJ', 'AP', 'Incendiary', 'Shock', 'Voidshard', 'Waterborn Round'],
   grip: ['Rubber', 'Carbon', 'Bone', 'Voidweave', 'Aida-Grip', 'Genesis Weave'],
 };
+// Was `base + ' ' + PART_SLOT_INFO[slot].icon` — baked a raw emoji into the
+// item's NAME string, so it showed up as text wherever the name was printed
+// (inventory rows, tooltips), not just in an icon slot. Names get a proper
+// noun instead; the picture lives in PART_SLOT_INFO[slot].icon via GameIcon.
+const PART_SLOT_NOUN = {
+  barrel: 'Barrel', magazine: 'Magazine', sight: 'Sight', muzzle: 'Muzzle',
+  stock: 'Stock', bullets: 'Rounds', grip: 'Grip',
+};
 export function partName(slot, rarity) {
   const rIdx = PART_RARITIES.indexOf(rarity);
   const base = PART_NAME_BASE[slot][Math.min(rIdx, PART_NAME_BASE[slot].length - 1)];
-  return base + ' ' + PART_SLOT_INFO[slot].icon;
+  return base + ' ' + PART_SLOT_NOUN[slot];
 }
 export function rollPart(slot, forcedRarity = null) {
   const rarity = forcedRarity || rollPartRarity();
@@ -176,19 +185,19 @@ export const STAT_DISPLAY = {
 // ---------- DAILY MISSIONS ----------
 export const MISSION_DEFS = [
   {
-    id: 'm_easy',  name: 'Recon Sweep',  icon: '🪶', stage: 1,
+    id: 'm_easy',  name: 'Recon Sweep',  icon: 'ui_compass', stage: 1,
     desc: 'Survive 90 seconds. 60% spawn rate. Easy.',
     duration: 90,  spawnMult: 0.6, hpMult: 0.8,
     reward: { blueprintShards: { random: true, count: 1 }, parts: { common: 2 }, gold: 80 },
   },
   {
-    id: 'm_med',   name: 'Salvage Run',  icon: '⚙️', stage: 2,
+    id: 'm_med',   name: 'Salvage Run',  icon: 'ui_cog', stage: 2,
     desc: 'Survive 3 minutes. Normal spawn. Magic parts drop.',
     duration: 180, spawnMult: 1.0, hpMult: 1.0,
     reward: { blueprintShards: { random: true, count: 2 }, parts: { magic: 2, common: 1 }, gold: 200 },
   },
   {
-    id: 'm_hard',  name: 'Boss Hunt',    icon: '👁', stage: 3,
+    id: 'm_hard',  name: 'Boss Hunt',    icon: 'ui_eye', stage: 3,
     desc: 'Survive 5 min — boss waves. Rare+ parts drop.',
     duration: 300, spawnMult: 1.3, hpMult: 1.2, forceBoss: true,
     reward: { blueprintShards: { random: true, count: 3 }, parts: { rare: 2, magic: 1 }, gold: 500 },
@@ -218,54 +227,54 @@ export function rollMissionRewards(reward, weapons) {
 
 // ---------- ACHIEVEMENTS ----------
 export const ACHIEVEMENTS = [
-  { id: 'a_first_kill',   name: 'First Blood',       icon: '🩸', desc: 'Kill 1 enemy', metric: 'totalKills', goal: 1,    rwd: { gold: 25 } },
-  { id: 'a_kills_100',    name: 'Hundred',           icon: '⚔️', desc: '100 total kills',  metric: 'totalKills', goal: 100,  rwd: { gold: 100, sp: 1 } },
-  { id: 'a_kills_1k',     name: 'Massacre',          icon: '💀', desc: '1000 total kills', metric: 'totalKills', goal: 1000, rwd: { gold: 600, sp: 3 } },
-  { id: 'a_kills_10k',    name: 'Annihilator',       icon: '👹', desc: '10000 total kills',metric: 'totalKills', goal: 10000,rwd: { gold: 3000, sp: 10 } },
-  { id: 'a_runs_10',      name: 'Survivor',          icon: '🛡', desc: '10 runs completed',metric: 'runsCompleted', goal: 10, rwd: { gold: 300 } },
-  { id: 'a_runs_50',      name: 'Veteran',           icon: '🏅', desc: '50 runs completed',metric: 'runsCompleted', goal: 50, rwd: { gold: 1500, sp: 5 } },
-  { id: 'a_time_5m',      name: 'Endurance',         icon: '⏱', desc: 'Survive 5 min',     metric: 'bestRunTime', goal: 300, rwd: { gold: 400, sp: 1 } },
-  { id: 'a_time_10m',     name: 'Eternal',           icon: '♾', desc: 'Survive 10 min',    metric: 'bestRunTime', goal: 600, rwd: { gold: 1200, sp: 3 } },
-  { id: 'a_aida',         name: 'Bossfall',          icon: '👁', desc: 'Defeat A.I.D.A.',   metric: 'aidaSlain', goal: 1, rwd: { gold: 2000, sp: 5 } },
-  { id: 'a_lvl_30',       name: 'Apex',              icon: '⭐', desc: 'Reach run level 30',metric: 'bestKills', goal: 30, rwd: { gold: 400 } },
-  { id: 'a_gold_10k',     name: 'Wealthy',           icon: '💰', desc: 'Earn 10000 gold',   metric: 'lifetimeGold', goal: 10000, rwd: { sp: 5 } },
-  { id: 'a_blueprint',    name: 'Gunsmith',          icon: '📜', desc: 'Craft a starter weapon', metric: 'weaponsCrafted', goal: 1, rwd: { gold: 200 } },
-  { id: 'a_all_weapons',  name: 'Arsenal',           icon: '🗡', desc: 'Craft all 4 weapons', metric: 'weaponsCrafted', goal: 4, rwd: { gold: 2000, sp: 5 } },
-  { id: 'a_part_leg',     name: 'Legendary Smith',   icon: '✨', desc: 'Find a legendary part', metric: 'legendaryPartsFound', goal: 1, rwd: { gold: 500, sp: 2 } },
-  { id: 'a_skill_25',     name: 'Awakened',          icon: '🧠', desc: 'Learn 25 skill levels', metric: 'skillsLearned', goal: 25, rwd: { gold: 600, sp: 3 } },
-  { id: 'a_active_4',     name: 'Hot Bar',           icon: '🔥', desc: 'Equip 4 active skills', metric: 'activeSkillsCount', goal: 4, rwd: { gold: 400 } },
-  { id: 'a_chest_50',     name: 'Hoarder',           icon: '📦', desc: 'Open 50 chests',    metric: 'chestsOpened', goal: 50, rwd: { gold: 800, sp: 2 } },
-  { id: 'a_no_hit',       name: 'Untouchable',       icon: '👻', desc: 'Complete a mission without taking damage', metric: 'noHitRuns', goal: 1, rwd: { gold: 600, sp: 3 } },
-  { id: 'a_challenge_4',  name: 'Trial Master',      icon: '🏆', desc: 'Complete all challenges', metric: 'challengesCompleted', goal: 4, rwd: { gold: 1500, sp: 5 } },
-  { id: 'a_daily_7',      name: 'Devoted',           icon: '📅', desc: '7-day daily login streak', metric: 'dailyStreak', goal: 7, rwd: { gold: 500 } },
+  { id: 'a_first_kill',   name: 'First Blood',       icon: 'vampire', desc: 'Kill 1 enemy', metric: 'totalKills', goal: 1,    rwd: { gold: 25 } },
+  { id: 'a_kills_100',    name: 'Hundred',           icon: 'ui_blade', desc: '100 total kills',  metric: 'totalKills', goal: 100,  rwd: { gold: 100, sp: 1 } },
+  { id: 'a_kills_1k',     name: 'Massacre',          icon: 'ui_void', desc: '1000 total kills', metric: 'totalKills', goal: 1000, rwd: { gold: 600, sp: 3 } },
+  { id: 'a_kills_10k',    name: 'Annihilator',       icon: 'berserkerMode', desc: '10000 total kills',metric: 'totalKills', goal: 10000,rwd: { gold: 3000, sp: 10 } },
+  { id: 'a_runs_10',      name: 'Survivor',          icon: 'ui_shield', desc: '10 runs completed',metric: 'runsCompleted', goal: 10, rwd: { gold: 300 } },
+  { id: 'a_runs_50',      name: 'Veteran',           icon: 'ui_medal', desc: '50 runs completed',metric: 'runsCompleted', goal: 50, rwd: { gold: 1500, sp: 5 } },
+  { id: 'a_time_5m',      name: 'Endurance',         icon: 'ui_clock', desc: 'Survive 5 min',     metric: 'bestRunTime', goal: 300, rwd: { gold: 400, sp: 1 } },
+  { id: 'a_time_10m',     name: 'Eternal',           icon: 'ui_infinity', desc: 'Survive 10 min',    metric: 'bestRunTime', goal: 600, rwd: { gold: 1200, sp: 3 } },
+  { id: 'a_aida',         name: 'Bossfall',          icon: 'ui_eye', desc: 'Defeat A.I.D.A.',   metric: 'aidaSlain', goal: 1, rwd: { gold: 2000, sp: 5 } },
+  { id: 'a_lvl_30',       name: 'Apex',              icon: 'ui_star', desc: 'Reach run level 30',metric: 'bestKills', goal: 30, rwd: { gold: 400 } },
+  { id: 'a_gold_10k',     name: 'Wealthy',           icon: 'ui_moneybag', desc: 'Earn 10000 gold',   metric: 'lifetimeGold', goal: 10000, rwd: { sp: 5 } },
+  { id: 'a_blueprint',    name: 'Gunsmith',          icon: 'ui_smith', desc: 'Craft a starter weapon', metric: 'weaponsCrafted', goal: 1, rwd: { gold: 200 } },
+  { id: 'a_all_weapons',  name: 'Arsenal',           icon: 'ui_daggers', desc: 'Craft all 4 weapons', metric: 'weaponsCrafted', goal: 4, rwd: { gold: 2000, sp: 5 } },
+  { id: 'a_part_leg',     name: 'Legendary Smith',   icon: 'starBurst', desc: 'Find a legendary part', metric: 'legendaryPartsFound', goal: 1, rwd: { gold: 500, sp: 2 } },
+  { id: 'a_skill_25',     name: 'Awakened',          icon: 'ui_skills', desc: 'Learn 25 skill levels', metric: 'skillsLearned', goal: 25, rwd: { gold: 600, sp: 3 } },
+  { id: 'a_active_4',     name: 'Hot Bar',           icon: 'ui_flame', desc: 'Equip 4 active skills', metric: 'activeSkillsCount', goal: 4, rwd: { gold: 400 } },
+  { id: 'a_chest_50',     name: 'Hoarder',           icon: 'ui_chest', desc: 'Open 50 chests',    metric: 'chestsOpened', goal: 50, rwd: { gold: 800, sp: 2 } },
+  { id: 'a_no_hit',       name: 'Untouchable',       icon: 'ui_ghost', desc: 'Complete a mission without taking damage', metric: 'noHitRuns', goal: 1, rwd: { gold: 600, sp: 3 } },
+  { id: 'a_challenge_4',  name: 'Trial Master',      icon: 'ui_trophy', desc: 'Complete all challenges', metric: 'challengesCompleted', goal: 4, rwd: { gold: 1500, sp: 5 } },
+  { id: 'a_daily_7',      name: 'Devoted',           icon: 'ui_calendar', desc: '7-day daily login streak', metric: 'dailyStreak', goal: 7, rwd: { gold: 500 } },
   // Boss hunters
-  { id: 'a_necro',        name: 'Bone Collector',    icon: '💀', desc: 'Defeat The Necromancer',   metric: 'necroSlain', goal: 1, rwd: { gold: 500, sp: 2 } },
-  { id: 'a_void',         name: 'Titan Crusher',     icon: '🌌', desc: 'Defeat the Void Titan',    metric: 'voidSlain',  goal: 1, rwd: { gold: 800, sp: 3 } },
-  { id: 'a_horus',        name: 'Eye Closer',        icon: '👁', desc: 'Defeat the Eye of Horus',  metric: 'horusSlain', goal: 1, rwd: { gold: 300, sp: 1 } },
-  { id: 'a_endless',      name: 'Void Walker',       icon: '♾', desc: 'Reach Endless Mode',        metric: 'endlessReached', goal: 1, rwd: { gold: 2000, sp: 8 } },
+  { id: 'a_necro',        name: 'Bone Collector',    icon: 'boneshards', desc: 'Defeat The Necromancer',   metric: 'necroSlain', goal: 1, rwd: { gold: 500, sp: 2 } },
+  { id: 'a_void',         name: 'Titan Crusher',     icon: 'voidPulse', desc: 'Defeat the Void Titan',    metric: 'voidSlain',  goal: 1, rwd: { gold: 800, sp: 3 } },
+  { id: 'a_horus',        name: 'Eye Closer',        icon: 'ui_eye', desc: 'Defeat the Eye of Horus',  metric: 'horusSlain', goal: 1, rwd: { gold: 300, sp: 1 } },
+  { id: 'a_endless',      name: 'Void Walker',       icon: 'ui_infinity', desc: 'Reach Endless Mode',        metric: 'endlessReached', goal: 1, rwd: { gold: 2000, sp: 8 } },
   // Progression milestones
-  { id: 'a_lvl_50',       name: 'Transcendent',      icon: '🌟', desc: 'Reach level 50 in a run',  metric: 'bestKills', goal: 50, rwd: { gold: 3000, sp: 10 } },
-  { id: 'a_kills_50k',    name: 'Reaper',            icon: '⚰', desc: '50,000 total kills',        metric: 'totalKills', goal: 50000, rwd: { gold: 10000, sp: 20 } },
-  { id: 'a_runs_100',     name: 'Centurion',         icon: '🎖', desc: '100 runs completed',        metric: 'runsCompleted', goal: 100, rwd: { gold: 5000, sp: 15 } },
-  { id: 'a_gold_50k',     name: 'Dragon Hoard',      icon: '💎', desc: 'Earn 50k lifetime gold',   metric: 'lifetimeGold', goal: 50000, rwd: { sp: 10 } },
-  { id: 'a_nohit_5',      name: 'Phantom',           icon: '🌫', desc: 'Complete 5 no-hit runs',   metric: 'noHitRuns', goal: 5, rwd: { gold: 2500, sp: 8 } },
-  { id: 'a_maps_all',     name: 'Cartographer',      icon: '🗺', desc: 'Complete all map stages',  metric: 'mapsCompleted', goal: 4, rwd: { gold: 5000, sp: 15 } },
+  { id: 'a_lvl_50',       name: 'Transcendent',      icon: 'ui_star', desc: 'Reach level 50 in a run',  metric: 'bestKills', goal: 50, rwd: { gold: 3000, sp: 10 } },
+  { id: 'a_kills_50k',    name: 'Reaper',            icon: 'bloodscythe', desc: '50,000 total kills',        metric: 'totalKills', goal: 50000, rwd: { gold: 10000, sp: 20 } },
+  { id: 'a_runs_100',     name: 'Centurion',         icon: 'ui_medal', desc: '100 runs completed',        metric: 'runsCompleted', goal: 100, rwd: { gold: 5000, sp: 15 } },
+  { id: 'a_gold_50k',     name: 'Dragon Hoard',      icon: 'ui_gem', desc: 'Earn 50k lifetime gold',   metric: 'lifetimeGold', goal: 50000, rwd: { sp: 10 } },
+  { id: 'a_nohit_5',      name: 'Phantom',           icon: 'ui_ghost', desc: 'Complete 5 no-hit runs',   metric: 'noHitRuns', goal: 5, rwd: { gold: 2500, sp: 8 } },
+  { id: 'a_maps_all',     name: 'Cartographer',      icon: 'ui_map', desc: 'Complete all map stages',  metric: 'mapsCompleted', goal: 4, rwd: { gold: 5000, sp: 15 } },
 ];
 
 // ---------- STAGES (visual themes + spawn mods) ----------
 export const STAGES = {
-  lake:    { id: 'lake',    name: 'The Lake',         icon: '🌊', desc: 'The shallows. Where it all begins.',     bg: '#0c0a16', accent: '#4dc4ff', enemyMix: ['slime', 'bat', 'ghoul'],     spawnMult: 1.0, unlock: { kind: 'default' } },
-  ruins:   { id: 'ruins',   name: 'Sunken Ruins',     icon: '🏛',  desc: 'Forgotten halls. Ranged threats lurk.',  bg: '#1a1208', accent: '#ffd166', enemyMix: ['ghoul', 'ranger', 'brute'],   spawnMult: 1.1, unlock: { kind: 'kills',  goal: 200 } },
-  void:    { id: 'void',    name: 'Void Lab',         icon: '🌌', desc: 'A.I.D.A.\'s old chambers. Eldritch fiends.', bg: '#0a081a', accent: '#b362ff', enemyMix: ['bat', 'charger', 'necron'],  spawnMult: 1.2, unlock: { kind: 'runs',   goal: 5 } },
-  ship:    { id: 'ship',    name: 'Annunaki Ship',    icon: '🛸', desc: 'The final outpost. A.I.D.A. waits.',     bg: '#1a0a08', accent: '#ff7a1a', enemyMix: ['brute', 'charger', 'necron', 'ranger'], spawnMult: 1.4, unlock: { kind: 'boss',   goal: 1 } },
+  lake:    { id: 'lake',    name: 'The Lake',         icon: 'ui_waterdrop', desc: 'The shallows. Where it all begins.',     bg: '#0c0a16', accent: '#4dc4ff', enemyMix: ['slime', 'bat', 'ghoul'],     spawnMult: 1.0, unlock: { kind: 'default' } },
+  ruins:   { id: 'ruins',   name: 'Sunken Ruins',     icon: 'ui_base',  desc: 'Forgotten halls. Ranged threats lurk.',  bg: '#1a1208', accent: '#ffd166', enemyMix: ['ghoul', 'ranger', 'brute'],   spawnMult: 1.1, unlock: { kind: 'kills',  goal: 200 } },
+  void:    { id: 'void',    name: 'Void Lab',         icon: 'voidPulse', desc: 'A.I.D.A.\'s old chambers. Eldritch fiends.', bg: '#0a081a', accent: '#b362ff', enemyMix: ['bat', 'charger', 'necron'],  spawnMult: 1.2, unlock: { kind: 'runs',   goal: 5 } },
+  ship:    { id: 'ship',    name: 'Annunaki Ship',    icon: 'ui_rocket', desc: 'The final outpost. A.I.D.A. waits.',     bg: '#1a0a08', accent: '#ff7a1a', enemyMix: ['brute', 'charger', 'necron', 'ranger'], spawnMult: 1.4, unlock: { kind: 'boss',   goal: 1 } },
 };
 
 // ---------- CHALLENGE MODES ----------
 export const CHALLENGES = [
-  { id: 'c_bossrush', name: 'Boss Rush',  icon: '👹', desc: 'Endless bosses. No respite.',  mod: { bossRush: true, duration: 999 },  rwd: { gold: 800, sp: 3 } },
-  { id: 'c_horde',    name: 'Horde',      icon: '🌊', desc: '10× spawn. Survive 60s.',     mod: { spawnMult: 10, duration: 60 },     rwd: { gold: 500, sp: 2 } },
-  { id: 'c_trial',    name: 'Time Trial', icon: '⏱', desc: 'Kill 500 enemies fast.',      mod: { killGoal: 500 },                   rwd: { gold: 1000, sp: 4 } },
-  { id: 'c_nohit',    name: 'No-Hit Hero',icon: '👻', desc: 'Survive 3 min. ZERO hits.',   mod: { duration: 180, noHit: true },      rwd: { gold: 1200, sp: 5 } },
+  { id: 'c_bossrush', name: 'Boss Rush',  icon: 'ui_void', desc: 'Endless bosses. No respite.',  mod: { bossRush: true, duration: 999 },  rwd: { gold: 800, sp: 3 } },
+  { id: 'c_horde',    name: 'Horde',      icon: 'swarmAura', desc: '10× spawn. Survive 60s.',     mod: { spawnMult: 10, duration: 60 },     rwd: { gold: 500, sp: 2 } },
+  { id: 'c_trial',    name: 'Time Trial', icon: 'ui_clock', desc: 'Kill 500 enemies fast.',      mod: { killGoal: 500 },                   rwd: { gold: 1000, sp: 4 } },
+  { id: 'c_nohit',    name: 'No-Hit Hero',icon: 'ui_ghost', desc: 'Survive 3 min. ZERO hits.',   mod: { duration: 180, noHit: true },      rwd: { gold: 1200, sp: 5 } },
 ];
 
 // ---------- PER-WEAPON UPGRADE NAMING ----------
@@ -304,18 +313,18 @@ export const WEAPON_UPGRADE_NAMES = {
 
 // ---------- ACTIVE SKILLS (button-icon with cooldown) ----------
 export const ACTIVE_SKILLS = {
-  lightning: { id: 'lightning', name: 'Lightning Strike', icon: '⚡', cd: 8,  cost: 0, key: '1', desc: 'Strike a foe with lightning. Chains to 4 nearby.' },
-  aegis:     { id: 'aegis',     name: 'Aegis Aura',       icon: '🛡', cd: 18, cost: 0, key: '2', desc: 'Invuln + reflect 3s.' },
-  timewarp:  { id: 'timewarp',  name: 'Time Warp',        icon: '⏱', cd: 25, cost: 0, key: '3', desc: 'Slow all enemies for 4s.' },
+  lightning: { id: 'lightning', name: 'Lightning Strike', icon: 'lightningOnCrit', cd: 8,  cost: 0, key: '1', desc: 'Strike a foe with lightning. Chains to 4 nearby.' },
+  aegis:     { id: 'aegis',     name: 'Aegis Aura',       icon: 'reflect', cd: 18, cost: 0, key: '2', desc: 'Invuln + reflect 3s.' },
+  timewarp:  { id: 'timewarp',  name: 'Time Warp',        icon: 'ui_clock', cd: 25, cost: 0, key: '3', desc: 'Slow all enemies for 4s.' },
   // Replaced Decoy Drop — a stationary aggro magnet you dropped and forgot
   // about. Steam Vent covers the archetype the roster lacked: mobility that
   // is also offence and sustain.
-  steamvent: { id: 'steamvent', name: 'Steam Vent',       icon: '💨', cd: 11, cost: 0, key: '4', desc: 'Blast forward in a scalding jet — burns and knocks back everything on the path, and heals 2 HP per foe scalded (max 5).' },
-  meteor:    { id: 'meteor',    name: 'Meteor Call',      icon: '☄️', cd: 14, cost: 0, key: '1', desc: 'Call meteor on cursor — massive AoE.' },
-  vortex:    { id: 'vortex',    name: 'Void Vortex',      icon: '🌀', cd: 16, cost: 0, key: '2', desc: 'Black hole pulls enemies, drains HP.' },
-  riptide:   { id: 'riptide',   name: 'Riptide Pulse',    icon: '🌊', cd: 10, cost: 0, key: '3', desc: 'Piercing wave in front of you — damages + slows.' },
-  beacon:    { id: 'beacon',    name: 'Stasis Beacon',    icon: '📡', cd: 20, cost: 0, key: '4', desc: 'Deploy a field that roots + damages foes for 5s.' },
-  nova:      { id: 'nova',      name: 'Frost Nova',       icon: '❄️', cd: 14, cost: 0, key: '1', desc: 'Instant AoE around you — damages + slows.' },
+  steamvent: { id: 'steamvent', name: 'Steam Vent',       icon: 'quickstep', cd: 11, cost: 0, key: '4', desc: 'Blast forward in a scalding jet — burns and knocks back everything on the path, and heals 2 HP per foe scalded (max 5).' },
+  meteor:    { id: 'meteor',    name: 'Meteor Call',      icon: 'meteorStrike', cd: 14, cost: 0, key: '1', desc: 'Call meteor on cursor — massive AoE.' },
+  vortex:    { id: 'vortex',    name: 'Void Vortex',      icon: 'gravityPull', cd: 16, cost: 0, key: '2', desc: 'Black hole pulls enemies, drains HP.' },
+  riptide:   { id: 'riptide',   name: 'Riptide Pulse',    icon: 'tidalWave', cd: 10, cost: 0, key: '3', desc: 'Piercing wave in front of you — damages + slows.' },
+  beacon:    { id: 'beacon',    name: 'Stasis Beacon',    icon: 'ui_orb', cd: 20, cost: 0, key: '4', desc: 'Deploy a field that roots + damages foes for 5s.' },
+  nova:      { id: 'nova',      name: 'Frost Nova',       icon: 'iceShards', cd: 14, cost: 0, key: '1', desc: 'Instant AoE around you — damages + slows.' },
 };
 export const ACTIVE_SKILL_KEYS = Object.keys(ACTIVE_SKILLS);
 // You can equip up to 4 active skills (out of pool). Unlock via card shop.
@@ -432,50 +441,50 @@ export const SHOP_CARD_POOL = [
   // Each entry now unlocks an ADVANCED_CARD into the run pool instead. The
   // power still comes from the shop, but it arrives as a choice mid-run
   // rather than as a silent number on the sheet.
-  { id: 'sh_elec_manual', icon: '🔌', name: 'Unlock: Live Wire',    category:'passive', effect: { unlockCard: 'sh_elec_manual' } },
-  { id: 'sh_twinup',      icon: '⏫', name: 'Unlock: Twin Ascend',  category:'passive', effect: { unlockCard: 'sh_twinup' } },
-  { id: 'sh_overload',    icon: '☢', name: 'Unlock: Overload Core',category:'passive', effect: { unlockCard: 'sh_overload' } },
-  { id: 'sh_bulletstorm', icon: '🌪', name: 'Unlock: Bulletstorm',  category:'passive', effect: { unlockCard: 'sh_bulletstorm' } },
-  { id: 'sh_executioner', icon: '⛓', name: 'Unlock: Executioner',  category:'passive', effect: { unlockCard: 'sh_executioner' } },
-  // ── Active skill unlocks ──
-  { id: 'sh_skill_lightning', icon: '⚡', name: 'Unlock: Lightning',   category:'active', effect: { unlockSkill: 'lightning' } },
-  { id: 'sh_skill_aegis',     icon: '🛡', name: 'Unlock: Aegis',       category:'active', effect: { unlockSkill: 'aegis' } },
-  { id: 'sh_skill_timewarp',  icon: '⏱', name: 'Unlock: Time Warp',   category:'active', effect: { unlockSkill: 'timewarp' } },
-  { id: 'sh_skill_steamvent', icon: '💨', name: 'Unlock: Steam Vent',  category:'active', effect: { unlockSkill: 'steamvent' } },
-  { id: 'sh_skill_meteor',    icon: '☄️', name: 'Unlock: Meteor',      category:'active', effect: { unlockSkill: 'meteor' } },
-  { id: 'sh_skill_vortex',    icon: '🌀', name: 'Unlock: Void Vortex', category:'active', effect: { unlockSkill: 'vortex' } },
-  // ── Auto weapon unlocks ──
-  { id: 'sh_wep_chainlightning', icon: '⚡', name: 'Unlock: Chain Lightning', category:'auto', effect: { unlockWeapon: 'chainlightning' } },
-  { id: 'sh_wep_staticField',    icon: '🔌', name: 'Unlock: Static Field',    category:'auto', effect: { unlockWeapon: 'staticField' } },
-  { id: 'sh_wep_whirlwind',      icon: '🌪️', name: 'Unlock: Whirlwind',       category:'auto', effect: { unlockWeapon: 'whirlwind' } },
-  { id: 'sh_wep_boneshards',     icon: '💀', name: 'Unlock: Bone Shards',     category:'auto', effect: { unlockWeapon: 'boneshards' } },
+  { id: 'sh_elec_manual', icon: 'liveWire', name: 'Unlock: Live Wire',    category:'passive', effect: { unlockCard: 'sh_elec_manual' } },
+  { id: 'sh_twinup',      icon: 'twinAscend', name: 'Unlock: Twin Ascend',  category:'passive', effect: { unlockCard: 'sh_twinup' } },
+  { id: 'sh_overload',    icon: 'overloadCore', name: 'Unlock: Overload Core',category:'passive', effect: { unlockCard: 'sh_overload' } },
+  { id: 'sh_bulletstorm', icon: 'bulletstorm', name: 'Unlock: Bulletstorm',  category:'passive', effect: { unlockCard: 'sh_bulletstorm' } },
+  { id: 'sh_executioner', icon: 'executioner', name: 'Unlock: Executioner',  category:'passive', effect: { unlockCard: 'sh_executioner' } },
+  // ── Active skill unlocks (icon mirrors ACTIVE_SKILLS[x].icon above) ──
+  { id: 'sh_skill_lightning', icon: 'lightningOnCrit', name: 'Unlock: Lightning',   category:'active', effect: { unlockSkill: 'lightning' } },
+  { id: 'sh_skill_aegis',     icon: 'reflect', name: 'Unlock: Aegis',       category:'active', effect: { unlockSkill: 'aegis' } },
+  { id: 'sh_skill_timewarp',  icon: 'ui_clock', name: 'Unlock: Time Warp',   category:'active', effect: { unlockSkill: 'timewarp' } },
+  { id: 'sh_skill_steamvent', icon: 'quickstep', name: 'Unlock: Steam Vent',  category:'active', effect: { unlockSkill: 'steamvent' } },
+  { id: 'sh_skill_meteor',    icon: 'meteorStrike', name: 'Unlock: Meteor',      category:'active', effect: { unlockSkill: 'meteor' } },
+  { id: 'sh_skill_vortex',    icon: 'gravityPull', name: 'Unlock: Void Vortex', category:'active', effect: { unlockSkill: 'vortex' } },
+  // ── Auto weapon unlocks (icon = the weapon's own ICONS key) ──
+  { id: 'sh_wep_chainlightning', icon: 'chainlightning', name: 'Unlock: Chain Lightning', category:'auto', effect: { unlockWeapon: 'chainlightning' } },
+  { id: 'sh_wep_staticField',    icon: 'staticField', name: 'Unlock: Static Field',    category:'auto', effect: { unlockWeapon: 'staticField' } },
+  { id: 'sh_wep_whirlwind',      icon: 'whirlwind', name: 'Unlock: Whirlwind',       category:'auto', effect: { unlockWeapon: 'whirlwind' } },
+  { id: 'sh_wep_boneshards',     icon: 'boneshards', name: 'Unlock: Bone Shards',     category:'auto', effect: { unlockWeapon: 'boneshards' } },
   // ── Manual weapon unlocks ──
-  { id: 'sh_wep_daggers',    icon: '🗡️', name: 'Unlock: Dagger Fan',    category:'manual', effect: { unlockWeapon: 'daggers' } },
-  { id: 'sh_wep_flameburst', icon: '🔥', name: 'Unlock: Flame Burst',  category:'manual', effect: { unlockWeapon: 'flameburst' } },
-  { id: 'sh_wep_icespike',   icon: '🧊', name: 'Unlock: Ice Spike',    category:'manual', effect: { unlockWeapon: 'icespike' } },
+  { id: 'sh_wep_daggers',    icon: 'daggers', name: 'Unlock: Dagger Fan',    category:'manual', effect: { unlockWeapon: 'daggers' } },
+  { id: 'sh_wep_flameburst', icon: 'flameburst', name: 'Unlock: Flame Burst',  category:'manual', effect: { unlockWeapon: 'flameburst' } },
+  { id: 'sh_wep_icespike',   icon: 'icespike', name: 'Unlock: Ice Spike',    category:'manual', effect: { unlockWeapon: 'icespike' } },
   // ── New auto weapons ──
-  { id: 'sh_wep_frostOrb',   icon: '❄️', name: 'Unlock: Frost Orb',    category:'auto',   effect: { unlockWeapon: 'frostOrb' } },
-  { id: 'sh_wep_voidPulse',  icon: '🔮', name: 'Unlock: Void Pulse',   category:'auto',   effect: { unlockWeapon: 'voidPulse' } },
+  { id: 'sh_wep_frostOrb',   icon: 'frostOrb', name: 'Unlock: Frost Orb',    category:'auto',   effect: { unlockWeapon: 'frostOrb' } },
+  { id: 'sh_wep_voidPulse',  icon: 'voidPulse', name: 'Unlock: Void Pulse',   category:'auto',   effect: { unlockWeapon: 'voidPulse' } },
   // ── New manual weapons ──
-  { id: 'sh_wep_sniperDrop', icon: '🎯', name: 'Unlock: Sniper Drop',  category:'manual', effect: { unlockWeapon: 'sniperDrop' } },
-  { id: 'sh_wep_acidSprayer',icon: '☠️', name: 'Unlock: Acid Sprayer', category:'manual', effect: { unlockWeapon: 'acidSprayer' } },
+  { id: 'sh_wep_sniperDrop', icon: 'sniperDrop', name: 'Unlock: Sniper Drop',  category:'manual', effect: { unlockWeapon: 'sniperDrop' } },
+  { id: 'sh_wep_acidSprayer',icon: 'acidSprayer', name: 'Unlock: Acid Sprayer', category:'manual', effect: { unlockWeapon: 'acidSprayer' } },
   // ── New auto weapons (drone/turret/mine/flare/railgun) ──
-  { id: 'sh_wep_droneSquad',   icon: '🛸', name: 'Unlock: Drone Squadron', category:'auto', effect: { unlockWeapon: 'droneSquad' } },
-  { id: 'sh_wep_plasmaTurret', icon: '🔵', name: 'Unlock: Plasma Turret',  category:'auto', effect: { unlockWeapon: 'plasmaTurret' } },
-  { id: 'sh_wep_shrapnelMine', icon: '💣', name: 'Unlock: Shrapnel Mine',  category:'auto', effect: { unlockWeapon: 'shrapnelMine' } },
-  { id: 'sh_wep_solarFlare',   icon: '☀️', name: 'Unlock: Solar Flare',    category:'auto', effect: { unlockWeapon: 'solarFlare' } },
-  { id: 'sh_wep_railgunArray', icon: '📡', name: 'Unlock: Railgun Array',  category:'auto', effect: { unlockWeapon: 'railgunArray' } },
+  { id: 'sh_wep_droneSquad',   icon: 'droneSquad', name: 'Unlock: Drone Squadron', category:'auto', effect: { unlockWeapon: 'droneSquad' } },
+  { id: 'sh_wep_plasmaTurret', icon: 'plasmaTurret', name: 'Unlock: Plasma Turret',  category:'auto', effect: { unlockWeapon: 'plasmaTurret' } },
+  { id: 'sh_wep_shrapnelMine', icon: 'shrapnelMine', name: 'Unlock: Shrapnel Mine',  category:'auto', effect: { unlockWeapon: 'shrapnelMine' } },
+  { id: 'sh_wep_solarFlare',   icon: 'solarFlare', name: 'Unlock: Solar Flare',    category:'auto', effect: { unlockWeapon: 'solarFlare' } },
+  { id: 'sh_wep_railgunArray', icon: 'railgunArray', name: 'Unlock: Railgun Array',  category:'auto', effect: { unlockWeapon: 'railgunArray' } },
   // ── New manual weapons (3 of the 5 new manuals — the other 2 ship standard) ──
-  { id: 'sh_wep_voidScatter', icon: '🌌', name: 'Unlock: Void Scattergun', category:'manual', effect: { unlockWeapon: 'voidScatter' } },
-  { id: 'sh_wep_arcCaster',   icon: '⚡', name: 'Unlock: Arc Caster',      category:'manual', effect: { unlockWeapon: 'arcCaster' } },
-  { id: 'sh_wep_cometLauncher', icon: '☄️', name: 'Unlock: Comet Launcher', category:'manual', effect: { unlockWeapon: 'cometLauncher' } },
-  // ── EVO Unlocks (requires poe_awk0 in skill tree) ──────────────────
-  { id: 'sh_evo_hydropistol', icon: '🌊', name: 'EVO: Torrent Cannon',  category:'evo', evoFrom:'hydropistol',  effect: { unlockEvo: 'hydropistol'  } },
-  { id: 'sh_evo_bloodscythe', icon: '💀', name: 'EVO: Soul Reaper',     category:'evo', evoFrom:'bloodscythe',  effect: { unlockEvo: 'bloodscythe'  } },
-  { id: 'sh_evo_emberOrbs',   icon: '🌋', name: 'EVO: Inferno Ring',    category:'evo', evoFrom:'emberOrbs',    effect: { unlockEvo: 'emberOrbs'    } },
-  { id: 'sh_evo_runebolts',   icon: '🌩️', name: 'EVO: Storm Array',    category:'evo', evoFrom:'runebolts',    effect: { unlockEvo: 'runebolts'    } },
-  { id: 'sh_evo_frostOrb',    icon: '🌨️', name: 'EVO: Blizzard',       category:'evo', evoFrom:'frostOrb',     effect: { unlockEvo: 'frostOrb'     } },
-  { id: 'sh_evo_daggers',     icon: '⚔️', name: 'EVO: Blade Storm',    category:'evo', evoFrom:'daggers',      effect: { unlockEvo: 'daggers'      } },
+  { id: 'sh_wep_voidScatter', icon: 'voidScatter', name: 'Unlock: Void Scattergun', category:'manual', effect: { unlockWeapon: 'voidScatter' } },
+  { id: 'sh_wep_arcCaster',   icon: 'arcCaster', name: 'Unlock: Arc Caster',      category:'manual', effect: { unlockWeapon: 'arcCaster' } },
+  { id: 'sh_wep_cometLauncher', icon: 'cometLauncher', name: 'Unlock: Comet Launcher', category:'manual', effect: { unlockWeapon: 'cometLauncher' } },
+  // ── EVO Unlocks (requires poe_awk0 in skill tree) — icon is the `_evo` variant ──
+  { id: 'sh_evo_hydropistol', icon: 'hydropistol_evo', name: 'EVO: Torrent Cannon',  category:'evo', evoFrom:'hydropistol',  effect: { unlockEvo: 'hydropistol'  } },
+  { id: 'sh_evo_bloodscythe', icon: 'bloodscythe_evo', name: 'EVO: Soul Reaper',     category:'evo', evoFrom:'bloodscythe',  effect: { unlockEvo: 'bloodscythe'  } },
+  { id: 'sh_evo_emberOrbs',   icon: 'emberOrbs_evo', name: 'EVO: Inferno Ring',    category:'evo', evoFrom:'emberOrbs',    effect: { unlockEvo: 'emberOrbs'    } },
+  { id: 'sh_evo_runebolts',   icon: 'runebolts_evo', name: 'EVO: Storm Array',    category:'evo', evoFrom:'runebolts',    effect: { unlockEvo: 'runebolts'    } },
+  { id: 'sh_evo_frostOrb',    icon: 'frostOrb_evo', name: 'EVO: Blizzard',       category:'evo', evoFrom:'frostOrb',     effect: { unlockEvo: 'frostOrb'     } },
+  { id: 'sh_evo_daggers',     icon: 'daggers_evo', name: 'EVO: Blade Storm',    category:'evo', evoFrom:'daggers',      effect: { unlockEvo: 'daggers'      } },
 ];
 export function shopCardCost(pullCount) {
   // Escalating: 150, 220, 320, 470, 690, ...
@@ -548,40 +557,40 @@ export const MILESTONE_BAR = [
 // computeWeaponStats + buildLevelUpChoices/applyCardChoice).
 export const WEAPON_FORK_TEMPLATES = {
   projectile: [
-    { id: 'splinter', name: 'Splinter Rounds', icon: '💠', desc: '+2 projectiles per shot, but -45% damage each — spread the hurt thin.', apply: (s) => { s.projectiles = (s.projectiles || 1) + 2; s.damage = (s.damage || 0) * 0.55; } },
-    { id: 'overdrive', name: 'Overdrive Barrel', icon: '⏱️', desc: '+45% fire rate, but -35% magazine size — hoses down faster, empties sooner.', apply: (s) => { s.fireRate = (s.fireRate || 1) * 1.45; s.magazine = Math.max(1, Math.floor((s.magazine || 6) * 0.65)); } },
-    { id: 'siege', name: 'Siege Rounds', icon: '🗿', desc: '+90% damage, +3 pierce, but -30% projectile speed — a heavy punishing shot.', apply: (s) => { s.damage = (s.damage || 0) * 1.9; s.pierce = (s.pierce || 0) + 3; s.projSpeed = (s.projSpeed || 500) * 0.7; } },
-    { id: 'twinLinked', name: 'Twin-Linked', icon: '➕', desc: '+1 projectile, but +80% spread — more lead in the air, less precision.', apply: (s) => { s.projectiles = (s.projectiles || 1) + 1; s.spread = (s.spread || 0.02) * 1.8; } },
+    { id: 'splinter', name: 'Splinter Rounds', icon: 'projBonus', desc: '+2 projectiles per shot, but -45% damage each — spread the hurt thin.', apply: (s) => { s.projectiles = (s.projectiles || 1) + 2; s.damage = (s.damage || 0) * 0.55; } },
+    { id: 'overdrive', name: 'Overdrive Barrel', icon: 'fireRateMult', desc: '+45% fire rate, but -35% magazine size — hoses down faster, empties sooner.', apply: (s) => { s.fireRate = (s.fireRate || 1) * 1.45; s.magazine = Math.max(1, Math.floor((s.magazine || 6) * 0.65)); } },
+    { id: 'siege', name: 'Siege Rounds', icon: 'damageMult', desc: '+90% damage, +3 pierce, but -30% projectile speed — a heavy punishing shot.', apply: (s) => { s.damage = (s.damage || 0) * 1.9; s.pierce = (s.pierce || 0) + 3; s.projSpeed = (s.projSpeed || 500) * 0.7; } },
+    { id: 'twinLinked', name: 'Twin-Linked', icon: 'projBonus', desc: '+1 projectile, but +80% spread — more lead in the air, less precision.', apply: (s) => { s.projectiles = (s.projectiles || 1) + 1; s.spread = (s.spread || 0.02) * 1.8; } },
   ],
   shotgun: [
-    { id: 'wideSpread', name: 'Wide Spread', icon: '🌫️', desc: '+3 projectiles, but -40% damage each — blanket the room.', apply: (s) => { s.projectiles = (s.projectiles || 3) + 3; s.damage = (s.damage || 0) * 0.6; } },
-    { id: 'focusedCone', name: 'Focused Cone', icon: '🎯', desc: '-60% spread, +30% damage — a tighter, harder-hitting cone.', apply: (s) => { s.spread = (s.spread || 0.3) * 0.4; s.damage = (s.damage || 0) * 1.3; } },
-    { id: 'doubleTap', name: 'Double Tap', icon: '👉', desc: '+50% fire rate, but -30% magazine — rapid-fire blasts.', apply: (s) => { s.fireRate = (s.fireRate || 1) * 1.5; s.magazine = Math.max(1, Math.floor((s.magazine || 4) * 0.7)); } },
-    { id: 'overloadBlast', name: 'Overload Blast', icon: '💥', desc: '+80% damage, +100% knockback, but -35% fire rate — a devastating slow cannon.', apply: (s) => { s.damage = (s.damage || 0) * 1.8; s.knockback = (s.knockback || 40) * 2; s.fireRate = (s.fireRate || 1) * 0.65; } },
+    { id: 'wideSpread', name: 'Wide Spread', icon: 'projBonus', desc: '+3 projectiles, but -40% damage each — blanket the room.', apply: (s) => { s.projectiles = (s.projectiles || 3) + 3; s.damage = (s.damage || 0) * 0.6; } },
+    { id: 'focusedCone', name: 'Focused Cone', icon: 'ui_loadout', desc: '-60% spread, +30% damage — a tighter, harder-hitting cone.', apply: (s) => { s.spread = (s.spread || 0.3) * 0.4; s.damage = (s.damage || 0) * 1.3; } },
+    { id: 'doubleTap', name: 'Double Tap', icon: 'fireRateMult', desc: '+50% fire rate, but -30% magazine — rapid-fire blasts.', apply: (s) => { s.fireRate = (s.fireRate || 1) * 1.5; s.magazine = Math.max(1, Math.floor((s.magazine || 4) * 0.7)); } },
+    { id: 'overloadBlast', name: 'Overload Blast', icon: 'knockbackWave', desc: '+80% damage, +100% knockback, but -35% fire rate — a devastating slow cannon.', apply: (s) => { s.damage = (s.damage || 0) * 1.8; s.knockback = (s.knockback || 40) * 2; s.fireRate = (s.fireRate || 1) * 0.65; } },
   ],
   aoe: [
-    { id: 'widerReach', name: 'Wider Reach', icon: '🌀', desc: '+55% area, but -35% damage — cover more ground per swing.', apply: (s) => { s.area = (s.area || 100) * 1.55; s.damage = (s.damage || 0) * 0.65; } },
-    { id: 'rapidCycleA', name: 'Rapid Cycle', icon: '⏱️', desc: '+45% fire rate, but -25% area — quicker, tighter hits.', apply: (s) => { s.fireRate = (s.fireRate || 1) * 1.45; s.area = (s.area || 100) * 0.75; } },
-    { id: 'devastation', name: 'Devastation', icon: '☄️', desc: '+95% damage, but -35% fire rate — one massive hit at a time.', apply: (s) => { s.damage = (s.damage || 0) * 1.95; s.fireRate = (s.fireRate || 1) * 0.65; } },
-    { id: 'bleedField', name: 'Bleed Field', icon: '🩸', desc: '+15% area and applies a bleed DoT, but -20% direct damage.', apply: (s) => { s.area = (s.area || 100) * 1.15; s.damage = (s.damage || 0) * 0.8; s.bleedDot = true; } },
+    { id: 'widerReach', name: 'Wider Reach', icon: 'areaMult', desc: '+55% area, but -35% damage — cover more ground per swing.', apply: (s) => { s.area = (s.area || 100) * 1.55; s.damage = (s.damage || 0) * 0.65; } },
+    { id: 'rapidCycleA', name: 'Rapid Cycle', icon: 'fireRateMult', desc: '+45% fire rate, but -25% area — quicker, tighter hits.', apply: (s) => { s.fireRate = (s.fireRate || 1) * 1.45; s.area = (s.area || 100) * 0.75; } },
+    { id: 'devastation', name: 'Devastation', icon: 'damageMult', desc: '+95% damage, but -35% fire rate — one massive hit at a time.', apply: (s) => { s.damage = (s.damage || 0) * 1.95; s.fireRate = (s.fireRate || 1) * 0.65; } },
+    { id: 'bleedField', name: 'Bleed Field', icon: 'bloodrush', desc: '+15% area and applies a bleed DoT, but -20% direct damage.', apply: (s) => { s.area = (s.area || 100) * 1.15; s.damage = (s.damage || 0) * 0.8; s.bleedDot = true; } },
   ],
   orbit: [
-    { id: 'swarmOrbs', name: 'Swarm Orbs', icon: '🔵', desc: '+2 orbiting bodies, but -40% damage each — a denser ring.', apply: (s) => { s.orbitCount = (s.orbitCount || 1) + 2; s.damage = (s.damage || 0) * 0.6; } },
-    { id: 'heavyOrbit', name: 'Heavy Orbit', icon: '🪐', desc: '+40% orbit radius, +30% damage — a slower, wider, harder ring.', apply: (s) => { s.orbitRadius = (s.orbitRadius || 80) * 1.4; s.damage = (s.damage || 0) * 1.3; } },
-    { id: 'blitzSpin', name: 'Blitz Spin', icon: '🌪️', desc: '+70% orbit speed, but -15% damage — a fast shredding blur.', apply: (s) => { s.orbitSpeed = (s.orbitSpeed || 2) * 1.7; s.damage = (s.damage || 0) * 0.85; } },
-    { id: 'gravityWell', name: 'Gravity Well', icon: '🕳️', desc: '-30% orbit radius, +60% area (pulls foes in tighter), +20% damage.', apply: (s) => { s.orbitRadius = (s.orbitRadius || 80) * 0.7; s.area = (s.area || 100) * 1.6; s.damage = (s.damage || 0) * 1.2; } },
+    { id: 'swarmOrbs', name: 'Swarm Orbs', icon: 'swarmAura', desc: '+2 orbiting bodies, but -40% damage each — a denser ring.', apply: (s) => { s.orbitCount = (s.orbitCount || 1) + 2; s.damage = (s.damage || 0) * 0.6; } },
+    { id: 'heavyOrbit', name: 'Heavy Orbit', icon: 'juggernaut', desc: '+40% orbit radius, +30% damage — a slower, wider, harder ring.', apply: (s) => { s.orbitRadius = (s.orbitRadius || 80) * 1.4; s.damage = (s.damage || 0) * 1.3; } },
+    { id: 'blitzSpin', name: 'Blitz Spin', icon: 'meleeSpeed', desc: '+70% orbit speed, but -15% damage — a fast shredding blur.', apply: (s) => { s.orbitSpeed = (s.orbitSpeed || 2) * 1.7; s.damage = (s.damage || 0) * 0.85; } },
+    { id: 'gravityWell', name: 'Gravity Well', icon: 'gravityPull', desc: '-30% orbit radius, +60% area (pulls foes in tighter), +20% damage.', apply: (s) => { s.orbitRadius = (s.orbitRadius || 80) * 0.7; s.area = (s.area || 100) * 1.6; s.damage = (s.damage || 0) * 1.2; } },
   ],
   beam: [
-    { id: 'focusFire', name: 'Focus Fire', icon: '🔴', desc: '+90% damage, but -30% fire rate — a searing, slower ray.', apply: (s) => { s.damage = (s.damage || 0) * 1.9; s.fireRate = (s.fireRate || 1) * 0.7; } },
-    { id: 'rapidDischarge', name: 'Rapid Discharge', icon: '⚡', desc: '+55% fire rate, but -30% damage — zap constantly.', apply: (s) => { s.fireRate = (s.fireRate || 1) * 1.55; s.damage = (s.damage || 0) * 0.7; } },
-    { id: 'extendedRange', name: 'Extended Range', icon: '📡', desc: '+70% range, but -20% damage — reach across the whole arena.', apply: (s) => { s.range = (s.range || 320) * 1.7; s.damage = (s.damage || 0) * 0.8; } },
-    { id: 'overchargedCrit', name: 'Overcharged Core', icon: '💥', desc: '+30% crit chance, +25% damage — every hit threatens to burst.', apply: (s) => { s.crit = (s.crit || 0.05) + 0.3; s.damage = (s.damage || 0) * 1.25; } },
+    { id: 'focusFire', name: 'Focus Fire', icon: 'damageMult', desc: '+90% damage, but -30% fire rate — a searing, slower ray.', apply: (s) => { s.damage = (s.damage || 0) * 1.9; s.fireRate = (s.fireRate || 1) * 0.7; } },
+    { id: 'rapidDischarge', name: 'Rapid Discharge', icon: 'fireRateMult', desc: '+55% fire rate, but -30% damage — zap constantly.', apply: (s) => { s.fireRate = (s.fireRate || 1) * 1.55; s.damage = (s.damage || 0) * 0.7; } },
+    { id: 'extendedRange', name: 'Extended Range', icon: 'projRangeMult', desc: '+70% range, but -20% damage — reach across the whole arena.', apply: (s) => { s.range = (s.range || 320) * 1.7; s.damage = (s.damage || 0) * 0.8; } },
+    { id: 'overchargedCrit', name: 'Overcharged Core', icon: 'overcharge', desc: '+30% crit chance, +25% damage — every hit threatens to burst.', apply: (s) => { s.crit = (s.crit || 0.05) + 0.3; s.damage = (s.damage || 0) * 1.25; } },
   ],
   chain: [
-    { id: 'longerChain', name: 'Longer Chain', icon: '🔗', desc: '+4 chain jumps, but -30% damage — the current spreads much further.', apply: (s) => { s.chainCount = (s.chainCount || 3) + 4; s.damage = (s.damage || 0) * 0.7; } },
-    { id: 'widerReach', name: 'Wider Reach', icon: '🌩️', desc: '+55% chain range, but -20% damage — bounces to targets far apart.', apply: (s) => { s.chainRange = (s.chainRange || 200) * 1.55; s.damage = (s.damage || 0) * 0.8; } },
-    { id: 'overcharged', name: 'Overcharged', icon: '⚡', desc: '+80% damage, but -30% fire rate — a punishing single strike.', apply: (s) => { s.damage = (s.damage || 0) * 1.8; s.fireRate = (s.fireRate || 1) * 0.7; } },
-    { id: 'rapidDischargeC', name: 'Rapid Discharge', icon: '🔌', desc: '+55% fire rate, but -1 chain jump — fires much faster, jumps less far.', apply: (s) => { s.fireRate = (s.fireRate || 1) * 1.55; s.chainCount = Math.max(1, (s.chainCount || 3) - 1); } },
+    { id: 'longerChain', name: 'Longer Chain', icon: 'chainOnKill', desc: '+4 chain jumps, but -30% damage — the current spreads much further.', apply: (s) => { s.chainCount = (s.chainCount || 3) + 4; s.damage = (s.damage || 0) * 0.7; } },
+    { id: 'widerReach', name: 'Wider Reach', icon: 'projRangeMult', desc: '+55% chain range, but -20% damage — bounces to targets far apart.', apply: (s) => { s.chainRange = (s.chainRange || 200) * 1.55; s.damage = (s.damage || 0) * 0.8; } },
+    { id: 'overcharged', name: 'Overcharged', icon: 'overcharge', desc: '+80% damage, but -30% fire rate — a punishing single strike.', apply: (s) => { s.damage = (s.damage || 0) * 1.8; s.fireRate = (s.fireRate || 1) * 0.7; } },
+    { id: 'rapidDischargeC', name: 'Rapid Discharge', icon: 'fireRateMult', desc: '+55% fire rate, but -1 chain jump — fires much faster, jumps less far.', apply: (s) => { s.fireRate = (s.fireRate || 1) * 1.55; s.chainCount = Math.max(1, (s.chainCount || 3) - 1); } },
   ],
 };
 
@@ -614,51 +623,51 @@ export function getWeaponForkChoices(weaponDef) {
 // player ever reads, and a desc that drifts from its apply is worse than no
 // desc at all.
 export const WEAPON_SET_BONUSES = [
-  { id: 'set_frozenTide', weapons: ['hydropistol', 'icespike'], name: 'Frozen Tide', icon: '🧊', accent: '#8fe6ff',
+  { id: 'set_frozenTide', weapons: ['hydropistol', 'icespike'], name: 'Frozen Tide', icon: 'iceShards', accent: '#8fe6ff',
     desc: '+1 pierce, +10% crit', apply: (rs) => { rs.pierceBonus = (rs.pierceBonus || 0) + 1; rs.crit = (rs.crit || 0) + 0.10; } },
-  { id: 'set_steamOverload', weapons: ['flameburst', 'tidalHarpoon'], name: 'Steam Overload', icon: '💨', accent: '#ff9a4d',
+  { id: 'set_steamOverload', weapons: ['flameburst', 'tidalHarpoon'], name: 'Steam Overload', icon: 'flameburst', accent: '#ff9a4d',
     desc: '+20% damage, +10% area', apply: (rs) => { rs.damageMult = (rs.damageMult || 1) * 1.20; rs.areaMult = (rs.areaMult || 1) * 1.10; } },
-  { id: 'set_twinStorms', weapons: ['stormLance', 'arcCaster'], name: 'Twin Storms', icon: '⚡', accent: '#fff44d',
+  { id: 'set_twinStorms', weapons: ['stormLance', 'arcCaster'], name: 'Twin Storms', icon: 'lightningOnCrit', accent: '#fff44d',
     desc: '+25% attack speed', apply: (rs) => { rs.fireRateMult = (rs.fireRateMult || 1) * 1.25; } },
-  { id: 'set_automatedWing', weapons: ['droneSquad', 'railgunArray'], name: 'Automated Wing', icon: '🛸', accent: '#4dc4ff',
+  { id: 'set_automatedWing', weapons: ['droneSquad', 'railgunArray'], name: 'Automated Wing', icon: 'droneSquad', accent: '#4dc4ff',
     desc: '+10% crit, +10% damage', apply: (rs) => { rs.crit = (rs.crit || 0) + 0.10; rs.damageMult = (rs.damageMult || 1) * 1.10; } },
-  { id: 'set_ordnanceOverkill', weapons: ['cometLauncher', 'shrapnelMine'], name: 'Ordnance Overkill', icon: '💥', accent: '#ff7a1a',
+  { id: 'set_ordnanceOverkill', weapons: ['cometLauncher', 'shrapnelMine'], name: 'Ordnance Overkill', icon: 'explosiveDeath', accent: '#ff7a1a',
     desc: '+20% area, +15% damage', apply: (rs) => { rs.areaMult = (rs.areaMult || 1) * 1.20; rs.damageMult = (rs.damageMult || 1) * 1.15; } },
 
   // ---- Manual-weapon pairs -------------------------------------------------
-  { id: 'set_handCannons', weapons: ['desertEagle', 'twinRevolvers'], name: 'Hand Cannons', icon: '🎯', accent: '#ffd166',
+  { id: 'set_handCannons', weapons: ['desertEagle', 'twinRevolvers'], name: 'Hand Cannons', icon: 'desertEagle', accent: '#ffd166',
     desc: '+28% manual damage, 20% faster reloads',
     apply: (rs) => { rs.manualDmgMult = (rs.manualDmgMult || 1) * 1.28; rs.reloadMult = (rs.reloadMult || 1) * 0.80; } },
-  { id: 'set_longEye', weapons: ['bow', 'sniperDrop'], name: 'The Long Eye', icon: '👁', accent: '#c8f0a0',
+  { id: 'set_longEye', weapons: ['bow', 'sniperDrop'], name: 'The Long Eye', icon: 'ui_eye', accent: '#c8f0a0',
     desc: '+12% crit, +15% headshot, +1 pierce',
     apply: (rs) => { rs.crit = (rs.crit || 0) + 0.12; rs.headshot = (rs.headshot || 0) + 0.15; rs.pierceBonus = (rs.pierceBonus || 0) + 1; } },
-  { id: 'set_quickHands', weapons: ['runebolts', 'acidSprayer'], name: 'Quick Hands', icon: '🖐', accent: '#7ad96b',
+  { id: 'set_quickHands', weapons: ['runebolts', 'acidSprayer'], name: 'Quick Hands', icon: 'reloadMult', accent: '#7ad96b',
     desc: '25% faster reloads, +8 magazine',
     apply: (rs) => { rs.reloadMult = (rs.reloadMult || 1) * 0.75; rs.magBonus = (rs.magBonus || 0) + 8; } },
 
   // ---- Auto-weapon pairs ---------------------------------------------------
-  { id: 'set_bladeDance', weapons: ['daggers', 'whirlwind'], name: 'Blade Dance', icon: '🌀', accent: '#9fe8c8',
+  { id: 'set_bladeDance', weapons: ['daggers', 'whirlwind'], name: 'Blade Dance', icon: 'whirlwind', accent: '#9fe8c8',
     desc: '+12% move speed, +20% auto attack speed',
     apply: (rs) => { rs.moveMult = (rs.moveMult || 1) * 1.12; rs.autoRateMult = (rs.autoRateMult || 1) * 1.20; } },
-  { id: 'set_redHarvest', weapons: ['bloodscythe', 'tideWhip'], name: 'Red Harvest', icon: '🩸', accent: '#b51d28',
+  { id: 'set_redHarvest', weapons: ['bloodscythe', 'tideWhip'], name: 'Red Harvest', icon: 'bloodscythe', accent: '#b51d28',
     desc: '+15% damage, hearts heal 2 more',
     apply: (rs) => { rs.damageMult = (rs.damageMult || 1) * 1.15; rs.heartHeal = (rs.heartHeal || 0) + 2; } },
-  { id: 'set_sunAndStorm', weapons: ['solarFlare', 'staticField'], name: 'Sun and Storm', icon: '🌤', accent: '#ffe44d',
+  { id: 'set_sunAndStorm', weapons: ['solarFlare', 'staticField'], name: 'Sun and Storm', icon: 'solarFlare', accent: '#ffe44d',
     desc: '+18% area, +12% attack speed',
     apply: (rs) => { rs.areaMult = (rs.areaMult || 1) * 1.18; rs.fireRateMult = (rs.fireRateMult || 1) * 1.12; } },
-  { id: 'set_scrapyard', weapons: ['boneshards', 'shrapnelMine'], name: 'Scrapyard', icon: '🦴', accent: '#d8c8a0',
+  { id: 'set_scrapyard', weapons: ['boneshards', 'shrapnelMine'], name: 'Scrapyard', icon: 'boneshards', accent: '#d8c8a0',
     desc: '+1 projectile, +10% damage',
     apply: (rs) => { rs.projBonus = (rs.projBonus || 0) + 1; rs.damageMult = (rs.damageMult || 1) * 1.10; } },
 
   // ---- Trinities: three weapons, roughly double a pair ---------------------
-  { id: 'set_voidChoir', weapons: ['voidBeam', 'voidPulse', 'voidScatter'], name: 'The Void Choir', icon: '🔮', accent: '#b362ff',
+  { id: 'set_voidChoir', weapons: ['voidBeam', 'voidPulse', 'voidScatter'], name: 'The Void Choir', icon: 'voidPulse', accent: '#b362ff',
     desc: '+30% damage, +20% boss damage, void bursts on kill',
     apply: (rs) => {
       rs.damageMult = (rs.damageMult || 1) * 1.30;
       rs.bossDmg = (rs.bossDmg || 1) + 0.20;
       rs.voidBurst = (rs.voidBurst || 0) + 0.25;
     } },
-  { id: 'set_orbitalRing', weapons: ['emberOrbs', 'frostOrb', 'plasmaTurret'], name: 'Orbital Ring', icon: '💫', accent: '#7cd6ff',
+  { id: 'set_orbitalRing', weapons: ['emberOrbs', 'frostOrb', 'plasmaTurret'], name: 'Orbital Ring', icon: 'emberOrbs', accent: '#7cd6ff',
     desc: '+25% auto area, +20% auto damage, +10% area',
     apply: (rs) => {
       rs.autoAreaMult = (rs.autoAreaMult || 1) * 1.25;
@@ -687,11 +696,11 @@ export function setProgress(owned) {
 // building a parallel system, and adds the two that had no owner yet
 // (slow, poison stacks, armor shred).
 export const ELEMENTS = [
-  { id: 'fire',     name: 'Fire',     icon: '🔥', color: '#ff6a1a', desc: 'Ignites — burns for damage over time.' },
-  { id: 'ice',      name: 'Ice',      icon: '🧊', color: '#a0e8ff', desc: 'Chills — slows movement on hit.' },
-  { id: 'electric', name: 'Electric', icon: '⚡', color: '#a0e4ff', desc: 'Arcs to a second nearby enemy on hit.' },
-  { id: 'poison',   name: 'Poison',   icon: '☠️', color: '#7ad96b', desc: 'Stacking poison — more stacks, more DoT damage.' },
-  { id: 'void',     name: 'Void',     icon: '🔮', color: '#b362ff', desc: 'Shreds armor briefly, exposing the target.' },
+  { id: 'fire',     name: 'Fire',     icon: 'flameburst', color: '#ff6a1a', desc: 'Ignites — burns for damage over time.' },
+  { id: 'ice',      name: 'Ice',      icon: 'iceShards', color: '#a0e8ff', desc: 'Chills — slows movement on hit.' },
+  { id: 'electric', name: 'Electric', icon: 'lightningOnCrit', color: '#a0e4ff', desc: 'Arcs to a second nearby enemy on hit.' },
+  { id: 'poison',   name: 'Poison',   icon: 'poisonOnKill', color: '#7ad96b', desc: 'Stacking poison — more stacks, more DoT damage.' },
+  { id: 'void',     name: 'Void',     icon: 'voidPulse', color: '#b362ff', desc: 'Shreds armor briefly, exposing the target.' },
 ];
 
 // ---------- BRUTAL KILL ANIMATIONS by weapon behaviour ----------
@@ -724,14 +733,14 @@ export const ENEMY_KILL_FX = {
 
 // ---------- DAILY CHALLENGES ----------
 export const DAILY_CHALLENGE_POOL = [
-  { id: 'dc_blitz',   name: 'Blitz Run',       icon: '⚡', desc: 'Survive 60 seconds',         duration: 60,  killGoal: 0, spawnMult: 2.2, rwd: { gold: 400, sp: 2 } },
-  { id: 'dc_hunter',  name: 'Bounty Hunt',      icon: '🎯', desc: 'Kill 80 enemies in 90s',     duration: 90,  killGoal: 80, spawnMult: 1.8, rwd: { gold: 600, sp: 2 } },
-  { id: 'dc_void',    name: 'Void Rush',         icon: '🌌', desc: 'Survive 3 minutes (hard)',   duration: 180, killGoal: 0, spawnMult: 2.5, rwd: { gold: 800, sp: 3 } },
-  { id: 'dc_swarm',   name: 'Swarm Protocol',   icon: '🐝', desc: 'Kill 200 enemies',           duration: 999, killGoal: 200, spawnMult: 2.8, rwd: { gold: 1000, sp: 4 } },
-  { id: 'dc_undying', name: 'Undying',           icon: '❤', desc: 'Survive 2 min: no pickups',  duration: 120, killGoal: 0, spawnMult: 1.5, rwd: { gold: 700, sp: 3 } },
-  { id: 'dc_bullet',  name: 'Bullet Hell',       icon: '💢', desc: 'Kill 50 enemies in 45s',     duration: 45,  killGoal: 50, spawnMult: 3.0, rwd: { gold: 900, sp: 4 } },
-  { id: 'dc_elite',   name: 'Elite Gauntlet',   icon: '🏆', desc: 'Survive 5 minutes',         duration: 300, killGoal: 0, spawnMult: 2.0, rwd: { gold: 1500, sp: 6 } },
-  { id: 'dc_boss',    name: 'Boss Rush',         icon: '💀', desc: '90s high-density survival',  duration: 90,  killGoal: 0, spawnMult: 2.0, rwd: { gold: 1200, sp: 5 } },
+  { id: 'dc_blitz',   name: 'Blitz Run',       icon: 'ui_bolt', desc: 'Survive 60 seconds',         duration: 60,  killGoal: 0, spawnMult: 2.2, rwd: { gold: 400, sp: 2 } },
+  { id: 'dc_hunter',  name: 'Bounty Hunt',      icon: 'ui_loadout', desc: 'Kill 80 enemies in 90s',     duration: 90,  killGoal: 80, spawnMult: 1.8, rwd: { gold: 600, sp: 2 } },
+  { id: 'dc_void',    name: 'Void Rush',         icon: 'voidPulse', desc: 'Survive 3 minutes (hard)',   duration: 180, killGoal: 0, spawnMult: 2.5, rwd: { gold: 800, sp: 3 } },
+  { id: 'dc_swarm',   name: 'Swarm Protocol',   icon: 'swarmAura', desc: 'Kill 200 enemies',           duration: 999, killGoal: 200, spawnMult: 2.8, rwd: { gold: 1000, sp: 4 } },
+  { id: 'dc_undying', name: 'Undying',           icon: 'heart', desc: 'Survive 2 min: no pickups',  duration: 120, killGoal: 0, spawnMult: 1.5, rwd: { gold: 700, sp: 3 } },
+  { id: 'dc_bullet',  name: 'Bullet Hell',       icon: 'crit', desc: 'Kill 50 enemies in 45s',     duration: 45,  killGoal: 50, spawnMult: 3.0, rwd: { gold: 900, sp: 4 } },
+  { id: 'dc_elite',   name: 'Elite Gauntlet',   icon: 'ui_trophy', desc: 'Survive 5 minutes',         duration: 300, killGoal: 0, spawnMult: 2.0, rwd: { gold: 1500, sp: 6 } },
+  { id: 'dc_boss',    name: 'Boss Rush',         icon: 'ui_void', desc: '90s high-density survival',  duration: 90,  killGoal: 0, spawnMult: 2.0, rwd: { gold: 1200, sp: 5 } },
 ];
 
 export function getDailyChallenges() {
@@ -804,7 +813,7 @@ export const MAP_STAGES = [
   // shoot rather than about being surrounded. It still ends on a real
   // guardian — an easy map with no boss teaches nothing about how nodes work.
   {
-    id: 'pond', name: 'The Rain Pool', icon: '💧', color: '#8fe3ff',
+    id: 'pond', name: 'The Rain Pool', icon: 'ui_waterdrop', color: '#8fe3ff',
     desc: 'Shallow, quiet, and the last place that still remembers being clean. Learn to move here.',
     unlock: null,
     nodes: [
@@ -814,7 +823,7 @@ export const MAP_STAGES = [
     ],
   },
   {
-    id: 'lake', name: 'The Lake', icon: '🌊', color: '#4dc4ff',
+    id: 'lake', name: 'The Lake', icon: 'tidalWave', color: '#4dc4ff',
     desc: 'Where it all began. Corrupted slimes and bats swarm the shallows.',
     unlock: null,
     nodes: [
@@ -824,7 +833,7 @@ export const MAP_STAGES = [
     ],
   },
   {
-    id: 'ruins', name: 'Sunken Ruins', icon: '🏛', color: '#ffd166',
+    id: 'ruins', name: 'Sunken Ruins', icon: 'ui_base', color: '#ffd166',
     desc: 'Forgotten halls where ranged threats lurk behind crumbling pillars.',
     unlock: { metric: 'totalKills', goal: 200, label: '200 kills' },
     nodes: [
@@ -834,7 +843,7 @@ export const MAP_STAGES = [
     ],
   },
   {
-    id: 'void', name: 'Void Lab', icon: '🌌', color: '#b362ff',
+    id: 'void', name: 'Void Lab', icon: 'voidPulse', color: '#b362ff',
     desc: "A.I.D.A.'s abandoned research chambers. Eldritch fiends in every corridor.",
     unlock: { metric: 'runsCompleted', goal: 5, label: '5 runs' },
     nodes: [
@@ -844,7 +853,7 @@ export const MAP_STAGES = [
     ],
   },
   {
-    id: 'ship', name: 'Annunaki Ship', icon: '🛸', color: '#ff7a1a',
+    id: 'ship', name: 'Annunaki Ship', icon: 'ui_rocket', color: '#ff7a1a',
     desc: 'The final frontier. Elite units guard the control deck. A.I.D.A. waits inside.',
     unlock: { metric: 'aidaSlain', goal: 1, label: 'Defeat A.I.D.A.' },
     nodes: [
@@ -854,7 +863,7 @@ export const MAP_STAGES = [
     ],
   },
   {
-    id: 'sky', name: 'Drowned Sky', icon: '⛈', color: '#ffe44d',
+    id: 'sky', name: 'Drowned Sky', icon: 'lightningOnCrit', color: '#ffe44d',
     desc: "Storm-wracked ruins above the clouds. Lightning-touched fiends and swarms thrive in the charged air.",
     unlock: { metric: 'aidaSlain', goal: 1, label: 'Defeat A.I.D.A.' },
     nodes: [
@@ -864,7 +873,7 @@ export const MAP_STAGES = [
     ],
   },
   {
-    id: 'deepcurrent', name: 'The Deep Current', icon: '🌀', color: '#4dffe0',
+    id: 'deepcurrent', name: 'The Deep Current', icon: 'gravityPull', color: '#4dffe0',
     desc: "The void A.I.D.A. left behind never closed. Endless-mode veterans push deeper than anyone should.",
     unlock: { metric: 'endlessReached', goal: 1, label: 'Reach Endless Mode' },
     nodes: [
@@ -928,12 +937,12 @@ export const CHAR_LEVEL_COST = (rarity, lvl) => ({
 // Evolve cost: shards needed for each rarity evolution (higher rarities need more shards)
 export const CHAR_EVOLVE_COST = { common:{shards:1}, uncommon:{shards:2}, rare:{shards:3}, epic:{shards:5}, legendary:{shards:8} };
 const _CHAR_STAT_POOL = [
-  { stat:'maxHp', label:'Max HP',      val:15,   icon:'❤️', isPct:false },
-  { stat:'dmg',   label:'ATK Power',   val:0.04, icon:'⚔️', isPct:true  },
-  { stat:'mspd',  label:'Move Speed',  val:0.02, icon:'💨', isPct:true  },
-  { stat:'gold',  label:'Gold Find',   val:0.03, icon:'💰', isPct:true  },
-  { stat:'armor', label:'Armor',       val:1,    icon:'🛡️', isPct:false },
-  { stat:'xp',    label:'XP Gain',     val:0.03, icon:'📖', isPct:true  },
+  { stat:'maxHp', label:'Max HP',      val:15,   icon: 'maxHp', isPct:false },
+  { stat:'dmg',   label:'ATK Power',   val:0.04, icon: 'damageMult', isPct:true  },
+  { stat:'mspd',  label:'Move Speed',  val:0.02, icon: 'moveMult', isPct:true  },
+  { stat:'gold',  label:'Gold Find',   val:0.03, icon: 'goldMult', isPct:true  },
+  { stat:'armor', label:'Armor',       val:1,    icon: 'armor', isPct:false },
+  { stat:'xp',    label:'XP Gain',     val:0.03, icon: 'xpMult', isPct:true  },
 ];
 export function charLevelStat(level, rarity) {
   const rarIdx = CHAR_RARITIES.indexOf(rarity);
@@ -948,57 +957,57 @@ export function charLevelStat(level, rarity) {
 // ══════════════════════════════════════════════
 export const TALENT_NODES = [
   // ── Tier 1 (costPerLvl 1-3 TP) ──────────────
-  { id:'tn01', maxLvl:10, costPerLvl:1, icon:'❤️', name:'Vitality I',      stat:'maxHp', val:1.5,   milestone:false },
-  { id:'tn02', maxLvl:10, costPerLvl:1, icon:'⚔️', name:'Power I',          stat:'dmg',   val:0.002, milestone:false },
-  { id:'tn03', maxLvl:10, costPerLvl:1, icon:'💨', name:'Agility I',        stat:'mspd',  val:0.002, milestone:false },
-  { id:'tn04', maxLvl:10, costPerLvl:1, icon:'💰', name:'Looter I',         stat:'gold',  val:0.003, milestone:false },
-  { id:'tn05', maxLvl:10, costPerLvl:3, icon:'⭐', name:'Foundation',       stat:'all',   val:0.001, milestone:true  },
+  { id:'tn01', maxLvl:10, costPerLvl:1, icon: 'maxHp', name:'Vitality I',      stat:'maxHp', val:1.5,   milestone:false },
+  { id:'tn02', maxLvl:10, costPerLvl:1, icon: 'damageMult', name:'Power I',          stat:'dmg',   val:0.002, milestone:false },
+  { id:'tn03', maxLvl:10, costPerLvl:1, icon: 'moveMult', name:'Agility I',        stat:'mspd',  val:0.002, milestone:false },
+  { id:'tn04', maxLvl:10, costPerLvl:1, icon: 'goldMult', name:'Looter I',         stat:'gold',  val:0.003, milestone:false },
+  { id:'tn05', maxLvl:10, costPerLvl:3, icon: 'ui_medal', name:'Foundation',       stat:'all',   val:0.001, milestone:true  },
   // ── Tier 2 (costPerLvl 2-5 TP) ──────────────
-  { id:'tn06', maxLvl:10, costPerLvl:2, icon:'❤️', name:'Vitality II',      stat:'maxHp', val:2.0,   milestone:false },
-  { id:'tn07', maxLvl:10, costPerLvl:2, icon:'⚔️', name:'Power II',         stat:'dmg',   val:0.003, milestone:false },
-  { id:'tn08', maxLvl:10, costPerLvl:2, icon:'🛡️', name:'Endurance I',      stat:'armor', val:0.1,   milestone:false },
-  { id:'tn09', maxLvl:10, costPerLvl:2, icon:'📖', name:'Scholar I',        stat:'xp',    val:0.004, milestone:false },
-  { id:'tn10', maxLvl:10, costPerLvl:5, icon:'💎', name:'Momentum',         stat:'crit',  val:0.001, milestone:true  },
+  { id:'tn06', maxLvl:10, costPerLvl:2, icon: 'maxHp', name:'Vitality II',      stat:'maxHp', val:2.0,   milestone:false },
+  { id:'tn07', maxLvl:10, costPerLvl:2, icon: 'damageMult', name:'Power II',         stat:'dmg',   val:0.003, milestone:false },
+  { id:'tn08', maxLvl:10, costPerLvl:2, icon: 'armor', name:'Endurance I',      stat:'armor', val:0.1,   milestone:false },
+  { id:'tn09', maxLvl:10, costPerLvl:2, icon: 'xpMult', name:'Scholar I',        stat:'xp',    val:0.004, milestone:false },
+  { id:'tn10', maxLvl:10, costPerLvl:5, icon: 'crit', name:'Momentum',         stat:'crit',  val:0.001, milestone:true  },
   // ── Tier 3 (costPerLvl 3-7 TP) ──────────────
-  { id:'tn11', maxLvl:10, costPerLvl:3, icon:'❤️', name:'Vitality III',     stat:'maxHp', val:2.5,   milestone:false },
-  { id:'tn12', maxLvl:10, costPerLvl:3, icon:'⚔️', name:'Power III',        stat:'dmg',   val:0.004, milestone:false },
-  { id:'tn13', maxLvl:10, costPerLvl:3, icon:'💨', name:'Agility II',       stat:'mspd',  val:0.003, milestone:false },
-  { id:'tn14', maxLvl:10, costPerLvl:3, icon:'💰', name:'Looter II',        stat:'gold',  val:0.005, milestone:false },
-  { id:'tn15', maxLvl:10, costPerLvl:7, icon:'🔥', name:'Awakening',        stat:'dmg',   val:0.008, milestone:true  },
+  { id:'tn11', maxLvl:10, costPerLvl:3, icon: 'maxHp', name:'Vitality III',     stat:'maxHp', val:2.5,   milestone:false },
+  { id:'tn12', maxLvl:10, costPerLvl:3, icon: 'damageMult', name:'Power III',        stat:'dmg',   val:0.004, milestone:false },
+  { id:'tn13', maxLvl:10, costPerLvl:3, icon: 'moveMult', name:'Agility II',       stat:'mspd',  val:0.003, milestone:false },
+  { id:'tn14', maxLvl:10, costPerLvl:3, icon: 'goldMult', name:'Looter II',        stat:'gold',  val:0.005, milestone:false },
+  { id:'tn15', maxLvl:10, costPerLvl:7, icon: 'damageMult', name:'Awakening',        stat:'dmg',   val:0.008, milestone:true  },
   // ── Tier 4 (costPerLvl 4-10 TP) ─────────────
-  { id:'tn16', maxLvl:10, costPerLvl:4, icon:'❤️', name:'Vitality IV',      stat:'maxHp', val:3.5,   milestone:false },
-  { id:'tn17', maxLvl:10, costPerLvl:4, icon:'🛡️', name:'Endurance II',     stat:'armor', val:0.2,   milestone:false },
-  { id:'tn18', maxLvl:10, costPerLvl:4, icon:'⚔️', name:'Power IV',         stat:'dmg',   val:0.005, milestone:false },
-  { id:'tn19', maxLvl:10, costPerLvl:4, icon:'💨', name:'Agility III',      stat:'mspd',  val:0.004, milestone:false },
-  { id:'tn20', maxLvl:10, costPerLvl:10, icon:'👑', name:'Mastery',         stat:'all',   val:0.002, milestone:true  },
+  { id:'tn16', maxLvl:10, costPerLvl:4, icon: 'maxHp', name:'Vitality IV',      stat:'maxHp', val:3.5,   milestone:false },
+  { id:'tn17', maxLvl:10, costPerLvl:4, icon: 'armor', name:'Endurance II',     stat:'armor', val:0.2,   milestone:false },
+  { id:'tn18', maxLvl:10, costPerLvl:4, icon: 'damageMult', name:'Power IV',         stat:'dmg',   val:0.005, milestone:false },
+  { id:'tn19', maxLvl:10, costPerLvl:4, icon: 'moveMult', name:'Agility III',      stat:'mspd',  val:0.004, milestone:false },
+  { id:'tn20', maxLvl:10, costPerLvl:10, icon: 'ui_medal', name:'Mastery',         stat:'all',   val:0.002, milestone:true  },
   // ── Tier 5 (costPerLvl 6-15 TP) ─────────────
-  { id:'tn21', maxLvl:10, costPerLvl:6, icon:'❤️', name:'Vitality V',       stat:'maxHp', val:5.0,   milestone:false },
-  { id:'tn22', maxLvl:10, costPerLvl:6, icon:'⚔️', name:'Power V',          stat:'dmg',   val:0.006, milestone:false },
-  { id:'tn23', maxLvl:10, costPerLvl:6, icon:'💢', name:'Cruelty',          stat:'critd', val:0.010, milestone:false },
-  { id:'tn24', maxLvl:10, costPerLvl:6, icon:'💰', name:'Looter III',       stat:'gold',  val:0.008, milestone:false },
-  { id:'tn25', maxLvl:10, costPerLvl:15, icon:'⚡', name:'Thunderstrike',   stat:'crit',  val:0.004, milestone:true  },
+  { id:'tn21', maxLvl:10, costPerLvl:6, icon: 'maxHp', name:'Vitality V',       stat:'maxHp', val:5.0,   milestone:false },
+  { id:'tn22', maxLvl:10, costPerLvl:6, icon: 'damageMult', name:'Power V',          stat:'dmg',   val:0.006, milestone:false },
+  { id:'tn23', maxLvl:10, costPerLvl:6, icon: 'critDmgMult', name:'Cruelty',          stat:'critd', val:0.010, milestone:false },
+  { id:'tn24', maxLvl:10, costPerLvl:6, icon: 'goldMult', name:'Looter III',       stat:'gold',  val:0.008, milestone:false },
+  { id:'tn25', maxLvl:10, costPerLvl:15, icon: 'crit', name:'Thunderstrike',   stat:'crit',  val:0.004, milestone:true  },
   // ── Tier 6 (costPerLvl 8-20 TP) ─────────────
-  { id:'tn26', maxLvl:10, costPerLvl:8, icon:'❤️', name:'Vitality VI',      stat:'maxHp', val:7.0,   milestone:false },
-  { id:'tn27', maxLvl:10, costPerLvl:8, icon:'⚔️', name:'Power VI',         stat:'dmg',   val:0.008, milestone:false },
-  { id:'tn28', maxLvl:10, costPerLvl:8, icon:'🛡️', name:'Endurance III',    stat:'armor', val:0.3,   milestone:false },
-  { id:'tn29', maxLvl:10, costPerLvl:8, icon:'📖', name:'Scholar II',       stat:'xp',    val:0.006, milestone:false },
-  { id:'tn30', maxLvl:10, costPerLvl:20, icon:'🌟', name:'Transcendence',   stat:'all',   val:0.003, milestone:true  },
+  { id:'tn26', maxLvl:10, costPerLvl:8, icon: 'maxHp', name:'Vitality VI',      stat:'maxHp', val:7.0,   milestone:false },
+  { id:'tn27', maxLvl:10, costPerLvl:8, icon: 'damageMult', name:'Power VI',         stat:'dmg',   val:0.008, milestone:false },
+  { id:'tn28', maxLvl:10, costPerLvl:8, icon: 'armor', name:'Endurance III',    stat:'armor', val:0.3,   milestone:false },
+  { id:'tn29', maxLvl:10, costPerLvl:8, icon: 'xpMult', name:'Scholar II',       stat:'xp',    val:0.006, milestone:false },
+  { id:'tn30', maxLvl:10, costPerLvl:20, icon: 'ui_medal', name:'Transcendence',   stat:'all',   val:0.003, milestone:true  },
 ];
 
 // ══════════════════════════════════════════════
 // CAMPAIGN QUESTS
 // ══════════════════════════════════════════════
 export const CAMPAIGN_QUESTS = [
-  { id:'cq01', name:'First Blood',       icon:'⚔️', desc:'Complete your first run',          check:(s)=>(s.runsCompleted||0)>=1,                             rwd:{ gold:300 } },
-  { id:'cq02', name:'Skill Student',     icon:'📖', desc:'Buy 3 skill tree upgrades',         check:(s)=>Object.values(s.skills||{}).reduce((a,b)=>a+b,0)>=3, rwd:{ gold:400, sp:1 } },
-  { id:'cq03', name:'Meta Mind',         icon:'🧠', desc:'Buy 5 meta upgrades',               check:(s)=>Object.values(s.meta||{}).reduce((a,b)=>a+b,0)>=5,   rwd:{ gold:600 } },
-  { id:'cq04', name:'Survivor',          icon:'🏆', desc:'Complete 3 runs',                   check:(s)=>(s.runsCompleted||0)>=3,                             rwd:{ gold:800, sp:2 } },
-  { id:'cq05', name:'Card Collector',    icon:'🃏', desc:'Do 5 card shop pulls',              check:(s)=>(s.shopPulls||0)>=5,                                 rwd:{ gold:1000 } },
-  { id:'cq06', name:'Profile Prestige',  icon:'⭐', desc:'Reach Rank 5',                      check:(s)=>(s.profile?.level||1)>=5,                            rwd:{ gold:1200, sp:3 } },
-  { id:'cq07', name:'Map Explorer',      icon:'🗺️', desc:'Complete a map node',               check:(s)=>Object.keys(s.mapProgress||{}).length>0,             rwd:{ gold:1500 } },
-  { id:'cq08', name:'Monster Slayer',    icon:'☠️', desc:'Kill 500 enemies total',            check:(s)=>(s.totalKills||0)>=500,                              rwd:{ gold:2000, sp:3 } },
-  { id:'cq09', name:'One Thousand',      icon:'💀', desc:'Kill 1000 enemies total',           check:(s)=>(s.totalKills||0)>=1000,                             rwd:{ gold:3500, sp:5 } },
-  { id:'cq10', name:'Character Evolved', icon:'💎', desc:'Evolve character to Uncommon+',    check:(s)=>['uncommon','rare','epic','legendary','mythical'].includes(s.character?.rarity), rwd:{ gold:3000, sp:6 } },
-  { id:'cq11', name:'Talent Path Begun', icon:'🌿', desc:'Unlock 10 Talent nodes',           check:(s)=>Object.keys(s.talent||{}).length>=10,                rwd:{ gold:2000, sp:5 } },
-  { id:'cq12', name:'Legend',            icon:'🌟', desc:'Reach Rank 10',                     check:(s)=>(s.profile?.level||1)>=10,                           rwd:{ gold:5000, sp:10 } },
+  { id:'cq01', name:'First Blood',       icon:'ui_blade', desc:'Complete your first run',          check:(s)=>(s.runsCompleted||0)>=1,                             rwd:{ gold:300 } },
+  { id:'cq02', name:'Skill Student',     icon:'ui_codex', desc:'Buy 3 skill tree upgrades',         check:(s)=>Object.values(s.skills||{}).reduce((a,b)=>a+b,0)>=3, rwd:{ gold:400, sp:1 } },
+  { id:'cq03', name:'Meta Mind',         icon:'ui_skills', desc:'Buy 5 meta upgrades',               check:(s)=>Object.values(s.meta||{}).reduce((a,b)=>a+b,0)>=5,   rwd:{ gold:600 } },
+  { id:'cq04', name:'Survivor',          icon:'ui_trophy', desc:'Complete 3 runs',                   check:(s)=>(s.runsCompleted||0)>=3,                             rwd:{ gold:800, sp:2 } },
+  { id:'cq05', name:'Card Collector',    icon:'ui_cards', desc:'Do 5 card shop pulls',              check:(s)=>(s.shopPulls||0)>=5,                                 rwd:{ gold:1000 } },
+  { id:'cq06', name:'Profile Prestige',  icon:'ui_star', desc:'Reach Rank 5',                      check:(s)=>(s.profile?.level||1)>=5,                            rwd:{ gold:1200, sp:3 } },
+  { id:'cq07', name:'Map Explorer',      icon:'ui_map', desc:'Complete a map node',               check:(s)=>Object.keys(s.mapProgress||{}).length>0,             rwd:{ gold:1500 } },
+  { id:'cq08', name:'Monster Slayer',    icon:'ui_void', desc:'Kill 500 enemies total',            check:(s)=>(s.totalKills||0)>=500,                              rwd:{ gold:2000, sp:3 } },
+  { id:'cq09', name:'One Thousand',      icon:'ui_void', desc:'Kill 1000 enemies total',           check:(s)=>(s.totalKills||0)>=1000,                             rwd:{ gold:3500, sp:5 } },
+  { id:'cq10', name:'Character Evolved', icon:'ui_gem', desc:'Evolve character to Uncommon+',    check:(s)=>['uncommon','rare','epic','legendary','mythical'].includes(s.character?.rarity), rwd:{ gold:3000, sp:6 } },
+  { id:'cq11', name:'Talent Path Begun', icon:'ui_leaf', desc:'Unlock 10 Talent nodes',           check:(s)=>Object.keys(s.talent||{}).length>=10,                rwd:{ gold:2000, sp:5 } },
+  { id:'cq12', name:'Legend',            icon:'ui_star', desc:'Reach Rank 10',                     check:(s)=>(s.profile?.level||1)>=10,                           rwd:{ gold:5000, sp:10 } },
 ];

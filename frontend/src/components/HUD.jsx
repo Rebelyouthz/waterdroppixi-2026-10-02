@@ -344,7 +344,7 @@ export default function HUD({ snap, isTutorial, mission, levelUpOpen = false }) 
         <div className="hud-sets" data-testid="hud-sets">
           {activeSets.map(s => (
             <span key={s.id} className="hud-set" style={{ '--sc': s.accent }} title={`${s.name} — ${s.desc}`}>
-              <i>{s.icon}</i>{s.name}
+              <i><GameIcon name={s.icon} size={14} /></i>{s.name}
             </span>
           ))}
         </div>

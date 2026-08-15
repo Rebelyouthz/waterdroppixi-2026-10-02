@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { CAMPAIGN_QUESTS, STORY_BEATS } from '../game/data_ext2';
 import { applyReward } from '../store';
 import { Audio } from '../game/audio';
+import GameIcon from './GameIcon';
 
 export default function CampaignPanel({ save, setSave }) {
   const [pop, setPop] = useState(null);
@@ -29,7 +30,7 @@ export default function CampaignPanel({ save, setSave }) {
       </div>
 
       <div style={{ fontFamily: 'VT323', color: 'var(--accent-2)', letterSpacing: '0.15em', fontSize: 14, margin: '4px 0 8px' }}>
-        📖 STORY — {unlockedBeats.length}/{STORY_BEATS.length} entries
+        <GameIcon name="ui_codex" size={13} /> STORY — {unlockedBeats.length}/{STORY_BEATS.length} entries
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20 }}>
         {STORY_BEATS.map(b => {
@@ -58,7 +59,7 @@ export default function CampaignPanel({ save, setSave }) {
         })}
       </div>
 
-      <div style={{ fontFamily: 'VT323', color: 'var(--accent-2)', letterSpacing: '0.15em', fontSize: 14, margin: '4px 0 8px' }}>🎯 QUESTS</div>
+      <div style={{ fontFamily: 'VT323', color: 'var(--accent-2)', letterSpacing: '0.15em', fontSize: 14, margin: '4px 0 8px' }}><GameIcon name="ui_loadout" size={13} /> QUESTS</div>
       <div className="upgrade-grid">
         {CAMPAIGN_QUESTS.map(q => {
           const ready = q.check(save);
@@ -66,7 +67,7 @@ export default function CampaignPanel({ save, setSave }) {
           return (
             <div key={q.id} className={`upgrade-card ${claimed ? 'maxed' : ''} ${pop === q.id ? 'card-pop' : ''}`} data-testid={`cq-${q.id}`}>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
-                <span style={{ fontSize: 20 }}>{q.icon}</span>
+                <GameIcon name={q.icon} size={20} />
                 <div className="name" style={{ fontSize: 14 }}>{q.name}</div>
               </div>
               <div className="desc">{q.desc}</div>

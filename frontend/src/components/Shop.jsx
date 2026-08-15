@@ -4,6 +4,7 @@ import { PART_SLOTS, PART_SLOT_INFO, PART_RARITY_COLORS, rollPart } from '../gam
 import { PET_TYPES } from './PetPanel';
 import { Audio } from '../game/audio';
 import { pushToast } from '../game/toastBus';
+import GameIcon from './GameIcon';
 
 // Best rarity among a set of drops decides the toast's tone — a chest with
 // one epic buried in four commons should chime like an epic landed, not
@@ -162,7 +163,7 @@ export default function Shop({ save, setSave, onClose }) {
                 return (
                   <div key={i} className={`drop-item card ${r?.cls || ''}`} style={{ animationDelay: (i * 80) + 'ms' }}>
                     <div className="card-tag">{d.rarity?.toUpperCase()}</div>
-                    <div className="card-icon">{d.icon}</div>
+                    <div className="card-icon">{d.isPart ? <GameIcon name={d.icon} size={32} /> : d.icon}</div>
                     <div className="card-name">{d.name}</div>
                     {d.isPetEgg ? (
                       <div className="card-desc" style={{ color: r?.color }}>🥚 {d.petType?.type} pet</div>

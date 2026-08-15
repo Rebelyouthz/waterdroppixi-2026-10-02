@@ -6,6 +6,7 @@ import { accountXpToNext } from '../game/data_ext';
 import { pushToast } from '../game/toastBus';
 import { progressFor } from '../game/difficulty';
 import DifficultyPicker from './DifficultyPicker';
+import GameIcon from './GameIcon';
 
 const PART_RAR_CLS = { common: 'r-common', magic: 'r-magic', rare: 'r-rare', epic: 'r-epic', legendary: 'r-legendary', mythical: 'r-mythical' };
 
@@ -52,7 +53,7 @@ export function MissionsPanel({ save, setSave, onStart }) {
         {MISSION_DEFS.map(m => (
           <div className="upgrade-card" key={m.id} data-testid={`mission-${m.id}`}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ fontSize: 28 }}>{m.icon}</div>
+              <GameIcon name={m.icon} size={28} />
               <div>
                 <div className="name">{m.name}</div>
                 <div className="lvl">STAGE {m.stage} · {Math.floor(m.duration / 60)}m {m.duration % 60}s</div>
@@ -60,7 +61,7 @@ export function MissionsPanel({ save, setSave, onStart }) {
             </div>
             <div className="desc">{m.desc}</div>
             <div style={{ fontSize: 13, color: 'var(--accent-2)' }}>
-              📜 Blueprint shards × {m.reward.blueprintShards.count}<br />
+              <GameIcon name="ui_scroll" size={13} /> Blueprint shards × {m.reward.blueprintShards.count}<br />
               {Object.entries(m.reward.parts).map(([rar, n]) => <span key={rar} style={{ color: PART_RARITY_COLORS[rar], marginRight: 6 }}>{n}× {rar}</span>)}
               <br />★ {m.reward.gold} gold
             </div>
@@ -82,7 +83,7 @@ export function MissionsPanel({ save, setSave, onStart }) {
           return (
             <div className={`upgrade-card daily-challenge-card ${done ? 'dc-done' : ''}`} key={dc.id} data-testid={`dc-${dc.id}`}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ fontSize: 28 }}>{dc.icon}</div>
+                <GameIcon name={dc.icon} size={28} />
                 <div>
                   <div className="name" style={{ color: '#ff7a1a' }}>{dc.name}</div>
                   <div className="lvl">DAILY CHALLENGE</div>
@@ -116,7 +117,7 @@ export function ChallengesPanel({ save, setSave, onStart }) {
           return (
             <div className="upgrade-card" key={c.id} data-testid={`ch-${c.id}`}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ fontSize: 30 }}>{c.icon}</div>
+                <GameIcon name={c.icon} size={30} />
                 <div className="name">{c.name}</div>
               </div>
               <div className="desc">{c.desc}</div>
@@ -173,7 +174,7 @@ export function AchievementsPanel({ save, setSave }) {
           return (
             <div className="upgrade-card" key={a.id} data-testid={`ach-${a.id}`}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ fontSize: 26 }}>{a.icon}</div>
+                <GameIcon name={a.icon} size={26} />
                 <div className="name">{a.name}</div>
               </div>
               <div className="desc">{a.desc}</div>
@@ -211,7 +212,7 @@ export function MilestoneBar({ save, setSave }) {
         return (
           <div key={m.atLevel} className={`ms-pip ${reached ? 'reached' : ''} ${claimed ? 'claimed' : ''}`} onClick={() => claim(m)} data-testid={`ms-${m.atLevel}`}>
             <div className="ms-lvl">LV{m.atLevel}</div>
-            <div className="ms-rwd">{m.rwd.gold && `★${m.rwd.gold}`}<br />{m.rwd.sp && `◆${m.rwd.sp}`}{m.rwd.chest && ` 📦`}</div>
+            <div className="ms-rwd">{m.rwd.gold && `★${m.rwd.gold}`}<br />{m.rwd.sp && `◆${m.rwd.sp}`}{m.rwd.chest && <GameIcon name="ui_chest" size={12} />}</div>
             {claimed ? <div className="ms-status">✓</div> : reached && <div className="ms-status pulse">CLAIM</div>}
           </div>
         );
@@ -221,7 +222,7 @@ export function MilestoneBar({ save, setSave }) {
 }
 
 // ---------- Card Shop (Slot Machine) ----------
-const REEL_ICONS = ['💧', '⚔️', '⭐', '💎', '🎰', '🌟', '🔮', '⚡', '🛡', '❤️'];
+const REEL_ICONS = ['ui_waterdrop', 'ui_blade', 'ui_star', 'ui_gem', 'ui_token', 'starBurst', 'ui_orb', 'ui_bolt', 'ui_shield', 'heart'];
 const REEL_RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythical'];
 
 export function CardShopModal({ save, setSave, onClose }) {
@@ -230,7 +231,7 @@ export function CardShopModal({ save, setSave, onClose }) {
   const [result, setResult] = useState(null);
   const [jackpot, setJackpot] = useState(false);
   const [twoMatch, setTwoMatch] = useState(false);
-  const [reels, setReels] = useState(['💧', '⚔️', '⭐']);
+  const [reels, setReels] = useState(['ui_waterdrop', 'ui_blade', 'ui_star']);
   const [reelResults, setReelResults] = useState([null, null, null]);
   const [stopped, setStopped] = useState([true, true, true]);
   const [reelRarity, setReelRarity] = useState('common');
@@ -246,11 +247,11 @@ export function CardShopModal({ save, setSave, onClose }) {
   const goldFallbackCost = 500;
 
   const SECTIONS = [
-    { id: 'passive', label: 'PASSIVE',  icon: '🛡️', desc: 'Permanent stat boosts' },
-    { id: 'active',  label: 'ACTIVE',   icon: '⚡', desc: 'Unlock active skills' },
-    { id: 'auto',    label: 'AUTO',     icon: '🌪️', desc: 'Unlock auto-weapons' },
-    { id: 'manual',  label: 'MANUAL',   icon: '🗡️', desc: 'Unlock manual weapons' },
-    { id: 'evo',     label: 'EVOLUTIONS', icon: '🔱', desc: 'Unlock weapon evolutions', locked: !(save.skills && save.skills.poe_awk0 >= 1) },
+    { id: 'passive', label: 'PASSIVE',  icon: 'ui_shield', desc: 'Permanent stat boosts' },
+    { id: 'active',  label: 'ACTIVE',   icon: 'ui_bolt', desc: 'Unlock active skills' },
+    { id: 'auto',    label: 'AUTO',     icon: 'cat_auto', desc: 'Unlock auto-weapons' },
+    { id: 'manual',  label: 'MANUAL',   icon: 'cat_manual', desc: 'Unlock manual weapons' },
+    { id: 'evo',     label: 'EVOLUTIONS', icon: 'ui_trident', desc: 'Unlock weapon evolutions', locked: !(save.skills && save.skills.poe_awk0 >= 1) },
   ];
 
   const pull = () => {
@@ -331,10 +332,10 @@ export function CardShopModal({ save, setSave, onClose }) {
     <div className="modal-overlay" data-testid="card-shop" onClick={(e) => { if (e.target.classList.contains('modal-overlay')) onClose(); }}>
       <div className={`forge-panel cs-modal ${jackpot ? 'cs-jackpot-flash' : ''}`} style={{ maxWidth: 680, textAlign: 'center' }}>
         <div className="forge-header">
-          <div className="forge-title">🎰 CARD SHOP</div>
+          <div className="forge-title"><GameIcon name="ui_token" size={17} /> CARD SHOP</div>
           <div style={{ fontFamily:'VT323', fontSize:14, color:'var(--ink-dim)', display:'flex', gap:12 }}>
             {freeSpins > 0 && <span style={{color:'#4dffd4'}}>Free: {freeSpins}</span>}
-            <span style={{color:'#ffcc00'}}>🎰 {slotCoins}</span>
+            <span style={{color:'#ffcc00'}}><GameIcon name="ui_token" size={14} /> {slotCoins}</span>
             <span>★ {save.gold}</span>
           </div>
           <button onClick={onClose} style={{ padding: '6px 12px', fontSize: 12 }}>✕</button>
@@ -352,10 +353,10 @@ export function CardShopModal({ save, setSave, onClose }) {
                   style={s.locked ? { opacity: 0.45, cursor: 'not-allowed', position: 'relative' } : {}}
                   title={s.locked ? 'Unlock via Skill Tree: Awakening Gate (poe_awk0)' : ''}
                 >
-                  <span style={{ fontSize: 28 }}>{s.icon}</span>
+                  <GameIcon name={s.icon} size={28} />
                   <div style={{ fontFamily: 'VT323', fontSize: 18, letterSpacing: '0.1em', marginTop: 4 }}>{s.label}</div>
                   <div style={{ fontSize: 11, color: 'var(--ink-dim)', marginTop: 2 }}>{s.desc}</div>
-                  {s.locked && <div style={{ fontSize: 10, color: '#ff3146', marginTop: 2, fontFamily: 'VT323' }}>🔒 UNLOCK IN SKILL TREE</div>}
+                  {s.locked && <div style={{ fontSize: 10, color: '#ff3146', marginTop: 2, fontFamily: 'VT323' }}><GameIcon name="ui_lock" size={10} /> UNLOCK IN SKILL TREE</div>}
                 </button>
               ))}
             </div>
@@ -364,17 +365,17 @@ export function CardShopModal({ save, setSave, onClose }) {
           <>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 10 }}>
               <button onClick={() => { setSection(null); setResult(null); }} style={{ padding: '4px 10px', fontSize: 12, background: '#0a0612' }}>← Back</button>
-              <div style={{ fontFamily: 'VT323', color: 'var(--accent-2)', fontSize: 18, letterSpacing: '0.2em' }}>
-                {SECTIONS.find(s => s.id === section)?.icon} {SECTIONS.find(s => s.id === section)?.label} PULL
+              <div style={{ fontFamily: 'VT323', color: 'var(--accent-2)', fontSize: 18, letterSpacing: '0.2em', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <GameIcon name={SECTIONS.find(s => s.id === section)?.icon} size={17} /> {SECTIONS.find(s => s.id === section)?.label} PULL
               </div>
               <div style={{ color: 'var(--ink-dim)', fontFamily: 'VT323', fontSize: 14 }}>
                 Pull #{pullCount + 1} · luck {luck.toFixed(1)}
-                {freeSpins > 0 && <span style={{ color: '#4dffd4', marginLeft: 10 }}>🎰 {freeSpins} FREE</span>}
+                {freeSpins > 0 && <span style={{ color: '#4dffd4', marginLeft: 10 }}><GameIcon name="ui_token" size={12} /> {freeSpins} FREE</span>}
               </div>
             </div>
 
             {/* Jackpot / 2-match banners */}
-            {jackpot && <div className="cs-jackpot-banner">🎰 JACKPOT! RARITY UP × 2! 🎰</div>}
+            {jackpot && <div className="cs-jackpot-banner"><GameIcon name="ui_token" size={16} /> JACKPOT! RARITY UP × 2! <GameIcon name="ui_token" size={16} /></div>}
             {twoMatch && !jackpot && <div className="cs-match-banner">★ 2 OF A KIND — RARITY BONUS!</div>}
 
             {/* 3-reel slot */}
@@ -387,7 +388,7 @@ export function CardShopModal({ save, setSave, onClose }) {
                   return (
                     <div key={idx} className={`slot-cell ${stopped[idx] ? 'stopped' : 'spinning'}`}
                       style={{ boxShadow: (stopped[idx] && rr) ? `0 0 20px ${cellRarColor}66, inset 0 0 10px ${cellRarColor}22` : 'none' }}>
-                      <div className="slot-icon" style={{ fontSize: 52 }}>{reels[idx]}</div>
+                      <div className="slot-icon"><GameIcon name={reels[idx]} size={52} /></div>
                       {stopped[idx] && rr && <div style={{ fontSize: 10, fontFamily: 'VT323', color: cellRarColor, letterSpacing: '0.1em', marginTop: 2 }}>{rr.rarity.toUpperCase()}</div>}
                     </div>
                   );
@@ -406,7 +407,9 @@ export function CardShopModal({ save, setSave, onClose }) {
             </div>
 
             <button onClick={pull} disabled={(!isFree && !hasCoin && save.gold < goldFallbackCost) || spinning} style={{ marginTop: 18, width: '100%' }} data-testid="shop-pull">
-              {isFree ? `🎰 FREE PULL! (${freeSpins} left)` : hasCoin ? `🎰 COIN SPIN (${slotCoins} left)` : spinning ? 'PULLING…' : `★ ${goldFallbackCost} gold — PULL #${pullCount + 1}`}
+              {isFree ? <><GameIcon name="ui_token" size={14} /> FREE PULL! ({freeSpins} left)</>
+                : hasCoin ? <><GameIcon name="ui_token" size={14} /> COIN SPIN ({slotCoins} left)</>
+                : spinning ? 'PULLING…' : `★ ${goldFallbackCost} gold — PULL #${pullCount + 1}`}
             </button>
           </>
         )}
@@ -423,7 +426,7 @@ export function CardShopModal({ save, setSave, onClose }) {
         )}
         {(save.unlockedWeapons || []).length > 0 && (
           <div style={{ marginTop: 8, padding: 8, background: '#0a0612', border: '1px solid #b362ff44', fontSize: 12, color: '#b362ff' }}>
-            🗡️ Unlocked weapons: {(save.unlockedWeapons || []).join(', ')}
+            <GameIcon name="ui_daggers" size={13} /> Unlocked weapons: {(save.unlockedWeapons || []).join(', ')}
           </div>
         )}
       </div>
@@ -458,7 +461,7 @@ export function ActiveLoadoutPanel({ save, setSave, onClose }) {
     <div className="modal-overlay" data-testid="loadout" onClick={(e) => { if (e.target.classList.contains('modal-overlay')) onClose(); }}>
       <div className="forge-panel loadout-panel" style={{ maxWidth: 720 }}>
         <div className="forge-header">
-          <div className="forge-title">🎯 ACTIVE SKILL LOADOUT</div>
+          <div className="forge-title"><GameIcon name="ui_loadout" size={17} /> ACTIVE SKILL LOADOUT</div>
           <button onClick={onClose} style={{ padding: '6px 12px', fontSize: 12 }}>✕</button>
         </div>
         <div style={{ color: 'var(--ink-dim)', fontFamily: 'VT323', marginBottom: 14, fontSize: 15 }}>
@@ -469,7 +472,7 @@ export function ActiveLoadoutPanel({ save, setSave, onClose }) {
             <div key={i} className={`loadout-slot ${id ? 'eq' : ''}`}>
               <div className="ls-key">{i === 0 ? 'L' : 'R'}</div>
               {id ? <>
-                <div className="ls-icon">{ACTIVE_SKILLS[id].icon}</div>
+                <div className="ls-icon"><GameIcon name={ACTIVE_SKILLS[id].icon} size={24} /></div>
                 <div className="ls-name">{ACTIVE_SKILLS[id].name}</div>
               </> : <div style={{ color: 'var(--ink-dim)' }}>empty</div>}
             </div>
@@ -483,7 +486,7 @@ export function ActiveLoadoutPanel({ save, setSave, onClose }) {
             const eqSlot = equipped.indexOf(id);
             return (
               <div key={id} className="upgrade-card">
-                <div className="name">{sk.icon} {sk.name}</div>
+                <div className="name"><GameIcon name={sk.icon} size={15} /> {sk.name}</div>
                 <div className="desc">{sk.desc}</div>
                 <div className="lvl">CD {sk.cd}s</div>
                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
@@ -525,7 +528,7 @@ export function WeaponCrafting({ save, setSave, onClose }) {
     <div className="modal-overlay" data-testid="craft" onClick={(e) => { if (e.target.classList.contains('modal-overlay')) onClose(); }}>
       <div className="forge-panel craft-panel" style={{ maxWidth: 760 }}>
         <div className="forge-header">
-          <div className="forge-title">📜 WEAPON BLUEPRINTS</div>
+          <div className="forge-title"><GameIcon name="ui_scroll" size={17} /> WEAPON BLUEPRINTS</div>
           <button onClick={onClose} style={{ padding: '6px 12px', fontSize: 12 }}>✕</button>
         </div>
         <div style={{ color: 'var(--ink-dim)', fontFamily: 'VT323', marginBottom: 10, fontSize: 14 }}>Collect blueprint shards in missions. Craft starter weapons.</div>
@@ -539,7 +542,7 @@ export function WeaponCrafting({ save, setSave, onClose }) {
             return (
               <div className={`upgrade-card${free ? ' is-free' : ''}`} key={id} data-testid={`craft-${id}`}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{ fontSize: 32 }}>{def.icon}</div>
+                  <GameIcon name={id} size={32} />
                   <div>
                     <div className="name">{def.name}</div>
                     <div className="lvl">{free ? 'UNLOCKED' : `${have} / ${def.blueprintCost}`}</div>
@@ -590,7 +593,7 @@ export function SettingsPanel({ save, setSave, onClose, onReset }) {
               onClick={() => setConfirmReset(true)}
               style={{ width: '100%', padding: '10px', borderColor: '#b51d28', color: '#ff6675', background: 'linear-gradient(180deg,#2a0a10,#10050a)' }}
             >
-              🗑 RESET ALL PROGRESS
+              <GameIcon name="ui_trash" size={14} /> RESET ALL PROGRESS
             </button>
           ) : (
             <div style={{ background: '#1a0508', border: '2px solid #b51d28', borderRadius: 4, padding: 14 }}>
@@ -652,19 +655,19 @@ export function PartsInventory({ save, setSave, onClose }) {
     <div className="modal-overlay" data-testid="parts-inv" onClick={(e) => { if (e.target.classList.contains('modal-overlay')) onClose(); }}>
       <div className="forge-panel parts-panel">
         <div className="forge-header">
-          <div className="forge-title">🔧 PARTS WORKSHOP</div>
+          <div className="forge-title"><GameIcon name="ui_cog" size={17} /> PARTS WORKSHOP</div>
           <div className="forge-gold">★ {save.gold}</div>
           <button onClick={onClose} style={{ padding: '6px 12px', fontSize: 12 }}>✕</button>
         </div>
         <div className="forge-weapons">
           {weaponList.map(id => (
             <div key={id} className={`forge-wch ${wid === id ? 'sel' : ''}`} onClick={() => setWid(id)} data-testid={`pi-w-${id}`}>
-              <div style={{ fontSize: 26 }}>{STARTER_WEAPONS[id].icon}</div>
+              <GameIcon name={id} size={26} />
               <div style={{ fontSize: 10 }}>{STARTER_WEAPONS[id].name}</div>
             </div>
           ))}
         </div>
-        <div className="forge-name">{STARTER_WEAPONS[wid].icon} {STARTER_WEAPONS[wid].name}</div>
+        <div className="forge-name"><GameIcon name={wid} size={18} /> {STARTER_WEAPONS[wid].name}</div>
         <div style={{ marginTop: 10, marginBottom: 8, color: 'var(--accent-2)', letterSpacing: '0.2em', fontSize: 13 }}>EQUIPPED PARTS</div>
         <div className="parts-slots">
           {PART_SLOTS.map(slot => {
@@ -672,7 +675,7 @@ export function PartsInventory({ save, setSave, onClose }) {
             const part = parts.find(p => p.id === eqId);
             return (
               <div key={slot} className="part-slot">
-                <div className="ps-name">{PART_SLOT_INFO[slot].icon} {slot}</div>
+                <div className="ps-name"><GameIcon name={PART_SLOT_INFO[slot].icon} size={16} /> {slot}</div>
                 {part ? (
                   <div className={`part-chip ${PART_RAR_CLS[part.rarity]}`} onClick={() => unequipSlot(slot)}>
                     <div style={{ fontWeight: 800 }}>{part.name}</div>
@@ -749,13 +752,13 @@ export function MapsPanel({ save, setSave, onStart }) {
             <div className={`map-stage-card ${unlocked ? '' : 'locked'} ${stageComplete ? 'complete' : ''}`} key={stage.id} data-testid={`map-stage-${stage.id}`}
               style={{ borderColor: unlocked ? stage.color + '88' : '#333', boxShadow: unlocked ? `0 0 18px ${stage.color}22` : 'none' }}>
               <div className="map-stage-head" style={{ color: stage.color }}>
-                <span style={{ fontSize: 22 }}>{stage.icon}</span>
+                <GameIcon name={stage.icon} size={22} />
                 <span className="map-stage-name">{stage.name}</span>
                 {stageComplete && <span style={{ color: '#4dffd4', fontSize: 12, marginLeft: 'auto' }}>✓ DONE</span>}
               </div>
               <div className="map-stage-desc">{stage.desc}</div>
               {!unlocked && stage.unlock && (
-                <div className="map-stage-lock">🔒 Unlock: {stage.unlock.label} ({save[stage.unlock.metric] || 0}/{stage.unlock.goal})</div>
+                <div className="map-stage-lock"><GameIcon name="ui_lock" size={12} /> Unlock: {stage.unlock.label} ({save[stage.unlock.metric] || 0}/{stage.unlock.goal})</div>
               )}
               {unlocked && (
                 <div className="map-nodes">
@@ -782,7 +785,7 @@ export function MapsPanel({ save, setSave, onStart }) {
                           ? <div style={{ color: '#4dffd4', fontFamily: 'VT323', letterSpacing: '0.2em', fontSize: 13 }}>✓ CLEARED</div>
                           : <button disabled={!canStart} onClick={() => startNode(stage, node)}
                               style={{ borderColor: canStart ? stage.color : '#444', color: canStart ? stage.color : '#555' }}>
-                              {canStart ? '▸ START' : '🔒 LOCKED'}
+                              {canStart ? '▸ START' : <><GameIcon name="ui_lock" size={11} /> LOCKED</>}
                             </button>
                         }
                       </div>

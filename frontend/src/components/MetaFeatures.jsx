@@ -8,6 +8,7 @@ import { patrolSlots, patrolRewardMult } from '../game/base';
 import { pushToast } from '../game/toastBus';
 import { Audio } from '../game/audio';
 import CardBattle from './CardBattle';
+import GameIcon from './GameIcon';
 
 // ─── Eye of Horus badge SVG ───────────────────
 export function EyeBadge({ size = 14 }) {
@@ -562,7 +563,7 @@ export function CodexPanel({ save, setSave }) {
             return (
               <div key={a.id} className={`codex-entry ach-entry ${done?'found':''} ${cls?'claimed-ach':''}`}
                 data-testid={`codex-ach-${a.id}`}>
-                <div className="codex-entry-icon" style={{fontSize:20}}>{a.icon}</div>
+                <div className="codex-entry-icon"><GameIcon name={a.icon} size={20} /></div>
                 <div className="codex-entry-info">
                   <div className="codex-entry-name" style={{color: done ? '#e0d0ff' : '#5a4a7e'}}>{a.name}</div>
                   <div className="codex-entry-lore">{a.desc}</div>
