@@ -9,6 +9,64 @@ under it is done — no partial ticks.
 
 ---
 
+## ⇢ MANDATORY: read this before touching anything, every session
+
+Timmy's own words on why this block exists: *"när kontex är fullt de inte
+kul när de blir summering varje ggr de måste stå exakt va nästa agent måste
+gå igenom för å bli helt uppdaterad analysera hela spelet se helheten de
+gömmer den alltid ba hoppar in å ska fortsätta me de man är precis i men
+utan å veta helheten så de blir helt fel oftast"* — a context-compaction
+summary hands you the narrow thing the previous session was mid-task on,
+not the whole game, and jumping straight into that narrow thing without the
+big picture produces wrong work more often than not. This section is the
+fix: concrete steps, not just prose to skim.
+
+**Do these, in order, before resuming or starting any task:**
+
+1. **Read this file's structure first, not just the last section.** Run
+   `grep -n "^#" docs/POLISH-PASS.md` to see every phase/session heading,
+   then actually read the last 2-3 session entries in full (search for the
+   most recent `## Session` / dated headings) — the tail of the file is
+   this session's work in detail, but the phases above it are the standing
+   spec for the whole game and are still load-bearing.
+2. **Read the Claude memory index** at
+   `C:\Users\timmi\.claude\projects\C--Users-timmi-WaterdropPixi\memory\MEMORY.md`
+   and open every file it links to. This is where deferred feature
+   requests live — `waterdrop-backlog-index.md` in particular is a list of
+   named, numbered backlog items (TCG depth, Prospector visuals, Star
+   Atlas depth, Forge merge minigame, gore/wound variety per projectile,
+   Base Defender minigame, wave-pacing/map-backdrop rework, desktop/mobile
+   parity) that are NOT in this file and that Timmy has explicitly asked
+   to be left alone until he raises them again. Do not start any of them
+   unprompted; do not lose track of them either.
+3. **Check `git log --oneline -20` and `git status`.** This file records
+   intent and reasoning; git records what actually landed. They can drift —
+   trust git for "is X actually in the code" and this file for "why was X
+   built that way."
+4. **Launch the real game and click through it yourself** before writing
+   any code — see the `run` skill / `START-SPELET.bat`, or the CDP harness
+   pattern in `scratchpad/cdp.mjs` + `scratchpad/real_levelup_loop.mjs` for
+   headless verification. At minimum open: the Camp screen and its full
+   tab bar, a level-up card row (force one via
+   `window.__game.addXp(500000)` in devtools), Weaponsmith, and whichever
+   screen the task at hand actually touches. A screenshot you took
+   yourself beats a paragraph of memory every time — this file says that
+   about six different ways below because it kept being true.
+5. **Only then** decide what to work on — either the specific thing Timmy
+   just asked for, or if he said "keep going" / "kör på" with no specific
+   target, the next reasonable item from step 1-2's combined picture.
+
+**What NOT to do:** don't assume the narrow task visible in a compacted
+summary is the whole state of the project. Don't skip the memory files
+because "I remember roughly what they say" — they get corrected and
+superseded, and a stale claim asserted as current fact is worse than
+admitting you haven't checked. Don't re-litigate settled decisions (the
+PixiJS card rebuild, the blood-red color rule, the common-tier gears) —
+search this file for them first if something looks like it might already
+be a decided question.
+
+---
+
 ## Phase 1 — The character  ✅ DONE
 
 The waterdrop is the thing the player looks at for the entire run. It got a
@@ -1923,3 +1981,222 @@ bug waiting to happen.
 Not built, and deliberately: the pipes, gauges, buttons, ice, smoke and
 greenery from the most elaborate mockup. Timmy: *"knappar å så behöver du inte
 göra"*.
+
+## Session 2026-08-15 — card materials finished, three real bugs, the no-emoji sweep
+
+Long session, several distinct threads. Two git checkpoints landed:
+`cc785b0` (level-up card overhaul + first bug-hunt pass) and `9c3b23d`
+(no-emoji sweep part 2 + level-up card zoom + regression fixes). Read
+[[waterdrop-lighting]], [[dead-config-sweep]] and [[no-emoji-rule]] memories
+alongside this section — all three got real updates this session.
+
+### Level-up cards: common-tier motion, badges, glow (continuation of the Pixi rebuild above)
+
+- **Common tier got motion.** It was deliberately inert ("no growth, no
+  ornament, no motion" by design) and Timmy called that dead next to vines
+  swaying / ice growing / flame flickering on every other tier. Fixed with
+  mechanical motion instead of organic: `paintPlate` in `cardArt.js` now
+  turns four small cogs (`drawGear`) at slightly different deterministic
+  speeds around the band. First pass had shadow/highlight/shine detail too
+  small to read at the ~4px gear radius under the half-res pixel scale —
+  recalibrated with a fixed-position drop shadow, an up-left key-light
+  glow, per-tooth highlight dots on the lit arc, and a specular pin on the
+  hole rim.
+- **Rarity text and level-progress dot now glow in a real color.** Both
+  used to fall back to the raw rarity color, which washes to near-grey for
+  common. `BACK_TINT` (a saturated per-rarity color map, already used for
+  the backlight halo) is now also used for `styleLabelGlow`'s drop-shadow
+  on the rarity word, and for the level-dot fill/ring in
+  `cardRenderer.js`'s `_paintDots`.
+- **Badges/logos gone through card-type by card-type**, starting with
+  passive (worst art per Timmy) then stat: `catStatBoost` is a new glyph
+  (rising bars + arrow) so STAT BOOST cards stop sharing PASSIVE SKILL's
+  shield+check badge — see `GameIcon.jsx`'s `cat_stat` entry and
+  `LevelUpModal.jsx`'s `cardCategory()`.
+
+### Weaponsmith: part names were generic firearm defaults for every weapon
+
+Real bug, not a polish nit. The upgrade-part screen never called the
+already-built `weaponTracks()`/`trackInfo()` archetype system in
+`data_ext.js` — it read `WEAPON_PART_OVERRIDES` directly and fell through
+to raw firearm defaults (Sight/Magazine, with a scope icon) on every
+weapon regardless of type. Katana showed a scope. Fixed: `Weaponsmith.jsx`
+now derives `partTracks` from `weaponTracks(wid, w)` and filters the
+render loop to only the tracks a given weapon actually has.
+
+### Level-up choice generation: weapon cards were starved to <10% of picks
+
+Also a real bug, found from Timmy reporting "det är endast passiva kort
+som kommer inget manual å inget auto vapen" and confirmed by logging real
+picks: 0/8 upgrade cards and 1/8 new-weapon cards across ten real
+level-ups before the fix. Root cause: `buildLevelUpChoices()` in
+`engine.js` picked 3 cards by flat uniform random over a pool where
+flag/stat cards vastly outnumbered weapon cards. Fixed by guaranteeing one
+of the three picks is always a weapon card (`weapon-upgrade`/`weapon-new`/
+`weapon-fork`) when the pool has one, before the remaining two are picked
+normally.
+
+### Blood is always red now — this OVERRIDES the previous documented rule
+
+The old rule (still written in some skill docs before this session, now
+corrected in [[waterdrop-lighting]]): gore/blood color = the enemy's own
+`t.color`, always, to stop weapon color dominating. Timmy explicitly
+reversed this for blood specifically, keeping it for chunks: *"blod ska
+alltid va blod röd... partiklar chunks sönder trasig fiende ska va samma
+färg som fiende"* then *"kolla in slash of sword blodet där är exakt så de
+ska va"* (referring to the cut-wound blood as the correct reference for
+ALL blood going forward, not just swords).
+
+**Current rule:** `BLOOD_RED = '#b51d28'` (engine.js) for all blood/liquid
+— spray, splatter, bullet-hole wounds, arterial fans on kill hits, the
+ongoing bleed pulse, floor blood pools/decals. **Chunks/gibs
+(`type: 'chunk'` particles) keep the enemy's own color**, unchanged. One
+deliberate exception: slime "ooze" stays slime-green — it was never blood
+to begin with. Touched: `spawnBrutalKill`, `spawnPunctureHit`,
+`spawnArterialCone` (color param now vestigial, kept for caller
+compatibility), `_updateBleed`, `spawnBlood`, `dealDamage`'s kill-decal
+push. Verified live via a force-kill headless test: red blood mixed with
+enemy-colored chunks in the same burst.
+
+**Still open (task #37 in the backlog memory, not started):** Timmy wants
+this taken much further — per-projectile-type wound variety (freeze, burn
+that continues, electrocute-then-burnt, punched holes, blown-off limbs up
+to half/quarter body, meteor = pulp, shotgun = big hole + angled side
+wounds, explosives = 15-20 scattered chunks, more cut-angle variety on
+blades). The color rule above is done and should NOT be redone — this
+next piece is shape/variety/persistence layered on top.
+
+### HUD elements bleeding through the level-up modal — a whole bug CLASS, not one bug
+
+`Hud.jsx` had `!levelUpOpen &&` gates on the mission banner and guardian
+timer specifically because those sit above the game view via high z-index
+and the modal backdrop isn't fully opaque (a radial-gradient at ~80-87%
+alpha, by design, for atmosphere). Five more elements had the exact same
+positioning problem but were missed from the gate: the VesselGauge
+(bottom-center HP/XP droplet — the highest-visibility one, confirmed via a
+live screenshot showing it rendering directly on top of a card's stat
+text), `hud-sets`, `hud-stagnation`, `hud-diff-tag`, and (separately, via
+`SET_INDEX`) the weapon-set-bonus tags. All now gated the same way. Since
+the sim is fully paused during a level-up (`engine.js`'s update loop skips
+while `levelUpQueue > 0`), none of this data was even changing underneath
+— hiding it costs nothing functionally.
+
+### Level-up cards: displayed WAY too big vs. the old CSS cards
+
+Not a card-geometry problem — `CARD.W`/`CARD.H` in `cardRenderer.js`
+already carry an explicit comment from an earlier session not to re-shrink
+them without being asked. This was purely `overhaul.css`'s `.lu-canvas`
+display size: `max-width` dropped from 1180px to 820px, a pure CSS zoom
+with zero changes to `cardArt.js`/`cardRenderer.js`. Bonus effect Timmy
+predicted correctly: displaying the same chunky half-res art smaller makes
+individual pixels less visible, since more source pixels land in each
+screen pixel.
+
+*(Separately confirmed as NOT a bug, don't "fix" it again: the level-up
+card row can still need an internal scroll on a short viewport. This is a
+carried-forward deliberate decision from the old CSS-card era —
+`overhaul.css`'s `.levelup { overflow-y: auto }` comment says explicitly
+"a card that cannot be read in full is worse than a screen you have to
+nudge." Still true for the Pixi cards.)*
+
+### The no-emoji sweep — huge scope, and the exact bug class it produces when done carelessly
+
+[[no-emoji-rule]] ("no emoji anywhere, every icon is hand-built SVG") had
+**251+ literal emoji characters still in JSX across ~32 component files**,
+plus emoji baked directly into `game/data_ext2.js`'s content tables
+(STAT_CARDS, ADVANCED_CARDS, META_UPGRADES, MISSION_DEFS, ACHIEVEMENTS,
+STAGES, CHALLENGES, ACTIVE_SKILLS, SHOP_CARD_POOL, DAILY_CHALLENGE_POOL,
+WEAPON_FORK_TEMPLATES, MAP_STAGES, TALENT_NODES, CAMPAIGN_QUESTS,
+WEAPON_SET_BONUSES, ELEMENTS, PART_SLOT_INFO, and more). This session did
+a large first pass, not the whole thing (task #36 in the backlog memory
+tracks what's left — `data_ext.js` alone still has ~141 instances,
+unaudited).
+
+**Added to `GameIcon.jsx`:** ~40 new hand-built glyphs (lock, chest,
+scroll, map, compass, rocket, pillars, person, paw, brain, hammer,
+reticle, book, magnifier, skull, boltPart, egg, hatchling, ghost, orb,
+ticket, moneybag, trash, trident, tornado, waterdrop, pickaxe, leaf,
+medal, cog, chart, clock, infinity, eye, calendar, cards, plus five
+weapon-part-slot glyphs) and their `ui_*`/`part_*` ICONS entries. Most of
+the DATA-table fixes turned out to be nearly free: almost every table's
+`icon:` field had a sibling `stat:`/`flag:`/`unlockWeapon:` key that
+*already* matched an existing ICONS entry exactly (e.g. STAT_CARDS'
+`stat: 'damageMult'` → `icon: 'damageMult'`, reusing the level-up card's
+own blade glyph instead of drawing a new one) — check for that reuse
+opportunity before drawing anything new.
+
+**The bug class this produces if you fix the data but not every render
+site:** a data table's `icon` field going from an emoji character to a
+GameIcon *key string* is invisible until you actually look — a component
+that renders `{x.icon}` as raw text instead of `<GameIcon name={x.icon}>`
+now shows the literal key ("ui_blade", "moveMult", "damageMult") as text
+instead of a picture, which reads as MORE broken than the emoji it
+replaced, not less. **This bit us for real, mid-session** — Timmy sent
+live phone screenshots and caught it in the wild: the Campaign "CONTINUE
+STORY" button, the Campaign quest list, the Codex Achievements tab, the
+run-payout screen's map banner, a chest-drop's part icon, Weaponsmith's
+synergy tab and element picker, the HUD's active-set tags, and a
+purchase-confirmation "burst" animation (worst one — `.meta-burst-icon`
+was CSS-tuned for a single emoji glyph at 26px; an 8-character identifier
+like "moveMult" at that size overflowed the whole card). All found and
+fixed this session, but **do not trust a data-table icon fix is complete
+until you've grepped every file that imports that table and confirmed
+each render site uses `<GameIcon>`.** `grep -rn "\.icon\}"` across
+`components/` is the fast check; cross-reference against which table each
+hit's data actually comes from before assuming it's fine.
+
+One incidental fix that fell out of this: the meta-upgrade purchase burst
+(`Camp.jsx`'s `metaBurst`) got redesigned per direct feedback while fixing
+its icon leak — small fixed-size icon instead of raw text, and the
+upgrade's real NAME (previously completely unstyled) is now the visually
+prominent element, per *"bättre förstora namnet som är under lite grann
+bara å skriv stats"*.
+
+### Deferred feature requests captured this session — all in Claude memory, not started
+
+The `TaskCreate`/`TaskUpdate`/`TaskList` tools were used for a while this
+session (created tasks #30-38) then **disconnected mid-session and never
+reconnected.** Everything after that point, and a consolidated index of
+the earlier task numbers, was written to the Claude memory system instead
+— see `waterdrop-backlog-index.md`, `waterdrop-desktop-mobile-parity.md`,
+and `waterdrop-wave-pacing-and-maps.md` in
+`C:\Users\timmi\.claude\projects\C--Users-timmi-WaterdropPixi\memory\`.
+Check `MEMORY.md` there for the full current index — it may have grown
+since this paragraph was written. Summary of what's queued, none of it
+started:
+
+- Real TCG depth for Patrol/Pets (HP/Attack stats, a player-character
+  profile with abilities, an actual board) — `game/petTcg.js` +
+  `TcgBoard.jsx` already exist and are the likely base, `game/cardbattle.js`
+  is the shallower system currently used by Patrol.
+- Astro Prospector: a visual descent (today it's pure numeric dive state),
+  more interactivity/alt-paths.
+- Star Atlas: more depth/variation generally, no concrete spec yet — bring
+  concept options before building.
+- Forge merge minigame: replace the flat pass/fail merge roll
+  (`game/forge.js`) with an actual minigame whose skill determines a
+  quality grade (C/B/A/S/SS/SSS/SSS+) layered on top of the rarity tier.
+- Base Defender ("Slime Castle Defender", merge-based towers) —
+  `BaseDefenceScreen.jsx` + `BasePanel.jsx` already exist, read first.
+- Per-projectile-type gore/wound variety (see the blood-red section above).
+- Campaign/Endless wave pacing: too hard too fast at the very start on
+  both; wants a real one-enemy-at-a-time on-ramp and Endless build-up.
+  Distinct planet backdrop per campaign map (currently they don't read as
+  different locations).
+- Desktop/mobile parity: PC feels slower than phone in-game; specific
+  reported symptom is meteor/UFO-type animations freezing mid-animation on
+  desktop only, not reproduced yet.
+
+### Verification this session
+
+`npm run test:logic` and `CI=false npx react-scripts build` both run
+clean after every batch of changes described above — run both again
+before trusting any of this is still in a working state, per usual. Live
+verification used the existing `scratchpad/cdp.mjs` headless-Chrome
+harness (contrary to the old note above that "browser automation has
+never worked here" — it has, extensively, this session and the one before
+it; that note is stale, the harness works, keep using it) plus, for the
+bugs that only showed up on a real device, Timmy's own phone screenshots
+over the Cloudflare quick-tunnel (`START-SPELET.bat` / `tunnel.txt` — note
+the URL changes every time the tunnel restarts, don't trust a remembered
+one, see `waterdrop-project` memory for why).
