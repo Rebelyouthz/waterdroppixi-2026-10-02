@@ -266,12 +266,20 @@ export function nodeToMission(node) {
     // clock runs out. The gate is what the timer is for.
     duration: 999,
     bossAt: bossGateTime(node),
-    bossId: MAP_BOSS[node.mapId] || 'bossOcular',
+    // A node can name its own guardian (pond_1's 'sludgeWarden' — a real
+    // threat at a fresh-save baseline, not the shared bossOcular scaled for
+    // a much later, geared-up fight) before falling back to the map's usual
+    // boss.
+    bossId: node.bossId || MAP_BOSS[node.mapId] || 'bossOcular',
     spawnMult: node.spawnMult || 1,
     enemyMix: node.enemyMix,
     // If this node is where a companion is found, the run spawns them as a
     // defendable second body — see engine.js's rescueCompanion.
     companion: companionForNode(node.id),
+    // pond_1's baseline-reset + forced katana start — see GameScreen.jsx's
+    // `forceBaseline` handling and data_ext2.js's pond_1 comment.
+    forceBaseline: !!node.forceBaseline,
+    startWeapons: node.startWeapons || null,
     node,
   };
 }

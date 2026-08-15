@@ -212,7 +212,16 @@ export default function GameScreen({ save, setSave, onExit, onRunEnd, mission })
     Audio.swapToGameMusic();
     const canvas = canvasRef.current;
     const isTutorial = mission && mission.isTutorial;
-    const meta = buildMetaEffects(save);
+    // pond_1's "First Drops": the player should be exactly as strong as a
+    // brand-new save, every time it's played — no accumulated meta/attrs/
+    // pets/skills bonuses — because the enemies in it (see data.js's
+    // 'sludgeling'/'silthulk') are hand-tuned to die in a specific number of
+    // katana swings AT that baseline. `meta`/`attrs` are simply skipped
+    // rather than zeroed field-by-field: every consumer already treats a
+    // missing key as "no bonus" (see buildMetaEffects's `m[id] || 0`
+    // pattern), so `{}` is exactly "none of these apply".
+    const forceBaseline = mission && mission.forceBaseline;
+    const meta = forceBaseline ? {} : buildMetaEffects(save);
     // The Base Defence buff is one run only — it has been folded into `meta`
     // above, so burn it now rather than at run end, which never fires if the
     // player quits out mid-run.
@@ -224,7 +233,7 @@ export default function GameScreen({ save, setSave, onExit, onRunEnd, mission })
     }
     const opts = {
       meta,
-      attrs: save.attrs || {},
+      attrs: forceBaseline ? {} : (save.attrs || {}),
       weaponElements: save.weaponElements || {},
       saveRef: save,   // weapon attachments read the socket map + inventory
       // Resolved once per run rather than per frame — attachments cannot
@@ -235,18 +244,26 @@ export default function GameScreen({ save, setSave, onExit, onRunEnd, mission })
         headbandColor: HEADBANDS.find(h => h.id === save.profile?.headband)?.color || null,
         cigarOn: !!save.profile?.cigarOn,
       },
-      activePet: (save.pets || []).find(p => p.active) || null,
-      unlockedEvos: save.unlockedEvos || [],
-      skills: save.skills || {},
+      // A returning save replaying pond_1 shouldn't walk in with a pet/
+      // skills/evolutions either — those are bonus power same as meta/attrs,
+      // and would break the same 2/3/8-hit tuning the forced baseline exists
+      // to guarantee. A truly fresh save has none of these yet anyway, so
+      // this only ever matters on a replay.
+      activePet: forceBaseline ? null : ((save.pets || []).find(p => p.active) || null),
+      unlockedEvos: forceBaseline ? [] : (save.unlockedEvos || []),
+      skills: forceBaseline ? {} : (save.skills || {}),
       // Two only — one pod per joystick dial. Unknown ids (a save carrying a
       // retired skill) are dropped rather than reaching the engine.
-      activeSkills: (save.equippedActives || []).filter(id => id && ACTIVE_SKILLS[id]).slice(0, 2),
+      activeSkills: forceBaseline ? [] : (save.equippedActives || []).filter(id => id && ACTIVE_SKILLS[id]).slice(0, 2),
       // The tutorial dictates its own loadout — it is teaching two specific
-      // weapons. Every other run opens with whatever the Weaponsmith's START
-      // group has selected, validated here: the engine's `snapshot()` reads
-      // `WEAPONS[id].icon` every frame, so an id it has no entry for would
-      // throw sixty times a second rather than fail quietly.
-      startWeapons: (isTutorial && mission.startWeapons) ? mission.startWeapons : [resolveStartWeapon(save)],
+      // weapons. pond_1 dictates its own too — it's the katana, always,
+      // regardless of what's equipped in the Weaponsmith's START group so
+      // the enemy HP tuning holds. Every other run opens with whatever the
+      // Weaponsmith's START group has selected, validated here: the
+      // engine's `snapshot()` reads `WEAPONS[id].icon` every frame, so an
+      // id it has no entry for would throw sixty times a second rather
+      // than fail quietly.
+      startWeapons: ((isTutorial || forceBaseline) && mission.startWeapons) ? mission.startWeapons : [resolveStartWeapon(save)],
       missionDuration: mission ? mission.duration : null,
       spawnMult: mission ? (mission.spawnMult || 1.0) : 1.0,
       // Difficulty tier. The tutorial is pinned to Normal regardless of what

@@ -816,6 +816,33 @@ export const ENEMIES = {
     id: 'slime', name: 'Slime', size: 18, hp: 52, dmg: 16, speed: 62, color: '#7ad96b',
     xp: 2, gold: 1, ai: 'chase',
   },
+  // pond_1's ("First Drops") own cast — see data_ext2.js's pond_1 node and
+  // GameScreen.jsx's `forceBaseline`. The player has nothing but a katana
+  // (base damage 88, no meta/attrs/pet/skill bonuses) for this mission, and
+  // these two are tuned against that EXACT number so the fight has the
+  // specific shape Timmy asked for: 2 hits, then 3, then a real fight.
+  //
+  // Runtime HP is not the `hp` below — engine.js's spawnEnemy multiplies it
+  // by `scale * 3 * menace * D.hpMult`, which is ~3x at the moment a wave
+  // starts (scale/menace ~1 at run start). So "dies in N katana hits"
+  // means `hp * 3` sits just above `88 * (N-1)` and at or below `88 * N`.
+  // 'slime' above already lands almost exactly on 2 hits (52*3=156, and
+  // 88*2=176 >= 156 > 88) — no new enemy needed for that one.
+  sludgeling: {
+    // 75*3=225: 88*2=176 doesn't kill it, 88*3=264 does. Three hits.
+    id: 'sludgeling', name: 'Sludgeling', size: 20, hp: 75, dmg: 20, speed: 58, color: '#c4e63a',
+    xp: 3, gold: 2, ai: 'chase',
+  },
+  sludgeWarden: {
+    // 220*3=660: 88*7=616 doesn't kill it, 88*8=704 does. Eight hits — the
+    // node's actual guardian (see data_ext2.js pond_1's `bossId` override
+    // and campaign.js's `nodeToMission`), NOT the shared bossOcular, whose
+    // hp:2400 would need ~80 hits at this same baseline. `ai:'boss'` reuses
+    // the generic triple-burst boss AI (engine.js ~L2993) rather than
+    // inventing a new one — only the stats are bespoke.
+    id: 'sludgeWarden', name: 'Silt Warden', size: 38, hp: 220, dmg: 20, speed: 52, color: '#8a9c3a',
+    xp: 25, gold: 20, ai: 'boss', boss: true, shootCD: 2.0,
+  },
   bat: {
     id: 'bat', name: 'Voidbat', size: 14, hp: 28, dmg: 12, speed: 126, color: '#b362ff',
     xp: 2, gold: 1, ai: 'chase',

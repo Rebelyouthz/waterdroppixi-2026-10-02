@@ -817,7 +817,19 @@ export const MAP_STAGES = [
     desc: 'Shallow, quiet, and the last place that still remembers being clean. Learn to move here.',
     unlock: null,
     nodes: [
-      { id: 'pond_1', name: 'First Drops',  diff: 0, duration: 165, spawnMult: 0.45, enemyMix: ['slime'],         rwd: { gold: 120 },          unlockGoal: null },
+      // The camp-briefing mission (see Camp.jsx's SITREP popup). Deliberately
+      // scripted rather than just "the gentle onramp node": forceBaseline
+      // strips every meta/attr/pet/skill bonus so the katana's raw 88 damage
+      // is what the player actually has (see GameScreen.jsx), and 'slime'/
+      // 'sludgeling'/'sludgeWarden' (data.js) are hand-tuned against exactly
+      // that number to die in 2/3/8 hits — see data.js's ENEMIES comments for
+      // the HP math. Duration bumped from 165->250 so bossGateTime lands
+      // near 180s (3 minutes) rather than ~119s — Timmy asked for "typ 3
+      // minuter" before the guardian shows up. Gold bumped from 120->700 so
+      // a clear can ALWAYS afford the cheapest base building (The Well,
+      // 600g) on its own, no chest RNG required — that purchase is what
+      // fires the camp's first unlock batch (Meta/Skilltree/Talents).
+      { id: 'pond_1', name: 'First Drops',  diff: 0, duration: 250, spawnMult: 0.45, enemyMix: ['slime','sludgeling'], rwd: { gold: 700 }, unlockGoal: null, forceBaseline: true, startWeapons: ['katana'], bossId: 'sludgeWarden' },
       { id: 'pond_2', name: 'Ripples',      diff: 0, duration: 200, spawnMult: 0.62, enemyMix: ['slime','bat'],   rwd: { gold: 240 },          unlockGoal: 'pond_1' },
       { id: 'pond_3', name: 'The Overflow', diff: 1, duration: 250, spawnMult: 0.85, enemyMix: ['slime','bat'],   rwd: { gold: 420, sp: 1 },   unlockGoal: 'pond_2' },
     ],
