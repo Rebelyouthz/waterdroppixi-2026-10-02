@@ -2200,3 +2200,99 @@ bugs that only showed up on a real device, Timmy's own phone screenshots
 over the Cloudflare quick-tunnel (`START-SPELET.bat` / `tunnel.txt` — note
 the URL changes every time the tunnel restarts, don't trust a remembered
 one, see `waterdrop-project` memory for why).
+
+## Session 2026-08-16/17 — camp unlock cascade rebuilt, tutorial retired, two real missions, one death screen
+
+Same session as above, continued after context compaction (see the memory
+files under `waterdrop-*` for the full blow-by-blow — this is the summary).
+
+**Camp unlock cascade, take two.** The first pass (pond-node-gated, tabs
+shown-but-dimmed) was superseded same-day: Timmy wanted locking tied to
+BUILDING at the base, not which node cleared, and only THE BASE tab visible
+at all (fully hidden, not dimmed) until unlocked. `campaign.js`'s
+`CAMP_UNLOCK_BATCHES` gates on `totalBuildingLevels(save)` — buying any
+level of any building cracks open the next batch, revealed one tab at a
+time via a big center-screen banner (`Camp.jsx`'s `unlockQueue`, `.camp-
+unlock-banner` in index.css). Found and fixed a real bug along the way: the
+first implementation's queue-pop effect had its own cleanup cancel its
+dwell timer on every re-render, so the banner got stuck on the first
+unlock forever even though the tab-bar side worked. Batches were retimed
+late in the session from 1/3/5/7/9 total building levels to 1/2/3/4/5 so
+the two actual scripted missions (below) each fund exactly one unlock wave.
+
+**Combat tutorial retired.** `App.js`'s `startTutorialIfNeeded` no longer
+auto-launches `TUTORIAL_MISSION` for a fresh save — routes straight to camp
+instead, where the unlock cascade already does the teaching. Camp.jsx
+gained a one-time SITREP popup per stage (`CAMP_BRIEFINGS`, English, dry
+gallows humor continuing `IntroDialogue.jsx`'s "THE DROP" voice) explaining
+why to build instead of fight, shown before the first unlock batch and
+again before the second.
+
+**Two real scripted missions**, pond_1 ("First Drops") and pond_2
+("Ripples"): `mission.forceBaseline` (new, threaded through GameScreen.jsx)
+strips meta/attrs/pet/skills entirely and forces the katana, so the fight
+is always the same shape regardless of what the player has actually
+bought — the point being these are pond_1/pond_2's own hand-tuned intro
+fights, not generic scaled content. New enemies in `data.js` tuned against
+the katana's raw 88 damage and the engine's own `spawnEnemy` HP formula
+(runtime HP ≈ table hp × 3 at t=0): `sludgeling` (3 hits), `sludgeWarden`
+(8-hit guardian, pond_1), `briner`/`bogHusk`/`theDredger` (2/4/12 hits,
+pond_2, its own guardian rather than the shared bossOcular which would
+need ~80 hits at this baseline). pond_1's `bossGateTime` retimed to ~180s,
+pond_2's to ~300s (Timmy's "3 min" / "5 min sen boss"). Gold rewards bumped
+(120→700, 240→900) so each mission's payout alone always affords the next
+building purchase, no chest RNG needed. A static "WATERDROP CAMP" sign
+(`pixiRenderer.js`'s `_buildCampSign`, world-space, built once) marks
+pond_1 as the camp's own backyard without touching the map itself — Timmy
+explicitly did not want the map redone, just signed.
+
+**One death screen, not two.** `PayoutScreen.jsx` (campaign node
+tier/chests/ledger) used to render completely on top of `GameOverScreen.jsx`
+(stats/badges/next-step) for every campaign run — the first screen's
+content was always fully hidden. Merged: `GameOverScreen` now takes a
+`payout` prop and shows the confetti/rays/chest-row/counting-ledger inline
+around its existing stat grid when present; `PayoutScreen.jsx` is deleted.
+
+**Profile Level-Up screen overhaul.** Three real bugs fixed: the XP bar
+(`.lu-bar-run`) only ever animated 0%→100% and stopped, permanently
+claiming the bar was full regardless of actual progress — now a three-
+phase fill/reset/carry-to-real-% animation reading live off
+`save.profile.xp`. The portrait's per-reward `scale(1.07)` bump read as the
+whole screen shaking (Timmy: "rewardsen ska röra sig, inte hela skärmen")
+— replaced with a non-displacing ring-flash. The whole card was a
+crimson/silver trophy-plaque palette left over from an earlier pass, tried
+purple first (rejected: "gillade inte de lila riktigt heller"), landed on
+dark red/black per Timmy's explicit steer toward the daily-spin screen's
+tone — exact reference element still not conclusively located, may need a
+follow-up round. The popup itself is now held back until the unlock
+cascade's current batch finishes revealing, so "you got talent points"
+lands right as Talents becomes clickable instead of burying it.
+
+**Blood/gore.** Audited the existing system before touching anything — it
+already has arterial cone spray, rhythmic pumping, directional per-hit gash
+marks and ground pooling, all genuinely sophisticated. Added exactly one
+gap: a small permanent drip decal per bleed pulse (NOT a body-sized pool —
+that was tried before and explicitly rejected, see the code comment on
+`killEnemy`'s decal), so a wounded enemy now leaves a dripping trail as it
+moves rather than only airborne spray that never lands.
+
+**No-emoji sweep, more of it.** `GameOverScreen.jsx` and (now-deleted)
+`PayoutScreen.jsx` were still full of raw emoji — highest-visibility
+screens in the game, every run ends on one of them. Fixed, reusing the same
+GameIcon keys the Level-Up screen already uses for the same currencies.
+`RewardScreen.jsx`'s `e.icon`/`it.icon` deliberately left alone — those
+come from many different `bankReward` call sites, not owned locally, so
+converting the render without auditing every writer risks showing broken
+icons for whichever still pass raw emoji.
+
+**Standing "superpolish" mandate, logged not built.** Late in the session
+Timmy asked for three large builds — a real tower-defense/merge Base
+Defender ("Slime Castle" + survivor level-up cards + idle-clicker, framed
+as the space-station defense, NPC helpers from rescued companions), a
+much deeper Clicker game, and a full space-shooter rebuild of Probe/Star
+Atlas — plus a cross-game milestone/rewards track. Explicitly framed as
+"jätte projekt" (huge projects), asked to research reference games first.
+None of these were started this session — see `waterdrop-backlog-index`
+memory (#38-#41) for the full spec. They need a proper scoping/plan pass,
+not blind construction, especially with no feedback loop while Timmy is
+away — do not start building any of them without discussing scope first.
