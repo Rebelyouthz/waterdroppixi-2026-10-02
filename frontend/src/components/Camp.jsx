@@ -13,7 +13,7 @@ import TalentTree from './TalentTree';
 import CampaignPanel from './CampaignPanel';
 import PetPanel from './PetPanel';
 import ProspectorScreen from './ProspectorScreen';
-import { nextCampaignNode } from '../game/campaign';
+import { nextCampaignNode, campUnlockStage, isCampTabLocked, campUnlockHint } from '../game/campaign';
 import { currentStep } from '../game/path';
 import ClickerScreen from './ClickerScreen';
 import BasePanel from './BasePanel';
@@ -97,8 +97,17 @@ const openChest = (chestId) => {
 
 export default function Camp({ save, setSave, onBack, onStart, onMission, onStory, onStarRaid }) {
   const storyNode = nextCampaignNode(save);
+  // Camp starts locked and opens up panel by panel as the Rain Pool nodes
+  // clear — see campaign.js's campUnlockStage. `guard` wraps a tab's onClick
+  // so a locked button is inert rather than needing every call site below to
+  // remember to check; `lockedProps` supplies the dimmed styling + hover
+  // hint in one spot so all ~15 gated buttons stay visually consistent.
+  const lockGuard = (id, onClick) => () => { if (!isCampTabLocked(id, save)) onClick(); };
+  const lockedProps = (id) => isCampTabLocked(id, save)
+    ? { className: 'camp-tab locked', title: campUnlockHint(id, save) || 'Locked' }
+    : null;
   const [toast, setToast] = useState('');
-  const [tab, setTab] = useState('cards');
+  const [tab, setTab] = useState('campaign');
   const [shopOpen, setShopOpen] = useState(false);
   const [skillOpen, setSkillOpen] = useState(false);
   const [forgeOpen, setForgeOpen] = useState(false);
@@ -575,27 +584,27 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
             )}
             <button className={`camp-tab ${tab==='campaign'?'active':''}`} onClick={() => setTab('campaign')} data-testid="tab-campaign" style={{position:'relative'}}><GameIcon name="ui_scroll" size={15} /> CAMPAIGN {pathReady && <EyeBadge/>}</button>
             <button className={`camp-tab ${tab === 'stats' ? 'active' : ''}`} onClick={() => setTab('stats')} data-testid="tab-stats"><GameIcon name="ui_chart" size={15} /> STATS</button>
-            <button className={`camp-tab ${tab === 'starraid' ? 'active' : ''}`} onClick={() => setTab('starraid')} data-testid="tab-starraid"><GameIcon name="ui_rocket" size={15} /> STAR RAID</button>
-            <button className="camp-tab" onClick={() => setBaseOpen(true)} data-testid="tab-base"><GameIcon name="ui_base" size={15} /> THE BASE</button>
-            <button className="camp-tab" onClick={() => setProspectorOpen(true)} data-testid="tab-prospector"><GameIcon name="ui_pickaxe" size={15} /> LOOTMINE</button>
-            <button className="camp-tab" onClick={() => setClickerOpen(true)} data-testid="tab-clicker" style={{ position: 'relative' }}>
-              <GameIcon name="ui_waterdrop" size={15} /> THE WELL {clickerReady > 0 && <EyeBadge />}
+            <button {...(lockedProps('starraid') || { className: `camp-tab ${tab === 'starraid' ? 'active' : ''}` })} onClick={lockGuard('starraid', () => setTab('starraid'))} data-testid="tab-starraid"><GameIcon name={isCampTabLocked('starraid', save) ? 'ui_lock' : 'ui_rocket'} size={15} /> STAR RAID</button>
+            <button {...(lockedProps('base') || { className: 'camp-tab' })} onClick={lockGuard('base', () => setBaseOpen(true))} data-testid="tab-base"><GameIcon name={isCampTabLocked('base', save) ? 'ui_lock' : 'ui_base'} size={15} /> THE BASE</button>
+            <button {...(lockedProps('prospector') || { className: 'camp-tab' })} onClick={lockGuard('prospector', () => setProspectorOpen(true))} data-testid="tab-prospector"><GameIcon name={isCampTabLocked('prospector', save) ? 'ui_lock' : 'ui_pickaxe'} size={15} /> LOOTMINE</button>
+            <button {...(lockedProps('clicker') || { className: 'camp-tab' })} onClick={lockGuard('clicker', () => setClickerOpen(true))} data-testid="tab-clicker" style={{ position: 'relative' }}>
+              <GameIcon name={isCampTabLocked('clicker', save) ? 'ui_lock' : 'ui_waterdrop'} size={15} /> THE WELL {clickerReady > 0 && <EyeBadge />}
             </button>
             <div className="camp-tab-divider" />
-            <button className="camp-tab" onClick={() => setCharacterOpen(true)} data-testid="tab-character"><GameIcon name="ui_character" size={15} /> CHARACTER</button>
-            <button className="camp-tab" onClick={() => setPetOpen(true)} data-testid="tab-pets"><GameIcon name="ui_pets" size={15} /> PETS</button>
-            <button className="camp-tab" onClick={() => setTalentOpen(true)} data-testid="tab-talent"><GameIcon name="ui_leaf" size={15} /> TALENTS</button>
-            <button className="camp-tab" onClick={() => setSkillOpen(true)} data-testid="open-skills"><GameIcon name="ui_skills" size={15} /> SKILLS</button>
-            <button className={`camp-tab ${tab==='cards'?'active':''}`} onClick={() => setTab('cards')} data-testid="tab-cards"><GameIcon name="ui_gem" size={15} /> META</button>
-            <button className={`camp-tab ${tab==='gear'?'active':''}`} onClick={() => setTab('gear')} data-testid="tab-gear"><GameIcon name="gear" size={15} /> GEAR</button>
-            <button className={`camp-tab ${tab==='pass'?'active':''}`} onClick={() => setTab('pass')} data-testid="tab-pass" style={{position:'relative'}}><GameIcon name="ui_medal" size={15} /> SEASON PASS {passNew && <EyeBadge/>}</button>
-            <button className={`camp-tab ${tab==='patrol'?'active':''}`} onClick={() => setTab('patrol')} data-testid="tab-patrol" style={{position:'relative'}}><GameIcon name="ui_map" size={15} /> PATROL {patrolNew && <EyeBadge/>}</button>
-            <button className={`camp-tab ${tab==='codex'?'active':''}`} onClick={() => setTab('codex')} data-testid="tab-codex" style={{position:'relative'}}><GameIcon name="ui_codex" size={15} /> CODEX {(codexNew || achNew) && <EyeBadge/>}</button>
+            <button {...(lockedProps('character') || { className: 'camp-tab' })} onClick={lockGuard('character', () => setCharacterOpen(true))} data-testid="tab-character"><GameIcon name={isCampTabLocked('character', save) ? 'ui_lock' : 'ui_character'} size={15} /> CHARACTER</button>
+            <button {...(lockedProps('pets') || { className: 'camp-tab' })} onClick={lockGuard('pets', () => setPetOpen(true))} data-testid="tab-pets"><GameIcon name={isCampTabLocked('pets', save) ? 'ui_lock' : 'ui_pets'} size={15} /> PETS</button>
+            <button {...(lockedProps('talent') || { className: 'camp-tab' })} onClick={lockGuard('talent', () => setTalentOpen(true))} data-testid="tab-talent"><GameIcon name={isCampTabLocked('talent', save) ? 'ui_lock' : 'ui_leaf'} size={15} /> TALENTS</button>
+            <button {...(lockedProps('skills') || { className: 'camp-tab' })} onClick={lockGuard('skills', () => setSkillOpen(true))} data-testid="open-skills"><GameIcon name={isCampTabLocked('skills', save) ? 'ui_lock' : 'ui_skills'} size={15} /> SKILLS</button>
+            <button {...(lockedProps('cards') || { className: `camp-tab ${tab==='cards'?'active':''}` })} onClick={lockGuard('cards', () => setTab('cards'))} data-testid="tab-cards"><GameIcon name={isCampTabLocked('cards', save) ? 'ui_lock' : 'ui_gem'} size={15} /> META</button>
+            <button {...(lockedProps('gear') || { className: `camp-tab ${tab==='gear'?'active':''}` })} onClick={lockGuard('gear', () => setTab('gear'))} data-testid="tab-gear"><GameIcon name={isCampTabLocked('gear', save) ? 'ui_lock' : 'gear'} size={15} /> GEAR</button>
+            <button {...(lockedProps('pass') || { className: `camp-tab ${tab==='pass'?'active':''}`, style:{position:'relative'} })} onClick={lockGuard('pass', () => setTab('pass'))} data-testid="tab-pass"><GameIcon name={isCampTabLocked('pass', save) ? 'ui_lock' : 'ui_medal'} size={15} /> SEASON PASS {passNew && <EyeBadge/>}</button>
+            <button {...(lockedProps('patrol') || { className: `camp-tab ${tab==='patrol'?'active':''}`, style:{position:'relative'} })} onClick={lockGuard('patrol', () => setTab('patrol'))} data-testid="tab-patrol"><GameIcon name={isCampTabLocked('patrol', save) ? 'ui_lock' : 'ui_map'} size={15} /> PATROL {patrolNew && <EyeBadge/>}</button>
+            <button {...(lockedProps('codex') || { className: `camp-tab ${tab==='codex'?'active':''}`, style:{position:'relative'} })} onClick={lockGuard('codex', () => setTab('codex'))} data-testid="tab-codex"><GameIcon name={isCampTabLocked('codex', save) ? 'ui_lock' : 'ui_codex'} size={15} /> CODEX {(codexNew || achNew) && <EyeBadge/>}</button>
             <div className="camp-tab-divider" />
-            <button className="camp-tab" onClick={() => setShopOpen(true)} data-testid="open-card-shop"><GameIcon name="ui_token" size={15} /> CARD SHOP</button>
-            <button className="camp-tab" onClick={() => setForgeOpen(true)} data-testid="open-forge"><GameIcon name="ui_smith" size={15} /> SMITH</button>
-            <button className="camp-tab" onClick={() => setChestOpen(true)} data-testid="open-chest"><GameIcon name="ui_chest" size={15} /> CHESTS</button>
-            <button className="camp-tab" onClick={() => setLoadoutOpen(true)} data-testid="open-loadout"><GameIcon name="ui_loadout" size={15} /> LOADOUT</button>
+            <button {...(lockedProps('shop') || { className: 'camp-tab' })} onClick={lockGuard('shop', () => setShopOpen(true))} data-testid="open-card-shop"><GameIcon name={isCampTabLocked('shop', save) ? 'ui_lock' : 'ui_token'} size={15} /> CARD SHOP</button>
+            <button {...(lockedProps('forge') || { className: 'camp-tab' })} onClick={lockGuard('forge', () => setForgeOpen(true))} data-testid="open-forge"><GameIcon name={isCampTabLocked('forge', save) ? 'ui_lock' : 'ui_smith'} size={15} /> SMITH</button>
+            <button {...(lockedProps('chest') || { className: 'camp-tab' })} onClick={lockGuard('chest', () => setChestOpen(true))} data-testid="open-chest"><GameIcon name={isCampTabLocked('chest', save) ? 'ui_lock' : 'ui_chest'} size={15} /> CHESTS</button>
+            <button {...(lockedProps('loadout') || { className: 'camp-tab' })} onClick={lockGuard('loadout', () => setLoadoutOpen(true))} data-testid="open-loadout"><GameIcon name={isCampTabLocked('loadout', save) ? 'ui_lock' : 'ui_loadout'} size={15} /> LOADOUT</button>
             <button className="camp-tab" onClick={() => setSettingsOpen(true)} data-testid="open-settings"><GameIcon name="ui_cog" size={15} /> SETTINGS</button>
           </div>
         </div>

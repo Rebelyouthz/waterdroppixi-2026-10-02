@@ -909,11 +909,22 @@ canvas#game, canvas.starraid-canvas {
   position: relative; overflow: hidden;
   transition: transform 80ms, box-shadow 80ms, background 140ms;
 }
-.camp-tab:hover:not(.active) {
+.camp-tab:hover:not(.active):not(.locked) {
   background: #1a1228;
   transform: translateX(3px);
   box-shadow: var(--pixel-edge), 2px 0 0 #ff7a1a55;
 }
+/* Camp starts locked and opens panel by panel as the story's first three
+   nodes clear (see campaign.js's campUnlockStage) — this is the same
+   dimmed/no-hover treatment the Card Shop's EVOLUTIONS section already
+   used for "unlock via Skill Tree", kept consistent rather than inventing
+   a second locked-button language. */
+.camp-tab.locked {
+  opacity: 0.4;
+  cursor: not-allowed;
+  filter: grayscale(0.6);
+}
+.camp-tab.locked:hover { transform: none; }
 .camp-tab.active {
   color: var(--accent);
   background: linear-gradient(90deg, #1c0e2a, #0e0816);

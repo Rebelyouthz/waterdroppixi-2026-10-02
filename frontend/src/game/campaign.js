@@ -138,6 +138,65 @@ export function nextCampaignNode(save) {
   return campaignNodes().find(n => !progress[n.id]) || null;
 }
 
+// ---- Camp unlock gating -----------------------------------------------------
+// Timmy's intro pitch: the waterdrop washes up with nothing, the camp starts
+// LOCKED, and he unlocks it panel by panel by going out from it and finding
+// resources — which is just the story reason to play the three Rain Pool
+// nodes that already existed as a deliberately gentle on-ramp (see
+// paintCampaignNodes / MAP_STAGES's 'pond' entry: "the onramp... spawn rates
+// start at 45% of normal"). No new mission type needed — reframe, don't
+// rebuild. Always checked against NORMAL's mapProgress regardless of the
+// player's selected difficulty, because the unlock is about having played
+// the story beat at all, not about which difficulty tier it happened on —
+// gating it to the active tier would re-lock the whole camp the moment
+// someone switches to Hard, which is not the point of a Hard mode.
+const CAMP_UNLOCK_NODES = ['pond_1', 'pond_2', 'pond_3'];
+
+// 0 = fresh save, nothing but the story cleared yet. 1/2/3 = that many Rain
+// Pool nodes cleared. Stage 3 is "the camp is fully built" — normal play
+// from here on.
+//
+// Grandfathers every existing save: this gate did not exist before it was
+// added, so a save that is already past it (cleared a later map, or has
+// simply played enough to reach account rank 3+) unlocks everything rather
+// than being retroactively locked out of progress it already earned. The
+// new-player locked intro only ever fires for a save that has never
+// cleared a campaign node at all.
+export function campUnlockStage(save) {
+  const cleared = save.mapProgress || {};
+  const clearedNonPond = campaignNodes().some(n => !CAMP_UNLOCK_NODES.includes(n.id) && cleared[n.id]);
+  if (clearedNonPond || (save.profile?.level || 1) >= 3) return 3;
+  let n = 0;
+  for (const id of CAMP_UNLOCK_NODES) { if (cleared[id]) n++; else break; }
+  return n;
+}
+
+// Which camp tabs/panels a given stage has open. Keyed by the same id used
+// for `data-testid`/`onClick` in Camp.jsx's tab bar, so adding a tab there
+// is the only other place this needs touching.
+const CAMP_UNLOCK_AT = {
+  gear: 1, forge: 1, chest: 1,
+  skills: 2, talent: 2, cards: 2, character: 2, loadout: 2,
+  shop: 3, pets: 3, starraid: 3, base: 3, prospector: 3, clicker: 3, pass: 3, patrol: 3, codex: 3,
+};
+// Always open, even at stage 0: 'campaign' (how you play at all) and
+// 'settings' (not game content). Anything not listed above is also always
+// open — this is an allow-list of what to LOCK, not what to unlock, so a
+// future tab that forgets to be added here fails open rather than trapping
+// the player behind an unwinnable gate.
+export function isCampTabLocked(tabId, save) {
+  const need = CAMP_UNLOCK_AT[tabId];
+  if (need === undefined) return false;
+  return campUnlockStage(save) < need;
+}
+// The node whose clearing unlocks the given tab, for the hint text.
+export function campUnlockHint(tabId, save) {
+  const need = CAMP_UNLOCK_AT[tabId];
+  if (need === undefined) return null;
+  const node = campaignNodes()[need - 1]; // pond_1/2/3 are indices 0/1/2
+  return node ? `Clear "${node.name}" to unlock` : null;
+}
+
 // The difficulty numbers a run should actually use, with the selected tier
 // clamped to what the player has earned. Lives here rather than in
 // difficulty.js because it needs the node list, and difficulty.js is
