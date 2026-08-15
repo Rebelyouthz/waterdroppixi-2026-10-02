@@ -468,8 +468,17 @@ function AppInner() {
 
   const startTutorialIfNeeded = () => {
     if (!save.tutorialDone) {
-      // First ever run: launch tutorial
-      tryStartGame(() => { setActiveMission(TUTORIAL_MISSION); setRunKey(k => k + 1); setView('game'); });
+      // The combat tutorial run used to auto-launch here. Timmy retired it:
+      // a fresh save now lands in the camp instead, where the unlock
+      // cascade (see campaign.js's campUnlockStage) already shows nothing
+      // but "THE BASE" (dark) and the one available story mission — that IS
+      // the tutorial now, taught by the real first mission rather than a
+      // separate throwaway one. Marking tutorialDone here means this branch
+      // only ever fires once; TUTORIAL_MISSION itself is left intact rather
+      // than deleted, since nothing else that reads `save.tutorialDone`
+      // should have to change.
+      setSave({ ...save, tutorialDone: true });
+      setView('camp');
     } else {
       startNormalGame();
     }

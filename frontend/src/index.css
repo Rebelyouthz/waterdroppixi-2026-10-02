@@ -575,6 +575,73 @@ canvas#game, canvas.starraid-canvas {
   75%  { transform: rotate(-2deg); }
   100% { transform: rotate(0deg); }
 }
+
+/* Camp arrival briefing — the one-time "why build the camp" text, replacing
+   the retired combat tutorial (see App.js's startTutorialIfNeeded). A dead
+   ship's status console rather than a storybook page: dark panel, a cold
+   teal "still-alive" kicker against a warm "everything else is dead"
+   orange, matching the --rune/--accent pair used everywhere else. */
+.camp-brief-overlay {
+  position: fixed; inset: 0; z-index: 2100;
+  background: #020103d0; backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.camp-brief-card {
+  position: relative;
+  width: min(560px, 100%);
+  padding: 22px 26px 20px;
+  background:
+    linear-gradient(180deg, rgba(16, 26, 30, 0.92), rgba(6, 10, 14, 0.96)), var(--bg-0);
+  box-shadow:
+    inset 0 0 0 1px rgba(77, 255, 212, 0.28),
+    inset 0 0 0 2px rgba(0, 0, 0, 0.8),
+    0 24px 60px rgba(0, 0, 0, 0.85),
+    0 0 50px rgba(77, 255, 212, 0.14);
+  clip-path: polygon(16px 0, calc(100% - 16px) 0, 100% 16px, 100% calc(100% - 16px), calc(100% - 16px) 100%, 16px 100%, 0 calc(100% - 16px), 0 16px);
+  animation: campBriefIn 0.4s cubic-bezier(0.22,1,0.36,1) both;
+}
+@keyframes campBriefIn { from { transform: scale(0.92); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.camp-brief-kicker {
+  font-family: 'VT323', monospace; font-size: 15px; letter-spacing: 0.4em;
+  color: var(--rune); text-shadow: 0 0 10px rgba(77,255,212,0.5);
+}
+.camp-brief-title {
+  font-family: 'Cinzel', serif; font-weight: 800; letter-spacing: 0.02em;
+  font-size: clamp(20px, 4vw, 26px); color: var(--ink);
+  margin: 4px 0 14px;
+}
+.camp-brief-body p {
+  font-family: 'JetBrains Mono', monospace; font-size: 14px; line-height: 1.55;
+  color: var(--ink-dim); margin-bottom: 9px;
+}
+.camp-brief-body p:last-child { color: var(--ink); }
+.camp-brief-actions {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  margin-top: 16px;
+}
+.camp-brief-skip {
+  background: none; border: none; padding: 6px 2px;
+  font-family: 'JetBrains Mono', monospace; font-size: 12px;
+  color: var(--ink-dim); text-decoration: underline; text-underline-offset: 3px;
+  cursor: pointer; opacity: 0.75;
+}
+.camp-brief-skip:hover { opacity: 1; color: var(--ink); }
+.camp-brief-go {
+  font-family: 'VT323', monospace; font-size: 20px; letter-spacing: 0.14em;
+  padding: 10px 22px; cursor: pointer;
+  background: linear-gradient(180deg, #ff9a4d, #ff7a1a);
+  border: 2px solid #ffb877; color: #1a0d02;
+  box-shadow: 0 0 0 1px #000, 0 6px 0 #a4480a, 0 0 26px rgba(255,122,26,0.4);
+  transition: transform 0.1s;
+}
+.camp-brief-go:hover { transform: translateY(-1px); }
+.camp-brief-go:active { transform: translateY(2px); box-shadow: 0 0 0 1px #000, 0 3px 0 #a4480a; }
+@media (max-width: 480px) {
+  .camp-brief-actions { flex-direction: column-reverse; align-items: stretch; }
+  .camp-brief-go { width: 100%; }
+  .camp-brief-skip { text-align: center; }
+}
 /* Weapon-fork screen: exactly 4 octagon cards, 2x2 (2 side by side, 2 below). */
 .card-row-fork { display: grid; grid-template-columns: repeat(2, 240px); gap: 22px; justify-content: center; }
 .card-fork { --rar: #b362ff; --glow: 26px; }

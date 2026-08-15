@@ -13,7 +13,7 @@ import TalentTree from './TalentTree';
 import CampaignPanel from './CampaignPanel';
 import PetPanel from './PetPanel';
 import ProspectorScreen from './ProspectorScreen';
-import { nextCampaignNode, isCampTabLocked, campUnlockHint } from '../game/campaign';
+import { nextCampaignNode, isCampTabLocked, campUnlockHint, campUnlockStage } from '../game/campaign';
 import { currentStep } from '../game/path';
 import ClickerScreen from './ClickerScreen';
 import BasePanel from './BasePanel';
@@ -117,8 +117,31 @@ const openChest = (chestId) => {
   return c ? rollChest(c, 0.5) : [];
 };
 
+// The one-time "why build the camp" briefing. Timmy retired the combat
+// tutorial — a fresh save now lands straight in the (mostly locked) camp,
+// so it needs its own explanation for why the first thing to do is build a
+// camp instead of fight. English, continuing the dry, dark-humor voice
+// AIDA_INTRO's "THE DROP" already speaks in (IntroDialogue.jsx) — this is
+// the same character, one scene later.
+const CAMP_BRIEFING_LINES = [
+  "Half a hull, some crates, and whatever didn't melt on the way down. This is the camp.",
+  "Somewhere in that wreck is a black box with a location burned into it. Somebody wrote that down on purpose.",
+  "Nirvana to this. There's a joke in there and you're too wet to laugh at it.",
+  "Nav array's dead. Lights are dead. Everything here is dead except you, technically.",
+  "Fix that first. Bleed on some things, bring back what they drop, get the camp running.",
+  "Then go ask your new friends some very pointed questions.",
+];
+
 export default function Camp({ save, setSave, onBack, onStart, onMission, onStory, onStarRaid }) {
   const storyNode = nextCampaignNode(save);
+  // Shown once, only in the "nothing built yet" window the tab-hiding
+  // cascade also uses — never re-fires once dismissed. Never blocks: both
+  // buttons dismiss it, one of them just also starts the mission.
+  const showBriefing = campUnlockStage(save) === 0 && !save.campBriefingSeen;
+  const dismissBriefing = (thenStory) => {
+    setSave({ ...save, campBriefingSeen: true });
+    if (thenStory && onStory) onStory();
+  };
   // Camp starts locked and opens up panel by panel as the Rain Pool nodes
   // clear — see campaign.js's campUnlockStage. `guard` wraps a tab's onClick
   // so a locked button is inert rather than needing every call site below to
@@ -484,6 +507,22 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
             {metaBurst.count > 1 && (
               <div className="meta-burst-count" data-testid="meta-burst-count">×{metaBurst.count}</div>
             )}
+          </div>,
+          document.body
+        )}
+        {showBriefing && createPortal(
+          <div className="camp-brief-overlay" data-testid="camp-briefing">
+            <div className="camp-brief-card">
+              <div className="camp-brief-kicker">SITREP</div>
+              <div className="camp-brief-title">So. This is the camp.</div>
+              <div className="camp-brief-body">
+                {CAMP_BRIEFING_LINES.map((line, i) => <p key={i}>{line}</p>)}
+              </div>
+              <div className="camp-brief-actions">
+                <button className="camp-brief-skip" onClick={() => dismissBriefing(false)} data-testid="camp-briefing-skip">Look around first</button>
+                <button className="camp-brief-go" onClick={() => dismissBriefing(true)} data-testid="camp-briefing-go">FIRST DROPS ▸</button>
+              </div>
+            </div>
           </div>,
           document.body
         )}
