@@ -885,6 +885,7 @@ void main() {
       return;
     }
     this._debugReadout(game);
+    if (game.campSign && !this._campSignBuilt) this._buildCampSign(game);
     const W = game.W, H = game.H;
 
     const shakeX = (Math.random() - 0.5) * game.cam.shake;
@@ -2078,6 +2079,55 @@ void main() {
   }
 
   // ---------------------------- GROUND / BG ------------------------------
+  // pond_1 ("First Drops") only — a weathered steel sign near spawn reading
+  // "WATERDROP CAMP", so the mission reads as the camp's own backyard
+  // without touching the actual map (Timmy explicitly asked to keep the
+  // Rain Pool's Earth setting — "jorden är bra å se då de är där man kom
+  // ifrån nyss"). Built ONCE (gated by `_campSignBuilt`) and added directly
+  // to `this.world`, the camera-following container every other world-space
+  // object lives in — unlike `_drawGround`'s cached Graphics repaint, a
+  // static sign needs no per-frame redraw at all.
+  _buildCampSign(game) {
+    this._campSignBuilt = true;
+    const wx = game.player.x, wy = game.player.y - 260;
+    const c = new Container();
+    c.position.set(wx, wy);
+
+    const postH = 92, postW = 13, boardW = 226, boardH = 58;
+    const g = new Graphics();
+    // Two weathered steel posts.
+    g.rect(-104, 0, postW, postH).fill({ color: 0x33373f }).stroke({ width: 2, color: 0x0a0a0c });
+    g.rect(91, 0, postW, postH).fill({ color: 0x33373f }).stroke({ width: 2, color: 0x0a0a0c });
+    // The board itself, hung near the top of the posts.
+    g.roundRect(-boardW / 2, -boardH + 14, boardW, boardH, 5)
+      .fill({ color: 0x21242a })
+      .stroke({ width: 3, color: 0x0a0a0c });
+    g.roundRect(-boardW / 2 + 7, -boardH + 21, boardW - 14, boardH - 14, 3)
+      .stroke({ width: 1, color: 0x4dffd4, alpha: 0.32 });
+    // Rivets at the panel corners — the same "machined metal" language the
+    // level-up card frame and base-building bezels use elsewhere.
+    for (const [rx, ry] of [[-boardW / 2 + 12, -boardH + 22], [boardW / 2 - 12, -boardH + 22], [-boardW / 2 + 12, -boardH + boardH - 12], [boardW / 2 - 12, -boardH + boardH - 12]]) {
+      g.circle(rx, ry, 2.6).fill({ color: 0x6c7078 });
+    }
+    // A faint teal ground-glow under the sign, matching the --rune accent.
+    g.ellipse(0, postH * 0.35, 120, 30).fill({ color: 0x4dffd4, alpha: 0.05 });
+    c.addChild(g);
+
+    const label = new Text({
+      text: 'WATERDROP CAMP',
+      style: {
+        fontFamily: 'JetBrains Mono, monospace', fontSize: 18, fontWeight: 'bold',
+        fill: 0x9dffe8, letterSpacing: 1.5,
+        dropShadow: { color: 0x000000, blur: 3, distance: 2, alpha: 0.85 },
+      },
+    });
+    label.anchor.set(0.5);
+    label.position.set(0, -boardH / 2 + 5);
+    c.addChild(label);
+
+    this.world.addChild(c);
+  }
+
   _drawGround(game) {
     const W = game.W, H = game.H, cx = game.cam.x, cy = game.cam.y;
     const t = game.run ? game.run.time : 0;

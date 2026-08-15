@@ -265,6 +265,12 @@ export default function GameScreen({ save, setSave, onExit, onRunEnd, mission, p
       // id it has no entry for would throw sixty times a second rather
       // than fail quietly.
       startWeapons: ((isTutorial || forceBaseline) && mission.startWeapons) ? mission.startWeapons : [resolveStartWeapon(save)],
+      // pond_1 only: a "WATERDROP CAMP" sign near spawn, so the mission
+      // reads as the camp's own backyard rather than a generic Earth map —
+      // Timmy asked to keep the Rain Pool's actual map (it's where the drop
+      // just came from) and just mark it as the camp with signage, not
+      // rebuild the whole map. See pixiRenderer.js's `_buildCampSign`.
+      campSign: mission?.node?.id === 'pond_1',
       missionDuration: mission ? mission.duration : null,
       spawnMult: mission ? (mission.spawnMult || 1.0) : 1.0,
       // Difficulty tier. The tutorial is pinned to Normal regardless of what

@@ -254,6 +254,9 @@ export class Game {
     this.bloodDecals = []; // floor blood (capped)
     this.skyEvents = []; // passing meteors/UFOs — decorative + real light casters
     this._nextSkyEventAt = rand(5, 10);
+    // pond_1 only — pixiRenderer.js builds a "WATERDROP CAMP" sign near
+    // spawn when this is set. See GameScreen.jsx's opts.campSign.
+    this.campSign = !!opts.campSign;
 
     // Player
     this.player = this.createPlayer();
