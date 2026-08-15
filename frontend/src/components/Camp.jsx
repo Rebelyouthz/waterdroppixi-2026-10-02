@@ -958,7 +958,14 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
       {defenceOpen && <BaseDefenceScreen save={save} setSave={setSave} onClose={() => setDefenceOpen(false)} />}
       {profileOpen && <ProfilePanel save={save} setSave={setSave} onClose={() => setProfileOpen(false)} onBadges={() => { setProfileOpen(false); setBadgeOpen(true); }} />}
       {badgeOpen && <BadgePicker save={save} setSave={setSave} onClose={() => setBadgeOpen(false)} />}
-      {save.pendingLevelUp && (
+      {/* Held back until the base's first unlock batch (Meta/Skilltree/
+          Talents) has actually revealed — Timmy: showing this the instant
+          you walk into camp buries "you got talent points + skill points"
+          under a screen you can't act on yet. Once 'cards' (the first batch)
+          is open and no reveal banner is mid-flight, it shows normally —
+          for every level-up past the bootstrap window this is always true,
+          so ordinary play is unaffected. */}
+      {save.pendingLevelUp && !isCampTabLocked('cards', save) && !unlockShown && unlockQueue.length === 0 && (
         <LevelUpOverlay save={save} onCollect={() => {
           const r = save.pendingLevelUp;
           const char = save.character || DEFAULT_SAVE.character;
@@ -1012,6 +1019,14 @@ function LevelUpOverlay({ save, onCollect }) {
   const newRank = getRank(r.level);
   const prevRank = getRank(Number.isFinite(r.fromLevel) ? r.fromLevel : r.level - 1);
   const isRankUp = newRank > prevRank;
+  // How far into the level you're NOW at you already are — read live off
+  // `save.profile`, not off `r`, since `r` only knows the level you landed
+  // on, not the leftover XP carried into it. This is what the level bar
+  // settles on after its fill-and-reset (see `.lu-bar-run` in overhaul.css):
+  // Timmy's bug report was that it used to just fill to 100% and stop,
+  // which claimed the bar was full/maxed regardless of real progress.
+  const nextLvlXp = accountXpToNext(save.profile.level);
+  const lvlPct = nextLvlXp > 0 ? Math.max(0, Math.min(1, (save.profile.xp || 0) / nextLvlXp)) : 0;
   // The rising, gritty fanfare is reserved for a real rank-up; a plain level
   // gets the lighter level-up chime, so the two are audibly different beats.
   // Every payout on this screen, in one ordered list rather than nine
@@ -1070,13 +1085,17 @@ function LevelUpOverlay({ save, onCollect }) {
   }, []);
 
   // The XP bar rises first, then the rewards land on top of it. Pitch climbs
-  // with the fill so the bar is audibly going somewhere.
+  // with the fill so the bar is audibly going somewhere. The bar itself now
+  // fills to 100%, resets, and fills again to the real carried-over % (see
+  // `.lu-bar-run` in overhaul.css) — the second chime marks that second
+  // fill settling, so the "dopamine reset" has an audible landing too.
   useEffect(() => {
     const ticks = [];
     for (let i = 0; i < 9; i++) {
       ticks.push(setTimeout(() => Audio.xpTick(i / 8), 120 + i * 82));
     }
     ticks.push(setTimeout(() => Audio.xpArrive(), 120 + 9 * 82));
+    ticks.push(setTimeout(() => Audio.xpArrive(), 1850));
     return () => ticks.forEach(clearTimeout);
   }, []);
 
@@ -1164,8 +1183,8 @@ function LevelUpOverlay({ save, onCollect }) {
                 level track below. One bar cannot show both, and which of the
                 two just moved is the whole point of the screen. */}
             <div className="lu-bar rank"><i style={{ width: `${((r.level % 4) / 4) * 100}%` }} /></div>
-            <div className="lu-bar lvl"><i className="lu-bar-run" /></div>
-            <div className="lu-profxp">+{r.xp || r.gold || 0} Account XP</div>
+            <div className="lu-bar lvl"><i className="lu-bar-run" style={{ '--pct': `${lvlPct * 100}%` }} /></div>
+            <div className="lu-profxp">+{r.xpGained || 0} Account XP</div>
           </div>
         </div>
 

@@ -3110,21 +3110,37 @@
   border-radius: 50%;
   display: grid; place-items: center;
   /* The seat the picture sits in. Depth is lighting, not a drop shadow: a
-     bright rim top-left, a dark seat bottom-right, an inner occlusion ring. */
-  background: radial-gradient(circle at 34% 28%, #2a1416 0%, #150a0c 52%, #050304 100%);
+     bright rim top-left, a dark seat bottom-right, an inner occlusion ring.
+     Recoloured from the original crimson trophy-plaque look to the game's
+     own dark-purple palette (--bg-1/--bg-2) — Timmy: it didn't match the
+     rest of the menus. */
+  background: radial-gradient(circle at 34% 28%, #241a34 0%, #150c22 52%, #07060c 100%);
   box-shadow:
-    inset 0 3px 12px rgba(255, 190, 190, 0.16),
+    inset 0 3px 12px rgba(220, 200, 255, 0.14),
     inset 0 -10px 20px rgba(0, 0, 0, 0.9),
     0 10px 22px rgba(0, 0, 0, 0.8),
-    0 0 30px rgba(220, 40, 60, 0.22);
-  transition: transform 160ms cubic-bezier(.2,.9,.3,1.4);
+    0 0 30px rgba(179, 98, 255, 0.25);
 }
-/* The recoil when something lands on it. Short and springy — a long bounce
-   turns seven rewards into a wobbling mess. */
-.lu-portrait.is-struck { transform: scale(1.07); }
+/* The impact used to be a scale(1.07) bump on the WHOLE portrait — bezel,
+   claws, sheen, all of it — which at seven rewards in a row read as the
+   screen shaking rather than a reward landing. Timmy: "rewardsen ska röra
+   sig, inte hela skärmen." The portrait itself now stays still; only a
+   bright ring-flash (below) marks the impact, so movement is reserved for
+   the reward tile and the flying strike icon, which already animate on
+   their own. */
+.lu-portrait::after {
+  content: '';
+  position: absolute; inset: -14px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(255, 224, 150, 0.9), 0 0 42px 10px rgba(255, 209, 102, 0.55);
+  opacity: 0;
+  pointer-events: none;
+}
+.lu-portrait.is-struck::after { animation: luPortraitFlash 340ms ease-out; }
+@keyframes luPortraitFlash { 0% { opacity: 1; } 100% { opacity: 0; } }
 
 /* --- The bezel, back to front -------------------------------------------
-   Black and crimson carry it, silver is the highlight and gold is used
+   Black and purple carry it, silver is the highlight and gold is used
    sparingly — a thin band of it is what reads as expensive; a lot of it
    reads as cheap. Two rings turning OPPOSITE ways is the whole trick: one
    spinning disc looks flat no matter how it is shaded. */
@@ -3135,32 +3151,32 @@
   border-radius: 50%;
   background:
     conic-gradient(from 210deg,
-      #1a0508 0deg, #3a0d12 40deg, #0a0304 90deg, #2a0a0e 150deg,
-      #050203 210deg, #45101a 260deg, #0a0304 310deg, #1a0508 360deg);
+      #120a1c 0deg, #2c1642 40deg, #09060f 90deg, #1e1030 150deg,
+      #07050c 210deg, #341c50 260deg, #09060f 310deg, #120a1c 360deg);
   box-shadow:
     inset 0 0 0 1px rgba(200, 205, 215, 0.30),   /* silver lip, outside  */
     inset 0 0 0 9px rgba(0, 0, 0, 0.55),
-    inset 0 0 0 10px rgba(190, 40, 55, 0.45),
+    inset 0 0 0 10px rgba(140, 80, 220, 0.45),
     inset 0 2px 6px rgba(255, 255, 255, 0.10),
     0 12px 26px rgba(0, 0, 0, 0.85),
-    0 0 40px rgba(190, 30, 45, 0.28);
+    0 0 40px rgba(150, 80, 220, 0.28);
 }
-/* The turning crimson band. Hard-edged segments rather than a smooth sweep,
+/* The turning band. Hard-edged segments rather than a smooth sweep,
    so you can actually SEE it rotate — a soft gradient at this size just
    shimmers. */
 .lu-bezel-band {
   position: absolute; inset: -11px;
   border-radius: 50%;
   background: conic-gradient(from 0deg,
-    #d61f33 0deg 14deg, transparent 14deg 46deg,
-    #7d0f1c 60deg 70deg, transparent 70deg 104deg,
-    #ff3b4d 120deg 132deg, transparent 132deg 168deg,
-    #b0141f 184deg 194deg, transparent 194deg 232deg,
-    #d61f33 250deg 262deg, transparent 262deg 300deg,
-    #6d0c16 314deg 326deg, transparent 326deg 360deg);
+    #b362ff 0deg 14deg, transparent 14deg 46deg,
+    #6b3aa6 60deg 70deg, transparent 70deg 104deg,
+    #d19cff 120deg 132deg, transparent 132deg 168deg,
+    #8f4fd4 184deg 194deg, transparent 194deg 232deg,
+    #b362ff 250deg 262deg, transparent 262deg 300deg,
+    #4a2570 314deg 326deg, transparent 326deg 360deg);
   -webkit-mask: radial-gradient(circle, transparent 0 calc(50% - 11px), #000 calc(50% - 11px) calc(50% - 2px), transparent calc(50% - 2px));
           mask: radial-gradient(circle, transparent 0 calc(50% - 11px), #000 calc(50% - 11px) calc(50% - 2px), transparent calc(50% - 2px));
-  filter: drop-shadow(0 0 6px rgba(255, 50, 70, 0.55));
+  filter: drop-shadow(0 0 6px rgba(179, 98, 255, 0.55));
   animation: luSpin 9s linear infinite;
 }
 /* Silver filigree, counter-rotating and much finer, with two gold ticks. */
@@ -3187,7 +3203,7 @@
   width: 16px; height: 22px;
   z-index: 4;
   border-radius: 3px 3px 7px 7px;
-  background: linear-gradient(180deg, #d9dee8 0%, #8b929e 26%, #2a0a0e 62%, #0a0304 100%);
+  background: linear-gradient(180deg, #d9dee8 0%, #8b929e 26%, #1e1030 62%, #09060f 100%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.7),
     inset 0 -3px 5px rgba(0, 0, 0, 0.8),
@@ -3207,7 +3223,7 @@
   /* The picture sits DOWN in the setting rather than on top of it. */
   box-shadow:
     inset 0 0 0 2px rgba(0, 0, 0, 0.9),
-    0 0 0 3px rgba(120, 20, 30, 0.55),
+    0 0 0 3px rgba(140, 80, 200, 0.5),
     inset 0 6px 14px rgba(0, 0, 0, 0.5);
 }
 .lu-portrait-icon {
@@ -3298,12 +3314,12 @@
   font-family: 'VT323', monospace;
   font-size: 20px;
   letter-spacing: 0.10em;
-  color: #ffe3e6;
-  text-shadow: 0 2px 0 #2a0409, 0 0 16px rgba(255,80,100,0.5);
+  color: #ece0ff;
+  text-shadow: 0 2px 0 #16091f, 0 0 16px rgba(179,98,255,0.5);
   background:
-    linear-gradient(180deg, #7d0f1c 0%, #4a070f 52%, #2a0409 100%);
+    linear-gradient(180deg, #3a1a58 0%, #20102e 52%, #0d0716 100%);
   box-shadow:
-    inset 0 1px 0 rgba(255,180,190,0.35),
+    inset 0 1px 0 rgba(220,190,255,0.30),
     inset 0 -2px 6px rgba(0,0,0,0.8),
     0 4px 10px rgba(0,0,0,0.7);
   clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 10px 100%, 0 50%);
@@ -3342,9 +3358,22 @@
 .lu-bar.rank i { background: linear-gradient(90deg, #4dffd4, #8fe6ff); }
 .lu-bar.lvl i { background: linear-gradient(90deg, #d8f5ff, #ffffff); }
 /* The level bar RUNS on open — this is the bar the xpTick sound is pitched
-   to, so it has to visibly move or the audio is describing nothing. */
-.lu-bar-run { width: 0; animation: luBarRun 0.86s cubic-bezier(.25,.8,.3,1) 0.12s forwards; }
-@keyframes luBarRun { to { width: 100%; } }
+   to, so it has to visibly move or the audio is describing nothing.
+   Three phases, chained by animation-delay: fill to 100% (the "you levelled
+   up" beat), snap back to 0% (the reset), then fill again to `--pct` — how
+   far you actually are into the level you just landed on. Timmy's bug
+   report: it used to only run phase one and then just sit at 100% forever,
+   which claimed the bar was full/maxed no matter your real progress. */
+.lu-bar-run {
+  width: 0;
+  animation:
+    luBarFill  0.86s cubic-bezier(.25,.8,.3,1) 0.12s forwards,
+    luBarReset 0.01s linear 0.98s forwards,
+    luBarCarry 0.7s  cubic-bezier(.25,.8,.3,1) 1.15s forwards;
+}
+@keyframes luBarFill  { to { width: 100%; } }
+@keyframes luBarReset { to { width: 0%; } }
+@keyframes luBarCarry { to { width: var(--pct, 0%); } }
 .lu-profxp {
   display: inline-block; margin-top: 2px;
   font-family: 'VT323', monospace; font-size: 13px; color: #ffd977;
@@ -3397,7 +3426,7 @@
   width: 72px; min-height: 84px;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
   padding: 8px 4px 6px;
-  background: linear-gradient(180deg, rgba(60,14,20,0.9), rgba(12,5,7,0.95));
+  background: linear-gradient(180deg, rgba(42,24,60,0.9), rgba(10,7,14,0.95));
   box-shadow:
     inset 0 0 0 1px rgba(226,232,240,0.25),
     inset 0 0 0 3px rgba(8,4,5,0.9),
@@ -3450,18 +3479,18 @@
   /* The wrapper carries the pop now; two nested pops read as a stutter. */
   animation: none !important;
   background:
-    linear-gradient(180deg, rgba(38, 10, 14, 0.55), rgba(8, 4, 6, 0.85)),
-    radial-gradient(ellipse 90% 60% at 50% 0%, rgba(150, 25, 40, 0.30), transparent 70%),
-    #0a0508 !important;
+    linear-gradient(180deg, rgba(26, 14, 40, 0.55), rgba(7, 6, 12, 0.85)),
+    radial-gradient(ellipse 90% 60% at 50% 0%, rgba(140, 80, 220, 0.28), transparent 70%),
+    #0a0712 !important;
   box-shadow:
     inset 0 0 0 2px rgba(200, 205, 215, 0.22),   /* silver inner lip   */
-    inset 0 0 0 5px rgba(10, 4, 6, 1),
-    inset 0 0 0 7px rgba(190, 40, 55, 0.55),     /* crimson band       */
-    inset 0 0 0 9px rgba(6, 3, 4, 1),
+    inset 0 0 0 5px rgba(8, 6, 12, 1),
+    inset 0 0 0 7px rgba(140, 80, 220, 0.50),    /* purple band        */
+    inset 0 0 0 9px rgba(5, 4, 8, 1),
     inset 0 0 0 10px rgba(255, 209, 102, 0.28),  /* one thin gold line */
     inset 0 3px 22px rgba(0, 0, 0, 0.9),
     0 22px 60px rgba(0, 0, 0, 0.9),
-    0 0 60px rgba(190, 30, 45, 0.22) !important;
+    0 0 60px rgba(150, 80, 220, 0.24) !important;
   clip-path: polygon(
     14px 0, calc(100% - 14px) 0, 100% 14px, 100% calc(100% - 14px),
     calc(100% - 14px) 100%, 14px 100%, 0 calc(100% - 14px), 0 14px);
@@ -3483,14 +3512,14 @@
   pointer-events: none;
   background:
     conic-gradient(from 200deg,
-      #180508 0deg, #380d13 46deg, #090304 96deg, #2c0a0f 148deg,
-      #050203 200deg, #46101b 254deg, #090304 306deg, #180508 360deg);
+      #120a1c 0deg, #2c1642 46deg, #09060f 96deg, #1e1030 148deg,
+      #07050c 200deg, #341c50 254deg, #09060f 306deg, #120a1c 360deg);
   box-shadow:
     inset 0 0 0 1px rgba(200, 205, 215, 0.26),
     inset 0 0 0 6px rgba(0, 0, 0, 0.7),
-    inset 0 0 0 7px rgba(190, 40, 55, 0.40),
+    inset 0 0 0 7px rgba(140, 80, 220, 0.38),
     0 30px 70px rgba(0, 0, 0, 0.92),
-    0 0 70px rgba(190, 30, 45, 0.18);
+    0 0 70px rgba(150, 80, 220, 0.20);
   clip-path: polygon(
     22px 0, calc(100% - 22px) 0, 100% 22px, 100% calc(100% - 22px),
     calc(100% - 22px) 100%, 22px 100%, 0 calc(100% - 22px), 0 22px);

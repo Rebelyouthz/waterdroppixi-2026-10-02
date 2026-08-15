@@ -553,6 +553,10 @@ export function addAccountXp(save, amount) {
       // "RANK UP!" on every single level and printed the profile level where
       // the rank number should be.
       fromLevel: prevLevel,
+      // The XP that actually triggered this — the overlay used to print
+      // `r.xp` here, a field that was never set, so it silently fell back to
+      // showing the GOLD reward mislabelled as "Account XP".
+      xpGained: amount,
       gold: scale(100 + lv * 40),
       sp: scale(Math.max(1, Math.floor(lv / 4))),
       talentPoints: scale(2),
