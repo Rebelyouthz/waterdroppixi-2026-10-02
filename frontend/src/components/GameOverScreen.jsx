@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Audio } from '../game/audio';
+import GameIcon from './GameIcon';
 
 const fmt = (t) => {
   const m = Math.floor(t / 60); const s = Math.floor(t % 60);
@@ -31,19 +32,19 @@ export default function GameOver({ result, extras, save, onCamp, onRetry, onMenu
   }, [beforeXp, gainedXp]);
 
   const rewards = [
-    { icon: '💰', label: 'Gold earned',     val: '+' + (result.gold || 0) },
-    { icon: '🌟', label: 'Account XP',      val: '+' + (ex.xpGained || 0) },
-    { icon: '🔮', label: 'Skill Points',    val: '+' + (ex.spGained || 0) },
+    { icon: 'cur_gold', label: 'Gold earned',  val: '+' + (result.gold || 0) },
+    { icon: 'ui_star',  label: 'Account XP',   val: '+' + (ex.xpGained || 0) },
+    { icon: 'cur_sp',   label: 'Skill Points', val: '+' + (ex.spGained || 0) },
   ];
-  if (result.gearParts > 0) rewards.push({ icon: '🔩', label: 'Gear Parts', val: '+' + result.gearParts });
+  if (result.gearParts > 0) rewards.push({ icon: 'ui_cog', label: 'Gear Parts', val: '+' + result.gearParts });
   const badges = [];
-  if (ex.isBestTime)   badges.push({ icon: '🏆', label: 'NEW BEST TIME' });
-  if (ex.isBestKills)  badges.push({ icon: '⚡', label: 'NEW LEVEL RECORD' });
-  if (ex.isBestScore)  badges.push({ icon: '🥇', label: 'NEW BEST SCORE' });
-  if (ex.noHit)        badges.push({ icon: '💎', label: 'FLAWLESS RUN' });
-  if (result.victory || result.aidaKilled) badges.push({ icon: '👑', label: 'A.I.D.A. SLAIN' });
-  if (result.endless)  badges.push({ icon: '∞', label: 'ENDLESS SURVIVOR' });
-  if (ex.challengeBonus) badges.push({ icon: '🎯', label: 'CHALLENGE CLEARED' });
+  if (ex.isBestTime)   badges.push({ icon: 'ui_clock',    label: 'NEW BEST TIME' });
+  if (ex.isBestKills)  badges.push({ icon: 'ui_bolt',     label: 'NEW LEVEL RECORD' });
+  if (ex.isBestScore)  badges.push({ icon: 'ui_medal',    label: 'NEW BEST SCORE' });
+  if (ex.noHit)        badges.push({ icon: 'ui_gem',      label: 'FLAWLESS RUN' });
+  if (result.victory || result.aidaKilled) badges.push({ icon: 'ui_trophy', label: 'A.I.D.A. SLAIN' });
+  if (result.endless)  badges.push({ icon: 'ui_infinity', label: 'ENDLESS SURVIVOR' });
+  if (ex.challengeBonus) badges.push({ icon: 'ui_loadout', label: 'CHALLENGE CLEARED' });
 
   // Advice keyed off how the run actually ended, not off a generic template.
   // The tiers mirror campaign.js's rewardTier so the wording and the payout
@@ -105,7 +106,7 @@ export default function GameOver({ result, extras, save, onCamp, onRetry, onMenu
         <div className="go-rewards">
           {rewards.map((r, i) => (
             <div key={i} className="go-reward-row" data-testid={`reward-${i}`}>
-              <span className="go-reward-icon">{r.icon}</span>
+              <span className="go-reward-icon"><GameIcon name={r.icon} size={20} /></span>
               <span className="go-reward-label">{r.label}</span>
               <span className="go-reward-val">{r.val}</span>
             </div>
@@ -116,7 +117,7 @@ export default function GameOver({ result, extras, save, onCamp, onRetry, onMenu
           <div className="go-badges">
             {badges.map((b, i) => (
               <div key={i} className="go-badge" data-testid={`badge-${i}`}>
-                <span>{b.icon}</span><b>{b.label}</b>
+                <GameIcon name={b.icon} size={18} /><b>{b.label}</b>
               </div>
             ))}
           </div>
@@ -138,7 +139,7 @@ export default function GameOver({ result, extras, save, onCamp, onRetry, onMenu
 
         <div className="go-actions">
           <button onClick={onMenu} data-testid="go-menu" className="go-btn go-btn-ghost">↩ Menu</button>
-          <button onClick={onCamp} data-testid="go-camp" className="go-btn go-btn-camp">⛺ Camp</button>
+          <button onClick={onCamp} data-testid="go-camp" className="go-btn go-btn-camp"><GameIcon name="ui_base" size={16} /> Camp</button>
           <button onClick={onRetry} data-testid="go-retry" className="go-btn go-btn-retry">↻ RETRY</button>
         </div>
       </div>

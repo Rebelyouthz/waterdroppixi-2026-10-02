@@ -24,19 +24,19 @@ import GameIcon from './GameIcon';
 // waterdrop-lighting rules do not apply here — no PixiJS is involved.
 
 const ITEM_META = {
-  gold:         { icon: '★',  name: 'Gold',          tone: 'gold' },
-  gems:         { icon: '💎', name: 'Gems',          tone: 'gem' },
-  sp:           { icon: '◆',  name: 'Skill Points',  tone: 'rune' },
-  talentPoints: { icon: '🌿', name: 'Talent Points', tone: 'green' },
-  gearParts:    { icon: '🔩', name: 'Gear Parts',    tone: 'steel' },
-  petFood:      { icon: '🍖', name: 'Pet Food',      tone: 'warm' },
-  slotCoins:    { icon: '🎰', name: 'Slot Coins',    tone: 'gold' },
-  gachaTokens:  { icon: '🎫', name: 'Gacha Tokens',  tone: 'warm' },
-  xp:           { icon: '🌟', name: 'Profile XP',    tone: 'rune' },
-  gear:         { icon: '🪖', name: 'Equipment',     tone: 'epic', unit: true },
-  rune:         { icon: '🔮', name: 'Runes',         tone: 'epic', unit: true },
-  artifact:     { icon: '🏺', name: 'Artifacts',     tone: 'epic', unit: true },
-  egg:          { icon: '🥚', name: 'Pet Eggs',      tone: 'epic', unit: true },
+  gold:         { icon: 'cur_gold', name: 'Gold',          tone: 'gold' },
+  gems:         { icon: 'cur_gems', name: 'Gems',          tone: 'gem' },
+  sp:           { icon: 'cur_sp',   name: 'Skill Points',  tone: 'rune' },
+  talentPoints: { icon: 'cur_tp',   name: 'Talent Points', tone: 'green' },
+  gearParts:    { icon: 'ui_cog',   name: 'Gear Parts',    tone: 'steel' },
+  petFood:      { icon: 'petFood',  name: 'Pet Food',      tone: 'warm' },
+  slotCoins:    { icon: 'cur_slot', name: 'Slot Coins',    tone: 'gold' },
+  gachaTokens:  { icon: 'ui_ticket',name: 'Gacha Tokens',  tone: 'warm' },
+  xp:           { icon: 'ui_star',  name: 'Profile XP',    tone: 'rune' },
+  gear:         { icon: 'gear',     name: 'Equipment',     tone: 'epic', unit: true },
+  rune:         { icon: 'rune',     name: 'Runes',         tone: 'epic', unit: true },
+  artifact:     { icon: 'ui_orb',   name: 'Artifacts',     tone: 'epic', unit: true },
+  egg:          { icon: 'ui_egg',   name: 'Pet Eggs',      tone: 'epic', unit: true },
 };
 
 // Display order: the currencies you spend most often first, the rare drops
@@ -127,7 +127,7 @@ export default function PayoutScreen({ payout, onClose }) {
           {[0, 1, 2].map(i => (
             <div key={i} className={`payout-chest${i < tier ? ' won' : ''}`}
               style={{ '--pop-delay': `${0.12 + i * 0.16}s` }}>
-              <span>{i < tier ? '🎁' : '🔒'}</span>
+              <span>{i < tier ? <GameIcon name="ui_chest" size={26} /> : <GameIcon name="ui_lock" size={22} />}</span>
             </div>
           ))}
         </div>
@@ -138,7 +138,7 @@ export default function PayoutScreen({ payout, onClose }) {
               <div key={r.k} className={`payout-row tone-${r.tone}`}
                 style={{ animationDelay: `${0.35 + i * 0.09}s` }}
                 data-testid={`payout-${r.k}`}>
-                <span className="payout-row-icon">{r.icon}</span>
+                <span className="payout-row-icon"><GameIcon name={r.icon} size={18} /></span>
                 <span className="payout-row-name">{r.name}</span>
                 <span className="payout-row-val">
                   +<CountTo value={r.v} delay={380 + i * 90} />

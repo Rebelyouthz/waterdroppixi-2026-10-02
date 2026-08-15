@@ -19,6 +19,7 @@ import LevelUpModal from './LevelUpModal';
 import GameOver from './GameOverScreen';
 import MobileControls from './MobileControls';
 import HeroFigure from './HeroFigure';
+import GameIcon from './GameIcon';
 
 function buildMetaEffects(save) {
   const m = save.meta || {};
@@ -475,7 +476,7 @@ export default function GameScreen({ save, setSave, onExit, onRunEnd, mission })
             <h2>PAUSED</h2>
             <button onClick={() => { setPaused(false); gameRef.current.setPaused(false); }} data-testid="resume">Resume</button>
             <button onClick={() => { gameRef.current.destroy(); onExit('menu'); }} data-testid="quit-menu">Menu</button>
-            <button onClick={() => { gameRef.current.destroy(); onExit('camp'); }} data-testid="quit-camp">⛺ Camp</button>
+            <button onClick={() => { gameRef.current.destroy(); onExit('camp'); }} data-testid="quit-camp"><GameIcon name="ui_base" size={16} /> Camp</button>
           </div>
         </div>
       )}
