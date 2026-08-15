@@ -4670,6 +4670,16 @@ export class Game {
       p.life = rand(0.25, 0.6); p.max = p.life;
       p.color = BLOOD_RED; p.size = rand(0.7, 1.9); p.type = 'blood';
     }
+    // A single small drop left where the pulse fired. This is deliberately
+    // one tiny mark, not a growing puddle — a body-sized kill pool was tried
+    // before and explicitly rejected (see killEnemy's decal comment: "de
+    // gillar ja inte"). But since the enemy has usually moved between pulses
+    // (each one reads e.x/e.y fresh), a string of these across a chase reads
+    // as a dripping trail rather than one stain — which is the "rinna från
+    // skärsår" (running/dripping from the cut) behaviour that was still
+    // missing: the existing gore was all airborne spray + periodic pumping,
+    // nothing actually landed and stayed.
+    this.pushBloodDecal({ x: wx, y: wy, r: rand(1.2, 2.0) * (0.8 + hurt * 0.5), a: 0.5, bornAt: this.time, color: BLOOD_RED });
   }
 
   addXp(amount) {
