@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { POE_TREE_NODES, POE_BRANCHES, POE_RADIAL_NODES, POE_RADIAL_INDEX, BRANCH_ANGLES, MAX_TIER, MAX_TIER_RADIUS, RADIAL_CENTER } from '../game/poe_tree';
 import { Audio } from '../game/audio';
+import GameIcon from './GameIcon';
 
 // ─── helpers ───────────────────────────────────
 const nodeRadius = { minor: 18, notable: 27, keystone: 40 };
@@ -542,8 +543,8 @@ export default function SkillTree({ save, setSave, onClose }) {
                 {selLocked && (() => {
                   const reqNode = selNode.req?.[0] ? POE_RADIAL_INDEX[selNode.req[0]] : null;
                   return (
-                    <div className="poe-prev-locked">
-                      🔒 Requires: {reqNode?.name || selNode.req?.[0]}
+                    <div className="poe-prev-locked" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <GameIcon name="ui_lock" size={13} /> Requires: {reqNode?.name || selNode.req?.[0]}
                     </div>
                   );
                 })()}
@@ -567,7 +568,7 @@ export default function SkillTree({ save, setSave, onClose }) {
               </>
             ) : (
               <div className="poe-prev-empty">
-                <div style={{ fontSize: 40, marginBottom: 12 }}>🌌</div>
+                <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center' }}><GameIcon name="voidPulse" size={40} /></div>
                 <div style={{ fontFamily: 'VT323', fontSize: 18, color: '#4a3a6e', letterSpacing: 2 }}>
                   SELECT A NODE
                 </div>

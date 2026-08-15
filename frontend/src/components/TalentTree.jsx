@@ -91,15 +91,15 @@ export default function TalentTree({ save, setSave, onClose }) {
     }}>
       <div className="forge-panel talent-panel" style={{ maxWidth: 700, maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
         <div className="forge-header">
-          <div className="forge-title">🌿 TALENT TREE</div>
-          <div style={{ fontFamily: 'VT323', color: 'var(--ink-dim)', fontSize: 14, marginRight: 8 }}>
-            {totalLevels}/{maxPossible} · 🌿 <span style={{ color: '#4dff91' }}>{tp} TP</span>
+          <div className="forge-title"><GameIcon name="ui_leaf" size={18} /> TALENT TREE</div>
+          <div style={{ fontFamily: 'VT323', color: 'var(--ink-dim)', fontSize: 14, marginRight: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
+            {totalLevels}/{maxPossible} · <GameIcon name="ui_leaf" size={13} /> <span style={{ color: '#4dff91' }}>{tp} TP</span>
           </div>
           <button onClick={onClose} style={{ padding: '6px 12px', fontSize: 12 }}>✕</button>
         </div>
 
-        <div style={{ padding: '6px 12px', background: '#060410', borderBottom: '1px solid #1a0a2e', fontSize: 12, color: 'var(--ink-dim)', letterSpacing: '0.1em' }}>
-          Each node has 10 levels. Earn 🌿 TP by completing runs (+5 per run).
+        <div style={{ padding: '6px 12px', background: '#060410', borderBottom: '1px solid #1a0a2e', fontSize: 12, color: 'var(--ink-dim)', letterSpacing: '0.1em', display: 'flex', alignItems: 'center', gap: 4 }}>
+          Each node has 10 levels. Earn <GameIcon name="ui_leaf" size={12} /> TP by completing runs (+5 per run).
         </div>
 
         <div style={{ overflowY: 'auto', flex: 1, padding: '12px 6px' }}>
@@ -147,12 +147,12 @@ export default function TalentTree({ save, setSave, onClose }) {
                   </div>
 
                   {!maxed && available && (
-                    <div className="talent-cost" style={{ color: tp >= node.costPerLvl ? '#4dff91' : '#ff4444' }}>
-                      🌿 {node.costPerLvl} TP
+                    <div className="talent-cost" style={{ color: tp >= node.costPerLvl ? '#4dff91' : '#ff4444', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
+                      <GameIcon name="ui_leaf" size={12} /> {node.costPerLvl} TP
                     </div>
                   )}
                   {maxed && <div className="talent-done" style={{ color:'#ffd700', fontSize:11 }}>MAX ★</div>}
-                  {locked && <div className="talent-locked">🔒</div>}
+                  {locked && <div className="talent-locked"><GameIcon name="ui_lock" size={14} /></div>}
                 </div>
               );
             })}
