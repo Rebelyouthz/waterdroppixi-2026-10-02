@@ -13,7 +13,7 @@ import TalentTree from './TalentTree';
 import CampaignPanel from './CampaignPanel';
 import PetPanel from './PetPanel';
 import ProspectorScreen from './ProspectorScreen';
-import { nextCampaignNode, campUnlockStage, isCampTabLocked, campUnlockHint } from '../game/campaign';
+import { nextCampaignNode, isCampTabLocked, campUnlockHint } from '../game/campaign';
 import { currentStep } from '../game/path';
 import ClickerScreen from './ClickerScreen';
 import BasePanel from './BasePanel';
@@ -30,6 +30,28 @@ import { Audio } from '../game/audio';
 import BadgeSlots, { BadgePicker } from './BadgeSlots';
 import QuestTracker from './QuestTracker';
 import GameIcon from './GameIcon';
+
+// Display name + icon for every tab the unlock cascade can reveal — read by
+// both the tab bar (locked tabs are hidden, not dimmed, per Timmy: "bara base
+// ska finnas där") and the big reveal banner BasePanel's `onUnlock` triggers.
+const CAMP_TAB_META = {
+  cards:      { label: 'META UPGRADES', icon: 'ui_gem' },
+  skills:     { label: 'SKILLTREE',     icon: 'ui_skills' },
+  talent:     { label: 'TALENTS',       icon: 'ui_leaf' },
+  gear:       { label: 'GEAR',          icon: 'gear' },
+  character:  { label: 'CHARACTER',     icon: 'ui_character' },
+  pets:       { label: 'PETS',          icon: 'ui_pets' },
+  prospector: { label: 'LOOTMINE',      icon: 'ui_pickaxe' },
+  starraid:   { label: 'STAR RAID',     icon: 'ui_rocket' },
+  patrol:     { label: 'PATROL',        icon: 'ui_map' },
+  clicker:    { label: 'THE WELL',      icon: 'ui_waterdrop' },
+  forge:      { label: 'SMITH',         icon: 'ui_smith' },
+  chest:      { label: 'CHESTS',        icon: 'ui_chest' },
+  shop:       { label: 'CARD SHOP',     icon: 'ui_token' },
+  loadout:    { label: 'LOADOUT',       icon: 'ui_loadout' },
+  pass:       { label: 'SEASON PASS',   icon: 'ui_medal' },
+  codex:      { label: 'CODEX',         icon: 'ui_codex' },
+};
 
 // A number that rolls from its current displayed value to the new one rather
 // than snapping. Buying three upgrades in quick succession does NOT queue
@@ -106,6 +128,35 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
   const lockedProps = (id) => isCampTabLocked(id, save)
     ? { className: 'camp-tab locked', title: campUnlockHint(id, save) || 'Locked' }
     : null;
+
+  // The unlock-reveal cascade: BasePanel hands a batch of newly-unlocked tab
+  // ids to `queueUnlocks` the moment a building purchase cracks them open.
+  // They are shown ONE AT A TIME, big, center screen — "META UPGRADES
+  // UNLOCKED" with its logo, then it swaps to the next one — rather than all
+  // at once, because the whole point (Timmy: "man ser va man har som en
+  // unlock") is that each menu gets its own moment, not a wall of text.
+  const [unlockQueue, setUnlockQueue] = useState([]);
+  const [unlockShown, setUnlockShown] = useState(null);
+  const queueUnlocks = (tabIds) => setUnlockQueue(q => [...q, ...tabIds.filter(id => !q.includes(id))]);
+  // Pop the next queued unlock the moment nothing is showing.
+  useEffect(() => {
+    if (unlockShown || unlockQueue.length === 0) return;
+    const [next, ...rest] = unlockQueue;
+    setUnlockQueue(rest);
+    setUnlockShown(next);
+    Audio.claimPing();
+  }, [unlockQueue, unlockShown]);
+  // Clear the currently-shown one after its dwell. Kept as its OWN effect,
+  // keyed only on `unlockShown` — folding this into the pop effect above
+  // meant popping the next item (which changes unlockQueue) re-ran that
+  // effect, whose cleanup cancelled this very timer before it ever fired,
+  // so the banner got stuck on the first unlock forever.
+  useEffect(() => {
+    if (!unlockShown) return;
+    const t = setTimeout(() => setUnlockShown(null), 2200);
+    return () => clearTimeout(t);
+  }, [unlockShown]);
+
   const [toast, setToast] = useState('');
   const [tab, setTab] = useState('campaign');
   const [shopOpen, setShopOpen] = useState(false);
@@ -436,6 +487,14 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
           </div>,
           document.body
         )}
+        {unlockShown && createPortal(
+          <div className="camp-unlock-banner" key={unlockShown} data-testid="camp-unlock-banner">
+            <div className="cub-tag">UNLOCKED</div>
+            <div className="cub-icon"><GameIcon name={CAMP_TAB_META[unlockShown]?.icon || 'ui_lock'} size={110} /></div>
+            <div className="cub-name">{CAMP_TAB_META[unlockShown]?.label || unlockShown}</div>
+          </div>,
+          document.body
+        )}
         <div className="camp-sidebar">
           <div className="camp-profile-bar camp-profile-bar-framed" ref={profileBarRef}>
             <div className="camp-profile-id" onClick={() => setProfileOpen(true)} data-testid="camp-profile-open">
@@ -584,27 +643,65 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
             )}
             <button className={`camp-tab ${tab==='campaign'?'active':''}`} onClick={() => setTab('campaign')} data-testid="tab-campaign" style={{position:'relative'}}><GameIcon name="ui_scroll" size={15} /> CAMPAIGN {pathReady && <EyeBadge/>}</button>
             <button className={`camp-tab ${tab === 'stats' ? 'active' : ''}`} onClick={() => setTab('stats')} data-testid="tab-stats"><GameIcon name="ui_chart" size={15} /> STATS</button>
-            <button {...(lockedProps('starraid') || { className: `camp-tab ${tab === 'starraid' ? 'active' : ''}` })} onClick={lockGuard('starraid', () => setTab('starraid'))} data-testid="tab-starraid"><GameIcon name={isCampTabLocked('starraid', save) ? 'ui_lock' : 'ui_rocket'} size={15} /> STAR RAID</button>
+            {/* THE BASE is the one tab that's always PRESENT — dimmed until
+                pond_1 clears, per Timmy: "bara base ska finnas där ... även
+                den va greyed out först". Every other gated tab below is
+                fully absent from the bar (not dimmed) until its unlock
+                batch fires, so the early tab bar reads as "one thing to do"
+                rather than a wall of locks. */}
             <button {...(lockedProps('base') || { className: 'camp-tab' })} onClick={lockGuard('base', () => setBaseOpen(true))} data-testid="tab-base"><GameIcon name={isCampTabLocked('base', save) ? 'ui_lock' : 'ui_base'} size={15} /> THE BASE</button>
-            <button {...(lockedProps('prospector') || { className: 'camp-tab' })} onClick={lockGuard('prospector', () => setProspectorOpen(true))} data-testid="tab-prospector"><GameIcon name={isCampTabLocked('prospector', save) ? 'ui_lock' : 'ui_pickaxe'} size={15} /> LOOTMINE</button>
-            <button {...(lockedProps('clicker') || { className: 'camp-tab' })} onClick={lockGuard('clicker', () => setClickerOpen(true))} data-testid="tab-clicker" style={{ position: 'relative' }}>
-              <GameIcon name={isCampTabLocked('clicker', save) ? 'ui_lock' : 'ui_waterdrop'} size={15} /> THE WELL {clickerReady > 0 && <EyeBadge />}
-            </button>
+            {!isCampTabLocked('starraid', save) && (
+              <button className={`camp-tab ${tab === 'starraid' ? 'active' : ''}`} onClick={() => setTab('starraid')} data-testid="tab-starraid"><GameIcon name="ui_rocket" size={15} /> STAR RAID</button>
+            )}
+            {!isCampTabLocked('prospector', save) && (
+              <button className="camp-tab" onClick={() => setProspectorOpen(true)} data-testid="tab-prospector"><GameIcon name="ui_pickaxe" size={15} /> LOOTMINE</button>
+            )}
+            {!isCampTabLocked('clicker', save) && (
+              <button className="camp-tab" onClick={() => setClickerOpen(true)} data-testid="tab-clicker" style={{ position: 'relative' }}>
+                <GameIcon name="ui_waterdrop" size={15} /> THE WELL {clickerReady > 0 && <EyeBadge />}
+              </button>
+            )}
             <div className="camp-tab-divider" />
-            <button {...(lockedProps('character') || { className: 'camp-tab' })} onClick={lockGuard('character', () => setCharacterOpen(true))} data-testid="tab-character"><GameIcon name={isCampTabLocked('character', save) ? 'ui_lock' : 'ui_character'} size={15} /> CHARACTER</button>
-            <button {...(lockedProps('pets') || { className: 'camp-tab' })} onClick={lockGuard('pets', () => setPetOpen(true))} data-testid="tab-pets"><GameIcon name={isCampTabLocked('pets', save) ? 'ui_lock' : 'ui_pets'} size={15} /> PETS</button>
-            <button {...(lockedProps('talent') || { className: 'camp-tab' })} onClick={lockGuard('talent', () => setTalentOpen(true))} data-testid="tab-talent"><GameIcon name={isCampTabLocked('talent', save) ? 'ui_lock' : 'ui_leaf'} size={15} /> TALENTS</button>
-            <button {...(lockedProps('skills') || { className: 'camp-tab' })} onClick={lockGuard('skills', () => setSkillOpen(true))} data-testid="open-skills"><GameIcon name={isCampTabLocked('skills', save) ? 'ui_lock' : 'ui_skills'} size={15} /> SKILLS</button>
-            <button {...(lockedProps('cards') || { className: `camp-tab ${tab==='cards'?'active':''}` })} onClick={lockGuard('cards', () => setTab('cards'))} data-testid="tab-cards"><GameIcon name={isCampTabLocked('cards', save) ? 'ui_lock' : 'ui_gem'} size={15} /> META</button>
-            <button {...(lockedProps('gear') || { className: `camp-tab ${tab==='gear'?'active':''}` })} onClick={lockGuard('gear', () => setTab('gear'))} data-testid="tab-gear"><GameIcon name={isCampTabLocked('gear', save) ? 'ui_lock' : 'gear'} size={15} /> GEAR</button>
-            <button {...(lockedProps('pass') || { className: `camp-tab ${tab==='pass'?'active':''}`, style:{position:'relative'} })} onClick={lockGuard('pass', () => setTab('pass'))} data-testid="tab-pass"><GameIcon name={isCampTabLocked('pass', save) ? 'ui_lock' : 'ui_medal'} size={15} /> SEASON PASS {passNew && <EyeBadge/>}</button>
-            <button {...(lockedProps('patrol') || { className: `camp-tab ${tab==='patrol'?'active':''}`, style:{position:'relative'} })} onClick={lockGuard('patrol', () => setTab('patrol'))} data-testid="tab-patrol"><GameIcon name={isCampTabLocked('patrol', save) ? 'ui_lock' : 'ui_map'} size={15} /> PATROL {patrolNew && <EyeBadge/>}</button>
-            <button {...(lockedProps('codex') || { className: `camp-tab ${tab==='codex'?'active':''}`, style:{position:'relative'} })} onClick={lockGuard('codex', () => setTab('codex'))} data-testid="tab-codex"><GameIcon name={isCampTabLocked('codex', save) ? 'ui_lock' : 'ui_codex'} size={15} /> CODEX {(codexNew || achNew) && <EyeBadge/>}</button>
+            {!isCampTabLocked('character', save) && (
+              <button className="camp-tab" onClick={() => setCharacterOpen(true)} data-testid="tab-character"><GameIcon name="ui_character" size={15} /> CHARACTER</button>
+            )}
+            {!isCampTabLocked('pets', save) && (
+              <button className="camp-tab" onClick={() => setPetOpen(true)} data-testid="tab-pets"><GameIcon name="ui_pets" size={15} /> PETS</button>
+            )}
+            {!isCampTabLocked('talent', save) && (
+              <button className="camp-tab" onClick={() => setTalentOpen(true)} data-testid="tab-talent"><GameIcon name="ui_leaf" size={15} /> TALENTS</button>
+            )}
+            {!isCampTabLocked('skills', save) && (
+              <button className="camp-tab" onClick={() => setSkillOpen(true)} data-testid="open-skills"><GameIcon name="ui_skills" size={15} /> SKILLS</button>
+            )}
+            {!isCampTabLocked('cards', save) && (
+              <button className={`camp-tab ${tab==='cards'?'active':''}`} onClick={() => setTab('cards')} data-testid="tab-cards"><GameIcon name="ui_gem" size={15} /> META</button>
+            )}
+            {!isCampTabLocked('gear', save) && (
+              <button className={`camp-tab ${tab==='gear'?'active':''}`} onClick={() => setTab('gear')} data-testid="tab-gear"><GameIcon name="gear" size={15} /> GEAR</button>
+            )}
+            {!isCampTabLocked('pass', save) && (
+              <button className={`camp-tab ${tab==='pass'?'active':''}`} style={{position:'relative'}} onClick={() => setTab('pass')} data-testid="tab-pass"><GameIcon name="ui_medal" size={15} /> SEASON PASS {passNew && <EyeBadge/>}</button>
+            )}
+            {!isCampTabLocked('patrol', save) && (
+              <button className={`camp-tab ${tab==='patrol'?'active':''}`} style={{position:'relative'}} onClick={() => setTab('patrol')} data-testid="tab-patrol"><GameIcon name="ui_map" size={15} /> PATROL {patrolNew && <EyeBadge/>}</button>
+            )}
+            {!isCampTabLocked('codex', save) && (
+              <button className={`camp-tab ${tab==='codex'?'active':''}`} style={{position:'relative'}} onClick={() => setTab('codex')} data-testid="tab-codex"><GameIcon name="ui_codex" size={15} /> CODEX {(codexNew || achNew) && <EyeBadge/>}</button>
+            )}
             <div className="camp-tab-divider" />
-            <button {...(lockedProps('shop') || { className: 'camp-tab' })} onClick={lockGuard('shop', () => setShopOpen(true))} data-testid="open-card-shop"><GameIcon name={isCampTabLocked('shop', save) ? 'ui_lock' : 'ui_token'} size={15} /> CARD SHOP</button>
-            <button {...(lockedProps('forge') || { className: 'camp-tab' })} onClick={lockGuard('forge', () => setForgeOpen(true))} data-testid="open-forge"><GameIcon name={isCampTabLocked('forge', save) ? 'ui_lock' : 'ui_smith'} size={15} /> SMITH</button>
-            <button {...(lockedProps('chest') || { className: 'camp-tab' })} onClick={lockGuard('chest', () => setChestOpen(true))} data-testid="open-chest"><GameIcon name={isCampTabLocked('chest', save) ? 'ui_lock' : 'ui_chest'} size={15} /> CHESTS</button>
-            <button {...(lockedProps('loadout') || { className: 'camp-tab' })} onClick={lockGuard('loadout', () => setLoadoutOpen(true))} data-testid="open-loadout"><GameIcon name={isCampTabLocked('loadout', save) ? 'ui_lock' : 'ui_loadout'} size={15} /> LOADOUT</button>
+            {!isCampTabLocked('shop', save) && (
+              <button className="camp-tab" onClick={() => setShopOpen(true)} data-testid="open-card-shop"><GameIcon name="ui_token" size={15} /> CARD SHOP</button>
+            )}
+            {!isCampTabLocked('forge', save) && (
+              <button className="camp-tab" onClick={() => setForgeOpen(true)} data-testid="open-forge"><GameIcon name="ui_smith" size={15} /> SMITH</button>
+            )}
+            {!isCampTabLocked('chest', save) && (
+              <button className="camp-tab" onClick={() => setChestOpen(true)} data-testid="open-chest"><GameIcon name="ui_chest" size={15} /> CHESTS</button>
+            )}
+            {!isCampTabLocked('loadout', save) && (
+              <button className="camp-tab" onClick={() => setLoadoutOpen(true)} data-testid="open-loadout"><GameIcon name="ui_loadout" size={15} /> LOADOUT</button>
+            )}
             <button className="camp-tab" onClick={() => setSettingsOpen(true)} data-testid="open-settings"><GameIcon name="ui_cog" size={15} /> SETTINGS</button>
           </div>
         </div>
@@ -857,7 +954,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
       {explorationOpen && <ExplorationScreen save={save} setSave={setSave} onClose={() => setExplorationOpen(false)} />}
       {prospectorOpen && <ProspectorScreen save={save} setSave={setSave} onClose={() => setProspectorOpen(false)} />}
       {clickerOpen && <ClickerScreen save={save} setSave={setSave} onClose={() => setClickerOpen(false)} />}
-      {baseOpen && <BasePanel save={save} setSave={setSave} onOpen={enterBuilding} onClose={() => setBaseOpen(false)} />}
+      {baseOpen && <BasePanel save={save} setSave={setSave} onOpen={enterBuilding} onClose={() => setBaseOpen(false)} onUnlock={queueUnlocks} />}
       {defenceOpen && <BaseDefenceScreen save={save} setSave={setSave} onClose={() => setDefenceOpen(false)} />}
       {profileOpen && <ProfilePanel save={save} setSave={setSave} onClose={() => setProfileOpen(false)} onBadges={() => { setProfileOpen(false); setBadgeOpen(true); }} />}
       {badgeOpen && <BadgePicker save={save} setSave={setSave} onClose={() => setBadgeOpen(false)} />}

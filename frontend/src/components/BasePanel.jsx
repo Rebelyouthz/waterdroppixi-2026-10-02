@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { BUILDINGS, buildingLevel, buildingCost } from '../game/base';
+import { totalBuildingLevels, campNewlyUnlocked } from '../game/campaign';
 import { COMPANION_LIST, isRescued } from '../game/companions';
 import { Audio } from '../game/audio';
 import GameIcon from './GameIcon';
@@ -7,7 +8,12 @@ import GameIcon from './GameIcon';
 // The base. Each building opens the system it houses and can be levelled to
 // improve that system — see game/base.js for why levels only ever improve
 // their own system.
-export default function BasePanel({ save, setSave, onOpen, onClose }) {
+//
+// Buying a level is also the trigger for the camp unlock cascade: every
+// purchase can crack open the next batch of camp menus (see campaign.js's
+// CAMP_UNLOCK_BATCHES), and `onUnlock` hands the newly-opened tab ids up to
+// Camp.jsx so it can play the reveal banners.
+export default function BasePanel({ save, setSave, onOpen, onClose, onUnlock }) {
   const [toast, setToast] = useState('');
   const say = (m) => { setToast(m); setTimeout(() => setToast(''), 2400); };
 
@@ -18,6 +24,7 @@ export default function BasePanel({ save, setSave, onOpen, onClose }) {
     const cost = buildingCost(id, lvl);
     if ((save.gold || 0) < cost.gold) { say('Not enough gold'); return; }
     if ((save.gearParts || 0) < cost.parts) { say(`Need ${cost.parts} gear parts`); return; }
+    const beforeLevels = totalBuildingLevels(save);
     setSave({
       ...save,
       gold: save.gold - cost.gold,
@@ -26,6 +33,8 @@ export default function BasePanel({ save, setSave, onOpen, onClose }) {
     });
     Audio.claimPing();
     say(`${b.name} is now level ${lvl + 1}`);
+    const newly = campNewlyUnlocked(beforeLevels, beforeLevels + 1);
+    if (newly.length && onUnlock) onUnlock(newly);
   };
 
   const totalLevels = Object.keys(BUILDINGS).reduce((a, id) => a + buildingLevel(save, id), 0);
@@ -34,7 +43,7 @@ export default function BasePanel({ save, setSave, onOpen, onClose }) {
     <div className="modal-overlay" data-testid="base-panel" onClick={(e) => { if (e.target.classList.contains('modal-overlay')) onClose(); }}>
       <div className="base-panel">
         <div className="base-head">
-          <div className="base-title">🏛 THE BASE</div>
+          <div className="base-title"><GameIcon name="ui_base" size={22} /> THE BASE</div>
           <span className="base-sum">{totalLevels} levels built</span>
           <button className="prosp-close" onClick={onClose}>✕</button>
         </div>
@@ -92,7 +101,7 @@ export default function BasePanel({ save, setSave, onOpen, onClose }) {
                   ) : (
                     <button className="base-btn buy" disabled={!afford} onClick={() => upgrade(b.id)}
                             data-testid={`base-up-${b.id}`}>
-                      ★ {cost.gold} · 🔩 {cost.parts}
+                      <GameIcon name="gold" size={13} /> {cost.gold} · <GameIcon name="ui_cog" size={13} /> {cost.parts}
                     </button>
                   )}
                 </div>

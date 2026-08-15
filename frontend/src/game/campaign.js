@@ -13,6 +13,7 @@
 import { MAP_STAGES } from './data_ext2';
 import { companionForNode } from './companions';
 import { progressFor, resolveDifficulty, difficultyMods, rewardMult } from './difficulty';
+import { BUILDINGS, buildingLevel } from './base';
 
 // Which boss closes each map. Ordered so a map's finale escalates with how
 // far into the story it sits.
@@ -171,30 +172,66 @@ export function campUnlockStage(save) {
   return n;
 }
 
-// Which camp tabs/panels a given stage has open. Keyed by the same id used
-// for `data-testid`/`onClick` in Camp.jsx's tab bar, so adding a tab there
-// is the only other place this needs touching.
-const CAMP_UNLOCK_AT = {
-  gear: 1, forge: 1, chest: 1,
-  skills: 2, talent: 2, cards: 2, character: 2, loadout: 2,
-  shop: 3, pets: 3, starraid: 3, base: 3, prospector: 3, clicker: 3, pass: 3, patrol: 3, codex: 3,
-};
-// Always open, even at stage 0: 'campaign' (how you play at all) and
-// 'settings' (not game content). Anything not listed above is also always
-// open — this is an allow-list of what to LOCK, not what to unlock, so a
-// future tab that forgets to be added here fails open rather than trapping
-// the player behind an unwinnable gate.
-export function isCampTabLocked(tabId, save) {
-  const need = CAMP_UNLOCK_AT[tabId];
-  if (need === undefined) return false;
-  return campUnlockStage(save) < need;
+// ---- Camp menu unlock cascade -----------------------------------------------
+// Timmy's refinement on top of the pond gate above: locking isn't keyed to
+// WHICH pond node you cleared, it's keyed to building at the base. THE BASE
+// is the one tab visible from the very start (dimmed until pond_1 is clear
+// and there's something to spend) — everything else is fully absent from the
+// tab bar, not just dimmed, per "bara base ska finnas där" — until its batch
+// unlocks. Buying a building's first level (or any level after) is the
+// dopamine moment: it cracks open the next batch of menus, revealed one at a
+// time with a banner (see Camp.jsx's unlock-reveal queue).
+//
+// Deliberately not 1:1 with any single building — Timmy: "de behöver inte va
+// exakt de building, de kan låsa upp mer menyer än själva building." So the
+// gate is total levels bought across every building, not which one.
+export function totalBuildingLevels(save) {
+  return Object.keys(BUILDINGS).reduce((a, id) => a + buildingLevel(save, id), 0);
 }
-// The node whose clearing unlocks the given tab, for the hint text.
+
+// Batch 1 is "the first 3 houses" Timmy names explicitly: Meta Upgrades,
+// Skilltree, Talents — unlocked by the very first building purchase. Every
+// batch after that keeps the cascade going on subsequent purchases, capped
+// so the whole camp is open well inside what three Rain Pool missions' worth
+// of gold/parts can actually buy.
+const CAMP_UNLOCK_BATCHES = [
+  { at: 1, tabs: ['cards', 'skills', 'talent'] },
+  { at: 3, tabs: ['gear', 'character', 'pets', 'prospector'] },
+  { at: 5, tabs: ['starraid', 'patrol', 'clicker'] },
+  { at: 7, tabs: ['forge', 'chest', 'shop'] },
+  { at: 9, tabs: ['loadout', 'pass', 'codex'] },
+];
+
+export function campTabsUnlockedAt(levels) {
+  const out = new Set();
+  for (const b of CAMP_UNLOCK_BATCHES) if (levels >= b.at) for (const t of b.tabs) out.add(t);
+  return out;
+}
+
+// Tabs that cross from locked to unlocked between two building-level totals —
+// what BasePanel hands Camp.jsx to drive the reveal-banner cascade after a
+// purchase.
+export function campNewlyUnlocked(beforeLevels, afterLevels) {
+  const before = campTabsUnlockedAt(beforeLevels);
+  const after = campTabsUnlockedAt(afterLevels);
+  return [...after].filter(t => !before.has(t));
+}
+
+// Always open, regardless of stage: 'campaign' (how you play at all),
+// 'stats' and 'settings' (not game content). Anything not named by 'base' or
+// a batch above is also always open — this is an allow-list of what to LOCK,
+// so a future tab that forgets to be added here fails open rather than
+// trapping the player behind an unwinnable gate.
+export function isCampTabLocked(tabId, save) {
+  if (tabId === 'base') return campUnlockStage(save) < 1;
+  if (!CAMP_UNLOCK_BATCHES.some(b => b.tabs.includes(tabId))) return false;
+  return !campTabsUnlockedAt(totalBuildingLevels(save)).has(tabId);
+}
 export function campUnlockHint(tabId, save) {
-  const need = CAMP_UNLOCK_AT[tabId];
-  if (need === undefined) return null;
-  const node = campaignNodes()[need - 1]; // pond_1/2/3 are indices 0/1/2
-  return node ? `Clear "${node.name}" to unlock` : null;
+  if (tabId === 'base') return 'Clear "The Rain Pool" to unlock';
+  const batch = CAMP_UNLOCK_BATCHES.find(b => b.tabs.includes(tabId));
+  if (!batch) return null;
+  return `Build at the base to unlock`;
 }
 
 // The difficulty numbers a run should actually use, with the selected tier

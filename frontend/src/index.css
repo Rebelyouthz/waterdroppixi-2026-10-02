@@ -537,6 +537,44 @@ canvas#game, canvas.starraid-canvas {
   text-shadow: 0 0 10px #ffd16688, 0 2px 0 #000;
 }
 @keyframes tierBannerIn { from { transform: translateX(-50%) scale(0.7); } to { transform: translateX(-50%) scale(1); } }
+
+/* Camp menu unlock reveal — fires when a base-building purchase cracks open
+   a new batch of camp tabs (see Camp.jsx's unlockQueue). Timmy asked for
+   exactly this kind of "dopamine" beat: big, dead center, one menu's icon
+   blown up and swung in at a time, so each unlock gets its own moment
+   instead of a wall of text. */
+.camp-unlock-banner {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  text-align: center; z-index: 2400; pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  animation: campUnlockIn 550ms cubic-bezier(.2,.9,.3,1.4) both,
+             campUnlockOut 400ms ease-in 1800ms both;
+}
+.cub-tag {
+  font-family: 'VT323', monospace; font-size: clamp(16px, 2.6vw, 22px);
+  letter-spacing: 0.35em; color: #ffd166; text-shadow: 0 0 10px #ffd16699, 0 2px 0 #000;
+}
+.cub-icon {
+  filter: drop-shadow(0 0 24px #4dffd4) drop-shadow(0 0 44px rgba(77,255,212,0.5));
+  animation: campUnlockSwing 900ms ease-in-out 550ms both;
+}
+.cub-name {
+  font-family: 'Cinzel', serif; font-weight: 900; letter-spacing: 0.08em;
+  font-size: clamp(28px, 5.5vw, 46px); color: #fff;
+  text-shadow: 0 0 20px #4dffd4, 0 0 44px rgba(77,255,212,0.5), 0 4px 0 #000;
+}
+@keyframes campUnlockIn {
+  from { transform: translate(-50%, -50%) scale(0.4) rotate(-8deg); opacity: 0; }
+  to   { transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 1; }
+}
+@keyframes campUnlockOut { from { opacity: 1; } to { opacity: 0; } }
+@keyframes campUnlockSwing {
+  0%   { transform: rotate(0deg); }
+  25%  { transform: rotate(-6deg); }
+  50%  { transform: rotate(4deg); }
+  75%  { transform: rotate(-2deg); }
+  100% { transform: rotate(0deg); }
+}
 /* Weapon-fork screen: exactly 4 octagon cards, 2x2 (2 side by side, 2 below). */
 .card-row-fork { display: grid; grid-template-columns: repeat(2, 240px); gap: 22px; justify-content: center; }
 .card-fork { --rar: #b362ff; --glow: 26px; }
