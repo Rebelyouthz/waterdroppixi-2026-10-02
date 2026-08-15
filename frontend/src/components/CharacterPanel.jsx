@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { CHAR_RARITIES, CHAR_RARITY_COLORS, CHAR_RARITY_NAMES, CHAR_SLOTS_BY_RARITY, CHAR_LEVEL_COST, CHAR_EVOLVE_COST, CHAR_MAX_LEVELS, charLevelStat, characterSlots } from '../game/data_ext2';
 import { Audio } from '../game/audio';
 import HeroFigure from './HeroFigure';
+import GameIcon from './GameIcon';
 
 export default function CharacterPanel({ save, setSave, onClose }) {
   const [popAnim, setPopAnim] = useState(false);
@@ -128,8 +129,8 @@ export default function CharacterPanel({ save, setSave, onClose }) {
             trickle and this line only ever showed the rarity cap, so nothing
             on screen ever said "one more level and you carry another
             weapon". */}
-        <div className="char-slot-badge" style={{ borderColor: rarColor, color: rarColor }}>
-          ⚔️ {curWeapons} weapon{curWeapons === 1 ? '' : 's'} · 🧠 {curSkills} skill{curSkills === 1 ? '' : 's'} at once
+        <div className="char-slot-badge" style={{ borderColor: rarColor, color: rarColor, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+          <GameIcon name="ui_blade" size={14} /> {curWeapons} weapon{curWeapons === 1 ? '' : 's'} · <GameIcon name="ui_skills" size={14} /> {curSkills} skill{curSkills === 1 ? '' : 's'} at once
           <span style={{ color: 'var(--ink-dim)', marginLeft: 6 }}>(cap {slots} at {CHAR_RARITY_NAMES[char.rarity]})</span>
         </div>
         {nextSlotUnlock && (
@@ -141,8 +142,8 @@ export default function CharacterPanel({ save, setSave, onClose }) {
 
         {/* Currency row */}
         <div className="char-currency">
-          <span>🔷 {char.pieces} <span style={{ color: 'var(--ink-dim)', fontSize: 11 }}>pieces</span></span>
-          <span>💎 {char.shards} <span style={{ color: 'var(--ink-dim)', fontSize: 11 }}>shards</span></span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><GameIcon name="cur_pieces" size={14} /> {char.pieces} <span style={{ color: 'var(--ink-dim)', fontSize: 11 }}>pieces</span></span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><GameIcon name="cur_shards" size={14} /> {char.shards} <span style={{ color: 'var(--ink-dim)', fontSize: 11 }}>shards</span></span>
         </div>
 
         {/* Next stat preview */}
@@ -155,16 +156,16 @@ export default function CharacterPanel({ save, setSave, onClose }) {
         {/* Level up button */}
         {char.level < MAX_LVL && levelCost && (
           <button className={`char-btn ${canLvl ? '' : 'disabled'}`} onClick={levelUp} disabled={!canLvl}
-            style={{ borderColor: rarColor, boxShadow: canLvl ? `0 0 12px ${rarColor}44` : 'none' }}>
-            LEVEL UP — ★ {levelCost.gold} + 🔷 {levelCost.pieces}
+            style={{ borderColor: rarColor, boxShadow: canLvl ? `0 0 12px ${rarColor}44` : 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+            LEVEL UP — ★ {levelCost.gold} + <GameIcon name="cur_pieces" size={13} /> {levelCost.pieces}
           </button>
         )}
 
         {/* Evolve button */}
         {canEvolve && evolveReq && (
           <button className={`char-btn evolve ${canEvo ? '' : 'disabled'}`} onClick={evolve} disabled={!canEvo}
-            style={{ borderColor: CHAR_RARITY_COLORS[CHAR_RARITIES[rarIdx + 1]], marginTop: 8 }}>
-            ✨ EVOLVE → {CHAR_RARITY_NAMES[CHAR_RARITIES[rarIdx + 1]]} — 💎 {evolveReq.shards} shards
+            style={{ borderColor: CHAR_RARITY_COLORS[CHAR_RARITIES[rarIdx + 1]], marginTop: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+            <GameIcon name="ui_star" size={14} /> EVOLVE → {CHAR_RARITY_NAMES[CHAR_RARITIES[rarIdx + 1]]} — <GameIcon name="cur_shards" size={13} /> {evolveReq.shards} shards
           </button>
         )}
         {char.level >= MAX_LVL && !canEvolve && (
@@ -176,8 +177,8 @@ export default function CharacterPanel({ save, setSave, onClose }) {
           <div className="char-bonuses">
             <div style={{ fontFamily: 'VT323', color: 'var(--ink-dim)', fontSize: 13, letterSpacing: '0.2em', marginBottom: 6 }}>BONUSES EARNED</div>
             {Object.entries(earned).map(([k, v]) => (
-              <div key={k} style={{ fontFamily: 'VT323', color: 'var(--rune)', fontSize: 14 }}>
-                {k === 'maxHp' ? `❤️ +${v} Max HP` : `+${Math.round(v * 100)}% ${k}`}
+              <div key={k} style={{ fontFamily: 'VT323', color: 'var(--rune)', fontSize: 14, display: 'flex', alignItems: 'center', gap: 4 }}>
+                {k === 'maxHp' ? <><GameIcon name="maxHp" size={13} /> +{v} Max HP</> : `+${Math.round(v * 100)}% ${k}`}
               </div>
             ))}
           </div>
