@@ -190,16 +190,21 @@ export function totalBuildingLevels(save) {
 }
 
 // Batch 1 is "the first 3 houses" Timmy names explicitly: Meta Upgrades,
-// Skilltree, Talents — unlocked by the very first building purchase. Every
-// batch after that keeps the cascade going on subsequent purchases, capped
-// so the whole camp is open well inside what three Rain Pool missions' worth
-// of gold/parts can actually buy.
+// Skilltree, Talents — unlocked by the very first building purchase.
+// Batch 2 ("ta de viktigast efter 3 saker" — take the most important next)
+// fires on the SECOND, matching pond_1 + pond_2's gold rewards (700g, then
+// 900g) each affording exactly one more building — so the two scripted
+// missions map onto two unlock waves, one per mission, rather than the
+// second wave waiting on a third mission that doesn't exist yet. Every
+// batch after that keeps the cascade going a level at a time so the rest of
+// the camp opens smoothly as building continues, without gating on
+// missions beyond the two that currently exist.
 const CAMP_UNLOCK_BATCHES = [
   { at: 1, tabs: ['cards', 'skills', 'talent'] },
-  { at: 3, tabs: ['gear', 'character', 'pets', 'prospector'] },
-  { at: 5, tabs: ['starraid', 'patrol', 'clicker'] },
-  { at: 7, tabs: ['forge', 'chest', 'shop'] },
-  { at: 9, tabs: ['loadout', 'pass', 'codex'] },
+  { at: 2, tabs: ['gear', 'character', 'pets', 'prospector'] },
+  { at: 3, tabs: ['starraid', 'patrol', 'clicker'] },
+  { at: 4, tabs: ['forge', 'chest', 'shop'] },
+  { at: 5, tabs: ['loadout', 'pass', 'codex'] },
 ];
 
 export function campTabsUnlockedAt(levels) {
