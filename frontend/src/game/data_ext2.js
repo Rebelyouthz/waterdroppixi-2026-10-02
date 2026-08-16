@@ -1011,6 +1011,30 @@ export const TALENT_NODES = [
   { id:'tn30', maxLvl:10, costPerLvl:20, icon: 'ui_medal', name:'Transcendence',   stat:'all',   val:0.003, milestone:true  },
 ];
 
+// Single source of truth for "is this ACHIEVEMENTS entry's metric
+// satisfied" — shared by AchievementsPanel (CampPanels.jsx), Camp.jsx's
+// per-tab notification badges, and store.js's campHasClaimable(). These
+// three used to each carry their own copy (or, in Camp.jsx's case, a
+// shorter and less accurate inline version), which meant the game could
+// legitimately disagree with itself about whether an achievement was done.
+export function achMetric(save, k) {
+  if (k === 'skillsLearned') return Object.values(save.skills || {}).reduce((a, b) => a + b, 0);
+  if (k === 'activeSkillsCount') return (save.equippedActives || []).filter(Boolean).length;
+  if (k === 'weaponsCrafted') return Object.keys(save.craftedWeapons || {}).length;
+  if (k === 'challengesCompleted') return Object.keys(save.challengesDone || {}).length;
+  if (k === 'dailyStreak') return save.daily?.streak || 0;
+  if (k === 'legendaryPartsFound') return save.legendaryPartsFound || 0;
+  if (k === 'chestsOpened') return save.chestsOpened || 0;
+  if (k === 'lifetimeGold') return save.lifetimeGold || save.gold || 0;
+  if (k === 'noHitRuns') return save.noHitRuns || 0;
+  if (k === 'necroSlain') return save.necroSlain || 0;
+  if (k === 'voidSlain')  return save.voidSlain  || 0;
+  if (k === 'horusSlain') return save.horusSlain || 0;
+  if (k === 'endlessReached') return save.endlessReached || 0;
+  if (k === 'mapsCompleted') return MAP_STAGES.filter(s => s.nodes.every(n => (save.mapProgress || {})[n.id])).length;
+  return save[k] || 0;
+}
+
 // ══════════════════════════════════════════════
 // CAMPAIGN QUESTS
 // ══════════════════════════════════════════════

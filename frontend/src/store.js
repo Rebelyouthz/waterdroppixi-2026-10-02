@@ -1,6 +1,8 @@
 // Extended save store with profile, skills, equipment, quests, daily streak.
 import axios from 'axios';
-import { dailyQuests, accountXpToNext, weeklyQuests, weekIdx } from './game/data_ext';
+import { dailyQuests, accountXpToNext, weeklyQuests, weekIdx, MILESTONES } from './game/data_ext';
+import { ACHIEVEMENTS, CAMPAIGN_QUESTS, achMetric } from './game/data_ext2';
+import { currentStep } from './game/path';
 
 const KEY = 'wds.save.v1';
 const PID_KEY = 'wds.player_id';
@@ -613,4 +615,33 @@ export function applyReward(save, reward, openChest) {
 export function bankReward(save, entry) {
   if (!entry) return;
   save.pendingRewards = [...(save.pendingRewards || []), entry].slice(-12);
+}
+
+// Whether ANYTHING claimable sits inside the Camp (any tab, any sub-tab).
+// Camp.jsx computes each of these individually and more cheaply for its own
+// per-tab badges — this is the one aggregate a screen OUTSIDE Camp (the
+// Welcome/home screen's "The Camp" button) needs, so opening Camp is never
+// a surprise: if this is true, something in there has a waterdrop on it.
+export function campHasClaimable(save) {
+  const discovered = Object.keys(save.codex?.enemies || {}).length + Object.keys(save.codex?.weapons || {}).length;
+  if (discovered > (save.codex?.claimedDiscoveries || []).length) return true;
+
+  const passReached = Math.floor((save.profile?.xp || 0) / 200);
+  if (passReached > (save.battlePass?.claimed || []).length) return true;
+
+  const now = Date.now();
+  if ((save.patrol?.missions || []).some(m => m.status === 'complete' || (m.status === 'active' && now - m.startMs >= m.durationMs))) return true;
+
+  if (ACHIEVEMENTS.some(a => achMetric(save, a.metric) >= a.goal) &&
+      ACHIEVEMENTS.filter(a => achMetric(save, a.metric) >= a.goal).length > Object.keys(save.achClaimed || {}).length) return true;
+
+  if (MILESTONES.filter(m => (save[m.metric] || 0) >= m.goal).length > Object.keys(save.milestones?.claimed || {}).length) return true;
+
+  const path = currentStep(save);
+  if (path && path.check(save)) return true;
+
+  const campaign = save.campaign || {};
+  if (CAMPAIGN_QUESTS.some(q => q.check(save) && !campaign[q.id])) return true;
+
+  return false;
 }

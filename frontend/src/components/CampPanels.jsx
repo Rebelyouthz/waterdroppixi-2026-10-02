@@ -1,6 +1,6 @@
 // Combined extended Camp panels in one file to save bundle weight.
 import React, { useState, useEffect } from 'react';
-import { MISSION_DEFS, MISSION_DAILY_LIMIT, MISSION_REGEN_MS, rollMissionRewards, ACHIEVEMENTS, CHALLENGES, STAGES, MILESTONE_BAR, SHOP_CARD_POOL, shopCardCost, rollShopPull3, ACTIVE_SKILLS, ACTIVE_SKILL_KEYS, ADVANCED_CARDS, STARTER_WEAPONS, PART_RARITY_COLORS, PART_SLOTS, PART_SLOT_INFO, STAT_DISPLAY, rollPart, MAP_STAGES, DAILY_CHALLENGE_POOL, getDailyChallenges } from '../game/data_ext2';
+import { MISSION_DEFS, MISSION_DAILY_LIMIT, MISSION_REGEN_MS, rollMissionRewards, ACHIEVEMENTS, CHALLENGES, STAGES, MILESTONE_BAR, SHOP_CARD_POOL, shopCardCost, rollShopPull3, ACTIVE_SKILLS, ACTIVE_SKILL_KEYS, ADVANCED_CARDS, STARTER_WEAPONS, PART_RARITY_COLORS, PART_SLOTS, PART_SLOT_INFO, STAT_DISPLAY, rollPart, MAP_STAGES, DAILY_CHALLENGE_POOL, getDailyChallenges, achMetric } from '../game/data_ext2';
 import { Audio } from '../game/audio';
 import { accountXpToNext } from '../game/data_ext';
 import { pushToast } from '../game/toastBus';
@@ -133,24 +133,17 @@ export function ChallengesPanel({ save, setSave, onStart }) {
 }
 
 // ---------- Achievements ----------
+// Timmy: there were two separate achievement UIs — this one (reached via
+// Camp's own ACHIEVEMENTS tab, a sibling of CODEX and MILESTONES) and a
+// near-duplicate tab built into CodexPanel itself (MetaFeatures.jsx),
+// which could disagree with this one about whether an achievement was even
+// complete (its metric-getter was missing several branches this one has)
+// and dropped gem rewards entirely (no `a.rwd.gems` handling). Merged into
+// this one — nothing removed, the more complete metric list and full
+// reward handling both survive here, the redundant tab is gone.
 export function AchievementsPanel({ save, setSave }) {
-  const getMetric = (k) => {
-    if (k === 'skillsLearned') return Object.values(save.skills || {}).reduce((a, b) => a + b, 0);
-    if (k === 'activeSkillsCount') return (save.equippedActives || []).filter(Boolean).length;
-    if (k === 'weaponsCrafted') return Object.keys(save.craftedWeapons || {}).length;
-    if (k === 'challengesCompleted') return Object.keys(save.challengesDone || {}).length;
-    if (k === 'dailyStreak') return save.daily.streak || 0;
-    if (k === 'legendaryPartsFound') return save.legendaryPartsFound || 0;
-    if (k === 'chestsOpened') return save.chestsOpened || 0;
-    if (k === 'lifetimeGold') return save.lifetimeGold || save.gold || 0;
-    if (k === 'noHitRuns') return save.noHitRuns || 0;
-    if (k === 'necroSlain') return save.necroSlain || 0;
-    if (k === 'voidSlain')  return save.voidSlain  || 0;
-    if (k === 'horusSlain') return save.horusSlain || 0;
-    if (k === 'endlessReached') return save.endlessReached || 0;
-    if (k === 'mapsCompleted') return MAP_STAGES.filter(s => s.nodes.every(n => (save.mapProgress || {})[n.id])).length;
-    return save[k] || 0;
-  };
+  const [burstId, setBurstId] = useState(null);
+  const getMetric = (k) => achMetric(save, k);
   const claim = (a) => {
     const cl = save.achClaimed || {};
     if (cl[a.id]) return;
@@ -158,9 +151,12 @@ export function AchievementsPanel({ save, setSave }) {
     const ns = { ...save, achClaimed: { ...cl, [a.id]: true } };
     if (a.rwd.gold) ns.gold = (ns.gold || 0) + a.rwd.gold;
     if (a.rwd.sp) ns.sp = (ns.sp || 0) + a.rwd.sp;
+    if (a.rwd.gems) ns.gems = (ns.gems || 0) + a.rwd.gems;
     setSave(ns);
     pushToast({ tone: 'achievement', icon: 'trophy', title: a.name, text: 'Achievement unlocked' });
     Audio.achievement();
+    setBurstId(a.id);
+    setTimeout(() => setBurstId(cur => (cur === a.id ? null : cur)), 900);
   };
   return (
     <>
@@ -172,7 +168,7 @@ export function AchievementsPanel({ save, setSave }) {
           const claimed = (save.achClaimed || {})[a.id];
           const pct = Math.min(100, (v / a.goal) * 100);
           return (
-            <div className="upgrade-card" key={a.id} data-testid={`ach-${a.id}`}>
+            <div className="upgrade-card" key={a.id} data-testid={`ach-${a.id}`} style={{ position: 'relative' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <GameIcon name={a.icon} size={26} />
                 <div className="name">{a.name}</div>
@@ -180,11 +176,19 @@ export function AchievementsPanel({ save, setSave }) {
               <div className="desc">{a.desc}</div>
               <div className="hud-xpbar"><div className="hud-xpbar-fill" style={{ width: pct + '%' }} /></div>
               <div className="lvl">{Math.min(v, a.goal)} / {a.goal}</div>
-              <div style={{ fontSize: 12, color: 'var(--accent-2)' }}>
+              <div style={{ fontSize: 12, color: 'var(--accent-2)', display: 'flex', alignItems: 'center', gap: 6 }}>
                 {a.rwd.gold && `★ ${a.rwd.gold}`} {a.rwd.sp && `◆ ${a.rwd.sp} SP`}
+                {a.rwd.gems && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><GameIcon name="cur_gems" size={12} /> {a.rwd.gems}</span>}
               </div>
               {claimed ? <div style={{ color: 'var(--rune)', fontSize: 11 }}>✓ CLAIMED</div> :
                 <button onClick={() => claim(a)} disabled={!done} data-testid={`claim-ach-${a.id}`}>{done ? '✓ CLAIM' : 'LOCKED'}</button>}
+              {burstId === a.id && (
+                <span className="codex-claim-burst">
+                  {a.rwd.gold && <>★+{a.rwd.gold} </>}
+                  {a.rwd.sp && <>◆+{a.rwd.sp} </>}
+                  {a.rwd.gems && <><GameIcon name="cur_gems" size={12} />+{a.rwd.gems}</>}
+                </span>
+              )}
             </div>
           );
         })}

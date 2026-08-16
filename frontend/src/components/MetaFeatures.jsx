@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ENEMIES } from '../game/data';
-import { STARTER_WEAPONS, ACHIEVEMENTS } from '../game/data_ext2';
+import { STARTER_WEAPONS } from '../game/data_ext2';
 import { rollGearDrop } from '../game/gear';
 import { rollRune } from '../game/runes';
 import { rollAttachment } from '../game/attachments';
@@ -402,23 +402,6 @@ const ENEMY_LORE = {
   bossAida:'A.I.D.A. — Adaptive Intelligence Defense Array. Created to protect. Has other plans.',
 };
 
-function getAchMetric(save, k) {
-  if (k === 'skillsLearned') return Object.values(save.skills || {}).reduce((a,b)=>a+b,0);
-  if (k === 'activeSkillsCount') return (save.equippedActives||[]).filter(Boolean).length;
-  if (k === 'weaponsCrafted') return Object.keys(save.craftedWeapons||{}).length;
-  if (k === 'challengesCompleted') return Object.keys(save.challengesDone||{}).length;
-  if (k === 'dailyStreak') return save.daily?.streak || 0;
-  if (k === 'legendaryPartsFound') return save.legendaryPartsFound || 0;
-  if (k === 'chestsOpened') return save.chestsOpened || 0;
-  if (k === 'lifetimeGold') return save.lifetimeGold || save.gold || 0;
-  if (k === 'noHitRuns') return save.noHitRuns || 0;
-  if (k === 'necroSlain') return save.necroSlain || 0;
-  if (k === 'voidSlain') return save.voidSlain || 0;
-  if (k === 'horusSlain') return save.horusSlain || 0;
-  if (k === 'endlessReached') return save.endlessReached || 0;
-  return save[k] || 0;
-}
-
 const ALL_ENEMY_IDS = Object.keys(ENEMIES).filter(id => !ENEMIES[id].boss);
 const ALL_BOSS_IDS  = Object.keys(ENEMIES).filter(id =>  ENEMIES[id].boss);
 
@@ -428,7 +411,6 @@ export function CodexPanel({ save, setSave }) {
   const killed  = codex.enemies   || {};
   const weapons = codex.weapons   || {};
   const claimed = codex.claimedDiscoveries || [];
-  const achClaimed = save.achClaimed || {};
 
   const totalDiscovered = Object.keys(killed).length + Object.keys(weapons).length;
   const totalClaimable  = [...Object.keys(killed), ...Object.keys(weapons)].filter(id => !claimed.includes(id)).length;
@@ -454,21 +436,6 @@ export function CodexPanel({ save, setSave }) {
     setTimeout(() => setBurstId(cur => (cur === id ? null : cur)), 750);
   };
 
-  const claimAch = (a) => {
-    if (achClaimed[a.id]) return;
-    if (getAchMetric(save, a.metric) < a.goal) return;
-    let ns = { ...save, achClaimed: { ...achClaimed, [a.id]: true } };
-    if (a.rwd.gold) ns.gold = (ns.gold || 0) + a.rwd.gold;
-    if (a.rwd.sp)   ns.sp   = (ns.sp   || 0) + a.rwd.sp;
-    if (a.rwd.gems) ns.gems = (ns.gems || 0) + a.rwd.gems;
-    setSave(ns);
-    pushToast({ tone: 'achievement', icon: 'trophy', title: a.name, text: 'Achievement unlocked' });
-    Audio.achievement();
-  };
-
-  const achDone     = ACHIEVEMENTS.filter(a => getAchMetric(save, a.metric) >= a.goal).length;
-  const achUnclaimed= ACHIEVEMENTS.filter(a => getAchMetric(save, a.metric) >= a.goal && !achClaimed[a.id]).length;
-
   return (
     <div className="codex-panel" data-testid="codex-panel">
       <div className="codex-header">
@@ -486,10 +453,8 @@ export function CodexPanel({ save, setSave }) {
           ['enemies',  'ENEMIES'],
           ['bosses',   'BOSSES'],
           ['weapons',  'WEAPONS'],
-          ['ach',      `ACHIEVEMENTS${achUnclaimed > 0 ? ` (${achUnclaimed})` : ''}`],
         ].map(([k,l])=>(
-          <button key={k} className={`codex-tab ${tab===k?'active':''}`} onClick={() => setTabC(k)}
-            style={k==='ach' && achUnclaimed > 0 ? {color:'#ffd700', borderColor:'#ffd70055'} : {}}>
+          <button key={k} className={`codex-tab ${tab===k?'active':''}`} onClick={() => setTabC(k)}>
             {l}
           </button>
         ))}
@@ -581,44 +546,6 @@ export function CodexPanel({ save, setSave }) {
         </div>
       )}
 
-      {tab === 'ach' && (
-        <div className="codex-grid">
-          <div className="codex-ach-summary">
-            {achDone} / {ACHIEVEMENTS.length} completed · {achUnclaimed} rewards pending
-          </div>
-          {ACHIEVEMENTS.map(a => {
-            const v    = getAchMetric(save, a.metric);
-            const done = v >= a.goal;
-            const cls  = achClaimed[a.id];
-            const pct  = Math.min(100, (v / a.goal) * 100);
-            return (
-              <div key={a.id} className={`codex-entry ach-entry ${done?'found':''} ${cls?'claimed-ach':''}`}
-                data-testid={`codex-ach-${a.id}`}>
-                <div className="codex-entry-icon"><GameIcon name={a.icon} size={20} /></div>
-                <div className="codex-entry-info">
-                  <div className="codex-entry-name" style={{color: done ? '#e0d0ff' : '#5a4a7e'}}>{a.name}</div>
-                  <div className="codex-entry-lore">{a.desc}</div>
-                  <div style={{height:4, background:'#1a0a2e', borderRadius:2, margin:'4px 0', overflow:'hidden'}}>
-                    <div style={{width:pct+'%', height:'100%', background: done ? '#ffd700' : '#b362ff', transition:'width .3s'}}/>
-                  </div>
-                  <div style={{fontSize:10, color:'#4a3a6e'}}>{Math.min(v,a.goal)} / {a.goal}</div>
-                  <div className="codex-ach-rwd">
-                    {a.rwd.gold && <span>★ {a.rwd.gold}</span>}
-                    {a.rwd.sp   && <span>◆ {a.rwd.sp} SP</span>}
-                    {a.rwd.gems && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><GameIcon name="cur_gems" size={12} /> {a.rwd.gems}</span>}
-                  </div>
-                </div>
-                {done && !cls && (
-                  <button className="codex-claim-btn" onClick={() => claimAch(a)} data-testid={`codex-claim-ach-${a.id}`}>
-                    CLAIM
-                  </button>
-                )}
-                {cls && <span className="codex-claimed-badge">✓</span>}
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }

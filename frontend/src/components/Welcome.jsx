@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { AVATARS, DAILY_REWARDS, accountXpToNext, dailyQuests, CHESTS, rollChest, weeklyQuests, weekIdx, rollSpinWheel, SPIN_WHEEL_SLICES } from '../game/data_ext';
-import { todayIdx, applyReward } from '../store';
+import { todayIdx, applyReward, campHasClaimable } from '../store';
 import { useAuth } from '../auth';
 import LeaderboardPanel from './LeaderboardPanel';
 import GameIcon from './GameIcon';
+import { ClaimBadge } from './MetaFeatures';
 import { Audio } from '../game/audio';
 import QuestTracker from './QuestTracker';
 import BadgeSlots, { BadgePicker } from './BadgeSlots';
@@ -118,6 +119,11 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
   const canClaim = save.daily.lastClaim !== today;
   const streakDay = (canClaim ? (save.daily.streak || 0) % 7 : ((save.daily.streak || 1) - 1) % 7) + 1;
   const claimableReward = DAILY_REWARDS[(streakDay - 1) % 7];
+  // Aggregate across every claimable surface inside Camp (Codex, Achievements,
+  // Milestones, Season Pass, Patrol, the Path, Campaign quests) — this is the
+  // one place a player decides whether to even open Camp, so it needs to know
+  // if there's a reason to.
+  const campClaimable = campHasClaimable(save);
 
   const create = () => {
     if (!name.trim()) return;
@@ -462,7 +468,7 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
         </div>
 
         <div className="welcome-actions">
-          <button onClick={onCamp} data-testid="welcome-camp"><GameIcon name="ui_base" size={15} /> The Camp</button>
+          <button onClick={onCamp} data-testid="welcome-camp" style={{ position: 'relative' }}><GameIcon name="ui_base" size={15} /> The Camp {campClaimable && <ClaimBadge />}</button>
           <button onClick={onContinue} data-testid="welcome-fight"
             style={{ borderColor: '#ff7a1a', boxShadow: 'var(--pixel-edge), 0 6px 0 #000, 0 0 28px #ff7a1a66' }}>
             ▸ ENTER THE LAKE

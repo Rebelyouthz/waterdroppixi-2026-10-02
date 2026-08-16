@@ -24,7 +24,7 @@ import ExplorationScreen from './ExplorationScreen';
 import { pendingMilestones } from '../game/clicker';
 import GearPanel from './GearPanel';
 import { BattlePassPanel, CodexPanel, PatrolPanel, ClaimBadge } from './MetaFeatures';
-import { ACHIEVEMENTS, resolveStartWeapon } from '../game/data_ext2';
+import { ACHIEVEMENTS, resolveStartWeapon, CAMPAIGN_QUESTS, achMetric } from '../game/data_ext2';
 import { MissionsPanel, ChallengesPanel, AchievementsPanel, CardShopModal, ActiveLoadoutPanel, SettingsPanel, MapsPanel } from './CampPanels';
 import { Audio } from '../game/audio';
 import BadgeSlots, { BadgePicker } from './BadgeSlots';
@@ -490,12 +490,25 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
   const _pMissions  = save.patrol?.missions || [];
   const patrolNew   = _pMissions.some(m => m.status === 'complete' || (m.status === 'active' && _now - m.startMs >= m.durationMs));
 
-  const _achDone    = ACHIEVEMENTS.filter(a => {
-    if (a.metric === 'skillsLearned') return Object.values(save.skills||{}).reduce((x,y)=>x+y,0) >= a.goal;
-    return (save[a.metric]||0) >= a.goal;
-  }).length;
+  const _achDone    = ACHIEVEMENTS.filter(a => achMetric(save, a.metric) >= a.goal).length;
   const _achClaim   = Object.keys(save.achClaimed||{}).length;
   const achNew      = _achDone > _achClaim;
+
+  // Milestones (codexSub='milestones', a sibling of Codex/Achievements) had
+  // no notification badge at all — a completed milestone sat unclaimed with
+  // nothing telling the player it was there.
+  const _msDone   = MILESTONES.filter(m => (save[m.metric] || 0) >= m.goal).length;
+  const _msClaim  = Object.keys(save.milestones?.claimed || {}).length;
+  const milestonesNew = _msDone > _msClaim;
+
+  // Campaign tab: STORY (CampaignPanel's CAMPAIGN_QUESTS) was never counted
+  // toward the CAMPAIGN tab's own badge — only the Missions sub-tab's
+  // `pathReady` was. A claimable campaign quest sat with no indicator
+  // anywhere. Computed per sub-tab so the badge can cascade correctly:
+  // CAMPAIGN tab lights up if EITHER sub-tab has something, and each
+  // sub-tab button shows which one actually does.
+  const _cq = save.campaign || {};
+  const campaignQuestNew = CAMPAIGN_QUESTS.some(q => q.check(save) && !_cq[q.id]);
 
   return (
     <div className="app-shell">
@@ -708,7 +721,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
                 <span className="camp-story-go">▸</span>
               </button>
             )}
-            <button className={`camp-tab ${tab==='campaign'?'active':''}`} onClick={() => setTab('campaign')} data-testid="tab-campaign" style={{position:'relative'}}><GameIcon name="ui_scroll" size={15} /> CAMPAIGN {pathReady && <ClaimBadge/>}</button>
+            <button className={`camp-tab ${tab==='campaign'?'active':''}`} onClick={() => setTab('campaign')} data-testid="tab-campaign" style={{position:'relative'}}><GameIcon name="ui_scroll" size={15} /> CAMPAIGN {(pathReady || campaignQuestNew) && <ClaimBadge/>}</button>
             <button className={`camp-tab ${tab === 'stats' ? 'active' : ''}`} onClick={() => setTab('stats')} data-testid="tab-stats"><GameIcon name="ui_chart" size={15} /> STATS</button>
             {/* THE BASE is the one tab that's always PRESENT — dimmed until
                 pond_1 clears, per Timmy: "bara base ska finnas där ... även
@@ -754,7 +767,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
               <button className={`camp-tab ${tab==='patrol'?'active':''}`} style={{position:'relative'}} onClick={() => setTab('patrol')} data-testid="tab-patrol"><GameIcon name="ui_map" size={15} /> PATROL {patrolNew && <ClaimBadge/>}</button>
             )}
             {!isCampTabLocked('codex', save) && (
-              <button className={`camp-tab ${tab==='codex'?'active':''}`} style={{position:'relative'}} onClick={() => setTab('codex')} data-testid="tab-codex"><GameIcon name="ui_codex" size={15} /> CODEX {(codexNew || achNew) && <ClaimBadge/>}</button>
+              <button className={`camp-tab ${tab==='codex'?'active':''}`} style={{position:'relative'}} onClick={() => setTab('codex')} data-testid="tab-codex"><GameIcon name="ui_codex" size={15} /> CODEX {(codexNew || achNew || milestonesNew) && <ClaimBadge/>}</button>
             )}
             <div className="camp-tab-divider" />
             {!isCampTabLocked('shop', save) && (
@@ -842,9 +855,9 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
           {tab === 'campaign' && (
             <>
               <div className="gear-tabs" style={{ marginBottom: 12 }}>
-                <button className={`gear-tab ${campaignSub === 'campaign' ? 'active' : ''}`} onClick={() => setCampaignSub('campaign')} data-testid="tab-campaign-story"><GameIcon name="ui_scroll" size={14} /> STORY</button>
+                <button className={`gear-tab ${campaignSub === 'campaign' ? 'active' : ''}`} onClick={() => setCampaignSub('campaign')} data-testid="tab-campaign-story" style={{ position: 'relative' }}><GameIcon name="ui_scroll" size={14} /> STORY {campaignQuestNew && <ClaimBadge />}</button>
                 <button className={`gear-tab ${campaignSub === 'maps' ? 'active' : ''}`} onClick={() => setCampaignSub('maps')} data-testid="tab-maps"><GameIcon name="ui_map" size={14} /> MAPS</button>
-                <button className={`gear-tab ${campaignSub === 'missions' ? 'active' : ''}`} onClick={() => setCampaignSub('missions')} data-testid="tab-missions"><GameIcon name="ui_scroll" size={14} /> MISSIONS</button>
+                <button className={`gear-tab ${campaignSub === 'missions' ? 'active' : ''}`} onClick={() => setCampaignSub('missions')} data-testid="tab-missions" style={{ position: 'relative' }}><GameIcon name="ui_scroll" size={14} /> MISSIONS {pathReady && <ClaimBadge />}</button>
                 <button className={`gear-tab ${campaignSub === 'challenges' ? 'active' : ''}`} onClick={() => setCampaignSub('challenges')} data-testid="tab-challenges"><GameIcon name="ui_trophy" size={14} /> CHALLENGES</button>
               </div>
               {campaignSub === 'campaign' && <CampaignPanel save={save} setSave={setSave} />}
@@ -900,9 +913,9 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
           {tab === 'codex' && (
             <>
               <div className="gear-tabs" style={{ marginBottom: 12 }}>
-                <button className={`gear-tab ${codexSub === 'codex' ? 'active' : ''}`} onClick={() => setCodexSub('codex')} data-testid="tab-codex-sub"><GameIcon name="ui_codex" size={14} /> CODEX</button>
+                <button className={`gear-tab ${codexSub === 'codex' ? 'active' : ''}`} onClick={() => setCodexSub('codex')} data-testid="tab-codex-sub" style={{ position: 'relative' }}><GameIcon name="ui_codex" size={14} /> CODEX {codexNew && <ClaimBadge />}</button>
                 <button className={`gear-tab ${codexSub === 'achievements' ? 'active' : ''}`} onClick={() => setCodexSub('achievements')} data-testid="tab-ach" style={{ position: 'relative' }}><GameIcon name="ui_medal" size={14} /> ACHIEVEMENTS {achNew && <ClaimBadge />}</button>
-                <button className={`gear-tab ${codexSub === 'milestones' ? 'active' : ''}`} onClick={() => setCodexSub('milestones')} data-testid="tab-milestones">⭐ MILESTONES</button>
+                <button className={`gear-tab ${codexSub === 'milestones' ? 'active' : ''}`} onClick={() => setCodexSub('milestones')} data-testid="tab-milestones" style={{ position: 'relative' }}><GameIcon name="ui_star" size={14} /> MILESTONES {milestonesNew && <ClaimBadge />}</button>
               </div>
               {codexSub === 'codex' && (<>
                 <div className="camp-header"><h1>Codex</h1><div className="camp-header-sub">Discover enemies, weapons, and lore</div></div>
