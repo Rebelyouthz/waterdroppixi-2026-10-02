@@ -68,6 +68,24 @@ function ToastEmblem({ kind, color }) {
   );
 }
 
+// Colors +N/-N stat tokens green/red inline, so a toast reading e.g.
+// "+8% dmg, -2% armor" shows the gain and the cost at a glance instead of
+// making you read every word. Splits on whitespace and only recolors a
+// token that actually starts with a sign — everything else (names, plain
+// numbers, "SP", punctuation) stays the default toast-text color.
+function StatText({ text }) {
+  const parts = text.split(/(\s+)/);
+  return (
+    <>
+      {parts.map((p, i) => {
+        if (/^\+/.test(p)) return <span key={i} style={{ color: '#7ad96b' }}>{p}</span>;
+        if (/^-\d/.test(p)) return <span key={i} style={{ color: '#ff5a5a' }}>{p}</span>;
+        return p;
+      })}
+    </>
+  );
+}
+
 // Mounted once, at the top of the app (see App.js) — sits above everything,
 // including modals, since a reward can happen while a modal is open.
 //
@@ -120,7 +138,7 @@ export default function ToastHost() {
                     toasts pass the rarity as their text, so both rendered and
                     the banner said "MAGIC" twice. */}
                 {t.text && t.text.toUpperCase() !== (rarityLabel || '') && (
-                  <div className="toast-text">{t.text}</div>
+                  <div className="toast-text"><StatText text={t.text} /></div>
                 )}
               </div>
             </div>
