@@ -6,6 +6,7 @@ import {
 import { PET_TYPES, petStageMult } from './PetPanel';
 import { Audio } from '../game/audio';
 import TcgBoard, { CardFace } from './TcgBoard';
+import GameIcon from './GameIcon';
 
 // Pet TCG. Three tabs: the collection you've pulled from Prospector/Clicker,
 // the deck you build per pet from it, and a practice battle to actually
@@ -78,15 +79,15 @@ export default function TcgScreen({ save, setSave, onClose }) {
     <div className="modal-overlay" data-testid="tcg-screen" onClick={(e) => { if (e.target.classList.contains('modal-overlay')) onClose(); }}>
       <div className="forge-panel forge-panel-scrollable tcg-panel" style={{ maxWidth: 760 }}>
         <div className="forge-header">
-          <div className="forge-title">⚔ PET TCG</div>
+          <div className="forge-title"><GameIcon name="ui_blade" size={18} /> PET TCG</div>
           <div style={{ fontFamily: 'VT323', fontSize: 14, color: 'var(--ink-dim)' }}>🃏 {inventory.length} cards</div>
           <button onClick={onClose} style={{ padding: '6px 12px', fontSize: 12 }}>✕</button>
         </div>
 
         <div className="gear-tabs" style={{ marginBottom: 12 }}>
           <button className={`gear-tab ${tab === 'cards' ? 'active' : ''}`} onClick={() => setTab('cards')} data-testid="tcg-tab-cards">🃏 CARDS</button>
-          <button className={`gear-tab ${tab === 'deck' ? 'active' : ''}`} onClick={() => setTab('deck')} data-testid="tcg-tab-deck">📋 DECK</button>
-          <button className={`gear-tab ${tab === 'battle' ? 'active' : ''}`} onClick={() => setTab('battle')} data-testid="tcg-tab-battle">⚔ BATTLE</button>
+          <button className={`gear-tab ${tab === 'deck' ? 'active' : ''}`} onClick={() => setTab('deck')} data-testid="tcg-tab-deck"><GameIcon name="ui_cards" size={13} /> DECK</button>
+          <button className={`gear-tab ${tab === 'battle' ? 'active' : ''}`} onClick={() => setTab('battle')} data-testid="tcg-tab-battle"><GameIcon name="ui_blade" size={13} /> BATTLE</button>
         </div>
 
         {tab === 'cards' && (
@@ -113,7 +114,7 @@ export default function TcgScreen({ save, setSave, onClose }) {
                     return (
                       <button key={p.id} className={`tcg-pet-chip${deckPetId === p.id ? ' on' : ''}`}
                               onClick={() => setDeckPetId(p.id)} data-testid={`tcg-deckpet-${p.id}`}>
-                        {def?.icon} {p.name || def?.name} <i>Lv{p.level}</i>
+                        <GameIcon name={def?.icon || 'ui_pets'} size={13} /> {p.name || def?.name} <i>Lv{p.level}</i>
                       </button>
                     );
                   })}
@@ -150,7 +151,7 @@ export default function TcgScreen({ save, setSave, onClose }) {
                     return (
                       <button key={p.id} className={`tcg-pet-chip${battlePetId === p.id ? ' on' : ''}${valid ? '' : ' invalid'}`}
                               onClick={() => setBattlePetId(p.id)} data-testid={`tcg-battlepet-${p.id}`}>
-                        {def?.icon} {p.name || def?.name} <i>Lv{p.level}</i>
+                        <GameIcon name={def?.icon || 'ui_pets'} size={13} /> {p.name || def?.name} <i>Lv{p.level}</i>
                         {!valid && <span className="tcg-pet-nodeck"> no deck</span>}
                       </button>
                     );

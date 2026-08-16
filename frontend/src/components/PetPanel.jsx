@@ -2,35 +2,36 @@ import React, { useState, useEffect } from 'react';
 import { Audio } from '../game/audio';
 import { INCUBATOR_MS, incubatorRemaining, incubatorSpeedCost } from '../store';
 import { incubatorSlots, incubatorSpeedMult } from '../game/base';
+import GameIcon from './GameIcon';
 
 // ─── Pet Definitions ─────────────────────────────────────────────────────────
 export const PET_TYPES = [
   {
-    id: 'aquaSprite', name: 'Aqua Sprite', icon: '💧', type: 'Attack',
+    id: 'aquaSprite', name: 'Aqua Sprite', icon: 'ui_waterdrop', type: 'Attack',
     desc: 'Fires a water bolt at the nearest enemy every 3s.',
     stat: 'dmg', statPerLevel: 0.001, // +0.1% dmg per level
     eggCosts: { common: 50, uncommon: 120, rare: 300, epic: 700, legendary: 1500 },
   },
   {
-    id: 'shadowWisp', name: 'Shadow Wisp', icon: '👻', type: 'Defend',
+    id: 'shadowWisp', name: 'Shadow Wisp', icon: 'ui_ghost', type: 'Defend',
     desc: 'Reduces incoming damage (increases dodge).',
     stat: 'dodge', statPerLevel: 0.001,
     eggCosts: { common: 50, uncommon: 120, rare: 300, epic: 700, legendary: 1500 },
   },
   {
-    id: 'emberFairy', name: 'Ember Fairy', icon: '🔥', type: 'Crit',
+    id: 'emberFairy', name: 'Ember Fairy', icon: 'ui_flame', type: 'Crit',
     desc: 'Boosts your critical hit chance.',
     stat: 'crit', statPerLevel: 0.001,
     eggCosts: { common: 60, uncommon: 140, rare: 350, epic: 800, legendary: 1800 },
   },
   {
-    id: 'stormHawk', name: 'Storm Hawk', icon: '⚡', type: 'Super',
+    id: 'stormHawk', name: 'Storm Hawk', icon: 'ui_bolt', type: 'Super',
     desc: 'Launches a super strike every 10s dealing massive AoE damage.',
     stat: 'superCrit', statPerLevel: 0.002,
     eggCosts: { common: 80, uncommon: 180, rare: 450, epic: 1000, legendary: 2000 },
   },
   {
-    id: 'lifeSprite', name: 'Life Sprite', icon: '🌿', type: 'Heal',
+    id: 'lifeSprite', name: 'Life Sprite', icon: 'ui_leaf', type: 'Heal',
     desc: 'Regenerates your HP over time.',
     stat: 'regen', statPerLevel: 0.01, // +0.01 HP/s per level
     eggCosts: { common: 60, uncommon: 140, rare: 350, epic: 800, legendary: 1800 },
@@ -56,13 +57,13 @@ const BREED_GEM_COST = { common: 80, uncommon: 160, rare: 350, epic: 800, legend
 // now carries a multiplier on the pet's stat, which is what makes feeding it
 // toward the next stage a goal rather than a number going up.
 export const STAGES = [
-  { name: 'Newborn',  minLvl: 1,  icon: '🥚', sizeClass: 'pet-xs',  mult: 1.00 },
-  { name: 'Young',    minLvl: 6,  icon: '🐣', sizeClass: 'pet-sm',  mult: 1.18 },
-  { name: 'Teenage',  minLvl: 16, icon: '🐥', sizeClass: 'pet-md',  mult: 1.42 },
-  { name: 'Adult',    minLvl: 31, icon: '✨', sizeClass: 'pet-lg',  mult: 1.75 },
-  { name: 'Veteran',  minLvl: 51, icon: '⭐', sizeClass: 'pet-xl',  mult: 2.15 },
-  { name: 'Elder',    minLvl: 76, icon: '🌟', sizeClass: 'pet-xl',  mult: 2.60 },
-  { name: 'Max',      minLvl: 100, icon: '💫', sizeClass: 'pet-max', mult: 3.20 },
+  { name: 'Newborn',  minLvl: 1,  icon: 'ui_egg',       sizeClass: 'pet-xs',  mult: 1.00 },
+  { name: 'Young',    minLvl: 6,  icon: 'ui_hatchling', sizeClass: 'pet-sm',  mult: 1.18 },
+  { name: 'Teenage',  minLvl: 16, icon: 'ui_hatchling', sizeClass: 'pet-md',  mult: 1.42 },
+  { name: 'Adult',    minLvl: 31, icon: 'ui_star',      sizeClass: 'pet-lg',  mult: 1.75 },
+  { name: 'Veteran',  minLvl: 51, icon: 'ui_star',      sizeClass: 'pet-xl',  mult: 2.15 },
+  { name: 'Elder',    minLvl: 76, icon: 'ui_star',      sizeClass: 'pet-xl',  mult: 2.60 },
+  { name: 'Max',      minLvl: 100, icon: 'ui_infinity', sizeClass: 'pet-max', mult: 3.20 },
 ];
 
 export function getStage(level) {
@@ -290,10 +291,10 @@ export default function PetPanel({ save, setSave, onClose, onOpenTcg }) {
       <div className="forge-panel pet-panel" style={{ maxWidth: 700, maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}>
         {/* Header */}
         <div className="forge-header">
-          <div className="forge-title">🐾 PETS</div>
+          <div className="forge-title"><GameIcon name="ui_pets" size={18} /> PETS</div>
           <div style={{ fontFamily:'VT323', fontSize:14, color:'var(--ink-dim)', display:'flex', gap:12, alignItems:'center' }}>
-            <span style={{ color:'#4dffd4' }}>💎 {gems}</span>
-            <span style={{ color:'#ff9955' }}>🍖 {petFood}</span>
+            <span style={{ color:'#4dffd4', display:'flex', alignItems:'center', gap:4 }}><GameIcon name="cur_gems" size={14} /> {gems}</span>
+            <span style={{ color:'#ff9955', display:'flex', alignItems:'center', gap:4 }}><GameIcon name="petFood" size={14} /> {petFood}</span>
           </div>
           <button onClick={onClose} style={{ padding:'6px 12px', fontSize:12 }}>✕</button>
         </div>
@@ -311,13 +312,15 @@ export default function PetPanel({ save, setSave, onClose, onOpenTcg }) {
           <div style={{ marginLeft:'auto', display:'flex', gap:6 }}>
             {onOpenTcg && (
               <button onClick={onOpenTcg} data-testid="pet-open-tcg" style={{ fontFamily:'VT323', fontSize:13, padding:'4px 12px',
-                background:'#1a0a2e', border:'1px solid #ff7a1a55', color:'#ffb380', cursor:'pointer' }}>
-                ⚔ CARDS &amp; BATTLE
+                background:'#1a0a2e', border:'1px solid #ff7a1a55', color:'#ffb380', cursor:'pointer',
+                display:'flex', alignItems:'center', gap:4 }}>
+                <GameIcon name="ui_blade" size={13} /> CARDS &amp; BATTLE
               </button>
             )}
             <button onClick={buyFood} disabled={gems < 50} style={{ fontFamily:'VT323', fontSize:13, padding:'4px 12px',
-              background:'#1a0a2e', border:'1px solid #4dffd455', color:'#4dffd4', cursor:'pointer' }}>
-              💎50 → 🍖×5
+              background:'#1a0a2e', border:'1px solid #4dffd455', color:'#4dffd4', cursor:'pointer',
+              display:'flex', alignItems:'center', gap:4 }}>
+              <GameIcon name="cur_gems" size={13} />50 → <GameIcon name="petFood" size={13} />×5
             </button>
           </div>
         </div>
@@ -344,12 +347,12 @@ export default function PetPanel({ save, setSave, onClose, onOpenTcg }) {
                         borderRadius:6, padding:12, boxShadow: pet.active ? `0 0 12px ${rarityColor}44` : 'none',
                       }} data-testid={`pet-${pet.id}`}>
                         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-                          <div style={{ fontSize:28 }}>{def?.icon || '🐾'}</div>
+                          <div><GameIcon name={def?.icon || 'ui_pets'} size={28} /></div>
                           <div style={{ fontFamily:'VT323', fontSize:11, color:rarityColor, textTransform:'uppercase' }}>{pet.rarity}</div>
                         </div>
                         <div style={{ fontFamily:'VT323', fontSize:16, color:'var(--ink)', marginTop:4 }}>{pet.name}</div>
-                        <div style={{ fontFamily:'VT323', fontSize:12, color:'var(--ink-dim)', marginBottom:4 }}>
-                          {stage.icon} {stage.name} · Lv {pet.level}
+                        <div style={{ fontFamily:'VT323', fontSize:12, color:'var(--ink-dim)', marginBottom:4, display:'flex', alignItems:'center', gap:4 }}>
+                          <GameIcon name={stage.icon} size={13} /> {stage.name} · Lv {pet.level}
                         </div>
                         {/* XP bar */}
                         <div style={{ height:4, background:'#1a0a2e', borderRadius:2, overflow:'hidden', marginBottom:6 }}>
@@ -361,8 +364,9 @@ export default function PetPanel({ save, setSave, onClose, onOpenTcg }) {
                         <div style={{ display:'flex', gap:6 }}>
                           <button onClick={() => feedPet(pet)} disabled={petFood <= 0 || pet.level >= 100}
                             style={{ flex:1, fontFamily:'VT323', fontSize:13, padding:'4px 8px',
-                              background:'#1a0a2e', border:'1px solid #ff995544', color: petFood > 0 ? '#ff9955' : '#666', cursor:'pointer' }}>
-                            🍖 FEED
+                              background:'#1a0a2e', border:'1px solid #ff995544', color: petFood > 0 ? '#ff9955' : '#666', cursor:'pointer',
+                              display:'flex', alignItems:'center', justifyContent:'center', gap:4 }}>
+                            <GameIcon name="petFood" size={14} /> FEED
                           </button>
                           <button onClick={() => toggleActive(pet)}
                             style={{ flex:1, fontFamily:'VT323', fontSize:13, padding:'4px 8px',
@@ -389,7 +393,7 @@ export default function PetPanel({ save, setSave, onClose, onOpenTcg }) {
             <>
               {/* Incubator */}
               <div className="inc-head">
-                <span>🔥 INCUBATOR</span>
+                <span style={{ display:'inline-flex', alignItems:'center', gap:4 }}><GameIcon name="ui_flame" size={15} /> INCUBATOR</span>
                 <span className="inc-slots">{incSlots.length}/{maxIncSlots} slots</span>
               </div>
               <div className="inc-grid">
@@ -414,10 +418,10 @@ export default function PetPanel({ save, setSave, onClose, onOpenTcg }) {
                       <div className={`inc-egg${ready ? ' ready' : ''} crack-${cracks}`}
                            onClick={() => tapShell(slot)}
                            data-testid={`inc-egg-${slot.eggId}`}>
-                        <span className="inc-egg-glyph">🥚</span>
+                        <span className="inc-egg-glyph"><GameIcon name="ui_egg" size={22} /></span>
                         {ready && cracks > 0 && <span className="inc-crack-count">{3 - cracks} more</span>}
                       </div>
-                      <div className="inc-name" style={{ color: rc }}>{def?.icon} {slot.rarity}</div>
+                      <div className="inc-name" style={{ color: rc, display:'flex', alignItems:'center', justifyContent:'center', gap:3 }}><GameIcon name={def?.icon || 'ui_pets'} size={13} /> {slot.rarity}</div>
                       {ready ? (
                         <div className="inc-ready-txt">TAP 3× TO CRACK</div>
                       ) : (
@@ -426,9 +430,9 @@ export default function PetPanel({ save, setSave, onClose, onOpenTcg }) {
                           <div className="inc-time">{mm}m {ss.toString().padStart(2, '0')}s</div>
                           <div className="inc-btns">
                             <button className="inc-btn inc-gem" disabled={(save.gems || 0) < cost.gems}
-                                    onClick={() => speedUp(slot, 'gems')}>💎 {cost.gems}</button>
+                                    onClick={() => speedUp(slot, 'gems')}><GameIcon name="cur_gems" size={12} /> {cost.gems}</button>
                             <button className="inc-btn inc-gold" disabled={(save.gold || 0) < cost.gold}
-                                    onClick={() => speedUp(slot, 'gold')}>★ {cost.gold}</button>
+                                    onClick={() => speedUp(slot, 'gold')}><GameIcon name="gold" size={12} /> {cost.gold}</button>
                           </div>
                         </>
                       )}
@@ -455,9 +459,9 @@ export default function PetPanel({ save, setSave, onClose, onOpenTcg }) {
                         <div key={egg.id} data-testid={`egg-${egg.id}`}
                           style={{ background:'#0a0520', border:`1px solid ${rc}`, borderRadius:6, padding:10, textAlign:'center', cursor:'pointer' }}
                           onClick={() => incubate(egg)}>
-                          <div style={{ fontSize:30 }}>🥚</div>
+                          <div style={{ display:'flex', justifyContent:'center' }}><GameIcon name="ui_egg" size={26} /></div>
                           <div style={{ fontFamily:'VT323', fontSize:13, color:rc }}>{egg.rarity}</div>
-                          <div style={{ fontFamily:'VT323', fontSize:12, color:'var(--ink-dim)' }}>{def?.icon} {def?.name}</div>
+                          <div style={{ fontFamily:'VT323', fontSize:12, color:'var(--ink-dim)', display:'flex', alignItems:'center', justifyContent:'center', gap:3 }}><GameIcon name={def?.icon || 'ui_pets'} size={12} /> {def?.name}</div>
                           <div style={{ fontFamily:'VT323', fontSize:11, color: incSlots.length >= maxIncSlots ? '#7a6a8a' : '#4dffd4', marginTop:4 }}>
                             {incSlots.length >= maxIncSlots ? 'INCUBATOR FULL' : `INCUBATE · ${Math.round((INCUBATOR_MS[egg.rarity] || INCUBATOR_MS.common) * incubatorSpeedMult(save) / 60000)}m`}
                           </div>
@@ -504,7 +508,7 @@ export default function PetPanel({ save, setSave, onClose, onOpenTcg }) {
                             borderRadius: 6, padding: 10, textAlign: 'center', cursor: eligible ? 'pointer' : 'not-allowed',
                             opacity: eligible ? 1 : 0.4,
                           }}>
-                          <div style={{ fontSize: 26 }}>{def?.icon || '🐾'}</div>
+                          <div style={{ display:'flex', justifyContent:'center' }}><GameIcon name={def?.icon || 'ui_pets'} size={26} /></div>
                           <div style={{ fontFamily: 'VT323', fontSize: 12, color: rc }}>{pet.rarity}</div>
                           <div style={{ fontFamily: 'VT323', fontSize: 11, color: 'var(--ink-dim)' }}>{pet.name}</div>
                           <div style={{ fontFamily: 'VT323', fontSize: 10, color: '#4dffd4' }}>Lv {pet.level}</div>
@@ -522,12 +526,13 @@ export default function PetPanel({ save, setSave, onClose, onOpenTcg }) {
                     return (
                       <div style={{ background: '#0a0520', border: `1px solid ${RARITY_COLORS[resultRarity]}`, borderRadius: 6, padding: 14, textAlign: 'center' }}>
                         <div style={{ fontFamily: 'VT323', fontSize: 14, color: 'var(--ink-dim)' }}>Result egg rarity:</div>
-                        <div style={{ fontFamily: 'VT323', fontSize: 20, color: RARITY_COLORS[resultRarity], letterSpacing: '0.2em' }}>🥚 {resultRarity?.toUpperCase()}</div>
+                        <div style={{ fontFamily: 'VT323', fontSize: 20, color: RARITY_COLORS[resultRarity], letterSpacing: '0.2em', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}><GameIcon name="ui_egg" size={22} /> {resultRarity?.toUpperCase()}</div>
                         <button onClick={doBreed} disabled={!canAfford} data-testid="breed-confirm"
                           style={{ marginTop: 8, fontFamily: 'VT323', fontSize: 14, padding: '6px 16px',
                             background: canAfford ? RARITY_COLORS[resultRarity] : '#1a0a2e',
-                            border: `1px solid ${RARITY_COLORS[resultRarity]}`, color: canAfford ? '#000' : '#666', cursor: canAfford ? 'pointer' : 'default' }}>
-                          BREED — 💎{cost}
+                            border: `1px solid ${RARITY_COLORS[resultRarity]}`, color: canAfford ? '#000' : '#666', cursor: canAfford ? 'pointer' : 'default',
+                            display:'inline-flex', alignItems:'center', gap:4 }}>
+                          BREED — <GameIcon name="cur_gems" size={13} />{cost}
                         </button>
                       </div>
                     );
@@ -540,13 +545,13 @@ export default function PetPanel({ save, setSave, onClose, onOpenTcg }) {
           {/* ── SHOP ── */}
           {view === 'shop' && (
             <>
-              <div style={{ fontFamily:'VT323', color:'var(--ink-dim)', fontSize:14, marginBottom:12 }}>
-                Buy pet eggs with 💎 Gems. Higher rarity = stronger pet & higher base stats.
+              <div style={{ fontFamily:'VT323', color:'var(--ink-dim)', fontSize:14, marginBottom:12, display:'flex', alignItems:'center', gap:4 }}>
+                Buy pet eggs with <GameIcon name="cur_gems" size={13} /> Gems. Higher rarity = stronger pet & higher base stats.
               </div>
               {PET_TYPES.map(petDef => (
                 <div key={petDef.id} style={{ background:'#0a0520', border:'1px solid #1a0a2e', borderRadius:6, padding:12, marginBottom:10 }}>
                   <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:8 }}>
-                    <span style={{ fontSize:28 }}>{petDef.icon}</span>
+                    <GameIcon name={petDef.icon} size={28} />
                     <div>
                       <div style={{ fontFamily:'VT323', fontSize:16, color:'var(--ink)' }}>{petDef.name}</div>
                       <div style={{ fontFamily:'VT323', fontSize:12, color:'var(--ink-dim)' }}>{petDef.type} · {petDef.desc}</div>
@@ -563,7 +568,7 @@ export default function PetPanel({ save, setSave, onClose, onOpenTcg }) {
                             background: canAfford ? '#0a0520' : '#06030e',
                             border:`1px solid ${RARITY_COLORS[r]}${canAfford?'':'44'}`,
                             color: canAfford ? RARITY_COLORS[r] : '#444', cursor: canAfford ? 'pointer' : 'default' }}>
-                          {r.toUpperCase()}<br/>💎{cost}
+                          {r.toUpperCase()}<br/><GameIcon name="cur_gems" size={11} />{cost}
                         </button>
                       );
                     })}

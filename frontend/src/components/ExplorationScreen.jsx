@@ -266,7 +266,7 @@ export default function ExplorationScreen({ save, setSave, onClose }) {
                 </div>
               ))}
               <div className="expl-walker" style={{ left: `${((nodeIdx + Math.min(1, progress)) / path.length) * 100}%` }}>
-                💧{activePet && <i className="expl-walker-pet">{PET_TYPES.find(t => t.id === activePet.type)?.icon}</i>}
+                <GameIcon name="ui_waterdrop" size={18} />{activePet && <i className="expl-walker-pet"><GameIcon name={PET_TYPES.find(t => t.id === activePet.type)?.icon || 'ui_pets'} size={14} /></i>}
               </div>
               <div className="expl-track"><i style={{ width: `${((nodeIdx + Math.min(1, progress)) / path.length) * 100}%` }} /></div>
             </div>
