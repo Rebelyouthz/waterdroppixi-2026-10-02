@@ -47,7 +47,7 @@ export const GEAR_RARITY_MULT = {
 // only have the generic pile therefore keep working untouched.
 export const PART_SLOTS = GEAR_SLOTS;
 export const PART_ICONS = {
-  helmet:'⛑️', chest:'🛡️', arms:'🧤', legs:'🦿', boots:'👢', ring:'🔗', amulet:'🔮',
+  helmet:'gear_helmet', chest:'gear_chest', arms:'gear_arms', legs:'gear_legs', boots:'gear_boots', ring:'gear_ring', amulet:'gear_amulet',
 };
 export const PART_NAMES = {
   helmet:'Helmet Parts', chest:'Plate Parts', arms:'Grip Parts', legs:'Greave Parts',

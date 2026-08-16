@@ -16,10 +16,14 @@ import GameIcon from './GameIcon';
 
 const NODE_ICON = { loot: 'gem', encounter: 'swarm', trainer: 'trophy' };
 
+// Plain text, not JSX — some callers hand this straight to a toast's `text`
+// field, which ToastHost's StatText splits with String.split() and would
+// throw on a React element. Emoji dropped for words rather than converted
+// to GameIcon for the same reason.
 function prizeLine(p) {
   if (!p) return '';
-  if (p.type === 'card') return `🃏 ${p.card.templateId ? '' : ''}Card${p.card2 ? ' ×2' : ''}`;
-  if (p.type === 'egg') return `🥚 ${p.rarity} egg`;
+  if (p.type === 'card') return `Card${p.card.templateId ? '' : ''}${p.card2 ? ' ×2' : ''}`;
+  if (p.type === 'egg') return `${p.rarity} egg`;
   if (p.type === 'gold') return `★ ${p.amount} gold`;
   return '';
 }
@@ -244,9 +248,9 @@ export default function ExplorationScreen({ save, setSave, onClose }) {
     <div className="modal-overlay" data-testid="exploration-screen" onClick={(e) => { if (e.target.classList.contains('modal-overlay') && phase !== 'battle') onClose(); }}>
       <div className="forge-panel forge-panel-scrollable expl-panel">
         <div className="forge-header">
-          <div className="forge-title">🧭 EXPLORATION</div>
-          <div style={{ fontFamily: 'VT323', fontSize: 13, color: 'var(--ink-dim)' }}>
-            ★{haul.gold} · 🔩{haul.gearParts} · 🃏{haul.cards}
+          <div className="forge-title" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><GameIcon name="ui_compass" size={16} /> EXPLORATION</div>
+          <div style={{ fontFamily: 'VT323', fontSize: 13, color: 'var(--ink-dim)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            ★{haul.gold} · <GameIcon name="ui_part" size={13} />{haul.gearParts} · <GameIcon name="ui_cards" size={13} />{haul.cards}
           </div>
           <button onClick={onClose} style={{ padding: '6px 12px', fontSize: 12 }}>✕</button>
         </div>
@@ -303,8 +307,8 @@ export default function ExplorationScreen({ save, setSave, onClose }) {
                   <>
                     <div className="expl-sub">Staking: {stakePick.label}. Negotiate a prize, or gamble on one.</div>
                     <div className="expl-actions">
-                      <button className="prosp-btn go" onClick={negotiate}>🤝 NEGOTIATE</button>
-                      <button className="prosp-btn dig" onClick={gamble}>🎲 GAMBLE</button>
+                      <button className="prosp-btn go" onClick={negotiate} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, justifyContent: 'center' }}><GameIcon name="ui_scroll" size={14} /> NEGOTIATE</button>
+                      <button className="prosp-btn dig" onClick={gamble} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, justifyContent: 'center' }}><GameIcon name="cur_slot" size={14} /> GAMBLE</button>
                       <button className="prosp-btn ghost" onClick={() => setStakePick(null)}>Back</button>
                     </div>
                   </>
@@ -344,9 +348,9 @@ export default function ExplorationScreen({ save, setSave, onClose }) {
             {phase === 'pathDone' && (
               <div className="expl-done">
                 <div className="expl-done-title">WALK COMPLETE</div>
-                <div className="expl-done-haul">
-                  ★ {haul.gold} · 🔩 {haul.gearParts} · 🍖 {haul.petFood} · 🃏 {haul.cards}
-                  {haul.eggs.length > 0 && ` · 🥚 ${haul.eggs.length}`}
+                <div className="expl-done-haul" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
+                  ★ {haul.gold} · <GameIcon name="ui_part" size={13} /> {haul.gearParts} · <GameIcon name="petFood" size={13} /> {haul.petFood} · <GameIcon name="ui_cards" size={13} /> {haul.cards}
+                  {haul.eggs.length > 0 && <> · <GameIcon name="ui_egg" size={13} /> {haul.eggs.length}</>}
                 </div>
                 <button className="prosp-btn go" onClick={onClose} data-testid="expl-return">↩ RETURN TO CAMP</button>
               </div>
