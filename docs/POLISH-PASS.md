@@ -2296,3 +2296,95 @@ None of these were started this session — see `waterdrop-backlog-index`
 memory (#38-#41) for the full spec. They need a proper scoping/plan pass,
 not blind construction, especially with no feedback loop while Timmy is
 away — do not start building any of them without discussing scope first.
+
+## Session 2026-08-16/17 continued — toast frame v3, the no-emoji sweep's biggest stretch yet
+
+Picked back up in the same session id after a context-window summary.
+First finished the in-flight work: the toast/notification frame Timmy
+asked for (dark wood + metal band, matching the level-up cards, rarity-
+colored trim, green/red stat coloring). First pass built the wood-grain
+radial gradient correctly but stacked a near-opaque (94-97% alpha) vignette
+layer ON TOP of it in the CSS multi-background stack, which hid almost all
+of the grain — caught via a zoomed CDP screenshot of a live toast (showed
+flat near-black instead of wood). Fixed by dropping the vignette to a
+soft corner-only darken and thickening the brass ring; re-verified and it
+reads correctly now. Committed with `StatText`'s green/red coloring.
+
+**No-emoji sweep — the big one.** Converted the largest remaining files
+end to end: `game/data_ext.js` (166 instances — SKILL_TREE, WEAPON_PARTS,
+WEAPON_PART_OVERRIDES, ARCHETYPES, EQUIP_BASE, CHESTS, QUEST_POOL,
+WEEKLY_QUEST_POOL, SPIN_WHEEL_SLICES, DAILY_REWARDS, EXTRA_WEAPONS),
+`game/poe_tree.js` (96 — the 65-node radial Skill Tree; icons render
+inside SVG `<text>` there, so the fix is a `<g transform>` wrapping a
+nested `<GameIcon>` rather than a plain swap, since GameIcon renders its
+own top-level `<svg>` and nested `<svg>`-in-`<svg>` is valid), `game/
+storyQuests.js` (49), `ProspectorScreen.jsx` + `game/prospector.js` (27),
+`game/path.js` (15) + `PathPanel.jsx`, `game/progression.js`'s
+REWARD_ICONS table, and a run of smaller files: `QuestTracker.jsx`,
+`Weaponsmith.jsx`, `StarRaidScreen.jsx` + `starRaidEngine.js`,
+`badges.js` + `BadgeSlots.jsx`, `DifficultyPicker.jsx` + `difficulty.js`,
+`RewardScreen.jsx`, `Hud.jsx`, `game/gear.js`, `MissionReveal.jsx`,
+`ExplorationScreen.jsx`. Every conversion was build-verified and most
+were CDP-screenshot-verified live (Chest Shop, Weaponsmith on two
+different weapons, the radial Skill Tree with a node inspected, the
+Lootmine idle screen and mid-dive, the Missions path panel, the "While
+you were out" reward modal).
+
+Along the way this caught several **live regressions**, not just leftover
+emoji — worth reading if this pattern shows up again:
+- Weaponsmith.jsx's part-track label (`lbl.icon`) and two rune-list spots
+  (forge merge groups, rune inventory) were rendering raw text. `runes.js`'s
+  RUNE_POOL had already been converted to GameIcon keys in an earlier
+  session, but these three render sites were never updated to wrap them —
+  so they were printing literal strings like `ui_blade` on screen instead
+  of an icon. The earlier pass fixed the data but missed a consumer; this
+  is exactly the dead-config-sweep failure mode, just inverted (converted
+  data, unfixed consumer, instead of the usual unfixed data).
+  A hard case of the same rule: converting `WEAPON_PARTS` alone without
+  ALSO converting `ARCHETYPES` and `WEAPON_PART_OVERRIDES` (the two other
+  layers `trackInfo()` reads) would have made every weapon's part label
+  show the same fallback pistol icon regardless of the actual part — worse
+  than emoji. Did all three layers together.
+- `progression.js`'s badge-earned toast passed `icon: '🎗'`, which is
+  short enough (`length <= 2`) that ToastHost's fallback logic silently
+  swapped in a generic loot-gem emblem instead of showing broken text —
+  masked the bug rather than triggering it. Converted to `'ui_medal'` and
+  confirmed via screenshot that the "While you were out" badge card now
+  shows an actual medal instead of a gem.
+- `game/data.js`'s WEAPONS `icon:` field (84 entries, previously logged as
+  "likely dead, unconfirmed") is now CONFIRMED fully dead — traced every
+  consumer (Weaponsmith's blueprint shelf, `LevelUpModal.jsx`'s `artKey()`,
+  `Hud.jsx`'s weapon strip) and all of them resolve art via the weapon's
+  `id` through `GameIcon`'s `ICONS` map, never through `.icon`. Safe to
+  convert whenever, zero bug risk either way.
+- Plain-text toast/template-literal strings (can't hold a React component)
+  keep the established pattern: drop the emoji for words or the existing
+  ★/◆ typographic symbols rather than a GameIcon call — `ExplorationScreen
+  .jsx`'s `prizeLine()` is a clean example, since one of its two call
+  sites feeds a toast's `text` field directly into `StatText`'s
+  `String.split()`, which would throw given a React element.
+
+Total scope shrank from ~700+ instances / 48 files (start of the sweep,
+2026-08-16/17 early pass) to ~150 instances / ~20 files, most of which are
+either confirmed-dead (`data.js`, safe to ignore), false positives
+(`GameIcon.jsx`'s hits are all inside comments describing old emoji), or
+long-tail 1-9-instance files. Full current state recorded in
+`waterdrop-backlog-index` memory (#36).
+
+**New backlog item logged, not built: #42, Skill Tree/Talents/Abilities
+overhaul.** Timmy sent a long message mid-session (in Swedish) asking for
+a full visual + mechanical overhaul of the radial Skill Tree (premium
+vein/carved-socket background, per-node and per-branch logos, real 3D
+lighting, a redesigned mobile-friendly node-inspect panel with colored
+stats and proper fonts, Dash added to the mobility branch, Dual Manual
+Gun and Second Wind moved INSIDE the tree as deep unlocks), a matching
+Talents overhaul (iPhone-icon-style cards, visible levels, more talents
+including dash distance/speed and a stamina system), and a brand-new
+leveled/rarity Abilities menu (first spec'd ability: Fire Rate Up + No
+Reload on manual weapons; the acquisition mechanic is an explicit open
+brainstorm, not a spec). He was explicit that the plan needs to be solid
+before building, and to finish the current todo first — logged the full
+spec in the `waterdrop-skilltree-talents-abilities` memory rather than
+starting blind. Do not begin this without bringing back concept options
+for the two open questions (background/layout treatment, Abilities
+acquisition mechanic) first.
