@@ -568,7 +568,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
               <span className="camp-avatar-frame" style={{
                 '--frame-css': PROFILE_FRAMES.find(f => f.id === save.profile.frame)?.css || 'none',
                 boxShadow: PROFILE_FRAMES.find(f => f.id === save.profile.frame)?.glow || 'none',
-              }}><span className="camp-avatar-icon">{avatar.icon}</span></span>
+              }}><span className="camp-avatar-icon"><GameIcon name={avatar.icon} size={22} /></span></span>
               <div>
                 <div style={{
                   fontSize: 14, fontWeight: 800,
@@ -1235,7 +1235,7 @@ function LevelUpOverlay({ save, onCollect }) {
           {[0, 1, 2, 3].map(i => <span key={i} className={`lu-claw c${i}`} aria-hidden="true" />)}
           {photo
             ? <img className="lu-portrait-img" src={photo} alt="" />
-            : <span className="lu-portrait-icon">{av.icon}</span>}
+            : <span className="lu-portrait-icon"><GameIcon name={av.icon} size={44} /></span>}
         </div>
         {/* A rank is every 4th profile level, so most level-ups are NOT rank
             ups. Shouting "RANK UP!" every time (and printing the profile

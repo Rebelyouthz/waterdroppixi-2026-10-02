@@ -22,7 +22,7 @@ function AccountWidget({ openLb }) {
         <>
           {user.picture
             ? <img src={user.picture} alt="" className="acc-pic" />
-            : <div className="acc-pic acc-pic-fb">💧</div>}
+            : <div className="acc-pic acc-pic-fb"><GameIcon name="ui_waterdrop" size={16} /></div>}
           <div className="acc-meta">
             <div className="acc-name">{user.name || user.email}</div>
             <div className="acc-sub">
@@ -31,12 +31,12 @@ function AccountWidget({ openLb }) {
                 : <span className="acc-trial">DEMO MODE</span>}
             </div>
           </div>
-          <button onClick={openLb} className="acc-btn" data-testid="open-leaderboard">🏆</button>
+          <button onClick={openLb} className="acc-btn" data-testid="open-leaderboard"><GameIcon name="ui_trophy" size={16} /></button>
           <button onClick={logout} className="acc-btn acc-btn-ghost" data-testid="account-logout">↩</button>
         </>
       ) : (
         <>
-          <button onClick={openLb} className="acc-btn" data-testid="open-leaderboard">🏆 Leaderboard</button>
+          <button onClick={openLb} className="acc-btn" data-testid="open-leaderboard"><GameIcon name="ui_trophy" size={14} /> Leaderboard</button>
           <button onClick={login} className="acc-btn acc-btn-google" data-testid="account-login">
             <span style={{ fontSize: 14, fontWeight: 800 }}>G</span> Sign in
           </button>
@@ -151,7 +151,7 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
                 onClick={() => setAvatar(a.id)}
                 data-testid={`avatar-${a.id}`}
               >
-                <div className="avatar-icon">{a.icon}</div>
+                <div className="avatar-icon"><GameIcon name={a.icon} size={30} /></div>
                 <div className="avatar-name">{a.name}</div>
                 <div className="avatar-desc">{a.desc}</div>
               </div>
@@ -230,9 +230,9 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
             <label className="profile-avatar" title="Tap to use your own picture">
               {save.profile.photo
                 ? <img className="profile-avatar-img" src={save.profile.photo} alt="" />
-                : <span className="profile-avatar-glyph">{AVATARS.find(a => a.id === save.profile.avatar)?.icon || '💧'}</span>}
+                : <span className="profile-avatar-glyph"><GameIcon name={AVATARS.find(a => a.id === save.profile.avatar)?.icon || 'ui_waterdrop'} size={26} /></span>}
               <span className="profile-avatar-ring" aria-hidden />
-              <span className="profile-avatar-edit" aria-hidden>📷</span>
+              <span className="profile-avatar-edit" aria-hidden><GameIcon name="ui_camera" size={13} /></span>
               <input
                 type="file"
                 accept="image/*"
@@ -314,9 +314,9 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
                     <div className="quest-reward">
                       {q.reward.gold && <div>★ {q.reward.gold}</div>}
                       {q.reward.sp && <div>◆ {q.reward.sp} SP</div>}
-                      {q.reward.gems && <div>💎 {q.reward.gems}</div>}
-                      {q.reward.slotCoins && <div>🎰 {q.reward.slotCoins}</div>}
-                      {q.reward.petFood && <div>🍖 {q.reward.petFood}</div>}
+                      {q.reward.gems && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><GameIcon name="cur_gems" size={12} /> {q.reward.gems}</div>}
+                      {q.reward.slotCoins && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><GameIcon name="cur_slot" size={12} /> {q.reward.slotCoins}</div>}
+                      {q.reward.petFood && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><GameIcon name="petFood" size={12} /> {q.reward.petFood}</div>}
                       {done && !claimed && (
             <button
               onClick={() => {
@@ -366,10 +366,10 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
                     </div>
                     <div className="quest-reward">
                       {q.reward.gold && <div>★ {q.reward.gold}</div>}
-                      {q.reward.gems && <div>💎 {q.reward.gems}</div>}
-                      {q.reward.slotCoins && <div>🎰 {q.reward.slotCoins}</div>}
-                      {q.reward.talentPoints && <div>🌿 {q.reward.talentPoints} TP</div>}
-                      {q.reward.petFood && <div>🍖 {q.reward.petFood}</div>}
+                      {q.reward.gems && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><GameIcon name="cur_gems" size={12} /> {q.reward.gems}</div>}
+                      {q.reward.slotCoins && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><GameIcon name="cur_slot" size={12} /> {q.reward.slotCoins}</div>}
+                      {q.reward.talentPoints && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><GameIcon name="ui_leaf" size={12} /> {q.reward.talentPoints} TP</div>}
+                      {q.reward.petFood && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><GameIcon name="petFood" size={12} /> {q.reward.petFood}</div>}
                       {done && !claimed && (
                         <button
                           onClick={() => {
@@ -436,7 +436,7 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
                     </div>
                   ))}
                 </div>
-                <div className="spin-wheel-hub"><span>🎡</span></div>
+                <div className="spin-wheel-hub"><GameIcon name="ui_token" size={20} /></div>
               </div>
             </div>
             <button
@@ -454,7 +454,7 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
                   <GameIcon name={spinResult.type === 'jackpot' ? 'jackpot' : spinResult.type} size={30} />
                 </span>
                 <span className="spin-result-label">
-                  {spinResult.type === 'jackpot' ? 'JACKPOT — 1500★ + 10💎' : spinResult.label}
+                  {spinResult.type === 'jackpot' ? 'JACKPOT — 1500★ + 10 Gems' : spinResult.label}
                 </span>
               </div>
             )}
@@ -462,7 +462,7 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
         </div>
 
         <div className="welcome-actions">
-          <button onClick={onCamp} data-testid="welcome-camp">⛺ The Camp</button>
+          <button onClick={onCamp} data-testid="welcome-camp"><GameIcon name="ui_base" size={15} /> The Camp</button>
           <button onClick={onContinue} data-testid="welcome-fight"
             style={{ borderColor: '#ff7a1a', boxShadow: 'var(--pixel-edge), 0 6px 0 #000, 0 0 28px #ff7a1a66' }}>
             ▸ ENTER THE LAKE

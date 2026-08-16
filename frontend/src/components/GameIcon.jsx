@@ -1286,6 +1286,14 @@ const GLYPHS = {
     <path d="M16 12l6.4 7.4L16 28.5l-6.4-9.1z" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1.2" strokeLinejoin="round" />
     <circle cx="16" cy="19.5" r="2.1" fill="#ffffff" opacity="0.5" />
   </>),
+  // A photo-upload hint (Welcome.jsx's avatar-edit overlay) — simple enough
+  // to read at ~14px.
+  camera: (u) => (<>
+    <rect x="12" y="9" width="7" height="4" rx="1" fill={STEEL_HI} />
+    <rect x="4" y="11" width="24" height="16" rx="2.5" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1.2" />
+    <circle cx="16" cy="19" r="6" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1.1" />
+    <circle cx="16" cy="19" r="2.4" fill="#ffffff" opacity="0.5" />
+  </>),
 };
 
 // ---- Second glyph set ------------------------------------------------------
@@ -2151,6 +2159,7 @@ export const ICONS = {
   ui_flame:     ['flame',     '#ff7a1a'],
   ui_star:      ['star',      '#ffd166'],
   ui_shield:    ['shield',    '#9fb4c8'],
+  ui_camera:    ['camera',    '#8fe6ff'],
   // Gear slots — game/gear.js's GEAR_SLOT_ICONS.
   gear_helmet:  ['gearHelmet', '#9fb4c8'],
   gear_chest:   ['gearChest',  '#ffb066'],

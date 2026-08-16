@@ -3,12 +3,12 @@ import { WEAPONS } from './data';
 
 // ---------- AVATARS ----------
 export const AVATARS = [
-  { id: 'drop',    icon: '💧', name: 'Pure Drop',    desc: 'A waterdrop of the Lake.' },
-  { id: 'flame',   icon: '🔥', name: 'Emberkin',     desc: 'Born from fire and tide.' },
-  { id: 'void',    icon: '🌀', name: 'Voidwalker',   desc: 'Touched by the eldritch.' },
-  { id: 'rune',    icon: '✨', name: 'Runebearer',   desc: 'Marked by A.I.D.A.' },
-  { id: 'horus',   icon: '👁', name: 'Eye-bound',    desc: 'Sees through Horus.' },
-  { id: 'spectre', icon: '💀', name: 'Spectre',      desc: 'Already dead.' },
+  { id: 'drop',    icon: 'ui_waterdrop', name: 'Pure Drop',    desc: 'A waterdrop of the Lake.' },
+  { id: 'flame',   icon: 'ui_flame',     name: 'Emberkin',     desc: 'Born from fire and tide.' },
+  { id: 'void',    icon: 'ui_tornado',   name: 'Voidwalker',   desc: 'Touched by the eldritch.' },
+  { id: 'rune',    icon: 'ui_star',      name: 'Runebearer',   desc: 'Marked by A.I.D.A.' },
+  { id: 'horus',   icon: 'ui_eye',       name: 'Eye-bound',    desc: 'Sees through Horus.' },
+  { id: 'spectre', icon: 'ui_void',      name: 'Spectre',      desc: 'Already dead.' },
 ];
 
 // ---------- RANK / PROFILE COSMETICS ----------

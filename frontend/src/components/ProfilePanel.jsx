@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { AVATARS, getRank, RANK_TITLES, MAX_RANK, PROFILE_FRAMES, HEADBANDS, NAME_COLORS, SHIP_COLORS, CIGAR_UNLOCK_RANK } from '../game/data_ext';
 import { Audio } from '../game/audio';
 import BadgeIcon from './BadgeIcon';
+import GameIcon from './GameIcon';
 import { BadgePicker } from './BadgeSlots';
 import { BADGES, equippedBadges, isEarned } from '../game/badges';
 
@@ -75,8 +76,8 @@ export default function ProfilePanel({ save, setSave, onClose, onBadges }) {
         </div>
 
         <div style={{ textAlign: 'center', marginBottom: 14 }}>
-          <div style={{ fontSize: 46, filter: 'drop-shadow(0 0 10px #4dffd499)' }}>
-            {AVATARS.find(a => a.id === save.profile.avatar)?.icon || '💧'}
+          <div style={{ filter: 'drop-shadow(0 0 10px #4dffd499)', display: 'flex', justifyContent: 'center' }}>
+            <GameIcon name={AVATARS.find(a => a.id === save.profile.avatar)?.icon || 'ui_waterdrop'} size={46} />
           </div>
           <div style={{ fontFamily: 'VT323', fontSize: 15, color: 'var(--rune)', letterSpacing: '0.2em', marginTop: 4 }}>
             RANK {rank} — {RANK_TITLES[rank]}
