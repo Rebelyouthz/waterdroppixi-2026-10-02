@@ -41,22 +41,22 @@ export function EyeBadge({ size = 14 }) {
 // floor.
 const PATROL_DEFS = [
   {
-    id: 'scavenge', name: 'Scavenge', icon: '🔍', dur: 60 * 60 * 1000,
+    id: 'scavenge', name: 'Scavenge', icon: 'ui_search', dur: 60 * 60 * 1000,
     rwd: { gold: 800, gearParts: 10, chance: [{ p: 0.30, petFood: 2 }] },
     desc: '1h — Search the ruins for gold, scrap and salvage.',
   },
   {
-    id: 'explore', name: 'Explore', icon: '🗺', dur: 2 * 60 * 60 * 1000,
+    id: 'explore', name: 'Explore', icon: 'ui_map', dur: 2 * 60 * 60 * 1000,
     rwd: { gems: 5, gold: 900, gearParts: 22, chance: [{ p: 0.35, rune: true }, { p: 0.25, petFood: 3 }, { p: 0.25, attach: true }] },
     desc: '2h — Venture deep. Gems, scrap, and sometimes a rune.',
   },
   {
-    id: 'hunt', name: 'Hunt', icon: '⚔', dur: 3 * 60 * 60 * 1000,
+    id: 'hunt', name: 'Hunt', icon: 'ui_blade', dur: 3 * 60 * 60 * 1000,
     rwd: { gear: true, gold: 1400, gearParts: 38, slotCoins: 2, chance: [{ p: 0.45, rune: true }, { p: 0.30, egg: true }, { p: 0.40, attach: true }] },
     desc: '3h — Track them down. Equipment, scrap, sometimes an egg.',
   },
   {
-    id: 'void', name: 'Void Raid', icon: '💀', dur: 4 * 60 * 60 * 1000,
+    id: 'void', name: 'Void Raid', icon: 'ui_void', dur: 4 * 60 * 60 * 1000,
     rwd: {
       sp: 8, gems: 8, xp: 400, gold: 2200, gearParts: 60, gachaTokens: 1,
       chance: [{ p: 0.6, rune: true }, { p: 0.45, gear: true }, { p: 0.2, flux: 1 }, { p: 0.55, attach: true }],
@@ -143,17 +143,17 @@ export function PatrolPanel({ save, setSave }) {
     const petMultF = petMult * mult;
     const grant = (rwd) => {
       if (rwd.gold)      { ns.gold = (ns.gold || 0) + Math.round(rwd.gold * petMultF); got.push(`★ ${Math.round(rwd.gold * petMultF)}`); }
-      if (rwd.gems)      { ns.gems = (ns.gems || 0) + Math.round(rwd.gems * petMultF); got.push(`💎 ${Math.round(rwd.gems * petMultF)}`); }
+      if (rwd.gems)      { ns.gems = (ns.gems || 0) + Math.round(rwd.gems * petMultF); got.push(`Gems ${Math.round(rwd.gems * petMultF)}`); }
       if (rwd.sp)        { ns.sp = (ns.sp || 0) + Math.round(rwd.sp * petMultF); got.push(`◆ ${Math.round(rwd.sp * petMultF)}`); }
-      if (rwd.gearParts) { ns.gearParts = (ns.gearParts || 0) + Math.round(rwd.gearParts * petMultF); got.push(`🔩 ${Math.round(rwd.gearParts * petMultF)}`); }
-      if (rwd.slotCoins) { ns.slotCoins = (ns.slotCoins || 0) + rwd.slotCoins; got.push(`🎰 ${rwd.slotCoins}`); }
-      if (rwd.gachaTokens) { ns.gachaTokens = (ns.gachaTokens || 0) + rwd.gachaTokens; got.push(`🎫 ${rwd.gachaTokens}`); }
-      if (rwd.petFood)   { ns.petFood = (ns.petFood || 0) + rwd.petFood; got.push(`🍖 ${rwd.petFood}`); }
-      if (rwd.flux)      { ns.flux = (ns.flux || 0) + rwd.flux; got.push(`⚗ ${rwd.flux}`); }
+      if (rwd.gearParts) { ns.gearParts = (ns.gearParts || 0) + Math.round(rwd.gearParts * petMultF); got.push(`Parts ${Math.round(rwd.gearParts * petMultF)}`); }
+      if (rwd.slotCoins) { ns.slotCoins = (ns.slotCoins || 0) + rwd.slotCoins; got.push(`Coins ${rwd.slotCoins}`); }
+      if (rwd.gachaTokens) { ns.gachaTokens = (ns.gachaTokens || 0) + rwd.gachaTokens; got.push(`Tokens ${rwd.gachaTokens}`); }
+      if (rwd.petFood)   { ns.petFood = (ns.petFood || 0) + rwd.petFood; got.push(`Food ${rwd.petFood}`); }
+      if (rwd.flux)      { ns.flux = (ns.flux || 0) + rwd.flux; got.push(`Flux ${rwd.flux}`); }
       if (rwd.xp)        { ns.profile = { ...ns.profile, xp: (ns.profile?.xp || 0) + Math.round(rwd.xp * petMultF) }; got.push(`XP ${Math.round(rwd.xp * petMultF)}`); }
-      if (rwd.gear)      { ns.gearInventory = [...(ns.gearInventory || []), rollGearDrop(m.durationMs / 1000)]; got.push('🪖 Equipment'); }
-      if (rwd.rune)      { ns.runeInventory = [...(ns.runeInventory || []), rollRune(ns.attrs?.luck || 0)]; got.push('🔮 Rune'); }
-      if (rwd.attach)    { ns.attachInventory = [...(ns.attachInventory || []), rollAttachment(ns.attrs?.luck || 0)]; got.push('🔩 Attachment'); }
+      if (rwd.gear)      { ns.gearInventory = [...(ns.gearInventory || []), rollGearDrop(m.durationMs / 1000)]; got.push('Equipment'); }
+      if (rwd.rune)      { ns.runeInventory = [...(ns.runeInventory || []), rollRune(ns.attrs?.luck || 0)]; got.push('Rune'); }
+      if (rwd.attach)    { ns.attachInventory = [...(ns.attachInventory || []), rollAttachment(ns.attrs?.luck || 0)]; got.push('Attachment'); }
       if (rwd.egg) {
         const rarities = ['common', 'common', 'uncommon', 'rare'];
         const types = ['aquaSprite', 'shadowWisp', 'emberFairy', 'stormHawk', 'lifeSprite'];
@@ -162,7 +162,7 @@ export function PatrolPanel({ save, setSave }) {
           rarity: rarities[(Math.random() * rarities.length) | 0],
           type: types[(Math.random() * types.length) | 0],
         }];
-        got.push('🥚 Egg');
+        got.push('Egg');
       }
     };
     grant(def.rwd);
@@ -186,7 +186,7 @@ export function PatrolPanel({ save, setSave }) {
       <div className="patrol-header">
         <span className="patrol-title">PATROL MISSIONS</span>
         <span className="patrol-slots">{active.length}/{maxPatrol} slots</span>
-        {hasPet && <span className="patrol-pet-bonus">🐾 +20% reward (pet active)</span>}
+        {hasPet && <span className="patrol-pet-bonus" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><GameIcon name="ui_pets" size={13} /> +20% reward (pet active)</span>}
       </div>
       {claimMsg && <div className="patrol-claim-msg" data-testid="patrol-claim">{claimMsg}</div>}
       {encounter && (
@@ -213,7 +213,7 @@ export function PatrolPanel({ save, setSave }) {
         const left = fmtTimeLeft(m.startMs, m.durationMs);
         return (
           <div key={m.id} className={`patrol-mission ${done ? 'done' : 'active'}`} data-testid={`patrol-m-${m.defId}`}>
-            <span className="patrol-m-icon">{def.icon}</span>
+            <span className="patrol-m-icon"><GameIcon name={def.icon} size={20} /></span>
             <div className="patrol-m-info">
               <span className="patrol-m-name">{def.name}</span>
               <span className="patrol-m-status">{done ? '✓ COMPLETE — CLAIM NOW' : left}</span>
@@ -240,7 +240,7 @@ export function PatrolPanel({ save, setSave }) {
               const already = liveMissions.some(m => m.status !== 'claimed' && m.defId === def.id);
               return (
                 <div key={def.id} className={`patrol-def ${already ? 'running' : ''}`} data-testid={`patrol-def-${def.id}`}>
-                  <span className="patrol-def-icon">{def.icon}</span>
+                  <span className="patrol-def-icon"><GameIcon name={def.icon} size={20} /></span>
                   <div className="patrol-def-info">
                     <span className="patrol-def-name">{def.name}</span>
                     <span className="patrol-def-desc">{def.desc}</span>
@@ -272,7 +272,7 @@ function rwd_preview(def, mult = 1) {
   const r = def.rwd;
   const parts = [];
   if (r.gold)  parts.push(`${Math.round(r.gold  * mult)}★`);
-  if (r.gems)  parts.push(`${Math.round(r.gems  * mult)}💎`);
+  if (r.gems)  parts.push(`${Math.round(r.gems  * mult)} Gems`);
   if (r.sp)    parts.push(`${Math.round(r.sp    * mult)}SP`);
   if (r.xp)    parts.push(`${Math.round(r.xp    * mult)}XP`);
   if (r.gear)  parts.push(`1 Gear`);
@@ -287,23 +287,23 @@ function rwd_preview(def, mult = 1) {
 // pet stuff on one side only.
 const BP_REWARDS_FREE = Array.from({ length: 40 }, (_, i) => {
   const n = i + 1;
-  if (n % 20 === 0) return { type:'gem',    amount:20,          icon:'💎', label:`${20} Gems` };
-  if (n % 10 === 0) return { type:'shard',  amount:1,           icon:'🔮', label:`Shard` };
-  if (n % 5  === 0) return { type:'slot',   amount:3,           icon:'🎰', label:`3 Coins` };
-  if (n % 4  === 0) return { type:'gold',   amount:500+n*50,    icon:'💰', label:`${500+n*50}★` };
-  if (n % 3  === 0) return { type:'gem',    amount:5,           icon:'💎', label:`5 Gems` };
-  if (n % 2  === 0) return { type:'talent', amount:5,           icon:'◆',  label:`5 TP` };
-  return              { type:'gold',   amount:200+n*20,    icon:'💰', label:`${200+n*20}★` };
+  if (n % 20 === 0) return { type:'gem',    amount:20,          icon:'cur_gems', label:`${20} Gems` };
+  if (n % 10 === 0) return { type:'shard',  amount:1,           icon:'rune',     label:`Shard` };
+  if (n % 5  === 0) return { type:'slot',   amount:3,           icon:'cur_slot', label:`3 Coins` };
+  if (n % 4  === 0) return { type:'gold',   amount:500+n*50,    icon:'cur_gold', label:`${500+n*50}★` };
+  if (n % 3  === 0) return { type:'gem',    amount:5,           icon:'cur_gems', label:`5 Gems` };
+  if (n % 2  === 0) return { type:'talent', amount:5,           icon:'cur_tp',   label:`5 TP` };
+  return              { type:'gold',   amount:200+n*20,    icon:'cur_gold', label:`${200+n*20}★` };
 });
 const BP_REWARDS_PREMIUM = Array.from({ length: 40 }, (_, i) => {
   const n = i + 1;
-  if (n % 20 === 0) return { type:'gem',     amount:50,           icon:'💎', label:`${50} Gems` };
-  if (n % 10 === 0) return { type:'petEgg',  amount:1,            icon:'🥚', label:`Pet Egg` };
-  if (n % 5  === 0) return { type:'petFood', amount:8,            icon:'🍖', label:`8 Pet Food` };
-  if (n % 4  === 0) return { type:'gold',    amount:900+n*70,     icon:'💰', label:`${900+n*70}★` };
-  if (n % 3  === 0) return { type:'gem',     amount:12,           icon:'💎', label:`12 Gems` };
-  if (n % 2  === 0) return { type:'talent',  amount:10,           icon:'◆',  label:`10 TP` };
-  return               { type:'petFood', amount:4,            icon:'🍖', label:`4 Pet Food` };
+  if (n % 20 === 0) return { type:'gem',     amount:50,           icon:'cur_gems', label:`${50} Gems` };
+  if (n % 10 === 0) return { type:'petEgg',  amount:1,            icon:'ui_egg',   label:`Pet Egg` };
+  if (n % 5  === 0) return { type:'petFood', amount:8,            icon:'petFood',  label:`8 Pet Food` };
+  if (n % 4  === 0) return { type:'gold',    amount:900+n*70,     icon:'cur_gold', label:`${900+n*70}★` };
+  if (n % 3  === 0) return { type:'gem',     amount:12,           icon:'cur_gems', label:`12 Gems` };
+  if (n % 2  === 0) return { type:'talent',  amount:10,           icon:'cur_tp',   label:`10 TP` };
+  return               { type:'petFood', amount:4,            icon:'petFood',  label:`4 Pet Food` };
 });
 const XP_PER_NODE = 200;
 
@@ -343,7 +343,7 @@ export function BattlePassPanel({ save, setSave }) {
           return (
             <div key={i} className={`bp-node ${reached?'reached':''} ${isClaimed?'claimed':''} ${canClaim?'claimable':''}`}
               onClick={() => canClaim && claimBpNode(save, setSave, track, i, reachedNode)} data-testid={`bp-node-${track}-${i}`}>
-              <span className="bp-node-icon">{rwd.icon}</span>
+              <span className="bp-node-icon"><GameIcon name={rwd.icon} size={18} /></span>
               <span className="bp-node-label">{rwd.label}</span>
               {isClaimed && <span className="bp-check">✓</span>}
               {canClaim  && <span className="bp-glow-ring"/>}
@@ -363,7 +363,7 @@ export function BattlePassPanel({ save, setSave }) {
         {(unclaimedFree + unclaimedPremium) > 0 && <span className="bp-unclaimed">{unclaimedFree + unclaimedPremium} rewards ready!</span>}
       </div>
       <div className="bp-desc">Earn XP from runs. Each {XP_PER_NODE} XP = 1 reward node — both tracks unlocked.</div>
-      {renderTrack('premium', BP_REWARDS_PREMIUM, claimedObj.premium || [], '✨ PREMIUM (pet rewards)', 'bp-premium')}
+      {renderTrack('premium', BP_REWARDS_PREMIUM, claimedObj.premium || [], 'PREMIUM (pet rewards)', 'bp-premium')}
       {renderTrack('free', BP_REWARDS_FREE, claimedObj.free || [], 'FREE', 'bp-free')}
     </div>
   );
@@ -453,8 +453,8 @@ export function CodexPanel({ save, setSave }) {
         <span className="codex-title">CODEX</span>
         <span className="codex-count">{totalDiscovered} entries</span>
         {totalClaimable > 0 && (
-          <span className="codex-claim-hint">
-            {totalClaimable} unclaimed 💎
+          <span className="codex-claim-hint" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            {totalClaimable} unclaimed <GameIcon name="cur_gems" size={13} />
           </span>
         )}
       </div>
@@ -489,7 +489,7 @@ export function CodexPanel({ save, setSave }) {
                 </div>
                 {disc && !alrClaimed && (
                   <button className="codex-claim-btn" onClick={() => claimDiscovery(id)} data-testid={`codex-claim-${id}`}>
-                    💎 +1
+                    <GameIcon name="cur_gems" size={12} /> +1
                   </button>
                 )}
                 {disc && alrClaimed && <span className="codex-claimed-badge">✓</span>}
@@ -515,7 +515,7 @@ export function CodexPanel({ save, setSave }) {
                 </div>
                 {disc && !alrClaimed && (
                   <button className="codex-claim-btn boss-claim" onClick={() => claimDiscovery(id)} data-testid={`codex-claim-${id}`}>
-                    💎 +1
+                    <GameIcon name="cur_gems" size={12} /> +1
                   </button>
                 )}
                 {disc && alrClaimed && <span className="codex-claimed-badge">✓</span>}
@@ -532,7 +532,7 @@ export function CodexPanel({ save, setSave }) {
             const alrClaimed = claimed.includes(wid);
             return (
               <div key={wid} className={`codex-entry ${disc?'found':'unknown'}`} data-testid={`codex-weapon-${wid}`}>
-                <div className="codex-entry-icon" style={{color: disc ? '#ffd166' : '#2a1a4e', fontSize:20}}>⚙</div>
+                <div className="codex-entry-icon" style={{color: disc ? '#ffd166' : '#2a1a4e'}}><GameIcon name="ui_cog" size={20} /></div>
                 <div className="codex-entry-info">
                   <div className="codex-entry-name">{disc ? (w.name||wid) : '???'}</div>
                   <div className="codex-entry-lore">{disc ? (w.desc||'A weapon of the Lake.') : 'Use this weapon in a run.'}</div>
@@ -540,7 +540,7 @@ export function CodexPanel({ save, setSave }) {
                 </div>
                 {disc && !alrClaimed && (
                   <button className="codex-claim-btn" onClick={() => claimDiscovery(wid)} data-testid={`codex-claim-${wid}`}>
-                    💎 +1
+                    <GameIcon name="cur_gems" size={12} /> +1
                   </button>
                 )}
                 {disc && alrClaimed && <span className="codex-claimed-badge">✓</span>}
@@ -574,7 +574,7 @@ export function CodexPanel({ save, setSave }) {
                   <div className="codex-ach-rwd">
                     {a.rwd.gold && <span>★ {a.rwd.gold}</span>}
                     {a.rwd.sp   && <span>◆ {a.rwd.sp} SP</span>}
-                    {a.rwd.gems && <span>💎 {a.rwd.gems}</span>}
+                    {a.rwd.gems && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><GameIcon name="cur_gems" size={12} /> {a.rwd.gems}</span>}
                   </div>
                 </div>
                 {done && !cls && (
