@@ -678,7 +678,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
                     const canAdd = attrFreePts > 0;
                     return (
                       <div key={a.id} className="poe-attr-row" data-testid={`attr-${a.id}`}>
-                        <span className="poe-attr-icon" style={{ color: a.color }}>{a.icon}</span>
+                        <span className="poe-attr-icon" style={{ color: a.color }}><GameIcon name={a.icon} size={18} tone={a.color} /></span>
                         <div className="poe-attr-info">
                           <span className="poe-attr-name">{a.name}{a.curve ? ` (${cur}/${a.max})` : ''}</span>
                           <span className="poe-attr-desc2">{a.desc}</span>

@@ -3,16 +3,16 @@
 // =============================================
 
 export const POE_BRANCHES = {
-  combat:    { name:'COMBAT',    icon:'⚔',  color:'#ff3146', glow:'rgba(255,49,70,0.5)'  },
-  mobility:  { name:'MOBILITY',  icon:'💨',  color:'#4dffd4', glow:'rgba(77,255,212,0.5)' },
-  defense:   { name:'DEFENSE',   icon:'🛡',  color:'#ffd166', glow:'rgba(255,209,102,0.5)'},
-  greed:     { name:'GREED',     icon:'💰',  color:'#ffd700', glow:'rgba(255,215,0,0.5)'  },
-  arcane:    { name:'ARCANE',    icon:'🔮',  color:'#b362ff', glow:'rgba(179,98,255,0.5)' },
-  bloodline: { name:'BLOODLINE', icon:'🩸',  color:'#ff6b9d', glow:'rgba(255,107,157,0.5)'},
-  void:      { name:'VOID',      icon:'🌌',  color:'#4dc4ff', glow:'rgba(77,196,255,0.5)' },
-  pets:      { name:'PETS',      icon:'🐾',  color:'#51cf66', glow:'rgba(81,207,102,0.5)' },
-  awakening: { name:'AWAKENING', icon:'🔱',  color:'#ff9900', glow:'rgba(255,153,0,0.5)'  },
-  tempest:   { name:'TEMPEST',   icon:'🌊',  color:'#1fb6ff', glow:'rgba(31,182,255,0.5)' },
+  combat:    { name:'COMBAT',    icon:'ui_blade',  color:'#ff3146', glow:'rgba(255,49,70,0.5)'  },
+  mobility:  { name:'MOBILITY',  icon:'pQuick',  color:'#4dffd4', glow:'rgba(77,255,212,0.5)' },
+  defense:   { name:'DEFENSE',   icon:'ui_shield',  color:'#ffd166', glow:'rgba(255,209,102,0.5)'},
+  greed:     { name:'GREED',     icon:'gold',  color:'#ffd700', glow:'rgba(255,215,0,0.5)'  },
+  arcane:    { name:'ARCANE',    icon:'ui_orb',  color:'#b362ff', glow:'rgba(179,98,255,0.5)' },
+  bloodline: { name:'BLOODLINE', icon:'pVamp',  color:'#ff6b9d', glow:'rgba(255,107,157,0.5)'},
+  void:      { name:'VOID',      icon:'ui_void',  color:'#4dc4ff', glow:'rgba(77,196,255,0.5)' },
+  pets:      { name:'PETS',      icon:'ui_pets',  color:'#51cf66', glow:'rgba(81,207,102,0.5)' },
+  awakening: { name:'AWAKENING', icon:'trident',  color:'#ff9900', glow:'rgba(255,153,0,0.5)'  },
+  tempest:   { name:'TEMPEST',   icon:'pWave',  color:'#1fb6ff', glow:'rgba(31,182,255,0.5)' },
 };
 
 // Tree canvas: 1800 × 2600 px
@@ -28,120 +28,120 @@ export const POE_TREE_NODES = [
   // ═══════════════════════════════════════════
   // COMBAT (cx=120, #ff3146)
   // ═══════════════════════════════════════════
-  { id:'poe_com0', branch:'combat', type:'minor',    x:120,  y:2380, req:[],                    max:3, c:1, stat:'dmg',      val:0.02,  name:'Strike Path',    icon:'⚔',  desc:'+2% damage per level. The warrior\'s first step.' },
-  { id:'poe_com1', branch:'combat', type:'minor',    x:120,  y:2080, req:['poe_com0'],           max:3, c:1, stat:'dmg',      val:0.02,  name:'Edge Honing',    icon:'⚔',  desc:'+2% damage per level. Your blade finds its purpose.' },
-  { id:'poe_com2', branch:'combat', type:'minor',    x:60,   y:1780, req:['poe_com1'],           max:3, c:1, stat:'pierce',   val:1,     name:'Pierce Arts',    icon:'➰',  desc:'+1 pierce per level. Cut through the horde.' },
-  { id:'poe_com3', branch:'combat', type:'minor',    x:180,  y:1780, req:['poe_com1'],           max:3, c:2, stat:'proj',     val:1,     name:'Multishot',      icon:'🎯',  desc:'+1 projectile per level. More lead, more dead.' },
-  { id:'poe_com4', branch:'combat', type:'notable',  x:120,  y:1480, req:['poe_com2','poe_com3'],max:1, c:4, stat:'crit',     val:0.08,  name:'True Aim',       icon:'💢',  desc:'+8% crit chance. Precision becomes instinct.' },
-  { id:'poe_com5', branch:'combat', type:'minor',    x:120,  y:1180, req:['poe_com4'],           max:3, c:2, stat:'crit',     val:0.03,  name:'Dead Eye',       icon:'👁',  desc:'+3% crit per level. Nothing escapes your sight.' },
-  { id:'poe_com6', branch:'combat', type:'keystone', x:120,  y:880,  req:['poe_com5'],           max:1, c:8, stat:'headshot', val:0.08,  name:'Headshot',       icon:'🎯',  desc:'ACTIVE: 8% chance to one-shot non-bosses.', active:true },
-  { id:'poe_com7', branch:'combat', type:'keystone', x:120,  y:500,  req:['poe_com6'],           max:1, c:8, stat:'berserk',  val:1,     name:'Berserker',      icon:'🩸',  desc:'ACTIVE: Below 30% HP, gain +40% damage.', active:true },
+  { id:'poe_com0', branch:'combat', type:'minor',    x:120,  y:2380, req:[],                    max:3, c:1, stat:'dmg',      val:0.02,  name:'Strike Path',    icon:'ui_blade',  desc:'+2% damage per level. The warrior\'s first step.' },
+  { id:'poe_com1', branch:'combat', type:'minor',    x:120,  y:2080, req:['poe_com0'],           max:3, c:1, stat:'dmg',      val:0.02,  name:'Edge Honing',    icon:'ui_blade',  desc:'+2% damage per level. Your blade finds its purpose.' },
+  { id:'poe_com2', branch:'combat', type:'minor',    x:60,   y:1780, req:['poe_com1'],           max:3, c:1, stat:'pierce',   val:1,     name:'Pierce Arts',    icon:'harpoon',  desc:'+1 pierce per level. Cut through the horde.' },
+  { id:'poe_com3', branch:'combat', type:'minor',    x:180,  y:1780, req:['poe_com1'],           max:3, c:2, stat:'proj',     val:1,     name:'Multishot',      icon:'part_sight',  desc:'+1 projectile per level. More lead, more dead.' },
+  { id:'poe_com4', branch:'combat', type:'notable',  x:120,  y:1480, req:['poe_com2','poe_com3'],max:1, c:4, stat:'crit',     val:0.08,  name:'True Aim',       icon:'ui_star',  desc:'+8% crit chance. Precision becomes instinct.' },
+  { id:'poe_com5', branch:'combat', type:'minor',    x:120,  y:1180, req:['poe_com4'],           max:3, c:2, stat:'crit',     val:0.03,  name:'Dead Eye',       icon:'ui_eye',  desc:'+3% crit per level. Nothing escapes your sight.' },
+  { id:'poe_com6', branch:'combat', type:'keystone', x:120,  y:880,  req:['poe_com5'],           max:1, c:8, stat:'headshot', val:0.08,  name:'Headshot',       icon:'part_sight',  desc:'ACTIVE: 8% chance to one-shot non-bosses.', active:true },
+  { id:'poe_com7', branch:'combat', type:'keystone', x:120,  y:500,  req:['poe_com6'],           max:1, c:8, stat:'berserk',  val:1,     name:'Berserker',      icon:'pVamp',  desc:'ACTIVE: Below 30% HP, gain +40% damage.', active:true },
 
   // ═══════════════════════════════════════════
   // MOBILITY (cx=320, #4dffd4)
   // ═══════════════════════════════════════════
-  { id:'poe_mob0', branch:'mobility', type:'minor',    x:320, y:2380, req:[],                     max:3, c:1, stat:'mspd',  val:0.02,  name:'Light Step',    icon:'🥾',  desc:'+2% move speed per level.' },
-  { id:'poe_mob1', branch:'mobility', type:'minor',    x:320, y:2080, req:['poe_mob0'],            max:3, c:1, stat:'mspd',  val:0.02,  name:'Wind Runner',   icon:'💨',  desc:'+2% speed per level. The wind follows you.' },
-  { id:'poe_mob2', branch:'mobility', type:'minor',    x:260, y:1780, req:['poe_mob1'],            max:3, c:2, stat:'dodge', val:0.03,  name:'Evasion',       icon:'👻',  desc:'+3% dodge per level. Let them hit air.' },
-  { id:'poe_mob3', branch:'mobility', type:'notable',  x:380, y:1780, req:['poe_mob1'],            max:1, c:3, stat:'dash',  val:1,     name:'Dash',          icon:'💨',  desc:'ACTIVE: SHIFT to dash with invincibility frames.', active:true },
-  { id:'poe_mob3b',branch:'mobility', type:'notable',  x:460, y:1630, req:['poe_mob3'],            max:1, c:4, stat:'swipeAttack', val:1, name:'Swipe Strike', icon:'🗡',  desc:'ACTIVE: a fast swipe (flick the aim stick, or E on desktop) executes a nearby enemy instantly in a shower of blood. Tough enemies take heavy damage instead.', active:true },
-  { id:'poe_mob4', branch:'mobility', type:'minor',    x:320, y:1480, req:['poe_mob2','poe_mob3'], max:3, c:2, stat:'dashcd',val:0.10,  name:'Quick Recall',  icon:'⏱',  desc:'-10% dash cooldown per level. Unlocks Meta: Dash CD.' },
-  { id:'poe_mob5', branch:'mobility', type:'notable',  x:320, y:1180, req:['poe_mob4'],            max:1, c:4, stat:'mspd',  val:0.10,  name:'Ghoststep',     icon:'🌫',  desc:'+10% speed. Unlocks Meta: Eagle Eye.' },
-  { id:'poe_mob6', branch:'mobility', type:'keystone', x:320, y:880,  req:['poe_mob5'],            max:1, c:8, stat:'blink', val:1,     name:'Blink Strike',  icon:'🌀',  desc:'ACTIVE: Dash teleports; deals AoE at landing.', active:true },
-  { id:'poe_mob7', branch:'mobility', type:'keystone', x:320, y:500,  req:['poe_mob6'],            max:1, c:8, stat:'mspd',  val:0.20,  name:'Phantom Form',  icon:'🌌',  desc:'+20% speed. You leave afterimages.' },
+  { id:'poe_mob0', branch:'mobility', type:'minor',    x:320, y:2380, req:[],                     max:3, c:1, stat:'mspd',  val:0.02,  name:'Light Step',    icon:'boot',  desc:'+2% move speed per level.' },
+  { id:'poe_mob1', branch:'mobility', type:'minor',    x:320, y:2080, req:['poe_mob0'],            max:3, c:1, stat:'mspd',  val:0.02,  name:'Wind Runner',   icon:'pQuick',  desc:'+2% speed per level. The wind follows you.' },
+  { id:'poe_mob2', branch:'mobility', type:'minor',    x:260, y:1780, req:['poe_mob1'],            max:3, c:2, stat:'dodge', val:0.03,  name:'Evasion',       icon:'ui_ghost',  desc:'+3% dodge per level. Let them hit air.' },
+  { id:'poe_mob3', branch:'mobility', type:'notable',  x:380, y:1780, req:['poe_mob1'],            max:1, c:3, stat:'dash',  val:1,     name:'Dash',          icon:'pQuick',  desc:'ACTIVE: SHIFT to dash with invincibility frames.', active:true },
+  { id:'poe_mob3b',branch:'mobility', type:'notable',  x:460, y:1630, req:['poe_mob3'],            max:1, c:4, stat:'swipeAttack', val:1, name:'Swipe Strike', icon:'ui_blade',  desc:'ACTIVE: a fast swipe (flick the aim stick, or E on desktop) executes a nearby enemy instantly in a shower of blood. Tough enemies take heavy damage instead.', active:true },
+  { id:'poe_mob4', branch:'mobility', type:'minor',    x:320, y:1480, req:['poe_mob2','poe_mob3'], max:3, c:2, stat:'dashcd',val:0.10,  name:'Quick Recall',  icon:'ui_clock',  desc:'-10% dash cooldown per level. Unlocks Meta: Dash CD.' },
+  { id:'poe_mob5', branch:'mobility', type:'notable',  x:320, y:1180, req:['poe_mob4'],            max:1, c:4, stat:'mspd',  val:0.10,  name:'Ghoststep',     icon:'ui_ghost',  desc:'+10% speed. Unlocks Meta: Eagle Eye.' },
+  { id:'poe_mob6', branch:'mobility', type:'keystone', x:320, y:880,  req:['poe_mob5'],            max:1, c:8, stat:'blink', val:1,     name:'Blink Strike',  icon:'tornado',  desc:'ACTIVE: Dash teleports; deals AoE at landing.', active:true },
+  { id:'poe_mob7', branch:'mobility', type:'keystone', x:320, y:500,  req:['poe_mob6'],            max:1, c:8, stat:'mspd',  val:0.20,  name:'Phantom Form',  icon:'ui_void',  desc:'+20% speed. You leave afterimages.' },
 
   // ═══════════════════════════════════════════
   // DEFENSE (cx=520, #ffd166)
   // ═══════════════════════════════════════════
-  { id:'poe_def0', branch:'defense', type:'minor',    x:520, y:2380, req:[],                      max:3, c:1, stat:'maxHp', val:3,    name:'Iron Will',     icon:'❤',  desc:'+3 max HP per level. Fortify your core.' },
-  { id:'poe_def1', branch:'defense', type:'minor',    x:460, y:2080, req:['poe_def0'],             max:3, c:1, stat:'armor', val:0.3,  name:'Plating',       icon:'🛡',  desc:'+0.3 armor per level.' },
-  { id:'poe_def2', branch:'defense', type:'minor',    x:580, y:2080, req:['poe_def0'],             max:3, c:1, stat:'regen', val:0.03, name:'Regrowth',      icon:'🌿',  desc:'+0.03 HP/s per level. Unlocks Meta: Regen.' },
-  { id:'poe_def3', branch:'defense', type:'notable',  x:460, y:1780, req:['poe_def1'],             max:1, c:3, stat:'armor', val:2,    name:'Steel Ward',    icon:'🛡',  desc:'+2 armor. Your skin becomes like iron.' },
-  { id:'poe_def4', branch:'defense', type:'notable',  x:580, y:1780, req:['poe_def2'],             max:1, c:3, stat:'regen', val:0.15, name:'Vital Flow',    icon:'🌿',  desc:'+0.15 HP/s regen. The Lake\'s energy flows through you.' },
-  { id:'poe_def5', branch:'defense', type:'notable',  x:520, y:1480, req:['poe_def3','poe_def4'],  max:1, c:4, stat:'maxHp', val:10,   name:'Battle Scars',  icon:'⚔',  desc:'+10 max HP. Each wound makes you stronger.' },
-  { id:'poe_def6', branch:'defense', type:'keystone', x:460, y:1180, req:['poe_def5'],             max:1, c:8, stat:'shield',val:1,    name:'Aegis',         icon:'✨',  desc:'ACTIVE: Absorb 1 hit every 25s.', active:true },
-  { id:'poe_def7', branch:'defense', type:'keystone', x:580, y:1180, req:['poe_def5'],             max:1, c:8, stat:'revive',val:1,    name:'Phoenix',       icon:'🪽',  desc:'ACTIVE: Revive once per run at 50% HP. Unlocks Meta: Revive.', active:true },
-  { id:'poe_def8', branch:'defense', type:'keystone', x:520, y:800,  req:['poe_def6','poe_def7'],  max:1, c:12,stat:'maxHp', val:20,   name:'Titan Skin',    icon:'🗿',  desc:'+20 max HP. Annunaki-forged body.' },
+  { id:'poe_def0', branch:'defense', type:'minor',    x:520, y:2380, req:[],                      max:3, c:1, stat:'maxHp', val:3,    name:'Iron Will',     icon:'heart',  desc:'+3 max HP per level. Fortify your core.' },
+  { id:'poe_def1', branch:'defense', type:'minor',    x:460, y:2080, req:['poe_def0'],             max:3, c:1, stat:'armor', val:0.3,  name:'Plating',       icon:'ui_shield',  desc:'+0.3 armor per level.' },
+  { id:'poe_def2', branch:'defense', type:'minor',    x:580, y:2080, req:['poe_def0'],             max:3, c:1, stat:'regen', val:0.03, name:'Regrowth',      icon:'ui_leaf',  desc:'+0.03 HP/s per level. Unlocks Meta: Regen.' },
+  { id:'poe_def3', branch:'defense', type:'notable',  x:460, y:1780, req:['poe_def1'],             max:1, c:3, stat:'armor', val:2,    name:'Steel Ward',    icon:'ui_shield',  desc:'+2 armor. Your skin becomes like iron.' },
+  { id:'poe_def4', branch:'defense', type:'notable',  x:580, y:1780, req:['poe_def2'],             max:1, c:3, stat:'regen', val:0.15, name:'Vital Flow',    icon:'ui_leaf',  desc:'+0.15 HP/s regen. The Lake\'s energy flows through you.' },
+  { id:'poe_def5', branch:'defense', type:'notable',  x:520, y:1480, req:['poe_def3','poe_def4'],  max:1, c:4, stat:'maxHp', val:10,   name:'Battle Scars',  icon:'ui_blade',  desc:'+10 max HP. Each wound makes you stronger.' },
+  { id:'poe_def6', branch:'defense', type:'keystone', x:460, y:1180, req:['poe_def5'],             max:1, c:8, stat:'shield',val:1,    name:'Aegis',         icon:'ui_star',  desc:'ACTIVE: Absorb 1 hit every 25s.', active:true },
+  { id:'poe_def7', branch:'defense', type:'keystone', x:580, y:1180, req:['poe_def5'],             max:1, c:8, stat:'revive',val:1,    name:'Phoenix',       icon:'pHoly',  desc:'ACTIVE: Revive once per run at 50% HP. Unlocks Meta: Revive.', active:true },
+  { id:'poe_def8', branch:'defense', type:'keystone', x:520, y:800,  req:['poe_def6','poe_def7'],  max:1, c:12,stat:'maxHp', val:20,   name:'Titan Skin',    icon:'ui_shield',  desc:'+20 max HP. Annunaki-forged body.' },
 
   // ═══════════════════════════════════════════
   // GREED (cx=720, #ffd700)
   // ═══════════════════════════════════════════
-  { id:'poe_grd0', branch:'greed', type:'minor',    x:720, y:2380, req:[],                      max:3, c:1, stat:'gold',  val:0.04,  name:'Greed Path',    icon:'💰',  desc:'+4% gold per level.' },
-  { id:'poe_grd1', branch:'greed', type:'minor',    x:660, y:2080, req:['poe_grd0'],             max:3, c:1, stat:'gold',  val:0.04,  name:'Hoarder',       icon:'💰',  desc:'+4% gold per level. Your pockets grow deeper.' },
-  { id:'poe_grd2', branch:'greed', type:'minor',    x:780, y:2080, req:['poe_grd0'],             max:3, c:1, stat:'xp',    val:0.04,  name:'Scholar',       icon:'📖',  desc:'+4% XP per level.' },
-  { id:'poe_grd3', branch:'greed', type:'notable',  x:660, y:1780, req:['poe_grd1'],             max:1, c:3, stat:'pickup',val:0.20,  name:'Iron Magnet',   icon:'🧲',  desc:'+20% pickup range. Gold flies to you.' },
-  { id:'poe_grd4', branch:'greed', type:'notable',  x:780, y:1780, req:['poe_grd2'],             max:1, c:3, stat:'luck',  val:1.5,   name:'Fortune',       icon:'🍀',  desc:'+1.5 luck. The odds bend in your favor.' },
-  { id:'poe_grd5', branch:'greed', type:'notable',  x:720, y:1480, req:['poe_grd3','poe_grd4'],  max:1, c:4, stat:'gold',  val:0.15,  name:'Gold Sense',    icon:'💎',  desc:'+15% gold. Unlocks Meta: Starter Cache.' },
-  { id:'poe_grd6', branch:'greed', type:'keystone', x:720, y:1180, req:['poe_grd5'],             max:1, c:8, stat:'chestSense',val:1,  name:'Chest Finder',  icon:'📦',  desc:'ACTIVE: Chest enemies spawn 2x more often.', active:true },
-  { id:'poe_grd7', branch:'greed', type:'keystone', x:720, y:800,  req:['poe_grd6'],             max:1, c:10,stat:'gold',  val:0.30,  name:'Golden Touch',  icon:'⭐',  desc:'+30% gold. Everything you touch turns to coin.' },
+  { id:'poe_grd0', branch:'greed', type:'minor',    x:720, y:2380, req:[],                      max:3, c:1, stat:'gold',  val:0.04,  name:'Greed Path',    icon:'gold',  desc:'+4% gold per level.' },
+  { id:'poe_grd1', branch:'greed', type:'minor',    x:660, y:2080, req:['poe_grd0'],             max:3, c:1, stat:'gold',  val:0.04,  name:'Hoarder',       icon:'gold',  desc:'+4% gold per level. Your pockets grow deeper.' },
+  { id:'poe_grd2', branch:'greed', type:'minor',    x:780, y:2080, req:['poe_grd0'],             max:3, c:1, stat:'xp',    val:0.04,  name:'Scholar',       icon:'ui_codex',  desc:'+4% XP per level.' },
+  { id:'poe_grd3', branch:'greed', type:'notable',  x:660, y:1780, req:['poe_grd1'],             max:1, c:3, stat:'pickup',val:0.20,  name:'Iron Magnet',   icon:'pMagnet',  desc:'+20% pickup range. Gold flies to you.' },
+  { id:'poe_grd4', branch:'greed', type:'notable',  x:780, y:1780, req:['poe_grd2'],             max:1, c:3, stat:'luck',  val:1.5,   name:'Fortune',       icon:'ui_leaf',  desc:'+1.5 luck. The odds bend in your favor.' },
+  { id:'poe_grd5', branch:'greed', type:'notable',  x:720, y:1480, req:['poe_grd3','poe_grd4'],  max:1, c:4, stat:'gold',  val:0.15,  name:'Gold Sense',    icon:'ui_gem',  desc:'+15% gold. Unlocks Meta: Starter Cache.' },
+  { id:'poe_grd6', branch:'greed', type:'keystone', x:720, y:1180, req:['poe_grd5'],             max:1, c:8, stat:'chestSense',val:1,  name:'Chest Finder',  icon:'ui_chest',  desc:'ACTIVE: Chest enemies spawn 2x more often.', active:true },
+  { id:'poe_grd7', branch:'greed', type:'keystone', x:720, y:800,  req:['poe_grd6'],             max:1, c:10,stat:'gold',  val:0.30,  name:'Golden Touch',  icon:'ui_star',  desc:'+30% gold. Everything you touch turns to coin.' },
 
   // ═══════════════════════════════════════════
   // ARCANE (cx=920, #b362ff)
   // ═══════════════════════════════════════════
-  { id:'poe_arc0', branch:'arcane', type:'minor',    x:920, y:2380, req:[],                      max:3, c:1, stat:'atks',     val:0.02,  name:'Arcane Touch',  icon:'🔮',  desc:'+2% attack speed per level.' },
-  { id:'poe_arc1', branch:'arcane', type:'minor',    x:860, y:2080, req:['poe_arc0'],             max:3, c:1, stat:'atks',     val:0.02,  name:'Flow State',    icon:'⏱',  desc:'+2% attack speed per level. You enter the zone.' },
-  { id:'poe_arc2', branch:'arcane', type:'minor',    x:980, y:2080, req:['poe_arc0'],             max:3, c:1, stat:'area',     val:0.04,  name:'Wider Wake',    icon:'🌀',  desc:'+4% area per level. Your presence expands.' },
-  { id:'poe_arc3', branch:'arcane', type:'notable',  x:860, y:1780, req:['poe_arc1'],             max:1, c:3, stat:'critd',    val:0.15,  name:'Critical Will', icon:'🩸',  desc:'+15% crit damage. Crits punish mercilessly.' },
-  { id:'poe_arc4', branch:'arcane', type:'notable',  x:980, y:1780, req:['poe_arc2'],             max:1, c:3, stat:'area',     val:0.15,  name:'Void Expanse',  icon:'🌌',  desc:'+15% area. Your AoE envelops the battlefield.' },
-  { id:'poe_arc5', branch:'arcane', type:'notable',  x:920, y:1480, req:['poe_arc3','poe_arc4'],  max:1, c:5, stat:'superCrit',val:0.05,  name:'Super Strike',  icon:'💥',  desc:'+5% super crit chance. Unlocks Meta: Super Crit.' },
-  { id:'poe_arc6', branch:'arcane', type:'notable',  x:920, y:1180, req:['poe_arc5'],             max:1, c:6, stat:'megaCrit', val:0.03,  name:'Mega Strike',   icon:'💢',  desc:'+3% mega crit chance. Unlocks Meta: Mega Crit.' },
-  { id:'poe_arc7', branch:'arcane', type:'keystone', x:920, y:800,  req:['poe_arc6'],             max:1, c:10,stat:'bossDmg',  val:0.30,  name:'A.I.D.A. Link', icon:'👁',  desc:'ACTIVE: +30% damage to all bosses. A.I.D.A. fears you.', active:true },
+  { id:'poe_arc0', branch:'arcane', type:'minor',    x:920, y:2380, req:[],                      max:3, c:1, stat:'atks',     val:0.02,  name:'Arcane Touch',  icon:'ui_orb',  desc:'+2% attack speed per level.' },
+  { id:'poe_arc1', branch:'arcane', type:'minor',    x:860, y:2080, req:['poe_arc0'],             max:3, c:1, stat:'atks',     val:0.02,  name:'Flow State',    icon:'ui_clock',  desc:'+2% attack speed per level. You enter the zone.' },
+  { id:'poe_arc2', branch:'arcane', type:'minor',    x:980, y:2080, req:['poe_arc0'],             max:3, c:1, stat:'area',     val:0.04,  name:'Wider Wake',    icon:'tornado',  desc:'+4% area per level. Your presence expands.' },
+  { id:'poe_arc3', branch:'arcane', type:'notable',  x:860, y:1780, req:['poe_arc1'],             max:1, c:3, stat:'critd',    val:0.15,  name:'Critical Will', icon:'pVamp',  desc:'+15% crit damage. Crits punish mercilessly.' },
+  { id:'poe_arc4', branch:'arcane', type:'notable',  x:980, y:1780, req:['poe_arc2'],             max:1, c:3, stat:'area',     val:0.15,  name:'Void Expanse',  icon:'ui_void',  desc:'+15% area. Your AoE envelops the battlefield.' },
+  { id:'poe_arc5', branch:'arcane', type:'notable',  x:920, y:1480, req:['poe_arc3','poe_arc4'],  max:1, c:5, stat:'superCrit',val:0.05,  name:'Super Strike',  icon:'pExplode',  desc:'+5% super crit chance. Unlocks Meta: Super Crit.' },
+  { id:'poe_arc6', branch:'arcane', type:'notable',  x:920, y:1180, req:['poe_arc5'],             max:1, c:6, stat:'megaCrit', val:0.03,  name:'Mega Strike',   icon:'ui_star',  desc:'+3% mega crit chance. Unlocks Meta: Mega Crit.' },
+  { id:'poe_arc7', branch:'arcane', type:'keystone', x:920, y:800,  req:['poe_arc6'],             max:1, c:10,stat:'bossDmg',  val:0.30,  name:'A.I.D.A. Link', icon:'ui_eye',  desc:'ACTIVE: +30% damage to all bosses. A.I.D.A. fears you.', active:true },
 
   // ═══════════════════════════════════════════
   // BLOODLINE (cx=1120, #ff6b9d)
   // ═══════════════════════════════════════════
-  { id:'poe_bld0', branch:'bloodline', type:'minor',    x:1120, y:2380, req:[],                        max:3, c:1, stat:'maxHp', val:2,    name:'Blood Bond',     icon:'🩸',  desc:'+2 max HP per level. Your lineage runs deep.' },
-  { id:'poe_bld1', branch:'bloodline', type:'minor',    x:1060, y:2080, req:['poe_bld0'],               max:3, c:1, stat:'maxHp', val:2,    name:'Vital Core',     icon:'❤',  desc:'+2 max HP per level. Life energy reinforced.' },
-  { id:'poe_bld2', branch:'bloodline', type:'minor',    x:1180, y:2080, req:['poe_bld0'],               max:3, c:1, stat:'regen', val:0.03, name:'Life Tap',       icon:'💊',  desc:'+0.03 HP/s per level. Drain the ether.' },
-  { id:'poe_bld3', branch:'bloodline', type:'notable',  x:1060, y:1780, req:['poe_bld1'],               max:1, c:3, stat:'maxHp', val:8,    name:'Heartswell',     icon:'❤',  desc:'+8 max HP. Your heart grows.' },
-  { id:'poe_bld4', branch:'bloodline', type:'notable',  x:1180, y:1780, req:['poe_bld2'],               max:1, c:4, stat:'regen', val:0.20, name:'Blood Pact',     icon:'🩸',  desc:'+0.2 HP/s. Pain feeds your regeneration.' },
-  { id:'poe_bld5', branch:'bloodline', type:'notable',  x:1120, y:1480, req:['poe_bld3','poe_bld4'],    max:1, c:5, stat:'dmg',   val:0.10, name:'Ancestral Fury', icon:'🔥',  desc:'+10% damage. The fury of your ancestors awakens.' },
-  { id:'poe_bld6', branch:'bloodline', type:'keystone', x:1120, y:1180, req:['poe_bld5'],               max:1, c:8, stat:'berserk',val:1,   name:'Berserker Vow',  icon:'⚔',  desc:'ACTIVE: Below 30% HP, gain +40% damage.', active:true },
-  { id:'poe_bld7', branch:'bloodline', type:'keystone', x:1120, y:800,  req:['poe_bld6'],               max:1, c:12,stat:'maxHp', val:15,   name:'Undying Legacy', icon:'🌟',  desc:'+15 max HP. Your bloodline cannot end here.' },
+  { id:'poe_bld0', branch:'bloodline', type:'minor',    x:1120, y:2380, req:[],                        max:3, c:1, stat:'maxHp', val:2,    name:'Blood Bond',     icon:'pVamp',  desc:'+2 max HP per level. Your lineage runs deep.' },
+  { id:'poe_bld1', branch:'bloodline', type:'minor',    x:1060, y:2080, req:['poe_bld0'],               max:3, c:1, stat:'maxHp', val:2,    name:'Vital Core',     icon:'heart',  desc:'+2 max HP per level. Life energy reinforced.' },
+  { id:'poe_bld2', branch:'bloodline', type:'minor',    x:1180, y:2080, req:['poe_bld0'],               max:3, c:1, stat:'regen', val:0.03, name:'Life Tap',       icon:'pVamp',  desc:'+0.03 HP/s per level. Drain the ether.' },
+  { id:'poe_bld3', branch:'bloodline', type:'notable',  x:1060, y:1780, req:['poe_bld1'],               max:1, c:3, stat:'maxHp', val:8,    name:'Heartswell',     icon:'heart',  desc:'+8 max HP. Your heart grows.' },
+  { id:'poe_bld4', branch:'bloodline', type:'notable',  x:1180, y:1780, req:['poe_bld2'],               max:1, c:4, stat:'regen', val:0.20, name:'Blood Pact',     icon:'pVamp',  desc:'+0.2 HP/s. Pain feeds your regeneration.' },
+  { id:'poe_bld5', branch:'bloodline', type:'notable',  x:1120, y:1480, req:['poe_bld3','poe_bld4'],    max:1, c:5, stat:'dmg',   val:0.10, name:'Ancestral Fury', icon:'ui_flame',  desc:'+10% damage. The fury of your ancestors awakens.' },
+  { id:'poe_bld6', branch:'bloodline', type:'keystone', x:1120, y:1180, req:['poe_bld5'],               max:1, c:8, stat:'berserk',val:1,   name:'Berserker Vow',  icon:'ui_blade',  desc:'ACTIVE: Below 30% HP, gain +40% damage.', active:true },
+  { id:'poe_bld7', branch:'bloodline', type:'keystone', x:1120, y:800,  req:['poe_bld6'],               max:1, c:12,stat:'maxHp', val:15,   name:'Undying Legacy', icon:'ui_star',  desc:'+15 max HP. Your bloodline cannot end here.' },
 
   // ═══════════════════════════════════════════
   // VOID (cx=1320, #4dc4ff)
   // ═══════════════════════════════════════════
-  { id:'poe_vd0', branch:'void', type:'minor',    x:1320, y:2380, req:[],                      max:3, c:1, stat:'area',     val:0.03,  name:'Void Touch',    icon:'🌌',  desc:'+3% area per level. The void answers your call.' },
-  { id:'poe_vd1', branch:'void', type:'minor',    x:1260, y:2080, req:['poe_vd0'],             max:3, c:1, stat:'area',     val:0.03,  name:'Dark Matter',   icon:'🌑',  desc:'+3% area per level.' },
-  { id:'poe_vd2', branch:'void', type:'minor',    x:1380, y:2080, req:['poe_vd0'],             max:3, c:1, stat:'bossDmg',  val:0.05,  name:'Boss Bane',     icon:'👁',  desc:'+5% boss damage per level.' },
-  { id:'poe_vd3', branch:'void', type:'notable',  x:1260, y:1780, req:['poe_vd1'],             max:1, c:3, stat:'voidBurst',val:0.10,  name:'Void Burst',    icon:'💫',  desc:'+10% void burst on-kill chance.' },
-  { id:'poe_vd4', branch:'void', type:'notable',  x:1380, y:1780, req:['poe_vd2'],             max:1, c:4, stat:'bossDmg',  val:0.15,  name:'Hunter\'s Mark',icon:'🎯',  desc:'+15% boss damage. They cannot hide from you.' },
-  { id:'poe_vd5', branch:'void', type:'notable',  x:1320, y:1480, req:['poe_vd3','poe_vd4'],  max:1, c:5, stat:'area',     val:0.15,  name:'Eldritch Realm',icon:'🌀',  desc:'+15% area. You reshape reality.' },
-  { id:'poe_vd6', branch:'void', type:'keystone', x:1320, y:1180, req:['poe_vd5'],             max:1, c:8, stat:'voidBurst',val:0.20,  name:'Void Caller',   icon:'🌌',  desc:'+20% void burst chance. Death begets death.' },
-  { id:'poe_vd7', branch:'void', type:'keystone', x:1320, y:800,  req:['poe_vd6'],             max:1, c:12,stat:'bossDmg',  val:0.25,  name:'Eldritch King', icon:'👑',  desc:'+25% boss damage. You have become the apex predator.' },
+  { id:'poe_vd0', branch:'void', type:'minor',    x:1320, y:2380, req:[],                      max:3, c:1, stat:'area',     val:0.03,  name:'Void Touch',    icon:'ui_void',  desc:'+3% area per level. The void answers your call.' },
+  { id:'poe_vd1', branch:'void', type:'minor',    x:1260, y:2080, req:['poe_vd0'],             max:3, c:1, stat:'area',     val:0.03,  name:'Dark Matter',   icon:'tornado',  desc:'+3% area per level.' },
+  { id:'poe_vd2', branch:'void', type:'minor',    x:1380, y:2080, req:['poe_vd0'],             max:3, c:1, stat:'bossDmg',  val:0.05,  name:'Boss Bane',     icon:'ui_eye',  desc:'+5% boss damage per level.' },
+  { id:'poe_vd3', branch:'void', type:'notable',  x:1260, y:1780, req:['poe_vd1'],             max:1, c:3, stat:'voidBurst',val:0.10,  name:'Void Burst',    icon:'ui_star',  desc:'+10% void burst on-kill chance.' },
+  { id:'poe_vd4', branch:'void', type:'notable',  x:1380, y:1780, req:['poe_vd2'],             max:1, c:4, stat:'bossDmg',  val:0.15,  name:'Hunter\'s Mark',icon:'part_sight',  desc:'+15% boss damage. They cannot hide from you.' },
+  { id:'poe_vd5', branch:'void', type:'notable',  x:1320, y:1480, req:['poe_vd3','poe_vd4'],  max:1, c:5, stat:'area',     val:0.15,  name:'Eldritch Realm',icon:'tornado',  desc:'+15% area. You reshape reality.' },
+  { id:'poe_vd6', branch:'void', type:'keystone', x:1320, y:1180, req:['poe_vd5'],             max:1, c:8, stat:'voidBurst',val:0.20,  name:'Void Caller',   icon:'ui_void',  desc:'+20% void burst chance. Death begets death.' },
+  { id:'poe_vd7', branch:'void', type:'keystone', x:1320, y:800,  req:['poe_vd6'],             max:1, c:12,stat:'bossDmg',  val:0.25,  name:'Eldritch King', icon:'gbCrown',  desc:'+25% boss damage. You have become the apex predator.' },
 
   // ═══════════════════════════════════════════
   // PETS (cx=1520, #51cf66)
   // ═══════════════════════════════════════════
-  { id:'poe_pet0', branch:'pets', type:'minor',    x:1520, y:2380, req:[],                       max:3, c:1, stat:'pickup', val:0.05,  name:'Bond',           icon:'🐾',  desc:'+5% pickup range. Your companions aid collection.' },
-  { id:'poe_pet1', branch:'pets', type:'minor',    x:1460, y:2080, req:['poe_pet0'],              max:3, c:1, stat:'gold',   val:0.03,  name:'Harvest',        icon:'🌿',  desc:'+3% gold per level. Pets find treasures you miss.' },
-  { id:'poe_pet2', branch:'pets', type:'minor',    x:1580, y:2080, req:['poe_pet0'],              max:3, c:1, stat:'xp',     val:0.03,  name:'Pack Wisdom',    icon:'📖',  desc:'+3% XP per level. Together you grow faster.' },
-  { id:'poe_pet3', branch:'pets', type:'notable',  x:1460, y:1780, req:['poe_pet1'],              max:1, c:3, stat:'pickup', val:0.20,  name:'Pack Forager',   icon:'🧲',  desc:'+20% pickup range. Your pack covers every inch.' },
-  { id:'poe_pet4', branch:'pets', type:'notable',  x:1580, y:1780, req:['poe_pet2'],              max:1, c:3, stat:'luck',   val:1.0,   name:'Lucky Pack',     icon:'🍀',  desc:'+1 luck. Your pets bring fortune.' },
-  { id:'poe_pet5', branch:'pets', type:'notable',  x:1520, y:1480, req:['poe_pet3','poe_pet4'],   max:1, c:5, stat:'gold',   val:0.15,  name:'Alpha Bond',     icon:'⭐',  desc:'+15% gold. The alpha commands the finest tribute.' },
-  { id:'poe_pet6', branch:'pets', type:'keystone', x:1520, y:1180, req:['poe_pet5'],              max:1, c:8, stat:'pickup', val:0.30,  name:'Apex Pack',      icon:'🐾',  desc:'+30% pickup range. Your pack is legendary.' },
-  { id:'poe_pet7', branch:'pets', type:'keystone', x:1520, y:800,  req:['poe_pet6'],              max:1, c:12,stat:'gold',   val:0.25,  name:'Pack Sovereign', icon:'👑',  desc:'+25% gold. The sovereign pack claims everything.' },
+  { id:'poe_pet0', branch:'pets', type:'minor',    x:1520, y:2380, req:[],                       max:3, c:1, stat:'pickup', val:0.05,  name:'Bond',           icon:'ui_pets',  desc:'+5% pickup range. Your companions aid collection.' },
+  { id:'poe_pet1', branch:'pets', type:'minor',    x:1460, y:2080, req:['poe_pet0'],              max:3, c:1, stat:'gold',   val:0.03,  name:'Harvest',        icon:'ui_leaf',  desc:'+3% gold per level. Pets find treasures you miss.' },
+  { id:'poe_pet2', branch:'pets', type:'minor',    x:1580, y:2080, req:['poe_pet0'],              max:3, c:1, stat:'xp',     val:0.03,  name:'Pack Wisdom',    icon:'ui_codex',  desc:'+3% XP per level. Together you grow faster.' },
+  { id:'poe_pet3', branch:'pets', type:'notable',  x:1460, y:1780, req:['poe_pet1'],              max:1, c:3, stat:'pickup', val:0.20,  name:'Pack Forager',   icon:'pMagnet',  desc:'+20% pickup range. Your pack covers every inch.' },
+  { id:'poe_pet4', branch:'pets', type:'notable',  x:1580, y:1780, req:['poe_pet2'],              max:1, c:3, stat:'luck',   val:1.0,   name:'Lucky Pack',     icon:'ui_leaf',  desc:'+1 luck. Your pets bring fortune.' },
+  { id:'poe_pet5', branch:'pets', type:'notable',  x:1520, y:1480, req:['poe_pet3','poe_pet4'],   max:1, c:5, stat:'gold',   val:0.15,  name:'Alpha Bond',     icon:'ui_star',  desc:'+15% gold. The alpha commands the finest tribute.' },
+  { id:'poe_pet6', branch:'pets', type:'keystone', x:1520, y:1180, req:['poe_pet5'],              max:1, c:8, stat:'pickup', val:0.30,  name:'Apex Pack',      icon:'ui_pets',  desc:'+30% pickup range. Your pack is legendary.' },
+  { id:'poe_pet7', branch:'pets', type:'keystone', x:1520, y:800,  req:['poe_pet6'],              max:1, c:12,stat:'gold',   val:0.25,  name:'Pack Sovereign', icon:'gbCrown',  desc:'+25% gold. The sovereign pack claims everything.' },
 
   // ═══════════════════════════════════════════
   // AWAKENING (cx=1720, #ff9900) — evolution + level-up shockwave
   // ═══════════════════════════════════════════
-  { id:'poe_awk0', branch:'awakening', type:'notable',  x:1720, y:2380, req:[],               max:1, c:6, stat:'area',  val:0.05,  name:'Awakening Gate',    icon:'🔱', desc:'Unlocks WEAPON EVOLUTION. Grants +5% area.' },
-  { id:'poe_awk1', branch:'awakening', type:'notable',  x:1720, y:2080, req:['poe_awk0'],     max:3, c:3, stat:'area',  val:0.03,  name:'Shockwave Mastery', icon:'💥', desc:'+3% area per level. Unlocks: Explosion Dmg meta upgrade.' },
-  { id:'poe_awk2', branch:'awakening', type:'keystone', x:1720, y:1780, req:['poe_awk1'],     max:1, c:8, stat:'area',  val:0.10,  name:'Earthshaker',       icon:'🌍', desc:'+10% area. Unlocks: Explosion Knockback meta upgrade.' },
+  { id:'poe_awk0', branch:'awakening', type:'notable',  x:1720, y:2380, req:[],               max:1, c:6, stat:'area',  val:0.05,  name:'Awakening Gate',    icon:'trident', desc:'Unlocks WEAPON EVOLUTION. Grants +5% area.' },
+  { id:'poe_awk1', branch:'awakening', type:'notable',  x:1720, y:2080, req:['poe_awk0'],     max:3, c:3, stat:'area',  val:0.03,  name:'Shockwave Mastery', icon:'pExplode', desc:'+3% area per level. Unlocks: Explosion Dmg meta upgrade.' },
+  { id:'poe_awk2', branch:'awakening', type:'keystone', x:1720, y:1780, req:['poe_awk1'],     max:1, c:8, stat:'area',  val:0.10,  name:'Earthshaker',       icon:'pExplode', desc:'+10% area. Unlocks: Explosion Knockback meta upgrade.' },
 
   // ═══════════════════════════════════════════
   // TEMPEST (cx=1920, #1fb6ff) — 5 passives + 3 active keystones, gates the
   // level-5 weapon evolution fork system (see engine.js buildLevelUpChoices)
   // ═══════════════════════════════════════════
-  { id:'poe_tmp0', branch:'tempest', type:'minor',    x:1920, y:2380, req:[],                         max:3, c:1, stat:'elementalDmg', val:0.02, name:'Tidal Charge',    icon:'🌊', desc:'+2% elemental damage per level.' },
-  { id:'poe_tmp1', branch:'tempest', type:'minor',    x:1920, y:2080, req:['poe_tmp0'],                max:3, c:1, stat:'mspd',         val:0.02, name:'Undertow',        icon:'💧', desc:'+2% move speed per level. The current carries you.' },
-  { id:'poe_tmp2', branch:'tempest', type:'minor',    x:1860, y:1780, req:['poe_tmp1'],                max:3, c:1, stat:'pierce',       val:1,    name:'Riptide Edge',    icon:'➰', desc:'+1 pierce per level. Water cuts deeper than steel.' },
-  { id:'poe_tmp3', branch:'tempest', type:'minor',    x:1980, y:1780, req:['poe_tmp1'],                max:3, c:2, stat:'area',         val:0.03, name:'Wave Expansion',  icon:'🌀', desc:'+3% area per level. Your reach widens like the tide.' },
-  { id:'poe_tmp4', branch:'tempest', type:'notable',  x:1920, y:1480, req:['poe_tmp2','poe_tmp3'],     max:1, c:4, stat:'crit',         val:0.08, name:'Maelstrom Focus', icon:'💢', desc:'+8% crit chance. Find the eye of the storm.' },
-  { id:'poe_tmp5', branch:'tempest', type:'keystone', x:1920, y:1180, req:['poe_tmp4'],                max:1, c:8, stat:'forksUnlocked',val:1,    name:'Evolution Current', icon:'🔀', desc:'ACTIVE: Unlocks Weapon Evolution Forks — every weapon gets a build-defining 4-way choice at level 5.', active:true },
-  { id:'poe_tmp6', branch:'tempest', type:'keystone', x:1920, y:880,  req:['poe_tmp5'],                max:1, c:8, stat:'undertowDash', val:1,    name:'Undertow Dash',   icon:'💨', desc:'ACTIVE: Dash pulls nearby foes toward you and gains +50% i-frame duration.', active:true },
-  { id:'poe_tmp7', branch:'tempest', type:'keystone', x:1920, y:500,  req:['poe_tmp6'],                max:1, c:10,stat:'riptideMastery',val:1,   name:'Riptide Mastery', icon:'🌊', desc:'ACTIVE: Riptide Pulse damage +50% and its slow becomes a full root for 1s.', active:true },
+  { id:'poe_tmp0', branch:'tempest', type:'minor',    x:1920, y:2380, req:[],                         max:3, c:1, stat:'elementalDmg', val:0.02, name:'Tidal Charge',    icon:'pWave', desc:'+2% elemental damage per level.' },
+  { id:'poe_tmp1', branch:'tempest', type:'minor',    x:1920, y:2080, req:['poe_tmp0'],                max:3, c:1, stat:'mspd',         val:0.02, name:'Undertow',        icon:'ui_waterdrop', desc:'+2% move speed per level. The current carries you.' },
+  { id:'poe_tmp2', branch:'tempest', type:'minor',    x:1860, y:1780, req:['poe_tmp1'],                max:3, c:1, stat:'pierce',       val:1,    name:'Riptide Edge',    icon:'harpoon', desc:'+1 pierce per level. Water cuts deeper than steel.' },
+  { id:'poe_tmp3', branch:'tempest', type:'minor',    x:1980, y:1780, req:['poe_tmp1'],                max:3, c:2, stat:'area',         val:0.03, name:'Wave Expansion',  icon:'tornado', desc:'+3% area per level. Your reach widens like the tide.' },
+  { id:'poe_tmp4', branch:'tempest', type:'notable',  x:1920, y:1480, req:['poe_tmp2','poe_tmp3'],     max:1, c:4, stat:'crit',         val:0.08, name:'Maelstrom Focus', icon:'ui_star', desc:'+8% crit chance. Find the eye of the storm.' },
+  { id:'poe_tmp5', branch:'tempest', type:'keystone', x:1920, y:1180, req:['poe_tmp4'],                max:1, c:8, stat:'forksUnlocked',val:1,    name:'Evolution Current', icon:'tornado', desc:'ACTIVE: Unlocks Weapon Evolution Forks — every weapon gets a build-defining 4-way choice at level 5.', active:true },
+  { id:'poe_tmp6', branch:'tempest', type:'keystone', x:1920, y:880,  req:['poe_tmp5'],                max:1, c:8, stat:'undertowDash', val:1,    name:'Undertow Dash',   icon:'pQuick', desc:'ACTIVE: Dash pulls nearby foes toward you and gains +50% i-frame duration.', active:true },
+  { id:'poe_tmp7', branch:'tempest', type:'keystone', x:1920, y:500,  req:['poe_tmp6'],                max:1, c:10,stat:'riptideMastery',val:1,   name:'Riptide Mastery', icon:'pWave', desc:'ACTIVE: Riptide Pulse damage +50% and its slow becomes a full root for 1s.', active:true },
 ];
 
 // Fast lookup by ID
@@ -224,15 +224,15 @@ export const POE_RADIAL_NODES = POE_TREE_NODES.map(n => {
 // aimSpreadMult) — see GameScreen.jsx's buildMetaEffects, which explicitly
 // skips them in the generic attribute-bonus loop to avoid double-applying.
 export const POE_ATTRS = [
-  { id:'atk',  name:'Attack',       icon:'⚔',  color:'#ff3146', stat:'dmg',   perPoint:0.01,  desc:'+1% damage per attribute point' },
-  { id:'dex',  name:'Dexterity',    icon:'🎯',  color:'#4dffd4', stat:'crit',  perPoint:0.005, desc:'+0.5% crit chance per point' },
-  { id:'vit',  name:'Vitality',     icon:'❤',  color:'#ffd166', stat:'maxHp', perPoint:2,     desc:'+2 max HP per point' },
-  { id:'mob',  name:'Agility',      icon:'💨',  color:'#4dffd4', stat:null,   perPoint:0,     curve:true, max:20,
+  { id:'atk',  name:'Attack',       icon:'ui_blade',  color:'#ff3146', stat:'dmg',   perPoint:0.01,  desc:'+1% damage per attribute point' },
+  { id:'dex',  name:'Dexterity',    icon:'part_sight',  color:'#4dffd4', stat:'crit',  perPoint:0.005, desc:'+0.5% crit chance per point' },
+  { id:'vit',  name:'Vitality',     icon:'heart',  color:'#ffd166', stat:'maxHp', perPoint:2,     desc:'+2 max HP per point' },
+  { id:'mob',  name:'Agility',      icon:'pQuick',  color:'#4dffd4', stat:null,   perPoint:0,     curve:true, max:20,
     desc:'Moving, turning, dashing feels sluggish at 0 — 20 points makes you noticeably snappier than the game’s default feel.' },
-  { id:'aim',  name:'Aim',          icon:'✛',  color:'#ffffff', stat:null,   perPoint:0,     curve:true, max:20,
+  { id:'aim',  name:'Aim',          icon:'part_sight',  color:'#ffffff', stat:null,   perPoint:0,     curve:true, max:20,
     desc:'Shots land a little wide of dead-center at 0 — 20 points buys back tight, reliable accuracy.' },
-  { id:'int',  name:'Intelligence', icon:'📖',  color:'#b362ff', stat:'xp',    perPoint:0.005, desc:'+0.5% XP per point' },
-  { id:'ele',  name:'Elemental',    icon:'🌀',  color:'#4dc4ff', stat:'elementalDmg', perPoint:0.008, desc:'+0.8% elemental damage per point' },
-  { id:'mag',  name:'Magic',        icon:'🔮',  color:'#b362ff', stat:'atks',  perPoint:0.005, desc:'+0.5% attack speed per point' },
-  { id:'luck', name:'Luck',         icon:'🍀',  color:'#4dff91', stat:'luck',  perPoint:0.15,  desc:'+0.15 luck per point (better card/loot rarity rolls)' },
+  { id:'int',  name:'Intelligence', icon:'ui_codex',  color:'#b362ff', stat:'xp',    perPoint:0.005, desc:'+0.5% XP per point' },
+  { id:'ele',  name:'Elemental',    icon:'tornado',  color:'#4dc4ff', stat:'elementalDmg', perPoint:0.008, desc:'+0.8% elemental damage per point' },
+  { id:'mag',  name:'Magic',        icon:'ui_orb',  color:'#b362ff', stat:'atks',  perPoint:0.005, desc:'+0.5% attack speed per point' },
+  { id:'luck', name:'Luck',         icon:'ui_leaf',  color:'#4dff91', stat:'luck',  perPoint:0.15,  desc:'+0.15 luck per point (better card/loot rarity rolls)' },
 ];

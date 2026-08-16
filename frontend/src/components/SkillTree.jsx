@@ -319,12 +319,11 @@ export default function SkillTree({ save, setSave, onClose }) {
                     <React.Fragment key={`lbl-${key}`}>
                       <text x={pos.x} y={pos.y} textAnchor={anchor} dominantBaseline="middle"
                         fill={b.color} fontSize={22} fontFamily="VT323" opacity={0.8} letterSpacing={2}>
-                        {b.icon} {b.name}
+                        {b.name}
                       </text>
-                      <text x={ix} y={iy} textAnchor="middle" dominantBaseline="middle"
-                        fill={b.color} fontSize={11} fontFamily="VT323" opacity={0.7} letterSpacing={1}>
-                        {b.icon}
-                      </text>
+                      <g transform={`translate(${ix - 11}, ${iy - 11})`} style={{ pointerEvents: 'none' }} opacity={0.85}>
+                        <GameIcon name={b.icon} size={22} tone={b.color} />
+                      </g>
                     </React.Fragment>
                   );
                 })}
@@ -472,13 +471,14 @@ export default function SkillTree({ save, setSave, onClose }) {
                       {maxd && <circle cx={nx} cy={ny} r={r} fill="#ffd70040" stroke="none" />}
 
                       {/* Icon — hidden while locked/almost-invisible */}
-                      {unlk && (
-                        <text x={nx} y={ny + 6} textAnchor="middle"
-                          fontSize={node.type === 'keystone' ? 22 : node.type === 'notable' ? 16 : 13}
-                          style={{ pointerEvents: 'none', userSelect: 'none' }}>
-                          {node.icon}
-                        </text>
-                      )}
+                      {unlk && (() => {
+                        const isz = node.type === 'keystone' ? 26 : node.type === 'notable' ? 19 : 15;
+                        return (
+                          <g transform={`translate(${nx - isz / 2}, ${ny - isz / 2})`} style={{ pointerEvents: 'none' }}>
+                            <GameIcon name={node.icon} size={isz} tone={b.color} />
+                          </g>
+                        );
+                      })()}
 
                       {/* Level badge */}
                       {purd && node.max > 1 && (
@@ -519,11 +519,11 @@ export default function SkillTree({ save, setSave, onClose }) {
           <div className={`poe-preview ${selNode ? 'open' : ''}`}>
             {selNode ? (
               <>
-                <div className="poe-prev-branch" style={{ color: selBranch?.color }}>
-                  {selBranch?.icon} {selBranch?.name}
+                <div className="poe-prev-branch" style={{ color: selBranch?.color, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <GameIcon name={selBranch?.icon} size={16} tone={selBranch?.color} /> {selBranch?.name}
                 </div>
-                <div className="poe-prev-icon" style={{ textShadow: `0 0 20px ${selBranch?.color}` }}>
-                  {selNode.icon}
+                <div className="poe-prev-icon" style={{ textShadow: `0 0 20px ${selBranch?.color}`, display: 'flex', justifyContent: 'center' }}>
+                  <GameIcon name={selNode.icon} size={40} tone={selBranch?.color} />
                 </div>
                 <div className="poe-prev-name">{selNode.name}</div>
                 <div className="poe-prev-type" style={{ color: selBranch?.color }}>
