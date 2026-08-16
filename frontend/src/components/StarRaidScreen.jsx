@@ -372,7 +372,7 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
               return (
                 <div key={id} className={`raid-upgrade-card${maxed ? ' maxed' : ''}`}>
                   <div className="raid-upgrade-top">
-                    <span className="raid-upgrade-icon">{u.icon}</span>
+                    <span className="raid-upgrade-icon"><GameIcon name={u.icon} size={22} /></span>
                     <span className="raid-upgrade-name">{u.name}</span>
                     <span className="raid-upgrade-lvl">{lvl}<i>/{u.max}</i></span>
                   </div>
@@ -449,7 +449,7 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
             {snap.levelUpChoices.map((c) => (
               <button key={c.id} className="raid-card"
                 onClick={() => { gameRef.current && gameRef.current.pickCard(c.id); }}>
-                <span className="raid-card-icon">{c.icon}</span>
+                <span className="raid-card-icon"><GameIcon name={c.icon} size={26} /></span>
                 <span className="raid-card-name">{c.name}</span>
                 <span className="raid-card-desc">{c.desc}</span>
                 <span className="raid-card-lvl">

@@ -61,7 +61,7 @@ export default function Shop({ save, setSave, onClose }) {
           petEggs: [...(save.petEggs || []), newEgg],
         };
         setSave(ns);
-        const drops = [{ isPetEgg: true, egg: newEgg, petType, icon: '🥚', name: `${petType.name} Egg`, rarity: chosenRarity }];
+        const drops = [{ isPetEgg: true, egg: newEgg, petType, icon: 'ui_egg', name: `${petType.name} Egg`, rarity: chosenRarity }];
         setOpenedDrops(drops);
         announceDrops(drops, chest.name || 'Chest opened');
         setOpening(false);
@@ -80,7 +80,7 @@ export default function Shop({ save, setSave, onClose }) {
       }
       setTimeout(() => {
         setSave({ ...save, gems: gems - chest.cost, parts: [...(save.parts || []), ...newParts] });
-        const drops = newParts.map(p => ({ ...p, isPart: true, icon: PART_SLOT_INFO[p.slot]?.icon || '🔩' }));
+        const drops = newParts.map(p => ({ ...p, isPart: true, icon: PART_SLOT_INFO[p.slot]?.icon || 'ui_part' }));
         setOpenedDrops(drops);
         announceDrops(drops, chest.name || 'Chest opened');
         setOpening(false);
@@ -95,8 +95,8 @@ export default function Shop({ save, setSave, onClose }) {
       setTimeout(() => {
         setSave({ ...save, gems: gems - chest.cost + gemsAmt, gold: (save.gold || 0) + goldAmt });
         const drops = [
-          { isResource: true, icon: '★', name: `${goldAmt} Gold`, rarity: 'common' },
-          { isResource: true, icon: '💎', name: `${gemsAmt} Gems`, rarity: 'common' },
+          { isResource: true, icon: 'gold', name: `${goldAmt} Gold`, rarity: 'common' },
+          { isResource: true, icon: 'gems', name: `${gemsAmt} Gems`, rarity: 'common' },
         ];
         setOpenedDrops(drops);
         announceDrops(drops, chest.name || 'Chest opened');
@@ -139,9 +139,9 @@ export default function Shop({ save, setSave, onClose }) {
     <div className="modal-overlay" data-testid="shop" onClick={(e) => { if (e.target.classList.contains('modal-overlay')) onClose(); }}>
       <div className="shop-panel">
         <div className="forge-header">
-          <div className="forge-title">📦 CHEST SHOP</div>
+          <div className="forge-title" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><GameIcon name="ui_chest" size={18} /> CHEST SHOP</div>
           <div style={{ fontFamily: 'VT323', fontSize: 14, color: 'var(--ink-dim)', display: 'flex', gap: 12 }}>
-            <span style={{ color: '#4dffd4' }}>💎 {gems}</span>
+            <span style={{ color: '#4dffd4', display: 'inline-flex', alignItems: 'center', gap: 3 }}><GameIcon name="cur_gems" size={13} /> {gems}</span>
             <span>★ {save.gold || 0}</span>
           </div>
           <button onClick={onClose} style={{ padding: '6px 12px', fontSize: 12 }}>✕</button>
@@ -149,7 +149,7 @@ export default function Shop({ save, setSave, onClose }) {
 
         {opening && (
           <div className="chest-opening">
-            <div className="chest-anim">📦</div>
+            <div className="chest-anim"><GameIcon name="ui_chest" size={48} /></div>
             <div className="chest-text">OPENING…</div>
           </div>
         )}
@@ -163,10 +163,10 @@ export default function Shop({ save, setSave, onClose }) {
                 return (
                   <div key={i} className={`drop-item card ${r?.cls || ''}`} style={{ animationDelay: (i * 80) + 'ms' }}>
                     <div className="card-tag">{d.rarity?.toUpperCase()}</div>
-                    <div className="card-icon">{d.isPart ? <GameIcon name={d.icon} size={32} /> : d.icon}</div>
+                    <div className="card-icon"><GameIcon name={d.icon} size={32} /></div>
                     <div className="card-name">{d.name}</div>
                     {d.isPetEgg ? (
-                      <div className="card-desc" style={{ color: r?.color }}>🥚 {d.petType?.type} pet</div>
+                      <div className="card-desc" style={{ color: r?.color, display: 'inline-flex', alignItems: 'center', gap: 4 }}><GameIcon name="ui_egg" size={13} /> {d.petType?.type} pet</div>
                     ) : d.isResource ? (
                       <div className="card-desc" style={{ color: '#ffd166' }}>Added to your balance</div>
                     ) : d.isPart ? (
@@ -194,7 +194,7 @@ export default function Shop({ save, setSave, onClose }) {
             <div className="chest-row">
               {CHESTS.map(c => (
                 <div key={c.id} className="chest-card" data-testid={`chest-${c.id}`}>
-                  <div className="chest-icon">{c.icon}</div>
+                  <div className="chest-icon"><GameIcon name={c.icon} size={30} /></div>
                   <div className="chest-name">{c.name}</div>
                   <div className="chest-info">
                     {Object.entries(c.rarityWeights).map(([rar, w]) => {
@@ -203,8 +203,8 @@ export default function Shop({ save, setSave, onClose }) {
                       return <span key={rar} style={{ color: r?.color, marginRight: 6 }}>{rar} {Math.round(w / total * 100)}%</span>;
                     })}
                   </div>
-                  <button onClick={() => open(c)} disabled={!canAfford(c)} data-testid={`open-${c.id}`}>
-                    {c.currency === 'gems' ? `💎 ${c.cost}` : `★ ${c.cost}`}
+                  <button onClick={() => open(c)} disabled={!canAfford(c)} data-testid={`open-${c.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, justifyContent: 'center' }}>
+                    {c.currency === 'gems' ? <><GameIcon name="cur_gems" size={13} /> {c.cost}</> : <>★ {c.cost}</>}
                   </button>
                 </div>
               ))}
@@ -220,7 +220,7 @@ export default function Shop({ save, setSave, onClose }) {
                       <div style={{ fontSize: 12, color: 'var(--ink-dim)', textTransform: 'uppercase' }}>{slot}</div>
                       {it ? (
                         <div className={`equip-mini ${EQUIP_RARITY[it.rarity]?.cls || ''}`}>
-                          <div style={{ fontSize: 22 }}>{it.icon}</div>
+                          <div style={{ fontSize: 22 }}><GameIcon name={it.icon} size={22} /></div>
                           <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--ink)' }}>{it.name}</div>
                           {it.stats.map((s, j) => <div key={j} style={{ fontSize: 10, color: 'var(--ink-dim)' }}>+{s.stat === 'maxhp' || s.stat === 'armor' ? s.val.toFixed(0) : Math.round(s.val * 100) + '%'} {s.name}</div>)}
                         </div>
@@ -236,7 +236,7 @@ export default function Shop({ save, setSave, onClose }) {
                 {(save.inventory || []).map(it => (
                   <div key={it.id} className={`drop-item card ${EQUIP_RARITY[it.rarity]?.cls || ''}`} style={{ width: 160, minHeight: 'auto', padding: 10 }}>
                     <div className="card-tag">{it.rarity?.toUpperCase()}</div>
-                    <div className="card-icon" style={{ fontSize: 32 }}>{it.icon}</div>
+                    <div className="card-icon" style={{ fontSize: 32 }}><GameIcon name={it.icon} size={32} /></div>
                     <div style={{ fontSize: 12, fontWeight: 800 }}>{it.name}</div>
                     <div style={{ fontSize: 10, color: 'var(--ink-dim)' }}>{it.slot}</div>
                     {it.stats.map((s, j) => <div key={j} style={{ fontSize: 10, color: 'var(--ink)' }}>+{s.stat === 'maxhp' || s.stat === 'armor' ? s.val.toFixed(0) : Math.round(s.val * 100) + '%'} {s.name}</div>)}

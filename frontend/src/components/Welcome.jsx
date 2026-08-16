@@ -276,7 +276,7 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
                 return (
                   <div key={r.day} className={`daily-cell ${claimed ? 'claimed' : ''} ${current ? 'current' : ''}`}>
                     <div className="daily-day">D{r.day}</div>
-                    <div className="daily-icon">{r.icon}</div>
+                    <div className="daily-icon"><GameIcon name={r.icon} size={26} /></div>
                     <div className="daily-label">{r.label}</div>
                   </div>
                 );
@@ -302,7 +302,7 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
                 const done = prog >= q.goal;
                 return (
                   <div key={q.id} className={`quest-row ${done ? 'done' : ''}`} data-testid={`quest-${q.id}`}>
-                    <div className="quest-icon">{q.icon}</div>
+                    <div className="quest-icon"><GameIcon name={q.icon} size={22} /></div>
                     <div className="quest-body">
                       <div className="quest-name">{q.name}</div>
                       <div className="quest-desc">{q.desc}</div>
@@ -355,7 +355,7 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
                 const done = prog >= q.goal;
                 return (
                   <div key={q.id} className={`quest-row ${done ? 'done' : ''}`} data-testid={`wquest-${q.id}`}>
-                    <div className="quest-icon">{q.icon}</div>
+                    <div className="quest-icon"><GameIcon name={q.icon} size={22} /></div>
                     <div className="quest-body">
                       <div className="quest-name">{q.name}</div>
                       <div className="quest-desc">{q.desc}</div>

@@ -4,7 +4,7 @@ import { WEAPONS } from './data';
 // ---------- 5 STARTER WEAPONS (all manual-aim) ----------
 export const STARTER_WEAPONS = {
   hydropistol: {  // already in WEAPONS - this is canonical starter
-    id: 'hydropistol', name: 'Hydro Pistol', icon: '💧',
+    id: 'hydropistol', name: 'Hydro Pistol', icon: 'pistol',
     blueprint: null, // already owned by default
   },
   // Unlocked from the start, alongside the pistol, so the very first choice a
@@ -12,12 +12,12 @@ export const STARTER_WEAPONS = {
   // in WEAPONS (data.js) like the pistol's -- this entry only puts it on the
   // starter shelf. `blueprint: null` means no shards are needed.
   katana: {
-    id: 'katana', name: 'Tidecutter Katana', icon: '🗡',
+    id: 'katana', name: 'Tidecutter Katana', icon: 'katana',
     blueprint: null,
     desc: 'A single clean arc. Kills split the body in two.',
   },
   twinSMG: {
-    id: 'twinSMG', name: 'Twin SMG', icon: '🔫',
+    id: 'twinSMG', name: 'Twin SMG', icon: 'revolvers',
     blueprintCost: 5,
     desc: 'Dual SMGs. Rapid fire, low damage, huge mag.',
     base: { damage: 9, fireRate: 9.0, projSpeed: 760, projSize: 4, magazine: 32, reloadTime: 1.3, pierce: 0, knockback: 30, spread: 0.10, crit: 0.05, color: '#4dffd4' },
@@ -28,7 +28,7 @@ export const STARTER_WEAPONS = {
     ],
   },
   tidalShotgun: {
-    id: 'tidalShotgun', name: 'Tidal Shotgun', icon: '💥',
+    id: 'tidalShotgun', name: 'Tidal Shotgun', icon: 'scatter',
     blueprintCost: 6,
     desc: 'Wide spray, 5 pellets, brutal close range.',
     base: { damage: 14, fireRate: 1.4, projSpeed: 680, projSize: 6, magazine: 6, reloadTime: 1.8, pierce: 0, knockback: 200, spread: 0.45, crit: 0.06, color: '#ff7a1a', pellets: 5 },
@@ -39,7 +39,7 @@ export const STARTER_WEAPONS = {
     ],
   },
   runicRifle: {
-    id: 'runicRifle', name: 'Runic Rifle', icon: '🎯',
+    id: 'runicRifle', name: 'Runic Rifle', icon: 'railgun',
     blueprintCost: 8,
     desc: 'Slow, hard-hitting, piercing rifle.',
     base: { damage: 55, fireRate: 1.5, projSpeed: 1200, projSize: 5, magazine: 5, reloadTime: 1.8, pierce: 4, knockback: 140, spread: 0.005, crit: 0.18, color: '#ffd166' },
@@ -50,7 +50,7 @@ export const STARTER_WEAPONS = {
     ],
   },
   plasmaLance: {
-    id: 'plasmaLance', name: 'Plasma Lance', icon: '⚡',
+    id: 'plasmaLance', name: 'Plasma Lance', icon: 'caster',
     blueprintCost: 10,
     desc: 'Charged plasma bolts that explode on impact.',
     base: { damage: 32, fireRate: 2.5, projSpeed: 900, projSize: 9, magazine: 10, reloadTime: 1.5, pierce: 1, knockback: 90, spread: 0.02, crit: 0.10, color: '#b362ff', explode: 60 },

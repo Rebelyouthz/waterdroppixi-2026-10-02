@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import BadgeIcon from './BadgeIcon';
+import GameIcon from './GameIcon';
 import {
   BADGES, BADGE_CATS, BADGE_TIERS, MAX_EQUIPPED_BADGES,
   equippedBadges, isEarned, setBadgeSlot, toggleBadge,
@@ -100,8 +101,8 @@ export function BadgePicker({ save, setSave, onClose }) {
         <div className="badge-cat-row">
           <button className={cat === 'all' ? 'active' : ''} onClick={() => setCat('all')}>ALL</button>
           {BADGE_CATS.map(c => (
-            <button key={c.id} className={cat === c.id ? 'active' : ''} onClick={() => setCat(c.id)}>
-              {c.icon} {c.name.toUpperCase()}
+            <button key={c.id} className={cat === c.id ? 'active' : ''} onClick={() => setCat(c.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <GameIcon name={c.icon} size={14} /> {c.name.toUpperCase()}
             </button>
           ))}
         </div>

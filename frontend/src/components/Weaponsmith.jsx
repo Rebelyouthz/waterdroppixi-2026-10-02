@@ -297,7 +297,7 @@ export default function Weaponsmith({ save, setSave, onClose, initialSub }) {
               const curTierName = tierNameFor(pk, cur, part.tiers[cur].name);
               return (
                 <div className="forge-part" key={pk} data-testid={`part-${pk}`}>
-                  <div className="forge-part-h">{lbl.icon} {lbl.name} — <span style={{ color: 'var(--accent-2)' }}>{curTierName}</span></div>
+                  <div className="forge-part-h" style={{ display: 'flex', alignItems: 'center', gap: 5 }}><GameIcon name={lbl.icon} size={15} /> {lbl.name} — <span style={{ color: 'var(--accent-2)' }}>{curTierName}</span></div>
                   <div className="forge-tiers">
                     {part.tiers.map((t, i) => {
                       const owned = i <= cur;
@@ -386,7 +386,7 @@ export default function Weaponsmith({ save, setSave, onClose, initialSub }) {
                       data-testid={`craft-${id}`}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ fontSize: 32 }}>{def.icon}</div>
+                        <div style={{ fontSize: 32 }}><GameIcon name={id} size={32} /></div>
                         <div>
                           <div className="name">{def.name}</div>
                           <div className="lvl">{free ? 'UNLOCKED' : `${have} / ${def.blueprintCost}`}</div>
@@ -522,7 +522,7 @@ export default function Weaponsmith({ save, setSave, onClose, initialSub }) {
                   const odds = Math.round(mergeChance(RUNE_RARITIES.indexOf(base.rarity) + 1, Math.min(runeFlux, save.flux || 0)) * 100);
                   return (
                     <div key={`${base.stat}_${base.rarity}`} className="gear-popover-row" style={{ '--rc': RUNE_RARITY_COLORS[base.rarity] }}>
-                      <span className="gear-popover-name">{base.icon} {base.name} ×{group.length}</span>
+                      <span className="gear-popover-name"><GameIcon name={base.icon} size={14} /> {base.name} ×{group.length}</span>
                       <button className="gear-btn equip" onClick={() => doMergeRunes(base.stat, base.rarity)}>
                         FORGE <span className="forge-odds">{odds}%</span>
                       </button>
@@ -542,7 +542,7 @@ export default function Weaponsmith({ save, setSave, onClose, initialSub }) {
             <div className="inv-row">
               {runeInv.map(r => (
                 <div key={r.id} className="part-chip" style={{ '--rar': RUNE_RARITY_COLORS[r.rarity], borderLeft: `3px solid ${RUNE_RARITY_COLORS[r.rarity]}` }}>
-                  <div style={{ fontWeight: 800, fontSize: 11, color: RUNE_RARITY_COLORS[r.rarity] }}>{r.icon} {r.name}</div>
+                  <div style={{ fontWeight: 800, fontSize: 11, color: RUNE_RARITY_COLORS[r.rarity], display: 'flex', alignItems: 'center', gap: 4 }}><GameIcon name={r.icon} size={13} /> {r.name}</div>
                   <div style={{ fontSize: 10, color: 'var(--ink-dim)' }}>+{r.val} {STAT_DISPLAY[r.stat] || r.stat}</div>
                   {w.type === 'manual' && socketedRuneId !== r.id && (
                     <button onClick={() => socketRune(r.id)} style={{ padding: '3px 5px', fontSize: 10, marginTop: 4 }}>Socket</button>

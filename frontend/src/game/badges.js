@@ -253,10 +253,10 @@ export const BADGES = [
 export const BADGE_INDEX = BADGES.reduce((m, b) => { m[b.id] = b; return m; }, {});
 
 export const BADGE_CATS = [
-  { id: 'story',   name: 'Storyline', icon: '📜' },
-  { id: 'combat',  name: 'Combat',    icon: '⚔' },
-  { id: 'endless', name: 'Endless',   icon: '∞' },
-  { id: 'mastery', name: 'Mastery',   icon: '🧠' },
+  { id: 'story',   name: 'Storyline', icon: 'ui_scroll' },
+  { id: 'combat',  name: 'Combat',    icon: 'ui_blade' },
+  { id: 'endless', name: 'Endless',   icon: 'ui_infinity' },
+  { id: 'mastery', name: 'Mastery',   icon: 'ui_skills' },
 ];
 
 // Five, not three. Three left a short row of hexagons under a full-width name

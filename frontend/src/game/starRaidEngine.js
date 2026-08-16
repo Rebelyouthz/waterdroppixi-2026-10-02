@@ -49,12 +49,12 @@ function pickKind() {
 // as the "skill tree" for this mode; a dedicated radial UI is a Phase 2
 // polish item, the progression itself is fully here and live.
 export const SHIP_UPGRADES = {
-  dmg:    { name: 'Cannon Power', icon: '💥', max: 20, costBase: 8,  costGrowth: 1.18, perLevel: 0.08 },
-  atks:   { name: 'Fire Rate',    icon: '⏱️', max: 20, costBase: 8,  costGrowth: 1.18, perLevel: 0.06 },
-  hp:     { name: 'Hull',         icon: '🛡️', max: 20, costBase: 6,  costGrowth: 1.16, perLevel: 6 },
-  mspd:   { name: 'Thrusters',    icon: '🚀', max: 15, costBase: 6,  costGrowth: 1.16, perLevel: 0.04 },
-  magnet: { name: 'Tractor Beam', icon: '🧲', max: 15, costBase: 5,  costGrowth: 1.14, perLevel: 8 },
-  pierce: { name: 'Rail Rounds',  icon: '➰', max: 10, costBase: 12, costGrowth: 1.22, perLevel: 1 },
+  dmg:    { name: 'Cannon Power', icon: 'pExplode', max: 20, costBase: 8,  costGrowth: 1.18, perLevel: 0.08 },
+  atks:   { name: 'Fire Rate',    icon: 'ui_clock', max: 20, costBase: 8,  costGrowth: 1.18, perLevel: 0.06 },
+  hp:     { name: 'Hull',         icon: 'ui_shield', max: 20, costBase: 6,  costGrowth: 1.16, perLevel: 6 },
+  mspd:   { name: 'Thrusters',    icon: 'ui_rocket', max: 15, costBase: 6,  costGrowth: 1.16, perLevel: 0.04 },
+  magnet: { name: 'Tractor Beam', icon: 'pMagnet', max: 15, costBase: 5,  costGrowth: 1.14, perLevel: 8 },
+  pierce: { name: 'Rail Rounds',  icon: 'harpoon', max: 10, costBase: 12, costGrowth: 1.22, perLevel: 1 },
 };
 
 export function upgradeCost(id, curLvl) {
@@ -67,16 +67,16 @@ export function upgradeCost(id, curLvl) {
 // run a roguelite rather than a fixed-loadout shmup. `apply` mutates the live
 // stats object, so picks compound within the run and reset between runs.
 export const RAID_CARDS = [
-  { id: 'twinCannon', name: 'Twin Cannon',    icon: '🔫', max: 4, desc: (l) => `+1 forward cannon (now ${1 + l + 1})`, apply: (s) => { s.guns += 1; } },
-  { id: 'overcharge', name: 'Overcharge',     icon: '💥', max: 8, desc: () => '+18% cannon damage',                    apply: (s) => { s.dmg *= 1.18; } },
-  { id: 'autoloader', name: 'Autoloader',     icon: '⏱️', max: 8, desc: () => '+15% fire rate',                        apply: (s) => { s.fireRate *= 1.15; } },
-  { id: 'railRounds', name: 'Rail Rounds',    icon: '➰', max: 4, desc: () => '+1 pierce',                             apply: (s) => { s.pierce += 1; } },
-  { id: 'spreadFire', name: 'Spread Fire',    icon: '🌾', max: 3, desc: () => '+2 angled shots per volley',            apply: (s) => { s.spread += 2; } },
-  { id: 'seeker',     name: 'Seeker Warheads',icon: '🎯', max: 3, desc: () => 'Shots curve toward enemies',            apply: (s) => { s.homing += 0.35; } },
-  { id: 'plating',    name: 'Ablative Plate', icon: '🛡️', max: 6, desc: () => '+12 max hull, and repair 12',           apply: (s, g) => { s.maxHp += 12; g.player.maxHp += 12; g.player.hp = Math.min(g.player.maxHp, g.player.hp + 12); } },
-  { id: 'tractor',    name: 'Tractor Field',  icon: '🧲', max: 5, desc: () => '+30 pickup radius',                     apply: (s) => { s.magnetR += 30; } },
-  { id: 'afterburn',  name: 'Afterburner',    icon: '🚀', max: 4, desc: () => '+12% thrust',                           apply: (s) => { s.speed *= 1.12; } },
-  { id: 'scavenger',  name: 'Scavenger Rig',  icon: '🔍', max: 4, desc: () => '+25% scrap and XP from wrecks',         apply: (s) => { s.loot += 0.25; } },
+  { id: 'twinCannon', name: 'Twin Cannon',    icon: 'part_barrel', max: 4, desc: (l) => `+1 forward cannon (now ${1 + l + 1})`, apply: (s) => { s.guns += 1; } },
+  { id: 'overcharge', name: 'Overcharge',     icon: 'pExplode', max: 8, desc: () => '+18% cannon damage',                    apply: (s) => { s.dmg *= 1.18; } },
+  { id: 'autoloader', name: 'Autoloader',     icon: 'ui_clock', max: 8, desc: () => '+15% fire rate',                        apply: (s) => { s.fireRate *= 1.15; } },
+  { id: 'railRounds', name: 'Rail Rounds',    icon: 'harpoon', max: 4, desc: () => '+1 pierce',                             apply: (s) => { s.pierce += 1; } },
+  { id: 'spreadFire', name: 'Spread Fire',    icon: 'scatter', max: 3, desc: () => '+2 angled shots per volley',            apply: (s) => { s.spread += 2; } },
+  { id: 'seeker',     name: 'Seeker Warheads',icon: 'part_sight', max: 3, desc: () => 'Shots curve toward enemies',            apply: (s) => { s.homing += 0.35; } },
+  { id: 'plating',    name: 'Ablative Plate', icon: 'ui_shield', max: 6, desc: () => '+12 max hull, and repair 12',           apply: (s, g) => { s.maxHp += 12; g.player.maxHp += 12; g.player.hp = Math.min(g.player.maxHp, g.player.hp + 12); } },
+  { id: 'tractor',    name: 'Tractor Field',  icon: 'pMagnet', max: 5, desc: () => '+30 pickup radius',                     apply: (s) => { s.magnetR += 30; } },
+  { id: 'afterburn',  name: 'Afterburner',    icon: 'ui_rocket', max: 4, desc: () => '+12% thrust',                           apply: (s) => { s.speed *= 1.12; } },
+  { id: 'scavenger',  name: 'Scavenger Rig',  icon: 'ui_search', max: 4, desc: () => '+25% scrap and XP from wrecks',         apply: (s) => { s.loot += 0.25; } },
 ];
 
 // Hull roster. Three genuinely different ships rather than one ship with
