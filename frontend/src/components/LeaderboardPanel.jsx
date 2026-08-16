@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import GameIcon from './GameIcon';
 
 const API = (process.env.REACT_APP_BACKEND_URL || '') + '/api';
 
@@ -53,10 +54,14 @@ export default function LeaderboardPanel() {
         <div className="lb-list">
           {rows.map((r, i) => (
             <div key={r.id || i} className={`lb-row ${i < 3 ? 'lb-top' : ''}`} data-testid={`lb-row-${i}`}>
-              <div className="lb-rank">{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`}</div>
+              <div className="lb-rank">
+                {i < 3
+                  ? <GameIcon name="ui_medal" size={20} tone={['#ffd166', '#c8ccd4', '#c9834a'][i]} />
+                  : `#${i + 1}`}
+              </div>
               {r.picture
                 ? <img src={r.picture} alt="" className="lb-avatar" />
-                : <div className="lb-avatar lb-avatar-fb">💧</div>}
+                : <div className="lb-avatar lb-avatar-fb"><GameIcon name="ui_waterdrop" size={20} /></div>}
               <div className="lb-name">
                 {r.name || 'Anonymous'}
                 <div className="lb-meta">

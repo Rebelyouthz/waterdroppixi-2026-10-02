@@ -64,9 +64,9 @@ export function nodeObjectives(node) {
   const gate = bossGateTime(node);
   const killGoal = 40 + node.diff * 45;
   return [
-    { id: 'clear',   icon: '⚔', label: `Cut down ${killGoal} of them`, goal: killGoal, metric: 'kills' },
-    { id: 'survive', icon: '⏳', label: `Hold out ${Math.round(gate / 60)} minutes`, goal: gate, metric: 'time' },
-    { id: 'boss',    icon: '💀', label: 'Put the guardian down', goal: 1, metric: 'bossKilled' },
+    { id: 'clear',   icon: 'ui_blade', label: `Cut down ${killGoal} of them`, goal: killGoal, metric: 'kills' },
+    { id: 'survive', icon: 'ui_clock', label: `Hold out ${Math.round(gate / 60)} minutes`, goal: gate, metric: 'time' },
+    { id: 'boss',    icon: 'ui_void', label: 'Put the guardian down', goal: 1, metric: 'bossKilled' },
   ];
 }
 

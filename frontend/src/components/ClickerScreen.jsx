@@ -157,7 +157,7 @@ export default function ClickerScreen({ save, setSave, onClose }) {
     <div className="modal-overlay" data-testid="clicker" onClick={(e) => { if (e.target.classList.contains('modal-overlay')) onClose(); }}>
       <div className="clk-panel">
         <div className="clk-head">
-          <div className="clk-title">💧 THE WELL</div>
+          <div className="clk-title" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><GameIcon name="ui_waterdrop" size={16} /> THE WELL</div>
           <button className="prosp-close" onClick={onClose}>✕</button>
         </div>
 
@@ -170,7 +170,7 @@ export default function ClickerScreen({ save, setSave, onClose }) {
         <div className="clk-well" onClick={tap} data-testid="clk-well">
           <div className="clk-well-ring" />
           <div className="clk-well-water"><i /><i /><i /></div>
-          <div className="clk-well-drop">💧</div>
+          <div className="clk-well-drop"><GameIcon name="ui_waterdrop" size={46} /></div>
           {splashes.map(s => (
             <span key={s.id} className="clk-splash" style={{ left: s.x, top: s.y }}>+{fmtDrops(s.gain)}</span>
           ))}

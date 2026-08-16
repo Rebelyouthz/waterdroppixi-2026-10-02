@@ -304,10 +304,10 @@ export default function BaseDefenceScreen({ save, setSave, onClose }) {
     <div className="modal-overlay" data-testid="base-defence">
       <div className="bd-panel">
         <div className="bd-head">
-          <div className="bd-title">🛡 BASE DEFENCE</div>
+          <div className="bd-title" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><GameIcon name="ui_shield" size={16} /> BASE DEFENCE</div>
           <span className="bd-stat">WAVE <b>{ui.wave}</b></span>
           <span className="bd-stat">CORE <b className={ui.coreHp < coreMax * 0.4 ? 'crit' : ''}>{ui.coreHp}</b></span>
-          <span className="bd-stat">⚙ <b>{ui.scrap}</b></span>
+          <span className="bd-stat" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><GameIcon name="ui_cog" size={13} /> <b>{ui.scrap}</b></span>
           <button className="prosp-close" onClick={finish}>✕</button>
         </div>
         {isRescued(save, 'bram') && (
@@ -340,7 +340,7 @@ export default function BaseDefenceScreen({ save, setSave, onClose }) {
                     data-testid={`bd-tower-${t.id}`}>
               <GameIcon name={t.icon} tone={t.accent} size={24} />
               <span className="bd-tower-name">{t.name}</span>
-              <span className="bd-tower-cost">⚙ {t.cost}</span>
+              <span className="bd-tower-cost" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><GameIcon name="ui_cog" size={12} /> {t.cost}</span>
               <span className="bd-tower-desc">{t.desc}</span>
             </button>
           ))}
@@ -350,7 +350,7 @@ export default function BaseDefenceScreen({ save, setSave, onClose }) {
           {selected ? (
             <>
               <span className="bd-sel">{TOWERS[selected.type].name} · Lv {selected.lvl + 1}</span>
-              <button className="prosp-btn" disabled={ui.scrap < selCost} onClick={upgradeSelected}>▲ UPGRADE (⚙ {selCost})</button>
+              <button className="prosp-btn" disabled={ui.scrap < selCost} onClick={upgradeSelected} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, justifyContent: 'center' }}>▲ UPGRADE (<GameIcon name="ui_cog" size={12} /> {selCost})</button>
               <button className="prosp-btn ghost" onClick={() => setSelected(null)}>Deselect</button>
             </>
           ) : (

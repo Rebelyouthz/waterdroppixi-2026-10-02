@@ -1,4 +1,5 @@
 import React from 'react';
+import GameIcon from './GameIcon';
 
 export default function MainMenu({ save, onStart, onCamp, onReset }) {
   return (
@@ -13,7 +14,7 @@ export default function MainMenu({ save, onStart, onCamp, onReset }) {
         </div>
         <div className="menu-actions">
           <button data-testid="play-button" onClick={onStart}>▸ Begin Run</button>
-          <button data-testid="camp-button" onClick={onCamp}>⛺ The Camp</button>
+          <button data-testid="camp-button" onClick={onCamp} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}><GameIcon name="ui_base" size={14} /> The Camp</button>
           <button data-testid="reset-button" onClick={onReset} style={{ opacity: 0.6 }}>Erase Save</button>
         </div>
         <div className="menu-footer">

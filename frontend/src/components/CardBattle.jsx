@@ -45,7 +45,7 @@ export default function CardBattle({ pet, tier, onDone, onClose }) {
     <div className="modal-overlay" data-testid="card-battle">
       <div className="cb-panel">
         <div className="cb-head">
-          <div className="cb-title">⚔ ENCOUNTER</div>
+          <div className="cb-title" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><GameIcon name="ui_blade" size={16} /> ENCOUNTER</div>
           <div className="cb-score">
             {[0, 1, 2].map(i => (
               <span key={i} className={`cb-pip${log[i] ? (log[i].won ? ' win' : ' loss') : ''}`} />

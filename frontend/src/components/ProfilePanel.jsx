@@ -71,7 +71,7 @@ export default function ProfilePanel({ save, setSave, onClose, onBadges }) {
     <div className="modal-overlay" data-testid="profile-panel" onClick={(e) => { if (e.target.classList.contains('modal-overlay')) onClose(); }}>
       <div className="forge-panel forge-panel-scrollable profile-panel" style={{ maxWidth: 560 }}>
         <div className="forge-header">
-          <div className="forge-title">👤 PROFILE</div>
+          <div className="forge-title" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><GameIcon name="ui_character" size={16} /> PROFILE</div>
           <button onClick={onClose} style={{ padding: '6px 12px', fontSize: 12 }}>✕</button>
         </div>
 
@@ -93,7 +93,7 @@ export default function ProfilePanel({ save, setSave, onClose, onBadges }) {
               list would say they are. */}
           <div className="profile-badge-row">
             <div className="profile-badge-head">
-              <span>🎗 BADGES</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><GameIcon name="ui_medal" size={14} /> BADGES</span>
               <span className="profile-badge-count">{earnedCount}/{BADGES.length} earned</span>
             </div>
             <div className="profile-badge-slots">
@@ -133,7 +133,7 @@ export default function ProfilePanel({ save, setSave, onClose, onBadges }) {
           <div style={{ fontFamily: 'VT323', fontSize: 13, color: 'var(--accent-2)', letterSpacing: '0.15em', marginBottom: 6 }}>IDLE CIGAR</div>
           {rank >= CIGAR_UNLOCK_RANK ? (
             <button onClick={toggleCigar} data-testid="profile-cigar-toggle" style={{ fontSize: 12, padding: '6px 12px' }}>
-              {save.profile.cigarOn ? '🚬 ON — smoking when idle' : 'OFF — click to enable'}
+              {save.profile.cigarOn ? 'ON — smoking when idle' : 'OFF — click to enable'}
             </button>
           ) : (
             <div style={{ color: '#ff5566', fontFamily: 'VT323', fontSize: 12 }}>Unlocks at Rank {CIGAR_UNLOCK_RANK}</div>

@@ -49,7 +49,7 @@ export default function TcgBoard({ battle, yourName, resolving, onPlayCard, onPa
           {TYPE_TAG[battle.you.type] && <span className="tcg-card-type" style={{ '--tc': TYPE_TAG[battle.you.type].color }}>{TYPE_TAG[battle.you.type].label}</span>}
         </div>
         <div className="tcg-hpbar"><i style={{ width: `${(battle.you.hp / battle.you.maxHp) * 100}%` }} /></div>
-        <div className="tcg-hptext">{Math.ceil(battle.you.hp)}/{battle.you.maxHp}{battle.you.shield > 0 && ` · 🛡${Math.round(battle.you.shield)}`}</div>
+        <div className="tcg-hptext">{Math.ceil(battle.you.hp)}/{battle.you.maxHp}{battle.you.shield > 0 && <> · <GameIcon name="ui_shield" size={12} />{Math.round(battle.you.shield)}</>}</div>
         <div className="tcg-energy">{Array.from({ length: battle.you.maxEnergy }).map((_, i) => (
           <i key={i} className={i < battle.you.energy ? 'on' : ''} />
         ))}</div>
@@ -61,7 +61,7 @@ export default function TcgBoard({ battle, yourName, resolving, onPlayCard, onPa
           {TYPE_TAG[battle.foe.type] && <span className="tcg-card-type" style={{ '--tc': TYPE_TAG[battle.foe.type].color }}>{TYPE_TAG[battle.foe.type].label}</span>}
         </div>
         <div className="tcg-hpbar foe"><i style={{ width: `${(battle.foe.hp / battle.foe.maxHp) * 100}%` }} /></div>
-        <div className="tcg-hptext">{Math.ceil(battle.foe.hp)}/{battle.foe.maxHp}{battle.foe.shield > 0 && ` · 🛡${Math.round(battle.foe.shield)}`}</div>
+        <div className="tcg-hptext">{Math.ceil(battle.foe.hp)}/{battle.foe.maxHp}{battle.foe.shield > 0 && <> · <GameIcon name="ui_shield" size={12} />{Math.round(battle.foe.shield)}</>}</div>
       </div>
 
       <div className="tcg-log">

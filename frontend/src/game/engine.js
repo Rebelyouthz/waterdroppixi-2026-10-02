@@ -417,7 +417,7 @@ export class Game {
     // challenge, a dev harness — runs on Normal instead of crashing on an
     // undefined multiplier.
     this.diff = opts.diff || {
-      id: 'normal', name: 'Normal', color: '#4dc4ff', icon: '🌊',
+      id: 'normal', name: 'Normal', color: '#4dc4ff', icon: 'pWave',
       hpMult: 1, dmgMult: 1, speedMult: 1, spawnMult: 1, bossHpMult: 1, xpMult: 1,
     };
 
@@ -5750,7 +5750,7 @@ export class Game {
       this.spawnRing(this.player.x, this.player.y, 150, '#b362ff', 0.7);
       this.cam.shake = 8;
       if (!r.pickedPassives) r.pickedPassives = [];
-      r.pickedPassives.push({ icon: choice.icon || '🔀', name: choice.name || '' });
+      r.pickedPassives.push({ icon: choice.icon || 'tornado', name: choice.name || '' });
     } else if (choice.kind === 'stat') {
       const s = choice.statRef;
       const mult = choice.multiplier;
@@ -5778,7 +5778,7 @@ export class Game {
         this.player.hp = Math.min(this.player.maxHp, this.player.hp + amount);
       }
       if (!r.pickedPassives) r.pickedPassives = [];
-      if (!r.pickedPassives.some(p => p.icon === choice.icon)) r.pickedPassives.push({ icon: choice.icon || '⚡', name: choice.name || '' });
+      if (!r.pickedPassives.some(p => p.icon === choice.icon)) r.pickedPassives.push({ icon: choice.icon || 'ui_bolt', name: choice.name || '' });
     } else if (choice.kind === 'flag') {
       r.stats.flags[choice.flagId] = true;
       if (choice.flagId === 'glassCannon') { r.stats.damageMult *= 2.5; r.stats.maxHp = Math.floor(r.stats.maxHp * 0.5); this.player.maxHp = r.stats.maxHp; this.player.hp = Math.min(this.player.hp, this.player.maxHp); }
@@ -5788,7 +5788,7 @@ export class Game {
       if (choice.flagId === 'vision') this._visionZoom = (this._visionZoom || 1) * 1.25;
       if (choice.flagId === 'coreOverload') r.stats.crit += 0.12;
       if (!r.pickedPassives) r.pickedPassives = [];
-      if (!r.pickedPassives.some(p => p.icon === choice.icon)) r.pickedPassives.push({ icon: choice.icon || '★', name: choice.name || '' });
+      if (!r.pickedPassives.some(p => p.icon === choice.icon)) r.pickedPassives.push({ icon: choice.icon || 'ui_star', name: choice.name || '' });
     }
     this.levelUpQueue -= 1;
     this.cam.slowmo = 0;

@@ -72,7 +72,7 @@ export function BadgePicker({ save, setSave, onClose }) {
       onClick={(e) => { if (e.target.classList.contains('modal-overlay')) onClose(); }}>
       <div className="forge-panel forge-panel-scrollable badge-picker" style={{ maxWidth: 620 }}>
         <div className="forge-header">
-          <div className="forge-title">🎗 BADGES</div>
+          <div className="forge-title" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><GameIcon name="ui_medal" size={16} /> BADGES</div>
           <button onClick={onClose} style={{ padding: '6px 12px', fontSize: 12 }}>✕</button>
         </div>
 
