@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import BadgeIcon from './BadgeIcon';
 import { BADGE_INDEX } from '../game/badges';
 import { Audio } from '../game/audio';
+import GameIcon from './GameIcon';
 
 // =============================================
 // REWARD SCREEN — "here is what happened while you were out"
@@ -57,7 +58,7 @@ export default function RewardScreen({ entries, onClose }) {
               <div key={i} className={`reward-card${e.tone === 'legendary' ? ' is-legendary' : ''}`}
                 style={{ animationDelay: `${i * 40}ms` }} data-testid="reward-card">
                 <div className="reward-card-icon">
-                  {badge ? <BadgeIcon badge={badge} size={44} /> : <span className="reward-emoji">{e.icon || '🎁'}</span>}
+                  {badge ? <BadgeIcon badge={badge} size={44} /> : <GameIcon name={e.icon || 'jackpot'} size={40} />}
                 </div>
                 <div className="reward-card-body">
                   <div className="reward-card-title">{e.title}</div>
@@ -65,8 +66,8 @@ export default function RewardScreen({ entries, onClose }) {
                   {!!(e.items || []).length && (
                     <div className="reward-card-items">
                       {e.items.map((it, j) => (
-                        <span key={j} className="reward-item" title={NAMES[it.key] || it.key}>
-                          <b>{it.icon}</b> {it.amount.toLocaleString('sv-SE')}
+                        <span key={j} className="reward-item" title={NAMES[it.key] || it.key} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          <b style={{ display: 'inline-flex' }}><GameIcon name={it.icon} size={16} /></b> {it.amount.toLocaleString('sv-SE')}
                         </span>
                       ))}
                     </div>

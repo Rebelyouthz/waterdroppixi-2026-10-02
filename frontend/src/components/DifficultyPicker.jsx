@@ -3,6 +3,7 @@ import { DIFFICULTIES, difficultyUnlocked, progressFor, activeDifficulty } from 
 import { campaignNodes } from '../game/campaign';
 import { Audio } from '../game/audio';
 import { pushToast } from '../game/toastBus';
+import GameIcon from './GameIcon';
 
 // =============================================
 // DIFFICULTY PICKER — three cards, two of them locked
@@ -55,19 +56,19 @@ export default function DifficultyPicker({ save, setSave }) {
               onClick={() => pick(d)}
               disabled={!unlocked}
             >
-              <span className="diff-card-icon">{d.icon}</span>
+              <span className="diff-card-icon"><GameIcon name={d.icon} size={28} tone={d.color} /></span>
               <span className="diff-card-name">{d.name}</span>
               <span className="diff-card-desc">{d.desc}</span>
               <span className="diff-card-stats">
-                <i>☠ ×{d.hpMult.toFixed(2).replace(/\.00$/, '')} HP</i>
-                <i>⚔ ×{d.dmgMult.toFixed(2).replace(/\.00$/, '')} DMG</i>
+                <i><GameIcon name="ui_void" size={12} /> ×{d.hpMult.toFixed(2).replace(/\.00$/, '')} HP</i>
+                <i><GameIcon name="ui_blade" size={12} /> ×{d.dmgMult.toFixed(2).replace(/\.00$/, '')} DMG</i>
                 <i>★ ×{d.goldMult.toFixed(2).replace(/\.00$/, '')} REWARD</i>
               </span>
               <span className="diff-card-prog">
                 <span className="diff-card-bar"><i style={{ width: `${allIds.length ? (cleared / allIds.length) * 100 : 0}%` }} /></span>
                 {cleared}/{allIds.length} nodes
               </span>
-              {!unlocked && <span className="diff-card-lock">🔒 {d.requiresLabel}</span>}
+              {!unlocked && <span className="diff-card-lock"><GameIcon name="ui_lock" size={12} /> {d.requiresLabel}</span>}
               {isActive && <span className="diff-card-active">▶ ACTIVE</span>}
               {complete && <span className="diff-card-done">✓ COMPLETE</span>}
             </button>

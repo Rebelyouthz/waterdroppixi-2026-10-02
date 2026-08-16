@@ -29,20 +29,20 @@ import { Audio } from './audio';
 
 // Turns a reward bag into the compact item list the camp-entry screen renders.
 const REWARD_ICONS = {
-  gold: '★', sp: '◆', gems: '💎', slotCoins: '🎰', talentPoints: '🌿',
-  petFood: '🍖', gearParts: '🔩', flux: '🜁', cores: '⬢', gachaTokens: '🎫',
+  gold: 'gold', sp: 'sp', gems: 'gems', slotCoins: 'slotCoins', talentPoints: 'cur_tp',
+  petFood: 'petFood', gearParts: 'ui_part', flux: 'cur_shards', cores: 'ui_gem', gachaTokens: 'ui_ticket',
   // `rewardItems` filters on this table, so a payout with no entry is silently
   // DROPPED from the reward screen — the player is paid and never told. That
   // was true of every item reward: finish a run, earn a piece of gear, a rune,
   // an artifact and an egg, and the screen listed none of them. Found by the
   // wiring sweep after it was taught to read App.js's `give()` ledger, which is
   // where run rewards are actually granted.
-  probeKeys: '🔑',
-  gear: '🛡',
-  rune: '🔮',
-  artifact: '🏺',
-  egg: '🥚',
-  xp: '✦',
+  probeKeys: 'cur_key',
+  gear: 'ui_shield',
+  rune: 'rune',
+  artifact: 'ui_orb',
+  egg: 'ui_egg',
+  xp: 'ui_star',
 };
 
 function rewardItems(rwd) {
@@ -136,7 +136,7 @@ export function settleProgression(save) {
           tone: q.track === 'story' ? 'legendary' : 'default',
           icon: q.icon,
           title: `${track?.name || 'QUEST'} — ${q.title}`,
-          text: '✔ ' + q.goal,
+          text: '✓ ' + q.goal,
         });
       }
       bankReward(s, {
@@ -162,12 +162,12 @@ export function settleProgression(save) {
       const tier = BADGE_TIERS[b.tier];
       pushToast({
         tone: tier.rank >= 4 ? 'legendary' : 'default',
-        icon: '🎗',
+        icon: 'ui_medal',
         title: `Badge earned — ${b.name}`,
         text: `${tier.name} · ${b.desc}`,
       });
       bankReward(s, {
-        icon: '🎗', tone: tier.rank >= 4 ? 'legendary' : 'default',
+        icon: 'ui_medal', tone: tier.rank >= 4 ? 'legendary' : 'default',
         badgeId: b.id,
         title: `${b.name}`, text: `${tier.name} badge — ${b.desc}`, items: [],
       });
