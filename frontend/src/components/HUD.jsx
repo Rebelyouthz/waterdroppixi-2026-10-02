@@ -289,7 +289,7 @@ export default function HUD({ snap, isTutorial, mission, levelUpOpen = false }) 
     for (const tip of TUTORIAL_TIPS) {
       if (tutTime >= tip.at && !tipsFired.current.has(tip.at)) {
         tipsFired.current.add(tip.at);
-        pushToast({ tone: 'default', icon: '✦', title: 'TUTORIAL', text: tip.text });
+        pushToast({ tone: 'default', icon: 'ui_star', title: 'TUTORIAL', text: tip.text });
       }
     }
   }, [tutTime, isTutorial]);
@@ -474,7 +474,7 @@ export default function HUD({ snap, isTutorial, mission, levelUpOpen = false }) 
           instant, so it keeps a readout, just not one lying on top of the
           health gauge. */}
       {snap.noHit && (
-        <div className="hud-nohit" data-testid="hud-nohit">👻 NO-HIT</div>
+        <div className="hud-nohit" data-testid="hud-nohit" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><GameIcon name="ui_ghost" size={13} /> NO-HIT</div>
       )}
       <div className="hud-bottom-stack">
         <div className="hud-stats">
