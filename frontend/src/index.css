@@ -944,10 +944,19 @@ canvas#game, canvas.starraid-canvas {
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), inset 0 -2px 4px rgba(0,0,0,0.45), 0 1px 2px rgba(0,0,0,0.5);
 }
 
-/* Rolling counters (see CountUp in Camp.jsx) */
-.countup { position: relative; transition: color 0.2s, text-shadow 0.2s; }
-.countup.is-up   { color: #6dff9e; text-shadow: 0 0 9px rgba(109,255,158,0.6); }
-.countup.is-down { color: #ff6a7a; text-shadow: 0 0 9px rgba(255,106,122,0.6); }
+/* Rolling counters (see CountUp in Camp.jsx). Timmy: a currency updating
+   should "bli lite större å lysa till" (get a bit bigger and light up) —
+   color+arrow alone read as a state change but not really as a moment. The
+   pop is on the number itself (transform-origin center) so it doesn't
+   shove neighboring chips in the row. */
+.countup { position: relative; display: inline-block; transition: color 0.2s, text-shadow 0.2s; }
+.countup.is-up   { color: #6dff9e; text-shadow: 0 0 9px rgba(109,255,158,0.6); animation: countPop 0.5s cubic-bezier(0.2, 0.8, 0.3, 1.4); }
+.countup.is-down { color: #ff6a7a; text-shadow: 0 0 9px rgba(255,106,122,0.6); animation: countPop 0.5s cubic-bezier(0.2, 0.8, 0.3, 1.4); }
+@keyframes countPop {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.28); }
+  100% { transform: scale(1); }
+}
 .countup-arrow {
   font-style: normal;
   font-size: 0.62em;
