@@ -31,7 +31,7 @@ const totalBuildings = (save) =>
 
 export const PATH_STEPS = [
   {
-    id: 'firstRun', icon: '💧', go: 'story',
+    id: 'firstRun', icon: 'ui_waterdrop', go: 'story',
     title: 'Take a run',
     why: 'Everything else in the game is paid for by what you carry out of a run.',
     goal: 'Finish one run',
@@ -39,7 +39,7 @@ export const PATH_STEPS = [
     rwd: { gold: 250, gearParts: 6 },
   },
   {
-    id: 'firstNode', icon: '📜', go: 'story',
+    id: 'firstNode', icon: 'ui_scroll', go: 'story',
     title: 'Clear the first node',
     why: 'A story node ends on its guardian, not on a clock — that is the shape of the whole campaign.',
     goal: 'Put down one guardian',
@@ -47,7 +47,7 @@ export const PATH_STEPS = [
     rwd: { gold: 400, gearParts: 10 },
   },
   {
-    id: 'equipGear', icon: '🪖', go: 'gear',
+    id: 'equipGear', icon: 'gear_helmet', go: 'gear',
     title: 'Wear something',
     why: 'Gear is the only stat source that is not spent — it stays on you between runs.',
     goal: 'Equip one piece',
@@ -55,7 +55,7 @@ export const PATH_STEPS = [
     rwd: { gold: 300, gearParts: 12 },
   },
   {
-    id: 'levelGear', icon: '⬆', go: 'gear',
+    id: 'levelGear', icon: 'catStatBoost', go: 'gear',
     title: 'Level that piece',
     why: 'Gear starts weak on purpose. Levels are where it becomes worth the slot — and rarity only opens at 10.',
     goal: 'Take a piece to level 3',
@@ -63,7 +63,7 @@ export const PATH_STEPS = [
     rwd: { gold: 450, gearParts: 18 },
   },
   {
-    id: 'tuneWeapon', icon: '⚙', go: 'smith',
+    id: 'tuneWeapon', icon: 'ui_smith', go: 'smith',
     title: 'Tune a weapon',
     why: 'The Weaponsmith upgrades one weapon rather than all of them — it is where a favourite becomes a build.',
     goal: 'Buy one tuning tier',
@@ -71,7 +71,7 @@ export const PATH_STEPS = [
     rwd: { gold: 500, gearParts: 14 },
   },
   {
-    id: 'socketAttach', icon: '🔩', go: 'smith',
+    id: 'socketAttach', icon: 'ui_part', go: 'smith',
     title: 'Bolt something on',
     why: 'Every attachment is a trade, and every one of them is visible on the gun in your hands.',
     goal: 'Socket one attachment',
@@ -79,7 +79,7 @@ export const PATH_STEPS = [
     rwd: { gold: 550, gearParts: 16 },
   },
   {
-    id: 'socketRune', icon: '🔮', go: 'smith',
+    id: 'socketRune', icon: 'rune', go: 'smith',
     title: 'Set a rune',
     why: 'Runes are the one slot that changes behaviour instead of numbers.',
     goal: 'Socket one rune',
@@ -87,7 +87,7 @@ export const PATH_STEPS = [
     rwd: { gold: 600, gems: 1 },
   },
   {
-    id: 'buildBase', icon: '🏛', go: 'base',
+    id: 'buildBase', icon: 'ui_base', go: 'base',
     title: 'Raise the base',
     why: 'Buildings are where gold stops buying stats and starts buying systems.',
     goal: 'Build anything, once',
@@ -95,7 +95,7 @@ export const PATH_STEPS = [
     rwd: { gold: 700, gearParts: 22 },
   },
   {
-    id: 'useWell', icon: '🌀', go: 'base',
+    id: 'useWell', icon: 'tornado', go: 'base',
     title: 'Sink The Well',
     why: 'The Well runs while you are gone. It is the only system that pays for time you did not spend.',
     goal: 'Build The Well, then draw 500 drops',
@@ -103,7 +103,7 @@ export const PATH_STEPS = [
     rwd: { gold: 650, gearParts: 20 },
   },
   {
-    id: 'useIncubator', icon: '🥚', go: 'base',
+    id: 'useIncubator', icon: 'ui_egg', go: 'base',
     title: 'Warm an egg',
     why: 'A pet grows through four stages and each one is a real multiplier, not a label.',
     goal: 'Build the Incubator, then hatch one',
@@ -111,7 +111,7 @@ export const PATH_STEPS = [
     rwd: { gold: 700, petFood: 4 },
   },
   {
-    id: 'usePatrol', icon: '🗺', go: 'patrol',
+    id: 'usePatrol', icon: 'ui_map', go: 'patrol',
     title: 'Send them out',
     why: 'Patrols are how attachments, runes and food arrive without you playing for them.',
     goal: 'Build the Patrol Post and run a patrol',
@@ -119,7 +119,7 @@ export const PATH_STEPS = [
     rwd: { gold: 750, gearParts: 24 },
   },
   {
-    id: 'useForge', icon: '🔥', go: 'gear',
+    id: 'useForge', icon: 'ui_flame', go: 'gear',
     title: 'Risk a merge',
     why: 'Three of a kind become one better one — or two of them are gone. Flux is what buys down the risk.',
     goal: 'Build the Forge and attempt a merge',
@@ -127,7 +127,7 @@ export const PATH_STEPS = [
     rwd: { gold: 800, flux: 2 },
   },
   {
-    id: 'useRampart', icon: '🛡', go: 'defence',
+    id: 'useRampart', icon: 'ui_shield', go: 'defence',
     title: 'Hold the line',
     why: 'Base Defence does not pay out into itself — what you win there is a buff on your next run.',
     goal: 'Build the Rampart and hold 3 waves',
@@ -135,7 +135,7 @@ export const PATH_STEPS = [
     rwd: { gold: 900, gearParts: 28 },
   },
   {
-    id: 'useHangar', icon: '🚀', go: 'starraid',
+    id: 'useHangar', icon: 'ui_rocket', go: 'starraid',
     title: 'Fly a raid',
     why: 'Star Raid is a different game with the same account — its scrap and artifacts come back here.',
     goal: 'Build the Hangar and finish a raid',
@@ -143,7 +143,7 @@ export const PATH_STEPS = [
     rwd: { gold: 950, gems: 2 },
   },
   {
-    id: 'useProspect', icon: '🛰', go: 'prospect',
+    id: 'useProspect', icon: 'ui_pickaxe', go: 'prospect',
     title: 'Go down and come back up',
     why: 'The Prospector is pure push-your-luck: every layer deeper is worth more and likelier to take it all.',
     goal: 'Bank a dive with at least one Core',
@@ -151,7 +151,7 @@ export const PATH_STEPS = [
     rwd: { gold: 900, flux: 3 },
   },
   {
-    id: 'clearMapTwo', icon: '💀', go: 'story',
+    id: 'clearMapTwo', icon: 'ui_void', go: 'story',
     title: 'Finish the second map',
     why: 'You have now touched every system in the game. This is the first fight that expects you to have.',
     goal: 'Clear six story nodes',
