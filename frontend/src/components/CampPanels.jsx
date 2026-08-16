@@ -45,7 +45,7 @@ export function MissionsPanel({ save, setSave, onStart }) {
       <div className="camp-header">
         <h1>Daily Missions</h1>
         <div className="camp-currency">
-          <span style={{ color: 'var(--rune)' }}>⚡ {energyLeft}/{MISSION_DAILY_LIMIT}</span>
+          <span style={{ color: 'var(--rune)', display: 'inline-flex', alignItems: 'center', gap: 4 }}><GameIcon name="ui_bolt" size={13} /> {energyLeft}/{MISSION_DAILY_LIMIT}</span>
           {energyLeft < MISSION_DAILY_LIMIT && <span style={{ color: 'var(--ink-dim)', fontSize: 14 }}>next in {fmt(nextRegen)}</span>}
         </div>
       </div>
@@ -571,7 +571,7 @@ export function SettingsPanel({ save, setSave, onClose, onReset }) {
     <div className="modal-overlay" data-testid="settings" onClick={(e) => { if (e.target.classList.contains('modal-overlay')) onClose(); }}>
       <div className="forge-panel settings-panel" style={{ maxWidth: 480 }}>
         <div className="forge-header">
-          <div className="forge-title">⚙ SETTINGS</div>
+          <div className="forge-title"><GameIcon name="ui_cog" size={18} /> SETTINGS</div>
           <button onClick={onClose} style={{ padding: '6px 12px', fontSize: 12 }}>✕</button>
         </div>
         <div className="setting-row"><span>SFX Volume</span><input type="range" min="0" max="1" step="0.05" value={s.sfx ?? 1.0} onChange={(e) => set('sfx', +e.target.value)} /></div>
