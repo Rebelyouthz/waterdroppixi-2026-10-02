@@ -6,6 +6,7 @@ import {
 import { rollCard } from '../game/petTcg';
 import { Audio } from '../game/audio';
 import { pushToast } from '../game/toastBus';
+import GameIcon from './GameIcon';
 
 // Astro Prospector. A dive is entirely client-side state — only banking
 // writes to the save, which is also what makes "lose it all" mean something.
@@ -69,7 +70,7 @@ export default function ProspectorScreen({ save, setSave, onClose }) {
 
     if (layer.type === 'hazard') {
       next.hull -= 1;
-      entry = { d: depth, icon: '💥', text: layer.label, cls: 'bad' };
+      entry = { d: depth, icon: 'pExplode', text: layer.label, cls: 'bad' };
       if (next.hull <= 0) {
         next.over = true;
         entry.text = `${layer.label} — probe lost`;
@@ -77,11 +78,11 @@ export default function ProspectorScreen({ save, setSave, onClose }) {
       Audio.hazardAlarm();
     } else if (layer.type === 'flux') {
       next.flux += layer.amount;
-      entry = { d: depth, icon: '⚗', text: `${layer.label} +${layer.amount} Flux`, cls: 'good' };
+      entry = { d: depth, icon: 'cur_shards', text: `${layer.label} +${layer.amount} Flux`, cls: 'good' };
       Audio.oreFound();
     } else if (layer.type === 'blueprint') {
       next.blueprints += 1;
-      entry = { d: depth, icon: '💠', text: 'Sealed data core recovered', cls: 'great' };
+      entry = { d: depth, icon: 'ui_gem', text: 'Sealed data core recovered', cls: 'great' };
       Audio.levelUp();
     } else {
       const raw = oreYield(depth, stats.drillMult);
@@ -90,7 +91,7 @@ export default function ProspectorScreen({ save, setSave, onClose }) {
       next.cores += got;
       if (got < raw) next.spilled = true;
       entry = {
-        d: depth, icon: '⛏',
+        d: depth, icon: 'ui_pickaxe',
         text: got < raw ? `${layer.label} +${got} Cores (bay full, ${raw - got} spilled)` : `${layer.label} +${got} Cores`,
         cls: got < raw ? 'warn' : 'good',
       };
@@ -104,7 +105,7 @@ export default function ProspectorScreen({ save, setSave, onClose }) {
     if (layer.type !== 'hazard' && rollCardBonus(depth)) {
       const card = rollCard(save.attrs?.luck || 0);
       next.tcgCards = [...next.tcgCards, card];
-      logEntries = [{ d: depth, icon: '🃏', text: 'A sealed card case — logged for later', cls: 'great' }, ...logEntries];
+      logEntries = [{ d: depth, icon: 'ui_cards', text: 'A sealed card case — logged for later', cls: 'great' }, ...logEntries];
     }
     next.log = logEntries.slice(0, 40);
     if (!next.over) next.next = peek(depth);
@@ -123,9 +124,9 @@ export default function ProspectorScreen({ save, setSave, onClose }) {
     setSave(ns);
     const bits = [
       dive.cores && `◈ ${dive.cores}`,
-      dive.flux && `⚗ ${dive.flux}`,
-      dive.blueprints && `💠 ${dive.blueprints}`,
-      dive.tcgCards.length && `🃏 ${dive.tcgCards.length}`,
+      dive.flux && `Flux ${dive.flux}`,
+      dive.blueprints && `Data ${dive.blueprints}`,
+      dive.tcgCards.length && `Cards ${dive.tcgCards.length}`,
     ].filter(Boolean).join('  ·  ');
     pushToast({ tone: 'gem', icon: 'orb', title: `Dive banked — depth ${dive.depth}`, text: bits });
     setDive(null);
@@ -166,18 +167,20 @@ export default function ProspectorScreen({ save, setSave, onClose }) {
     <div className="modal-overlay" data-testid="prospector" onClick={(e) => { if (e.target.classList.contains('modal-overlay')) onClose(); }}>
       <div className="prosp-panel">
         <div className="prosp-header">
-          <div className="prosp-title">⛏ LOOTMINE</div>
+          <div className="prosp-title" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><GameIcon name="ui_pickaxe" size={18} /> LOOTMINE</div>
           <div className="prosp-wallet">
             <span className="prosp-cur cores">◈ {save.cores || 0}</span>
-            <span className="prosp-cur flux">⚗ {save.flux || 0}</span>
-            <span className="prosp-cur bp">💠 {save.prospectBlueprints || 0}</span>
+            <span className="prosp-cur flux" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><GameIcon name="cur_shards" size={13} /> {save.flux || 0}</span>
+            <span className="prosp-cur bp" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><GameIcon name="ui_gem" size={13} /> {save.prospectBlueprints || 0}</span>
           </div>
           <button className="prosp-close" onClick={onClose}>✕</button>
         </div>
 
         <div className="prosp-tabs">
-          {[['dive', '⛏ DIVE'], ['probe', '🛠 PROBE'], ['cards', '💠 CARDS']].map(([k, l]) => (
-            <button key={k} className={`prosp-tab${tab === k ? ' active' : ''}`} onClick={() => setTab(k)}>{l}</button>
+          {[['dive', 'ui_pickaxe', 'DIVE'], ['probe', 'ui_smith', 'PROBE'], ['cards', 'ui_gem', 'CARDS']].map(([k, ic, l]) => (
+            <button key={k} className={`prosp-tab${tab === k ? ' active' : ''}`} onClick={() => setTab(k)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, justifyContent: 'center' }}>
+              <GameIcon name={ic} size={14} /> {l}
+            </button>
           ))}
         </div>
 
@@ -186,18 +189,18 @@ export default function ProspectorScreen({ save, setSave, onClose }) {
           <div className="prosp-body">
             {!dive ? (
               <div className="prosp-idle">
-                <div className="prosp-rock">🪨</div>
+                <div className="prosp-rock"><GameIcon name="ui_pickaxe" size={40} /></div>
                 <div className="prosp-idle-txt">
                   Drop a probe and dig. Every layer down pays better and is more
                   likely to end the dive. Bank whenever you like — everything you
                   are still carrying is lost if the probe dies.
                 </div>
-                <div className="prosp-probe-line">
-                  🛡 {stats.hull} hull · ⛏ ×{stats.drillMult.toFixed(2)} · 📦 {stats.cargo} bay
-                  {stats.scannerDepth > 0 && ' · 📡 scanner online'}
+                <div className="prosp-probe-line" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', justifyContent: 'center' }}>
+                  <GameIcon name="ui_shield" size={14} /> {stats.hull} hull · <GameIcon name="ui_pickaxe" size={14} /> ×{stats.drillMult.toFixed(2)} · <GameIcon name="ui_chest" size={14} /> {stats.cargo} bay
+                  {stats.scannerDepth > 0 && <> · <GameIcon name="ui_compass" size={14} /> scanner online</>}
                 </div>
                 <div className="prosp-keys" data-testid="prosp-keys">
-                  <span className="prosp-key-icon">🔑</span>
+                  <span className="prosp-key-icon"><GameIcon name="cur_key" size={20} /></span>
                   <b className={keys <= 0 ? 'out' : ''}>{keys}</b>
                   <span className="prosp-key-label">PROBE {keys === 1 ? 'KEY' : 'KEYS'}</span>
                 </div>
@@ -206,8 +209,9 @@ export default function ProspectorScreen({ save, setSave, onClose }) {
                   onClick={startDive}
                   disabled={keys <= 0}
                   data-testid="prosp-start"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 5, justifyContent: 'center' }}
                 >
-                  {keys > 0 ? '▸ LAUNCH PROBE  ·  🔑 1' : 'NO PROBE KEYS'}
+                  {keys > 0 ? <>▸ LAUNCH PROBE · <GameIcon name="cur_key" size={13} /> 1</> : 'NO PROBE KEYS'}
                 </button>
                 {keys <= 0 && (
                   <div className="prosp-key-hint">
@@ -221,7 +225,12 @@ export default function ProspectorScreen({ save, setSave, onClose }) {
                 <div className="prosp-status">
                   <div className="prosp-stat"><span>DEPTH</span><b>{dive.depth}</b></div>
                   <div className="prosp-stat"><span>HULL</span><b className={dive.hull <= 1 ? 'crit' : ''}>{'▮'.repeat(Math.max(0, dive.hull))}{'▯'.repeat(Math.max(0, stats.hull - dive.hull))}</b></div>
-                  <div className="prosp-stat"><span>CARRYING</span><b>◈ {dive.cores}{dive.flux > 0 && ` · ⚗ ${dive.flux}`}{dive.blueprints > 0 && ` · 💠 ${dive.blueprints}`}{dive.tcgCards.length > 0 && ` · 🃏 ${dive.tcgCards.length}`}</b></div>
+                  <div className="prosp-stat"><span>CARRYING</span><b style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                    ◈ {dive.cores}
+                    {dive.flux > 0 && <> · <GameIcon name="cur_shards" size={13} /> {dive.flux}</>}
+                    {dive.blueprints > 0 && <> · <GameIcon name="ui_gem" size={13} /> {dive.blueprints}</>}
+                    {dive.tcgCards.length > 0 && <> · <GameIcon name="ui_cards" size={13} /> {dive.tcgCards.length}</>}
+                  </b></div>
                 </div>
 
                 <div className="prosp-bay">
@@ -238,13 +247,13 @@ export default function ProspectorScreen({ save, setSave, onClose }) {
                 ) : (
                   <>
                     {dive.next && (
-                      <div className={`prosp-peek t-${dive.next.type}`}>
-                        📡 SCANNER — next layer reads as <b>{dive.next.label}</b>
+                      <div className={`prosp-peek t-${dive.next.type}`} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <GameIcon name="ui_compass" size={14} /> SCANNER — next layer reads as <b>{dive.next.label}</b>
                       </div>
                     )}
                     <div className="prosp-actions">
-                      <button className="prosp-btn dig" onClick={descend} data-testid="prosp-dig">
-                        ⛏ DIG DEEPER
+                      <button className="prosp-btn dig" onClick={descend} data-testid="prosp-dig" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, justifyContent: 'center' }}>
+                        <GameIcon name="ui_pickaxe" size={15} /> DIG DEEPER
                         <span className="prosp-risk">{nextHazard}% hazard</span>
                       </button>
                       <button className="prosp-btn bank" onClick={bank} disabled={dive.cores + dive.flux + dive.blueprints + dive.tcgCards.length === 0} data-testid="prosp-bank">
@@ -259,7 +268,7 @@ export default function ProspectorScreen({ save, setSave, onClose }) {
                   {dive.log.map((l, i) => (
                     <div key={i} className={`prosp-log-row ${l.cls}`}>
                       <span className="prosp-log-d">L{l.d}</span>
-                      <span className="prosp-log-i">{l.icon}</span>
+                      <span className="prosp-log-i"><GameIcon name={l.icon} size={16} /></span>
                       <span className="prosp-log-t">{l.text}</span>
                     </div>
                   ))}
@@ -281,7 +290,7 @@ export default function ProspectorScreen({ save, setSave, onClose }) {
                 return (
                   <div key={id} className={`prosp-card${maxed ? ' maxed' : ''}`}>
                     <div className="prosp-card-top">
-                      <span className="prosp-card-icon">{u.icon}</span>
+                      <span className="prosp-card-icon"><GameIcon name={u.icon} size={26} /></span>
                       <span className="prosp-card-name">{u.name}</span>
                       <span className="prosp-card-lvl">{lvl}/{u.max}</span>
                     </div>
@@ -316,13 +325,13 @@ export default function ProspectorScreen({ save, setSave, onClose }) {
                 return (
                   <div key={c.id} className={`prosp-card unique${has ? ' owned' : ''}`}>
                     <div className="prosp-card-top">
-                      <span className="prosp-card-icon">{c.icon}</span>
+                      <span className="prosp-card-icon"><GameIcon name={c.icon} size={26} /></span>
                       <span className="prosp-card-name">{c.name}</span>
                     </div>
                     <div className="prosp-card-desc">{c.desc}</div>
                     <div className="prosp-lore">{c.lore}</div>
-                    <button className="prosp-btn buy" disabled={has || !canBuy} onClick={() => unlockCard(c)}>
-                      {has ? '✓ UNLOCKED' : `💠 1 + ◈ ${c.cost}`}
+                    <button className="prosp-btn buy" disabled={has || !canBuy} onClick={() => unlockCard(c)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, justifyContent: 'center' }}>
+                      {has ? '✓ UNLOCKED' : <><GameIcon name="ui_gem" size={13} /> 1 + ◈ {c.cost}</>}
                     </button>
                   </div>
                 );

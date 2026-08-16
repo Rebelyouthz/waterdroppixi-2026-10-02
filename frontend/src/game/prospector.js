@@ -11,10 +11,10 @@
 // and it feeds straight back into a run.
 
 export const PROBE_UPGRADES = {
-  hull:    { name: 'Hull Plating',  icon: '🛡', max: 5, costBase: 12, costGrowth: 1.55, desc: 'Survive one more hazard per level.' },
-  drill:   { name: 'Drill Head',    icon: '⛏', max: 8, costBase: 10, costGrowth: 1.42, desc: '+18% Cores from every ore seam.' },
-  scanner: { name: 'Deep Scanner',  icon: '📡', max: 5, costBase: 16, costGrowth: 1.60, desc: 'Reveals what the next layer holds before you commit.' },
-  cargo:   { name: 'Cargo Bay',     icon: '📦', max: 6, costBase: 14, costGrowth: 1.50, desc: '+40 carrying capacity before a seam starts spilling.' },
+  hull:    { name: 'Hull Plating',  icon: 'ui_shield', max: 5, costBase: 12, costGrowth: 1.55, desc: 'Survive one more hazard per level.' },
+  drill:   { name: 'Drill Head',    icon: 'ui_pickaxe', max: 8, costBase: 10, costGrowth: 1.42, desc: '+18% Cores from every ore seam.' },
+  scanner: { name: 'Deep Scanner',  icon: 'ui_compass', max: 5, costBase: 16, costGrowth: 1.60, desc: 'Reveals what the next layer holds before you commit.' },
+  cargo:   { name: 'Cargo Bay',     icon: 'ui_chest', max: 6, costBase: 14, costGrowth: 1.50, desc: '+40 carrying capacity before a seam starts spilling.' },
 };
 
 export function probeCost(id, lvl) {
@@ -49,27 +49,27 @@ export function probeStats(levels = {}) {
 // Each one is a flag the engine reads — see engine.js for the hooks.
 export const PROSPECT_CARDS = [
   {
-    id: 'pc_prism', flag: 'prismCore', icon: '🔷', name: 'Prism Core', cost: 45,
+    id: 'pc_prism', flag: 'prismCore', icon: 'prismCore', name: 'Prism Core', cost: 45,
     desc: 'Projectiles split into two shards on their first hit.',
     lore: 'Refracted through a lattice that should not exist at this depth.',
   },
   {
-    id: 'pc_tempo', flag: 'tempoEngine', icon: '🎼', name: 'Tempo Engine', cost: 40,
+    id: 'pc_tempo', flag: 'tempoEngine', icon: 'tempoEngine', name: 'Tempo Engine', cost: 40,
     desc: 'Each kill grants +4% fire rate for 4s. Stacks up to 10 times.',
     lore: 'It keeps time with the killing, and the killing keeps time with it.',
   },
   {
-    id: 'pc_singularity', flag: 'singularityRounds', icon: '🕳', name: 'Singularity Rounds', cost: 55,
+    id: 'pc_singularity', flag: 'singularityRounds', icon: 'singularityRounds', name: 'Singularity Rounds', cost: 55,
     desc: 'Kills collapse into a brief vortex that drags nearby foes inward.',
     lore: 'Every seam here leans very slightly toward the same point.',
   },
   {
-    id: 'pc_echo', flag: 'echoChamber', icon: '🔊', name: 'Echo Chamber', cost: 50,
+    id: 'pc_echo', flag: 'echoChamber', icon: 'echoChamber', name: 'Echo Chamber', cost: 50,
     desc: 'Every 5th shot fires a second time, free.',
     lore: 'The shot arrives twice. Only one of them left the barrel.',
   },
   {
-    id: 'pc_overload', flag: 'coreOverload', icon: '☢️', name: 'Core Overload', cost: 60,
+    id: 'pc_overload', flag: 'coreOverload', icon: 'coreOverload', name: 'Core Overload', cost: 60,
     desc: '+12% crit chance, and crits pierce everything they touch.',
     lore: 'Rated for eight hundred cycles. You are on nine thousand.',
   },
