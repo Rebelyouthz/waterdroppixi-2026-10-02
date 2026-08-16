@@ -3457,11 +3457,15 @@
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
   padding: 8px 4px 6px;
   background: linear-gradient(180deg, rgba(58,16,22,0.9), rgba(10,6,7,0.95));
+  /* Same fix as .lu-frame::before: the contact shadow was box-shadow, which
+     a same-element clip-path clips flush at the cut corners instead of
+     letting it fall naturally past them. Moved to filter: drop-shadow so
+     the tile actually casts a shadow shaped like its own chamfered corners. */
   box-shadow:
     inset 0 0 0 1px rgba(226,232,240,0.25),
     inset 0 0 0 3px rgba(8,4,5,0.9),
-    inset 0 0 0 4px color-mix(in srgb, var(--rc) 60%, transparent),
-    0 4px 10px rgba(0,0,0,0.8);
+    inset 0 0 0 4px color-mix(in srgb, var(--rc) 60%, transparent);
+  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.8));
   clip-path: polygon(7px 0, calc(100% - 7px) 0, 100% 7px, 100% calc(100% - 7px), calc(100% - 7px) 100%, 7px 100%, 0 calc(100% - 7px), 0 7px);
 }
 .lu-tile-ic { filter: drop-shadow(0 2px 4px rgba(0,0,0,0.8)); }
@@ -3512,15 +3516,21 @@
     linear-gradient(180deg, rgba(40, 10, 14, 0.55), rgba(7, 5, 6, 0.85)),
     radial-gradient(ellipse 90% 60% at 50% 0%, rgba(150, 25, 35, 0.28), transparent 70%),
     #0a0607 !important;
+  /* Same clip-path-clips-same-element-box-shadow issue as .lu-frame::before
+     and .lu-tile — the two outward lines here were dead weight (clipped
+     flush at the chamfer, and doubly hidden under .lu-frame's own opaque
+     border layer besides). Moved to filter so they're at least correct,
+     even though .lu-frame::before is what actually paints the visible glow. */
   box-shadow:
     inset 0 0 0 2px rgba(200, 205, 215, 0.22),   /* silver inner lip   */
     inset 0 0 0 5px rgba(8, 5, 6, 1),
     inset 0 0 0 7px rgba(150, 25, 35, 0.50),     /* dark red band      */
     inset 0 0 0 9px rgba(5, 3, 4, 1),
     inset 0 0 0 10px rgba(255, 209, 102, 0.28),  /* one thin gold line */
-    inset 0 3px 22px rgba(0, 0, 0, 0.9),
-    0 22px 60px rgba(0, 0, 0, 0.9),
-    0 0 60px rgba(150, 25, 35, 0.24) !important;
+    inset 0 3px 22px rgba(0, 0, 0, 0.9) !important;
+  filter:
+    drop-shadow(0 16px 40px rgba(0, 0, 0, 0.9))
+    drop-shadow(0 0 40px rgba(150, 25, 35, 0.24));
   clip-path: polygon(
     14px 0, calc(100% - 14px) 0, 100% 14px, 100% calc(100% - 14px),
     calc(100% - 14px) 100%, 14px 100%, 0 calc(100% - 14px), 0 14px);
@@ -3544,12 +3554,23 @@
     conic-gradient(from 200deg,
       #1a0708 0deg, #380e12 46deg, #0a0405 96deg, #260a0d 148deg,
       #070405 200deg, #3a0f14 254deg, #0a0405 306deg, #1a0708 360deg);
+  /* Only the INSET rings stay box-shadow — those are meant to live inside
+     the clipped octagon anyway. The two outward glows used to be box-shadow
+     too, which is why they never showed: box-shadow is part of the box a
+     clip-path clips, on the SAME element, so both blooms were being cut off
+     flush with the chamfered corners instead of feathering past them —
+     exactly the "no light effects, they got clipped" Timmy flagged, and the
+     same reason the in-run cards had to move to Pixi to get this right.
+     filter: drop-shadow() sidesteps it: it's computed from the already-
+     clipped shape's silhouette rather than being clipped itself, so it
+     blooms outward from the octagon's real edge instead of the rectangle's. */
   box-shadow:
     inset 0 0 0 1px rgba(200, 205, 215, 0.26),
     inset 0 0 0 6px rgba(0, 0, 0, 0.7),
-    inset 0 0 0 7px rgba(150, 25, 35, 0.38),
-    0 30px 70px rgba(0, 0, 0, 0.92),
-    0 0 70px rgba(150, 25, 35, 0.20);
+    inset 0 0 0 7px rgba(150, 25, 35, 0.38);
+  filter:
+    drop-shadow(0 22px 46px rgba(0, 0, 0, 0.92))
+    drop-shadow(0 0 46px rgba(150, 25, 35, 0.32));
   clip-path: polygon(
     22px 0, calc(100% - 22px) 0, 100% 22px, 100% calc(100% - 22px),
     calc(100% - 22px) 100%, 22px 100%, 0 calc(100% - 22px), 0 22px);
