@@ -233,7 +233,7 @@ export default function GearPanel({ save, setSave }) {
     const pay = gearLevelPayment(save, item.slot, cost);
     if (!pay) {
       const short = cost - slotPartsOf(save, item.slot);
-      showToast(`Need ${cost} ${PART_NAMES[item.slot]} — short ${short} (or ${short * WILDCARD_PART_RATE} 🔩)`);
+      showToast(`Need ${cost} ${PART_NAMES[item.slot]} — short ${short} (or ${short * WILDCARD_PART_RATE} generic parts)`);
       return;
     }
     setSave({
@@ -379,13 +379,13 @@ export default function GearPanel({ save, setSave }) {
                       <span className="gear-slot-icon" style={{ color: GEAR_RARITY_COLORS[item.rarity] }}>
                         {GEAR_BASE_INDEX[item.base]
                           ? <GameIcon name={GEAR_BASE_INDEX[item.base].icon} tone={GEAR_RARITY_COLORS[item.rarity]} size={26} />
-                          : GEAR_SLOT_ICONS[slot]}
+                          : <GameIcon name={GEAR_SLOT_ICONS[slot]} size={26} />}
                       </span>
                       <span className="gear-slot-stat">{fmtVal(item.stat, gearStatValue(item))}</span>
                     </>
                   ) : (
                     <span className="gear-slot-empty-icon" style={{ opacity: 0.25 }}>
-                      {GEAR_SLOT_ICONS[slot]}
+                      <GameIcon name={GEAR_SLOT_ICONS[slot]} size={26} />
                     </span>
                   )}
                   <span className="gear-slot-label">{GEAR_SLOT_NAMES[slot]}</span>
@@ -404,7 +404,7 @@ export default function GearPanel({ save, setSave }) {
               style={popoverAnchor ? { left: popoverAnchor.left, top: popoverAnchor.top } : undefined}
               data-testid="gear-popover">
               <div className="gear-popover-head">
-                <span>{GEAR_SLOT_ICONS[popoverSlot]} {GEAR_SLOT_NAMES[popoverSlot].toUpperCase()}</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><GameIcon name={GEAR_SLOT_ICONS[popoverSlot]} size={16} /> {GEAR_SLOT_NAMES[popoverSlot].toUpperCase()}</span>
                 <button className="gear-popover-close" onClick={() => setPopoverSlot(null)}>✕</button>
               </div>
               <div className="gear-popover-list">
@@ -450,8 +450,8 @@ export default function GearPanel({ save, setSave }) {
                 const usedIds = new Set(set.filter(Boolean));
                 return (
                   <div style={{ marginTop: 10, borderTop: '1px solid #2a1a4e', paddingTop: 8 }}>
-                    <div style={{ fontFamily: 'VT323', fontSize: 12, color: 'var(--accent-2)', letterSpacing: '0.1em', marginBottom: 4 }}>
-                      🔮 RUNE SOCKETS ({set.filter(Boolean).length}/{count})
+                    <div style={{ fontFamily: 'VT323', fontSize: 12, color: 'var(--accent-2)', letterSpacing: '0.1em', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <GameIcon name="rune" size={13} /> RUNE SOCKETS ({set.filter(Boolean).length}/{count})
                     </div>
                     {Array.from({ length: count }, (_, i) => {
                       const rid = set[i];
@@ -501,7 +501,7 @@ export default function GearPanel({ save, setSave }) {
               if (!item) return null;
               return (
                 <div key={slot} className="gear-stat-row" style={{ color: GEAR_RARITY_COLORS[item.rarity] }}>
-                  <span>{GEAR_SLOT_ICONS[slot]}</span>
+                  <span><GameIcon name={GEAR_SLOT_ICONS[slot]} size={16} /></span>
                   <span>{item.name}</span>
                   <span>{fmtVal(item.stat, gearStatValue(item))} {STAT_LABELS[item.stat]}</span>
                 </div>
@@ -546,13 +546,13 @@ export default function GearPanel({ save, setSave }) {
       {tab === 'inventory' && (
         <div className="gear-inventory">
           <div className="gear-parts-bar">
-            <span className="gear-parts-label">🔩 GEAR PARTS</span>
+            <span className="gear-parts-label" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><GameIcon name="ui_cog" size={13} /> GEAR PARTS</span>
             <span className="gear-parts-val">{save.gearParts || 0}</span>
             <span className="gear-parts-hint">Level a piece to {GEAR_MAX_LEVEL} before it can be forged up a rarity</span>
           </div>
           {inv.length === 0 && (
             <div className="gear-empty">
-              <div style={{ fontSize: 40 }}>🎒</div>
+              <div style={{ display: 'flex', justifyContent: 'center' }}><GameIcon name="gear" size={40} /></div>
               <div style={{ fontFamily:'VT323', fontSize:16, color:'#4a3a6e', marginTop:8 }}>
                 Defeat enemies to find gear!
               </div>
@@ -605,7 +605,7 @@ export default function GearPanel({ save, setSave }) {
                       onClick={(ev) => { ev.stopPropagation(); levelUpGear(item); }}
                       data-testid={`gear-lvl-${item.id}`}
                     >
-                      ▲ 🔩{gearLevelCost(item.level || 1, item.rarity)}
+                      ▲ <GameIcon name="ui_cog" size={12} />{gearLevelCost(item.level || 1, item.rarity)}
                     </button>
                   ) : (
                     <span className="gear-lvl-max">MAX</span>
@@ -618,7 +618,7 @@ export default function GearPanel({ save, setSave }) {
           {/* Item detail / equip */}
           {selected && (
             <div className="gear-detail" style={{ '--rc': GEAR_RARITY_COLORS[selected.rarity] }}>
-              <div className="gear-detail-name">{GEAR_SLOT_ICONS[selected.slot]} {selected.name}</div>
+              <div className="gear-detail-name" style={{ display: 'flex', alignItems: 'center', gap: 5 }}><GameIcon name={GEAR_SLOT_ICONS[selected.slot]} size={16} /> {selected.name}</div>
               <div className="gear-detail-rarity" style={{ color: GEAR_RARITY_COLORS[selected.rarity] }}>
                 {selected.rarity.toUpperCase()} {GEAR_SLOT_NAMES[selected.slot]}
               </div>
@@ -656,7 +656,7 @@ export default function GearPanel({ save, setSave }) {
             </div>
           )}
           <div className="forge-flux-bar">
-            <span className="forge-flux-label">⚗ FLUX CATALYST</span>
+            <span className="forge-flux-label" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><GameIcon name="cur_shards" size={13} /> FLUX CATALYST</span>
             <div className="forge-flux-pips">
               {Array.from({ length: FLUX_PER_MERGE_MAX }).map((_, i) => (
                 <button
@@ -665,7 +665,7 @@ export default function GearPanel({ save, setSave }) {
                   disabled={i >= (save.flux || 0)}
                   onClick={() => setFluxSpend(i + 1 === fluxSpend ? i : i + 1)}
                   title={i >= (save.flux || 0) ? 'Not enough Flux' : `Use ${i + 1}`}
-                >⚗</button>
+                ><GameIcon name="cur_shards" size={11} /></button>
               ))}
             </div>
             <span className="forge-flux-have">{save.flux || 0} held · +15% each</span>
@@ -683,8 +683,8 @@ export default function GearPanel({ save, setSave }) {
                 const done = g.filter(i => (i.level || 1) >= GEAR_MAX_LEVEL).length;
                 return (
                   <div key={`p_${b.slot}_${b.rarity}`} className="forge-pending-row">
-                    <span style={{ color: GEAR_RARITY_COLORS[b.rarity] }}>
-                      {GEAR_SLOT_ICONS[b.slot]} {b.rarity.toUpperCase()} {GEAR_SLOT_NAMES[b.slot]}
+                    <span style={{ color: GEAR_RARITY_COLORS[b.rarity], display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <GameIcon name={GEAR_SLOT_ICONS[b.slot]} size={14} /> {b.rarity.toUpperCase()} {GEAR_SLOT_NAMES[b.slot]}
                     </span>
                     <span className="forge-pending-need">{done}/3 at Lv{GEAR_MAX_LEVEL}</span>
                   </div>
@@ -694,7 +694,7 @@ export default function GearPanel({ save, setSave }) {
           )}
           {mergeGroups.length === 0 ? (
             <div className="gear-empty">
-              <div style={{ fontSize:36 }}>🔨</div>
+              <div style={{ display: 'flex', justifyContent: 'center' }}><GameIcon name="ui_smith" size={36} /></div>
               <div style={{ fontFamily:'VT323', color:'#4a3a6e', fontSize:15, marginTop:8 }}>
                 Three of the same piece, all at level {GEAR_MAX_LEVEL}
               </div>
@@ -737,12 +737,12 @@ export default function GearPanel({ save, setSave }) {
         <div className="gear-inventory">
           {/* Gacha Machine — spend tokens earned from Star Raid to pull artifacts */}
           <div className="gacha-machine" data-testid="gacha-machine">
-            <div className="gacha-machine-icon">🎰</div>
+            <div className="gacha-machine-icon"><GameIcon name="cur_slot" size={30} /></div>
             <div className="gacha-machine-info">
               <div className="gacha-machine-title">ARTIFACT GACHA MACHINE</div>
               <div className="gacha-machine-sub">Clear Star Raid's final stage to earn tokens.</div>
             </div>
-            <div className="gacha-machine-tokens">🎫 ×{gachaTokens}</div>
+            <div className="gacha-machine-tokens" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><GameIcon name="ui_ticket" size={15} /> ×{gachaTokens}</div>
             <button className="gear-btn equip" disabled={gachaTokens <= 0}
               style={{ opacity: gachaTokens > 0 ? 1 : 0.4 }}
               onClick={pullGacha} data-testid="gacha-pull-btn">PULL</button>
@@ -752,7 +752,7 @@ export default function GearPanel({ save, setSave }) {
             <div className="modal-overlay" onClick={() => setGachaReveal(null)}>
               <div className="gacha-reveal" style={{ '--rc': ARTIFACT_RARITY_COLORS[gachaReveal.rarity] }}
                 onClick={(e) => e.stopPropagation()}>
-                <div className="gacha-reveal-icon">🔶</div>
+                <div className="gacha-reveal-icon"><GameIcon name="ui_orb" size={40} /></div>
                 <div className="gacha-reveal-rarity">{gachaReveal.rarity.toUpperCase()}</div>
                 <div className="gacha-reveal-name">{gachaReveal.name}</div>
                 {gachaReveal.stats.map((s, si) => (
@@ -778,11 +778,11 @@ export default function GearPanel({ save, setSave }) {
                 >
                   {item ? (
                     <>
-                      <span className="artifact-slot-icon">🔶</span>
+                      <span className="artifact-slot-icon"><GameIcon name="ui_orb" size={24} /></span>
                       <span className="artifact-slot-name">{item.name}</span>
                     </>
                   ) : (
-                    <span className="artifact-slot-empty-icon">🔶</span>
+                    <span className="artifact-slot-empty-icon"><GameIcon name="ui_orb" size={24} /></span>
                   )}
                   <span className="artifact-slot-label">Slot {slotIdx + 1}</span>
                 </div>
@@ -794,7 +794,7 @@ export default function GearPanel({ save, setSave }) {
           {popoverArtSlot !== null && (
             <div className="gear-popover" data-testid="artifact-popover">
               <div className="gear-popover-head">
-                <span>🔶 ARTIFACT SLOT {popoverArtSlot + 1}</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><GameIcon name="ui_orb" size={15} /> ARTIFACT SLOT {popoverArtSlot + 1}</span>
                 <button className="gear-popover-close" onClick={() => setPopoverArtSlot(null)}>✕</button>
               </div>
               <div className="gear-popover-list">
@@ -829,7 +829,7 @@ export default function GearPanel({ save, setSave }) {
 
           {artInv.length === 0 && (
             <div className="gear-empty">
-              <div style={{ fontSize: 40 }}>🔶</div>
+              <div style={{ display: 'flex', justifyContent: 'center' }}><GameIcon name="ui_orb" size={40} /></div>
               <div style={{ fontFamily:'VT323', fontSize:16, color:'#4a3a6e', marginTop:8 }}>
                 No artifacts yet.
               </div>
@@ -851,7 +851,7 @@ export default function GearPanel({ save, setSave }) {
                   onClick={() => setSelectedArt(isSel ? null : item)}
                   data-testid={`artifact-item-${item.rarity}`}
                 >
-                  <div className="gear-item-icon">🔶</div>
+                  <div className="gear-item-icon"><GameIcon name="ui_orb" size={28} /></div>
                   <div className="gear-item-info">
                     <span className="gear-item-name" style={{ color: ARTIFACT_RARITY_COLORS[item.rarity] }}>
                       {item.name}
@@ -870,7 +870,7 @@ export default function GearPanel({ save, setSave }) {
 
           {selectedArt && (
             <div className="gear-detail" style={{ '--rc': ARTIFACT_RARITY_COLORS[selectedArt.rarity] }}>
-              <div className="gear-detail-name">🔶 {selectedArt.name}</div>
+              <div className="gear-detail-name" style={{ display: 'flex', alignItems: 'center', gap: 5 }}><GameIcon name="ui_orb" size={16} /> {selectedArt.name}</div>
               <div className="gear-detail-rarity" style={{ color: ARTIFACT_RARITY_COLORS[selectedArt.rarity] }}>
                 {selectedArt.rarity.toUpperCase()} ARTIFACT
               </div>

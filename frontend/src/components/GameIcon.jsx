@@ -1248,6 +1248,44 @@ const GLYPHS = {
     <rect x="12" y="8" width="16" height="20" rx="2" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1.2" />
     <circle cx="20" cy="14" r="2.4" fill="#ffffff" opacity="0.55" />
   </>),
+  // ---- Gear-slot icons (helmet/chest/gloves/legs/boots/ring/amulet) ----
+  // The equipment slots (game/gear.js's GEAR_SLOT_ICONS) had no SVG glyphs
+  // of their own yet — simple, distinct silhouettes rather than anything
+  // ornate, since they mainly have to read correctly at ~18-28px.
+  gearHelmet: (u) => (<>
+    <path d="M8 19c0-7.4 3.6-13 8-13s8 5.6 8 13v3H8z" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1.2" />
+    <rect x="10" y="16.5" width="12" height="2.6" rx="1" fill={DARK} opacity="0.65" />
+    <path d="M8 22h16v2.4a2.2 2.2 0 0 1-2.2 2.2H10.2A2.2 2.2 0 0 1 8 24.4z" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1" />
+  </>),
+  gearChest: (u) => (<>
+    <path d="M16 5.5l7.5 2.8v8.4c0 5.6-3.6 8.6-7.5 10.3-3.9-1.7-7.5-4.7-7.5-10.3V8.3z" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1.2" />
+    <path d="M16 8.6v17.5" stroke={DARK} strokeWidth="1" opacity="0.5" />
+    <circle cx="16" cy="13" r="2.1" fill={STEEL_HI} opacity="0.85" />
+  </>),
+  gearGloves: (u) => (<>
+    <path d="M11 9.4a1.9 1.9 0 0 1 3.8 0v5.6h.9V8.4a1.9 1.9 0 0 1 3.8 0v6.6h.9V10a1.9 1.9 0 0 1 3.8 0v9.4c0 5-3.8 7.6-7.6 7.6s-7.6-2.6-7.6-7.6v-5.6a1.9 1.9 0 0 1 2-1.9z"
+      fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1.1" strokeLinejoin="round" />
+  </>),
+  gearLegs: (u) => (<>
+    <path d="M10.5 4.5h11l1 12.5-3.2 1-1.8-9-1.8 9-3.2-1z" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1.1" strokeLinejoin="round" />
+    <rect x="8.6" y="17" width="6" height="10.5" rx="1.5" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1" />
+    <rect x="17.4" y="17" width="6" height="10.5" rx="1.5" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1" />
+  </>),
+  gearBoots: (u) => (<>
+    <path d="M12 4h6.5v13.5l5.8 3.8v3.5a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2v-6a2 2 0 0 1 .7-1.5l3.3-2.9z"
+      fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1.2" strokeLinejoin="round" />
+    <path d="M9.6 24.2h14.4" stroke={DARK} strokeWidth="1" opacity="0.5" />
+  </>),
+  gearRing: (u) => (<>
+    <circle cx="16" cy="20.5" r="7" fill="none" stroke={`url(#${u}-live)`} strokeWidth="3.6" />
+    <path d="M16 8.5l4.4 4.4-4.4 4.4-4.4-4.4z" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1" strokeLinejoin="round" />
+    <circle cx="16" cy="12.9" r="1.3" fill="#ffffff" opacity="0.5" />
+  </>),
+  gearAmulet: (u) => (<>
+    <path d="M8.5 4 16 10.5 23.5 4" fill="none" stroke={STEEL_HI} strokeWidth="1.4" strokeLinecap="round" />
+    <path d="M16 12l6.4 7.4L16 28.5l-6.4-9.1z" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1.2" strokeLinejoin="round" />
+    <circle cx="16" cy="19.5" r="2.1" fill="#ffffff" opacity="0.5" />
+  </>),
 };
 
 // ---- Second glyph set ------------------------------------------------------
@@ -2113,6 +2151,14 @@ export const ICONS = {
   ui_flame:     ['flame',     '#ff7a1a'],
   ui_star:      ['star',      '#ffd166'],
   ui_shield:    ['shield',    '#9fb4c8'],
+  // Gear slots — game/gear.js's GEAR_SLOT_ICONS.
+  gear_helmet:  ['gearHelmet', '#9fb4c8'],
+  gear_chest:   ['gearChest',  '#ffb066'],
+  gear_arms:    ['gearGloves', '#c8926a'],
+  gear_legs:    ['gearLegs',   '#8fa8c8'],
+  gear_boots:   ['gearBoots',  '#a67c52'],
+  gear_ring:    ['gearRing',   '#ffd166'],
+  gear_amulet:  ['gearAmulet', '#b362ff'],
   ui_blade:     ['blade',     '#ff5a5a'],
   ui_bolt:      ['bolt',      '#fff44d'],
   ui_gem:       ['gem',       '#4dffd4'],

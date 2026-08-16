@@ -5,7 +5,8 @@ import { resolveMerge } from './forge';
 
 export const GEAR_SLOTS = ['helmet','chest','arms','legs','boots','ring','amulet'];
 export const GEAR_SLOT_ICONS = {
-  helmet:'🪖', chest:'🎽', arms:'🥊', legs:'👖', boots:'🥾', ring:'💍', amulet:'📿'
+  helmet:'gear_helmet', chest:'gear_chest', arms:'gear_arms', legs:'gear_legs',
+  boots:'gear_boots', ring:'gear_ring', amulet:'gear_amulet',
 };
 export const GEAR_SLOT_NAMES = {
   helmet:'Helmet', chest:'Chest', arms:'Gloves', legs:'Legs', boots:'Boots', ring:'Ring', amulet:'Amulet'
