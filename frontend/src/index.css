@@ -4445,9 +4445,27 @@ canvas#game, canvas.starraid-canvas {
 .codex-tab.active, .codex-tab:hover { border-color:#b362ff; color:#b362ff; }
 .codex-grid { display:flex; flex-direction:column; gap:6px; overflow-y:auto; flex:1; }
 .codex-entry {
-  display:flex; gap:12px; align-items:flex-start;
+  display:flex; gap:12px; align-items:flex-start; position:relative;
   background:#0a0420; border:1px solid #1a0a30; padding:10px 12px;
   transition:border-color .2s;
+}
+/* Claim feedback — proof of concept for "every claim should be felt".
+   Rises from the claim button, glowing the same green CountUp uses on the
+   currency chips, so the two reads as one motion: a gem earned here,
+   landing there. */
+.codex-claim-burst {
+  position:absolute; right:10px; top:6px;
+  display:inline-flex; align-items:center; gap:3px;
+  font-family:'VT323'; font-size:13px; color:#6dff9e;
+  text-shadow:0 0 8px rgba(109,255,158,0.8);
+  pointer-events:none; z-index:5;
+  animation: codexClaimBurst 750ms ease-out forwards;
+}
+@keyframes codexClaimBurst {
+  0%   { opacity:0; transform:translateY(4px) scale(0.85); }
+  20%  { opacity:1; transform:translateY(0) scale(1.15); }
+  70%  { opacity:1; transform:translateY(-14px) scale(1); }
+  100% { opacity:0; transform:translateY(-24px) scale(0.9); }
 }
 .codex-entry.found { border-color:#1a0a40; }
 .codex-entry.unknown { opacity:.5; }
@@ -4459,21 +4477,28 @@ canvas#game, canvas.starraid-canvas {
 .codex-entry-kills { font-family:'VT323'; font-size:11px; color:#4dffd4; margin-top:2px; }
 
 /* ═══════════════════════════════════════════
-   EYE OF HORUS notification badge
+   CLAIM BADGE — a living waterdrop, "something to claim here"
 ═══════════════════════════════════════════ */
-.eye-badge {
+.claim-badge {
   display: inline-flex; align-items: center; justify-content: center;
-  position: absolute; top: 3px; right: 5px;
+  position: absolute; top: 1px; right: 3px;
   pointer-events: none;
-  animation: eyeGlow 2s ease-in-out infinite;
-  filter: drop-shadow(0 0 3px #ffd700aa);
+  animation: dropBreathe 2.2s ease-in-out infinite;
   z-index: 10;
-  font-size: 13px;
   line-height: 1;
 }
-@keyframes eyeGlow {
-  0%,100% { filter: drop-shadow(0 0 3px #ffd70066); }
-  50%      { filter: drop-shadow(0 0 10px #ffd700dd); }
+.claim-badge-ring {
+  transform-origin: 10px 15px;
+  animation: dropRipple 2.2s ease-out infinite;
+}
+@keyframes dropBreathe {
+  0%, 100% { transform: translateY(0) scale(1); filter: drop-shadow(0 0 2px #4dc4ff77); }
+  50%      { transform: translateY(-1.5px) scale(1.08); filter: drop-shadow(0 0 7px #8fe6ffdd); }
+}
+@keyframes dropRipple {
+  0%   { opacity: 0.55; transform: scale(0.7); }
+  70%  { opacity: 0; transform: scale(1.5); }
+  100% { opacity: 0; transform: scale(1.5); }
 }
 
 /* ═══════════════════════════════════════════

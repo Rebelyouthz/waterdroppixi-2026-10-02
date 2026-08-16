@@ -23,7 +23,7 @@ import TcgScreen from './TcgScreen';
 import ExplorationScreen from './ExplorationScreen';
 import { pendingMilestones } from '../game/clicker';
 import GearPanel from './GearPanel';
-import { BattlePassPanel, CodexPanel, PatrolPanel, EyeBadge } from './MetaFeatures';
+import { BattlePassPanel, CodexPanel, PatrolPanel, ClaimBadge } from './MetaFeatures';
 import { ACHIEVEMENTS, resolveStartWeapon } from '../game/data_ext2';
 import { MissionsPanel, ChallengesPanel, AchievementsPanel, CardShopModal, ActiveLoadoutPanel, SettingsPanel, MapsPanel } from './CampPanels';
 import { Audio } from '../game/audio';
@@ -708,7 +708,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
                 <span className="camp-story-go">▸</span>
               </button>
             )}
-            <button className={`camp-tab ${tab==='campaign'?'active':''}`} onClick={() => setTab('campaign')} data-testid="tab-campaign" style={{position:'relative'}}><GameIcon name="ui_scroll" size={15} /> CAMPAIGN {pathReady && <EyeBadge/>}</button>
+            <button className={`camp-tab ${tab==='campaign'?'active':''}`} onClick={() => setTab('campaign')} data-testid="tab-campaign" style={{position:'relative'}}><GameIcon name="ui_scroll" size={15} /> CAMPAIGN {pathReady && <ClaimBadge/>}</button>
             <button className={`camp-tab ${tab === 'stats' ? 'active' : ''}`} onClick={() => setTab('stats')} data-testid="tab-stats"><GameIcon name="ui_chart" size={15} /> STATS</button>
             {/* THE BASE is the one tab that's always PRESENT — dimmed until
                 pond_1 clears, per Timmy: "bara base ska finnas där ... även
@@ -725,7 +725,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
             )}
             {!isCampTabLocked('clicker', save) && (
               <button className="camp-tab" onClick={() => setClickerOpen(true)} data-testid="tab-clicker" style={{ position: 'relative' }}>
-                <GameIcon name="ui_waterdrop" size={15} /> THE WELL {clickerReady > 0 && <EyeBadge />}
+                <GameIcon name="ui_waterdrop" size={15} /> THE WELL {clickerReady > 0 && <ClaimBadge />}
               </button>
             )}
             <div className="camp-tab-divider" />
@@ -748,13 +748,13 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
               <button className={`camp-tab ${tab==='gear'?'active':''}`} onClick={() => setTab('gear')} data-testid="tab-gear"><GameIcon name="gear" size={15} /> GEAR</button>
             )}
             {!isCampTabLocked('pass', save) && (
-              <button className={`camp-tab ${tab==='pass'?'active':''}`} style={{position:'relative'}} onClick={() => setTab('pass')} data-testid="tab-pass"><GameIcon name="ui_medal" size={15} /> SEASON PASS {passNew && <EyeBadge/>}</button>
+              <button className={`camp-tab ${tab==='pass'?'active':''}`} style={{position:'relative'}} onClick={() => setTab('pass')} data-testid="tab-pass"><GameIcon name="ui_medal" size={15} /> SEASON PASS {passNew && <ClaimBadge/>}</button>
             )}
             {!isCampTabLocked('patrol', save) && (
-              <button className={`camp-tab ${tab==='patrol'?'active':''}`} style={{position:'relative'}} onClick={() => setTab('patrol')} data-testid="tab-patrol"><GameIcon name="ui_map" size={15} /> PATROL {patrolNew && <EyeBadge/>}</button>
+              <button className={`camp-tab ${tab==='patrol'?'active':''}`} style={{position:'relative'}} onClick={() => setTab('patrol')} data-testid="tab-patrol"><GameIcon name="ui_map" size={15} /> PATROL {patrolNew && <ClaimBadge/>}</button>
             )}
             {!isCampTabLocked('codex', save) && (
-              <button className={`camp-tab ${tab==='codex'?'active':''}`} style={{position:'relative'}} onClick={() => setTab('codex')} data-testid="tab-codex"><GameIcon name="ui_codex" size={15} /> CODEX {(codexNew || achNew) && <EyeBadge/>}</button>
+              <button className={`camp-tab ${tab==='codex'?'active':''}`} style={{position:'relative'}} onClick={() => setTab('codex')} data-testid="tab-codex"><GameIcon name="ui_codex" size={15} /> CODEX {(codexNew || achNew) && <ClaimBadge/>}</button>
             )}
             <div className="camp-tab-divider" />
             {!isCampTabLocked('shop', save) && (
@@ -901,7 +901,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
             <>
               <div className="gear-tabs" style={{ marginBottom: 12 }}>
                 <button className={`gear-tab ${codexSub === 'codex' ? 'active' : ''}`} onClick={() => setCodexSub('codex')} data-testid="tab-codex-sub"><GameIcon name="ui_codex" size={14} /> CODEX</button>
-                <button className={`gear-tab ${codexSub === 'achievements' ? 'active' : ''}`} onClick={() => setCodexSub('achievements')} data-testid="tab-ach" style={{ position: 'relative' }}><GameIcon name="ui_medal" size={14} /> ACHIEVEMENTS {achNew && <EyeBadge />}</button>
+                <button className={`gear-tab ${codexSub === 'achievements' ? 'active' : ''}`} onClick={() => setCodexSub('achievements')} data-testid="tab-ach" style={{ position: 'relative' }}><GameIcon name="ui_medal" size={14} /> ACHIEVEMENTS {achNew && <ClaimBadge />}</button>
                 <button className={`gear-tab ${codexSub === 'milestones' ? 'active' : ''}`} onClick={() => setCodexSub('milestones')} data-testid="tab-milestones">⭐ MILESTONES</button>
               </div>
               {codexSub === 'codex' && (<>

@@ -10,24 +10,34 @@ import { Audio } from '../game/audio';
 import CardBattle from './CardBattle';
 import GameIcon from './GameIcon';
 
-// ─── Eye of Horus badge SVG ───────────────────
-export function EyeBadge({ size = 14 }) {
+// ─── Claim badge — a living waterdrop, not the Eye of Horus ───────────────
+// Was a literal Eye of Horus glyph, gold, unrelated to anything else in the
+// game's visual language ("brukar va utropstecken eller frågetecken eller
+// nått men vill ha nått som är unikt för spelet"). This is a droplet in the
+// same teal the XP vessel gauge and every waterdrop icon already use, so a
+// "something to claim here" mark reads as house style rather than a
+// borrowed generic-UI symbol. The body is a static gradient (cheap — this
+// can sit on 5-6 tab buttons at once, so no per-instance rAF loop the way
+// the HUD's vessel gauge affords for its one always-on instance); the
+// "living" motion is a CSS breathe+glow pulse instead, plus two small
+// ripple rings that expand and fade to suggest the water is moving without
+// animating any actual path geometry.
+export function ClaimBadge({ size = 14 }) {
   return (
-    <span className="eye-badge" title="New!">
-      <svg viewBox="0 0 26 16" width={size} height={Math.round(size * 0.62)} aria-hidden="true">
-        {/* Kohl liner — lower lash */}
-        <path d="M13 14 C7 14 2 10 1 8.5" stroke="#ffd700" strokeWidth="0.8" fill="none" opacity="0.5"/>
-        {/* Outer eye */}
-        <path d="M13 1.5 C5 1.5 1 8 1 8 C1 8 5 14.5 13 14.5 C21 14.5 25 8 25 8 C25 8 21 1.5 13 1.5 Z"
-          fill="#050010" stroke="#ffd700" strokeWidth="1.4"/>
-        {/* Iris */}
-        <circle cx="13" cy="8" r="4.2" fill="#12083a" stroke="#ffd700" strokeWidth="0.9"/>
-        {/* Pupil */}
-        <circle cx="13" cy="8" r="2.1" fill="#000005"/>
-        {/* Shine */}
-        <circle cx="14.4" cy="6.6" r="1" fill="#ffd70060"/>
-        {/* Ra's tear drop (Eye of Horus marker) */}
-        <path d="M13 12.8 L14.8 15.5 L13 14.5 L11.2 15.5 Z" fill="#ffd700" opacity="0.7"/>
+    <span className="claim-badge" title="Something to claim">
+      <svg viewBox="0 0 20 24" width={size} height={Math.round(size * 1.2)} aria-hidden="true">
+        <defs>
+          <linearGradient id="claim-badge-fill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#d8f6ff" />
+            <stop offset="45%" stopColor="#5fd6ff" />
+            <stop offset="100%" stopColor="#0f6fae" />
+          </linearGradient>
+        </defs>
+        <circle className="claim-badge-ring" cx="10" cy="15" r="7" fill="none" stroke="#7adfff" strokeWidth="1" />
+        <path
+          d="M10 1 C15.5 8.4 18 13.2 18 16.4 A8 8 0 0 1 2 16.4 C2 13.2 4.5 8.4 10 1 Z"
+          fill="url(#claim-badge-fill)" stroke="#0a3a55" strokeWidth="1.1" />
+        <ellipse cx="7.2" cy="12.5" rx="1.7" ry="2.8" fill="#ffffff" opacity="0.55" />
       </svg>
     </span>
   );
@@ -423,6 +433,15 @@ export function CodexPanel({ save, setSave }) {
   const totalDiscovered = Object.keys(killed).length + Object.keys(weapons).length;
   const totalClaimable  = [...Object.keys(killed), ...Object.keys(weapons)].filter(id => !claimed.includes(id)).length;
 
+  // Proof-of-concept for the general "a claim should always be felt" rule
+  // (Timmy: "vid claim alltid ska de visas å kännas å låta") — this used to
+  // be a silent setSave with no sound, toast, or on-screen acknowledgement
+  // at all. Scoped to Codex discovery claims first; the currency chip in
+  // Camp's header already animates the number ticking up with a green
+  // arrow (see `CountUp` in Camp.jsx) once `save.gems` changes, so this only
+  // needs to add the sound/toast/local burst — the "flows into the current
+  // total" half of the ask was already built, just never wired to a sound.
+  const [burstId, setBurstId] = useState(null);
   const claimDiscovery = (id) => {
     if (claimed.includes(id)) return;
     setSave({
@@ -430,6 +449,9 @@ export function CodexPanel({ save, setSave }) {
       gems: (save.gems || 0) + 1,
       codex: { ...save.codex, claimedDiscoveries: [...claimed, id] }
     });
+    Audio.claimPing?.();
+    setBurstId(id);
+    setTimeout(() => setBurstId(cur => (cur === id ? null : cur)), 750);
   };
 
   const claimAch = (a) => {
@@ -493,6 +515,9 @@ export function CodexPanel({ save, setSave }) {
                   </button>
                 )}
                 {disc && alrClaimed && <span className="codex-claimed-badge">✓</span>}
+                {burstId === id && (
+                  <span className="codex-claim-burst"><GameIcon name="cur_gems" size={13} /> +1</span>
+                )}
               </div>
             );
           })}
@@ -519,6 +544,9 @@ export function CodexPanel({ save, setSave }) {
                   </button>
                 )}
                 {disc && alrClaimed && <span className="codex-claimed-badge">✓</span>}
+                {burstId === id && (
+                  <span className="codex-claim-burst"><GameIcon name="cur_gems" size={13} /> +1</span>
+                )}
               </div>
             );
           })}
@@ -544,6 +572,9 @@ export function CodexPanel({ save, setSave }) {
                   </button>
                 )}
                 {disc && alrClaimed && <span className="codex-claimed-badge">✓</span>}
+                {burstId === wid && (
+                  <span className="codex-claim-burst"><GameIcon name="cur_gems" size={13} /> +1</span>
+                )}
               </div>
             );
           })}
