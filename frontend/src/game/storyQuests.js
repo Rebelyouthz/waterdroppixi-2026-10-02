@@ -59,7 +59,7 @@ const mapCleared = (s, mapId) => {
 
 export const STORY_QUESTS = [
   {
-    id: 's_first_run', icon: '💧', go: 'story',
+    id: 's_first_run', icon: 'ui_waterdrop', go: 'story',
     title: 'Into the water',
     goal: 'Finish one run — win or lose',
     why: 'Everything in the camp is paid for by what you carry out of a run. Dying still pays.',
@@ -67,7 +67,7 @@ export const STORY_QUESTS = [
     rwd: { gold: 300, gearParts: 8 },
   },
   {
-    id: 's_survive', icon: '⏳', go: 'story',
+    id: 's_survive', icon: 'ui_clock', go: 'story',
     title: 'Hold the line',
     goal: 'Survive 2 minutes in a single run',
     why: 'The opening minutes are the hardest part of the game. Everything after this you out-build.',
@@ -75,7 +75,7 @@ export const STORY_QUESTS = [
     rwd: { gold: 400, gearParts: 12 },
   },
   {
-    id: 's_level5', icon: '⭐', go: 'story',
+    id: 's_level5', icon: 'ui_star', go: 'story',
     title: 'Grow teeth',
     goal: 'Reach level 5 inside one run',
     why: 'Run levels are the only power that matters while you are out there — and every fourth one opens a weapon slot.',
@@ -91,7 +91,7 @@ export const STORY_QUESTS = [
     // Points at the blueprint shelf specifically, not at the smith's front
     // door — that is where the START WEAPONS selector lives, and this quest is
     // the reason a player first needs it.
-    id: 's_katana', icon: '🗡', go: 'smithBlueprints',
+    id: 's_katana', icon: 'katana', go: 'smithBlueprints',
     title: 'Put the gun down',
     goal: 'Finish one run carrying the Tidecutter Katana',
     why: 'Shooting is not the only answer, and the katana is the only weapon that cuts a body clean in half. Weaponsmith → BLUEPRINTS → CARRY THIS. If you hate it, never again.',
@@ -99,7 +99,7 @@ export const STORY_QUESTS = [
     rwd: { gold: 600, gearParts: 16 },
   },
   {
-    id: 's_node1', icon: '📜', go: 'story',
+    id: 's_node1', icon: 'ui_scroll', go: 'story',
     title: 'The Shallows',
     goal: 'Clear the first storyline node',
     why: 'A node ends on its guardian, not on a clock. That is the shape of every node after it.',
@@ -111,7 +111,7 @@ export const STORY_QUESTS = [
     rwd: { gold: 700, gearParts: 20, gems: 2 },
   },
   {
-    id: 's_kills', icon: '⚔', go: 'story',
+    id: 's_kills', icon: 'ui_blade', go: 'story',
     title: 'Thin them out',
     goal: 'Reach 500 total kills',
     why: 'Kill count is what the Codex, the badges and half the quests all read from.',
@@ -119,7 +119,7 @@ export const STORY_QUESTS = [
     rwd: { gold: 800, gearParts: 24 },
   },
   {
-    id: 's_node2', icon: '🌊', go: 'story',
+    id: 's_node2', icon: 'pWave', go: 'story',
     title: 'The Undertow',
     goal: 'Clear the second storyline node',
     why: 'This one expects the gear the first one paid for. If it feels impossible, it is telling you to go spend.',
@@ -127,7 +127,7 @@ export const STORY_QUESTS = [
     rwd: { gold: 1100, gearParts: 30, gems: 3 },
   },
   {
-    id: 's_horus', icon: '👁', go: 'story',
+    id: 's_horus', icon: 'ui_eye', go: 'story',
     title: 'Close the Eye',
     goal: 'Defeat the Eye of Horus',
     why: 'Every guardian drops something no other source gives. Horus pays in artifacts.',
@@ -135,7 +135,7 @@ export const STORY_QUESTS = [
     rwd: { gold: 1400, sp: 2, gems: 4 },
   },
   {
-    id: 's_map1', icon: '🏆', go: 'story',
+    id: 's_map1', icon: 'ui_trophy', go: 'story',
     title: 'The Lake is yours',
     goal: 'Clear every node of The Lake',
     why: 'One map down. The next one unlocks on kills, not on permission.',
@@ -143,7 +143,7 @@ export const STORY_QUESTS = [
     rwd: { gold: 2000, sp: 3, gems: 6, gearParts: 40 },
   },
   {
-    id: 's_level10', icon: '✨', go: 'story',
+    id: 's_level10', icon: 'ui_star', go: 'story',
     title: 'Deep enough to matter',
     goal: 'Reach level 10 inside one run',
     why: 'Level 10 is where a build stops being a pile of cards and starts being a plan.',
@@ -151,7 +151,7 @@ export const STORY_QUESTS = [
     rwd: { gold: 1200, sp: 2 },
   },
   {
-    id: 's_map2', icon: '🏛', go: 'story',
+    id: 's_map2', icon: 'ui_base', go: 'story',
     title: 'The Sunken Ruins',
     goal: 'Clear every node of the Sunken Ruins',
     why: 'Ranged enemies change how you move. The Ruins is where kiting stops being optional.',
@@ -159,7 +159,7 @@ export const STORY_QUESTS = [
     rwd: { gold: 3000, sp: 4, gems: 8, gearParts: 55 },
   },
   {
-    id: 's_necro', icon: '💀', go: 'story',
+    id: 's_necro', icon: 'ui_void', go: 'story',
     title: 'Bone Collector',
     goal: 'Defeat the Necromancer',
     why: 'The Necromancer hands you a rare pet egg. Nothing else in the game does.',
@@ -167,7 +167,7 @@ export const STORY_QUESTS = [
     rwd: { gold: 2200, sp: 3, petFood: 6 },
   },
   {
-    id: 's_endless', icon: '∞', go: 'story',
+    id: 's_endless', icon: 'ui_infinity', go: 'story',
     title: 'Past the edge',
     goal: 'Reach Endless mode in a run',
     why: 'Endless is where the leaderboard lives. The curve there accelerates — it is meant to end.',
@@ -175,7 +175,7 @@ export const STORY_QUESTS = [
     rwd: { gold: 2500, gems: 10, sp: 4 },
   },
   {
-    id: 's_map3', icon: '🌌', go: 'story',
+    id: 's_map3', icon: 'ui_void', go: 'story',
     title: 'The Void Lab',
     goal: 'Clear every node of the Void Lab',
     why: "A.I.D.A.'s old workshop. You were not her first attempt.",
@@ -183,7 +183,7 @@ export const STORY_QUESTS = [
     rwd: { gold: 4200, sp: 6, gems: 10, gearParts: 70 },
   },
   {
-    id: 's_void', icon: '🌑', go: 'story',
+    id: 's_void', icon: 'tornado', go: 'story',
     title: 'Titan Crusher',
     goal: 'Defeat the Void Titan',
     why: 'The Titan pays in Gacha Tokens — the only currency the Artifact machine takes.',
@@ -191,7 +191,7 @@ export const STORY_QUESTS = [
     rwd: { gold: 3200, sp: 5, gachaTokens: 2 },
   },
   {
-    id: 's_map4', icon: '🛸', go: 'story',
+    id: 's_map4', icon: 'ui_void', go: 'story',
     title: 'The Annunaki Ship',
     goal: 'Clear every node of the Annunaki Ship',
     why: 'The ship is where the story was always going. A.I.D.A. is at the end of it.',
@@ -199,7 +199,7 @@ export const STORY_QUESTS = [
     rwd: { gold: 6000, sp: 8, gems: 14, gearParts: 90 },
   },
   {
-    id: 's_aida', icon: '👑', go: 'story',
+    id: 's_aida', icon: 'gbCrown', go: 'story',
     title: 'The Reckoning',
     goal: 'Defeat A.I.D.A.',
     why: 'For a moment the Lake is quiet. It does not last.',
@@ -207,7 +207,7 @@ export const STORY_QUESTS = [
     rwd: { gold: 8000, sp: 10, gems: 20, gachaTokens: 3 },
   },
   {
-    id: 's_map5', icon: '⛈', go: 'story',
+    id: 's_map5', icon: 'staticField', go: 'story',
     title: 'The Drowned Sky',
     goal: 'Clear every node of the Drowned Sky',
     why: 'Storm-wracked and swarming. Bring area damage or bring speed.',
@@ -215,7 +215,7 @@ export const STORY_QUESTS = [
     rwd: { gold: 8000, sp: 10, gems: 16, gearParts: 110 },
   },
   {
-    id: 's_map6', icon: '🌀', go: 'story',
+    id: 's_map6', icon: 'tornado', go: 'story',
     title: 'The Deep Current',
     goal: 'Clear every node of the Deep Current',
     why: 'The void she opened never closed. This is the last thing in it.',
@@ -223,7 +223,7 @@ export const STORY_QUESTS = [
     rwd: { gold: 12000, sp: 14, gems: 24, gearParts: 150 },
   },
   {
-    id: 's_normal_done', icon: '🔥', go: 'story',
+    id: 's_normal_done', icon: 'ui_flame', go: 'story',
     title: 'Again, harder',
     goal: 'Clear the whole story on Normal — this opens Hard',
     why: 'Hard is not a slider. It is the same story built for the character Normal made you.',
@@ -231,7 +231,7 @@ export const STORY_QUESTS = [
     rwd: { gold: 15000, sp: 20, gems: 30, gearParts: 200 },
   },
   {
-    id: 's_hard_done', icon: '💀', go: 'story',
+    id: 's_hard_done', icon: 'ui_void', go: 'story',
     title: 'Against the current',
     goal: 'Clear the whole story on Hard — this opens Nightmare',
     why: 'Everything from here is a test of the build, not of the reflexes.',
@@ -239,7 +239,7 @@ export const STORY_QUESTS = [
     rwd: { gold: 40000, sp: 40, gems: 60, gearParts: 400 },
   },
   {
-    id: 's_nightmare_done', icon: '☠', go: 'story',
+    id: 's_nightmare_done', icon: 'ui_void', go: 'story',
     title: 'Nothing held back',
     goal: 'Clear the whole story on Nightmare',
     why: 'There is nothing above this. The Lake is yours.',
@@ -258,7 +258,7 @@ export const STORY_QUESTS = [
 
 export const CAMP_QUESTS = [
   {
-    id: 'c_attr', icon: '⚡', go: 'attrs',
+    id: 'c_attr', icon: 'ui_bolt', go: 'attrs',
     title: 'Spend a point',
     goal: 'Put one attribute point somewhere',
     why: 'You get one every profile level and they are permanent. There is no reason to sit on them.',
@@ -266,7 +266,7 @@ export const CAMP_QUESTS = [
     rwd: { gold: 200 },
   },
   {
-    id: 'c_meta', icon: '💠', go: 'meta',
+    id: 'c_meta', icon: 'ui_gem', go: 'meta',
     title: 'Buy something permanent',
     goal: 'Purchase one Meta upgrade',
     why: 'Meta increments are deliberately tiny. They are the floor under every run, not the build.',
@@ -274,7 +274,7 @@ export const CAMP_QUESTS = [
     rwd: { gold: 250, gearParts: 6 },
   },
   {
-    id: 'c_gear', icon: '🪖', go: 'gear',
+    id: 'c_gear', icon: 'gear_helmet', go: 'gear',
     title: 'Wear something',
     goal: 'Equip one piece of gear',
     why: 'Gear is the only stat source that is never spent — it stays on you between runs.',
@@ -282,7 +282,7 @@ export const CAMP_QUESTS = [
     rwd: { gold: 300, gearParts: 12 },
   },
   {
-    id: 'c_gearlvl', icon: '⬆', go: 'gear',
+    id: 'c_gearlvl', icon: 'catStatBoost', go: 'gear',
     title: 'Level that piece',
     goal: 'Take one piece of gear to level 3',
     why: 'Gear starts weak on purpose. Levels are where it earns the slot — and rarity only opens at 10.',
@@ -290,7 +290,7 @@ export const CAMP_QUESTS = [
     rwd: { gold: 400, gearParts: 18 },
   },
   {
-    id: 'c_skill', icon: '🧠', go: 'skills',
+    id: 'c_skill', icon: 'ui_skills', go: 'skills',
     title: 'Learn something',
     goal: 'Buy one node in the Skill tree',
     why: 'The skill tree is where the run-changing unlocks live — dashes, shields, weapon evolutions.',
@@ -298,7 +298,7 @@ export const CAMP_QUESTS = [
     rwd: { gold: 350, sp: 1 },
   },
   {
-    id: 'c_talent', icon: '🌿', go: 'talents',
+    id: 'c_talent', icon: 'ui_leaf', go: 'talents',
     title: 'Put down roots',
     goal: 'Buy 5 talent levels',
     why: 'Talents are 300 small steps, not 30 big ones. Points come from every run whether you win or not.',
@@ -306,7 +306,7 @@ export const CAMP_QUESTS = [
     rwd: { gold: 450, talentPoints: 6 },
   },
   {
-    id: 'c_char', icon: '👤', go: 'character',
+    id: 'c_char', icon: 'ui_character', go: 'character',
     title: 'Level the character',
     goal: 'Level your character once',
     why: 'Character level opens weapon and skill slots. It is the single biggest lever on how a run plays.',
@@ -314,7 +314,7 @@ export const CAMP_QUESTS = [
     rwd: { gold: 500, gearParts: 15 },
   },
   {
-    id: 'c_loadout', icon: '🎯', go: 'loadout',
+    id: 'c_loadout', icon: 'ui_loadout', go: 'loadout',
     title: 'Slot an active',
     goal: 'Equip one active skill',
     why: 'Actives are the only button you press deliberately in a run. Everything else fires itself.',
@@ -322,7 +322,7 @@ export const CAMP_QUESTS = [
     rwd: { gold: 400 },
   },
   {
-    id: 'c_smith', icon: '⚙', go: 'smith',
+    id: 'c_smith', icon: 'ui_smith', go: 'smith',
     title: 'Tune a weapon',
     goal: 'Buy one tuning tier at the Weaponsmith',
     why: 'The Weaponsmith improves ONE weapon rather than all of them — it is where a favourite becomes a build.',
@@ -330,7 +330,7 @@ export const CAMP_QUESTS = [
     rwd: { gold: 500, gearParts: 14 },
   },
   {
-    id: 'c_attach', icon: '🔩', go: 'smith',
+    id: 'c_attach', icon: 'ui_part', go: 'smith',
     title: 'Bolt something on',
     goal: 'Socket one attachment',
     why: 'Every attachment is a trade, and every one of them is visible on the gun in your hands.',
@@ -338,7 +338,7 @@ export const CAMP_QUESTS = [
     rwd: { gold: 550, gearParts: 16 },
   },
   {
-    id: 'c_rune', icon: '🔮', go: 'smith',
+    id: 'c_rune', icon: 'rune', go: 'smith',
     title: 'Set a rune',
     goal: 'Socket one rune',
     why: 'Runes are the one slot that changes behaviour instead of numbers.',
@@ -346,7 +346,7 @@ export const CAMP_QUESTS = [
     rwd: { gold: 600, gems: 2 },
   },
   {
-    id: 'c_shop', icon: '🎰', go: 'shop',
+    id: 'c_shop', icon: 'cur_slot', go: 'shop',
     title: 'Pull the lever',
     goal: 'Do one Card Shop pull',
     why: 'The Card Shop is where new weapons and cards enter the run pool. Slot coins are its only currency.',
@@ -354,7 +354,7 @@ export const CAMP_QUESTS = [
     rwd: { gold: 450, slotCoins: 2 },
   },
   {
-    id: 'c_chest', icon: '📦', go: 'chests',
+    id: 'c_chest', icon: 'ui_chest', go: 'chests',
     title: 'Crack one open',
     goal: 'Open a chest',
     why: 'Chests are the fastest route to equipment you have not seen yet.',
@@ -362,7 +362,7 @@ export const CAMP_QUESTS = [
     rwd: { gold: 400, gems: 2 },
   },
   {
-    id: 'c_artifact', icon: '🏺', go: 'gear',
+    id: 'c_artifact', icon: 'ui_orb', go: 'gear',
     title: 'Bind an artifact',
     goal: 'Equip one artifact',
     why: 'Three artifact slots, no body-part restriction. They are the biggest single stat swing outside gear.',
@@ -370,7 +370,7 @@ export const CAMP_QUESTS = [
     rwd: { gold: 700, gachaTokens: 1 },
   },
   {
-    id: 'c_base', icon: '🏛', go: 'base',
+    id: 'c_base', icon: 'ui_base', go: 'base',
     title: 'Raise the base',
     goal: 'Build anything, once',
     why: 'Buildings are where gold stops buying stats and starts buying systems.',
@@ -378,7 +378,7 @@ export const CAMP_QUESTS = [
     rwd: { gold: 800, gearParts: 22 },
   },
   {
-    id: 'c_well', icon: '🌀', go: 'clicker',
+    id: 'c_well', icon: 'tornado', go: 'clicker',
     title: 'Sink The Well',
     goal: 'Draw 500 drops from The Well',
     why: 'The Well runs while you are gone. It is the only system that pays for time you did not spend.',
@@ -386,7 +386,7 @@ export const CAMP_QUESTS = [
     rwd: { gold: 650, gearParts: 20 },
   },
   {
-    id: 'c_incubator', icon: '🥚', go: 'pets',
+    id: 'c_incubator', icon: 'ui_egg', go: 'pets',
     title: 'Warm an egg',
     goal: 'Hatch one pet',
     why: 'A pet grows through four stages and every one of them is a real multiplier, not a label.',
@@ -394,7 +394,7 @@ export const CAMP_QUESTS = [
     rwd: { gold: 700, petFood: 8 },
   },
   {
-    id: 'c_petlvl', icon: '🐾', go: 'pets',
+    id: 'c_petlvl', icon: 'ui_pets', go: 'pets',
     title: 'Feed it',
     goal: 'Take a pet to level 5',
     why: 'An unfed pet is a cosmetic. A fed one is a second set of stats.',
@@ -402,7 +402,7 @@ export const CAMP_QUESTS = [
     rwd: { gold: 800, petFood: 12 },
   },
   {
-    id: 'c_tcg', icon: '🃏', go: 'tcg',
+    id: 'c_tcg', icon: 'ui_cards', go: 'tcg',
     title: 'Build a deck',
     goal: 'Put 5 cards into one pet deck',
     why: 'Pet cards are how a patrol encounter is fought. A pet with no deck loses by default.',
@@ -410,7 +410,7 @@ export const CAMP_QUESTS = [
     rwd: { gold: 900, gems: 3 },
   },
   {
-    id: 'c_patrol', icon: '🗺', go: 'patrol',
+    id: 'c_patrol', icon: 'ui_map', go: 'patrol',
     title: 'Send them out',
     goal: 'Run one patrol to completion',
     why: 'Patrols are how attachments, runes and food arrive without you playing for them.',
@@ -418,7 +418,7 @@ export const CAMP_QUESTS = [
     rwd: { gold: 750, gearParts: 24 },
   },
   {
-    id: 'c_forge', icon: '🔥', go: 'gear',
+    id: 'c_forge', icon: 'ui_flame', go: 'gear',
     title: 'Risk a merge',
     goal: 'Attempt one Forge merge',
     why: 'Three of a kind become one better one — or two of them are gone. Flux is what buys down the risk.',
@@ -426,7 +426,7 @@ export const CAMP_QUESTS = [
     rwd: { gold: 850, flux: 2 },
   },
   {
-    id: 'c_defence', icon: '🛡', go: 'defence',
+    id: 'c_defence', icon: 'ui_shield', go: 'defence',
     title: 'Hold the line',
     goal: 'Survive 3 waves of Base Defence',
     why: 'Base Defence does not pay into itself — what you win there is a buff on your NEXT run.',
@@ -434,7 +434,7 @@ export const CAMP_QUESTS = [
     rwd: { gold: 900, gearParts: 28 },
   },
   {
-    id: 'c_starraid', icon: '🚀', go: 'starraid',
+    id: 'c_starraid', icon: 'ui_rocket', go: 'starraid',
     title: 'Fly a raid',
     goal: 'Finish one Star Raid stage',
     why: 'Star Raid is a different game on the same account — its scrap and artifacts come back here.',
@@ -442,7 +442,7 @@ export const CAMP_QUESTS = [
     rwd: { gold: 950, gems: 4 },
   },
   {
-    id: 'c_prospect', icon: '🛰', go: 'prospect',
+    id: 'c_prospect', icon: 'ui_pickaxe', go: 'prospect',
     title: 'Go down, come back up',
     goal: 'Bank a Lootmine dive with at least one Core',
     why: 'Pure push-your-luck. Every layer deeper is worth more and likelier to take all of it.',
@@ -450,7 +450,7 @@ export const CAMP_QUESTS = [
     rwd: { gold: 900, flux: 3 },
   },
   {
-    id: 'c_daily', icon: '📅', go: 'daily',
+    id: 'c_daily', icon: 'ui_calendar', go: 'daily',
     title: 'Claim a daily',
     goal: 'Claim one daily quest reward',
     why: 'Dailies reset every day and are the steadiest slot-coin income in the game.',
@@ -458,7 +458,7 @@ export const CAMP_QUESTS = [
     rwd: { gold: 500, slotCoins: 2 },
   },
   {
-    id: 'c_pass', icon: '🎖', go: 'pass',
+    id: 'c_pass', icon: 'ui_medal', go: 'pass',
     title: 'Take a tier',
     goal: 'Claim one Season Pass reward',
     why: 'The pass tracks profile XP, which every run feeds whether you cleared anything or not.',
@@ -466,7 +466,7 @@ export const CAMP_QUESTS = [
     rwd: { gold: 700, gems: 3 },
   },
   {
-    id: 'c_badge', icon: '🎗', go: 'profile',
+    id: 'c_badge', icon: 'ui_medal', go: 'profile',
     title: 'Wear a badge',
     goal: 'Equip a badge to your profile',
     why: 'Three slots, carved into the frame. It is the only thing on your profile you chose rather than earned by accident.',
@@ -476,8 +476,8 @@ export const CAMP_QUESTS = [
 ];
 
 export const QUEST_TRACKS = [
-  { id: 'story', name: 'STORYLINE', icon: '📜', color: '#ffd166', steps: STORY_QUESTS },
-  { id: 'camp',  name: 'CAMP',      icon: '🏕', color: '#4dffd4', steps: CAMP_QUESTS },
+  { id: 'story', name: 'STORYLINE', icon: 'ui_scroll', color: '#ffd166', steps: STORY_QUESTS },
+  { id: 'camp',  name: 'CAMP',      icon: 'ui_base', color: '#4dffd4', steps: CAMP_QUESTS },
 ];
 
 export const QUEST_INDEX = [...STORY_QUESTS, ...CAMP_QUESTS]

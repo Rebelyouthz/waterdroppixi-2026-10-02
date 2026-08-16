@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { activeQuests } from '../game/storyQuests';
+import GameIcon from './GameIcon';
 
 // =============================================
 // QUEST TRACKER — the always-on "what now?" bar
@@ -39,7 +40,7 @@ function QuestRow({ q, outgoing, onGo }) {
             strokeLinecap="round" strokeLinejoin="round" className="qt-tick" />
         </svg>
       </span>
-      <span className="qt-icon">{q.icon}</span>
+      <span className="qt-icon"><GameIcon name={q.icon} size={20} /></span>
       <span className="qt-body">
         <span className="qt-track">{q.trackName}</span>
         <span className="qt-goal">{q.goal}</span>
@@ -114,7 +115,7 @@ export default function QuestTracker({ save, onGo, compact = false, className = 
           <div className="qt-sheet" style={{ '--qt-color': detail.trackColor }}>
             <div className="qt-sheet-track">{detail.trackName}</div>
             <div className="qt-sheet-head">
-              <span className="qt-sheet-icon">{detail.icon}</span>
+              <span className="qt-sheet-icon"><GameIcon name={detail.icon} size={28} /></span>
               <h3>{detail.title}</h3>
             </div>
             <div className="qt-sheet-goal">{detail.goal}</div>
