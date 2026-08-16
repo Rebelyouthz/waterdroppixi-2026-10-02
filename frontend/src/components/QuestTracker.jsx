@@ -123,12 +123,16 @@ export default function QuestTracker({ save, onGo, compact = false, className = 
             {!!detail.rwd && (
               <div className="qt-sheet-rwd">
                 <span className="qt-sheet-rwd-lbl">REWARD</span>
-                {Object.entries(detail.rwd).map(([k, v]) => (
-                  <span key={k} className="qt-sheet-rwd-item">
-                    {({ gold: '★', sp: '◆', gems: '💎', gearParts: '🔩', talentPoints: '🌿',
-                       petFood: '🍖', slotCoins: '🎰', gachaTokens: '🎫', flux: '🜁' })[k] || ''} {v}
-                  </span>
-                ))}
+                {Object.entries(detail.rwd).map(([k, v]) => {
+                  const sym = { gold: '★', sp: '◆' }[k];
+                  const gi = { gems: 'gems', gearParts: 'ui_part', talentPoints: 'cur_tp',
+                    petFood: 'petFood', slotCoins: 'slotCoins', gachaTokens: 'ui_ticket', flux: 'cur_shards' }[k];
+                  return (
+                    <span key={k} className="qt-sheet-rwd-item" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                      {sym || (gi && <GameIcon name={gi} size={13} />)} {v}
+                    </span>
+                  );
+                })}
               </div>
             )}
             <div className="qt-sheet-actions">
