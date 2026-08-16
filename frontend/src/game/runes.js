@@ -19,14 +19,14 @@ const RARITY_MULT = { common: 1.0, magic: 1.7, rare: 2.6, epic: 4.0, legendary: 
 // accessory — kept distinct from artifacts' broader stat pool so runes
 // read as "weapon/combat tuning" specifically.
 const RUNE_POOL = [
-  { stat: 'dmg',          base: 0.01,  name: 'Rune of Might',     icon: '🔺' },
-  { stat: 'atks',         base: 0.01,  name: 'Rune of Haste',     icon: '🔻' },
-  { stat: 'crit',         base: 0.006, name: 'Rune of Precision', icon: '◆' },
-  { stat: 'critd',        base: 0.015, name: 'Rune of Ferocity',  icon: '✦' },
-  { stat: 'pierce',       base: 0.3,   name: 'Rune of Piercing',  icon: '➰' },
-  { stat: 'proj',         base: 0.15,  name: 'Rune of Barrage',   icon: '❖' },
-  { stat: 'elementalDmg', base: 0.015, name: 'Rune of Elements',  icon: '🔥' },
-  { stat: 'armor',        base: 0.4,   name: 'Rune of Warding',   icon: '🛡' },
+  { stat: 'dmg',          base: 0.01,  name: 'Rune of Might',     icon: 'ui_blade' },
+  { stat: 'atks',         base: 0.01,  name: 'Rune of Haste',     icon: 'ui_bolt' },
+  { stat: 'crit',         base: 0.006, name: 'Rune of Precision', icon: 'ui_star' },
+  { stat: 'critd',        base: 0.015, name: 'Rune of Ferocity',  icon: 'ui_gem' },
+  { stat: 'pierce',       base: 0.3,   name: 'Rune of Piercing',  icon: 'reticle' },
+  { stat: 'proj',         base: 0.15,  name: 'Rune of Barrage',   icon: 'part_bullets' },
+  { stat: 'elementalDmg', base: 0.015, name: 'Rune of Elements',  icon: 'ui_flame' },
+  { stat: 'armor',        base: 0.4,   name: 'Rune of Warding',   icon: 'ui_shield' },
 ];
 const NAME_SUFFIX = {
   common: 'Chip', magic: 'Shard', rare: 'Stone', epic: 'Crystal', legendary: 'Core', mythical: 'Heart',

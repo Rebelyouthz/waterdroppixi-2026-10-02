@@ -424,7 +424,7 @@ export default function GearPanel({ save, setSave }) {
                             list you can only read after equipping cannot
                             influence which piece you equip. */}
                         {(() => { const st = GEAR_SETS[itemSet(item)]; return st
-                          ? <i className="gear-set-tag" style={{ '--sc': st.accent }}>{st.icon} {st.name}</i>
+                          ? <i className="gear-set-tag" style={{ '--sc': st.accent, display: 'inline-flex', alignItems: 'center', gap: 3 }}><GameIcon name={st.icon} size={12} /> {st.name}</i>
                           : null; })()}
                       </span>
                       <span className="gear-popover-stat">{fmtVal(item.stat, gearStatValue(item))} {STAT_LABELS[item.stat]}</span>
@@ -460,7 +460,7 @@ export default function GearPanel({ save, setSave }) {
                         return (
                           <div key={i} className="gear-popover-row" style={{ '--rc': RUNE_RARITY_COLORS[r.rarity] }}
                                onClick={() => unsocketGearRune(worn, i)}>
-                            <span className="gear-popover-name">{r.icon} {r.name}</span>
+                            <span className="gear-popover-name" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><GameIcon name={r.icon} size={13} /> {r.name}</span>
                             <span className="gear-popover-stat">+{r.val} {STAT_LABELS[r.stat] || r.stat} (click to unsocket)</span>
                           </div>
                         );
@@ -479,7 +479,7 @@ export default function GearPanel({ save, setSave }) {
                             : free.map(r2 => (
                               <div key={r2.id} className="gear-popover-row" style={{ '--rc': RUNE_RARITY_COLORS[r2.rarity] }}
                                    onClick={() => socketGearRune(worn, r2.id, i)}>
-                                <span className="gear-popover-name">{r2.icon} {r2.name}</span>
+                                <span className="gear-popover-name" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><GameIcon name={r2.icon} size={13} /> {r2.name}</span>
                                 <span className="gear-popover-stat">+{r2.val} {STAT_LABELS[r2.stat] || r2.stat}</span>
                               </div>
                             ))}
@@ -528,7 +528,7 @@ export default function GearPanel({ save, setSave }) {
               const set = GEAR_SETS[id];
               return (
                 <div key={id} className="gset-row" style={{ '--sc': set.accent }}>
-                  <span className="gset-icon">{set.icon}</span>
+                  <span className="gset-icon"><GameIcon name={set.icon} size={18} /></span>
                   <span className="gset-name">{set.name}</span>
                   <span className="gset-count">{n}/4</span>
                   <div className="gset-tiers">

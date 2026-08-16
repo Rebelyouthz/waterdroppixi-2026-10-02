@@ -212,8 +212,8 @@ export default function Weaponsmith({ save, setSave, onClose, initialSub }) {
       <div className="forge-panel forge-panel-scrollable">
         <div className="forge-scroll-hint" data-testid="forge-scroll-hint" aria-hidden="true">▾ scroll for more ▾</div>
         <div className="forge-header">
-          <div className="forge-title">🔨 WEAPONSMITH</div>
-          <div className="forge-gold">★ {save.gold}</div>
+          <div className="forge-title"><GameIcon name="ui_smith" size={18} /> WEAPONSMITH</div>
+          <div className="forge-gold" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><GameIcon name="gold" size={14} /> {save.gold}</div>
           <button onClick={onClose} style={{ padding: '6px 12px', fontSize: 12 }}>✕</button>
         </div>
         {isRescued(save, 'finn') && (
@@ -229,9 +229,9 @@ export default function Weaponsmith({ save, setSave, onClose, initialSub }) {
               BLUEPRINTS — shards that craft whole new weapons
               The old "PARTS INVENTORY" tab was a fourth system doing the same
               job as attachments; it is gone, and its contents are migrated. */}
-          <button className={`gear-tab ${sub === 'parts' ? 'active' : ''}`} onClick={() => setSub('parts')} data-testid="smith-sub-parts">⚙ TUNING</button>
-          <button className={`gear-tab ${sub === 'runes' ? 'active' : ''}`} onClick={() => setSub('runes')} data-testid="smith-sub-runes">🔩 PARTS &amp; RUNES</button>
-          <button className={`gear-tab ${sub === 'blueprints' ? 'active' : ''}`} onClick={() => setSub('blueprints')} data-testid="smith-sub-blueprints">📜 BLUEPRINTS</button>
+          <button className={`gear-tab ${sub === 'parts' ? 'active' : ''}`} onClick={() => setSub('parts')} data-testid="smith-sub-parts"><GameIcon name="ui_cog" size={13} /> TUNING</button>
+          <button className={`gear-tab ${sub === 'runes' ? 'active' : ''}`} onClick={() => setSub('runes')} data-testid="smith-sub-runes"><GameIcon name="ui_cog" size={13} /> PARTS &amp; RUNES</button>
+          <button className={`gear-tab ${sub === 'blueprints' ? 'active' : ''}`} onClick={() => setSub('blueprints')} data-testid="smith-sub-blueprints"><GameIcon name="ui_scroll" size={13} /> BLUEPRINTS</button>
           <button className={`gear-tab ${sub === 'synergy' ? 'active' : ''}`} onClick={() => setSub('synergy')} data-testid="smith-sub-synergy">✦ SYNERGY</button>
         </div>
 
@@ -313,7 +313,7 @@ export default function Weaponsmith({ save, setSave, onClose, initialSub }) {
                           style={{ fontSize: 11, padding: '6px 8px' }}
                         >
                           <div>{tName}</div>
-                          {!owned && <div style={{ fontSize: 10, color: 'var(--accent-2)' }}>★ {t.cost}</div>}
+                          {!owned && <div style={{ fontSize: 10, color: 'var(--accent-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}><GameIcon name="gold" size={10} /> {t.cost}</div>}
                           {owned && <div style={{ fontSize: 10, color: 'var(--rune)' }}>✓</div>}
                         </button>
                       );
@@ -326,8 +326,8 @@ export default function Weaponsmith({ save, setSave, onClose, initialSub }) {
 
           {elementSlots > 0 && (
             <div className="forge-part" data-testid="forge-elements">
-              <div className="forge-part-h">
-                🔮 Elemental Rounds — <span style={{ color: 'var(--accent-2)' }}>{equippedElems.length}/{elementSlots} assigned</span>
+              <div className="forge-part-h" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <GameIcon name="rune" size={14} /> Elemental Rounds — <span style={{ color: 'var(--accent-2)' }}>{equippedElems.length}/{elementSlots} assigned</span>
               </div>
               <div className="forge-desc" style={{ marginBottom: 6 }}>
                 Bullets cycle through assigned elements shot-by-shot within the same magazine.
@@ -424,20 +424,20 @@ export default function Weaponsmith({ save, setSave, onClose, initialSub }) {
           </div>
           {w.type !== 'manual' ? (
             <div className="gear-empty">
-              <div style={{ fontSize: 36 }}>🔮</div>
+              <div style={{ display: 'flex', justifyContent: 'center' }}><GameIcon name="rune" size={36} /></div>
               <div style={{ fontFamily: 'VT323', color: '#4a3a6e', fontSize: 15, marginTop: 8 }}>
                 {w.name} isn't a manual weapon — pick one from the row above to socket a rune.
               </div>
             </div>
           ) : (
             <div className="forge-part" data-testid="forge-rune-socket" style={{ marginBottom: 16 }}>
-              <div className="forge-part-h">🔮 Socketed Rune — {w.name}</div>
+              <div className="forge-part-h" style={{ display: 'flex', alignItems: 'center', gap: 5 }}><GameIcon name="rune" size={14} /> Socketed Rune — {w.name}</div>
               {socketedRuneId ? (() => {
                 const r = runeInv.find(x => x.id === socketedRuneId);
                 if (!r) return null;
                 return (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ color: RUNE_RARITY_COLORS[r.rarity] }}>{r.icon} {r.name}</span>
+                    <span style={{ color: RUNE_RARITY_COLORS[r.rarity], display: 'inline-flex', alignItems: 'center', gap: 4 }}><GameIcon name={r.icon} size={14} /> {r.name}</span>
                     <span style={{ fontSize: 11, color: 'var(--ink-dim)' }}>+{r.val} {STAT_DISPLAY[r.stat] || r.stat}</span>
                     <button onClick={unsocketRune} style={{ fontSize: 11, padding: '3px 8px' }}>Unsocket</button>
                   </div>
@@ -449,7 +449,7 @@ export default function Weaponsmith({ save, setSave, onClose, initialSub }) {
           {/* Attachments — five sockets on every weapon, each a trade. */}
           <div className="atc-block">
             <div className="atc-head">
-              <span>🔩 ATTACHMENTS</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><GameIcon name="ui_cog" size={13} /> ATTACHMENTS</span>
               <span className="atc-sub">{attInv.length} in stock</span>
             </div>
             <div className="atc-slots">
@@ -504,12 +504,12 @@ export default function Weaponsmith({ save, setSave, onClose, initialSub }) {
             <div style={{ marginBottom: 16 }}>
               <div style={{ fontFamily: 'VT323', color: 'var(--accent-2)', fontSize: 13, letterSpacing: '0.15em', marginBottom: 6 }}>FORGE — 3 same, chance at next rarity</div>
               <div className="forge-flux-bar">
-                <span className="forge-flux-label">⚗ FLUX</span>
+                <span className="forge-flux-label" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><GameIcon name="cur_shards" size={13} /> FLUX</span>
                 <div className="forge-flux-pips">
                   {Array.from({ length: FLUX_PER_MERGE_MAX }).map((_, i) => (
                     <button key={i} className={`forge-flux-pip${i < runeFlux ? ' on' : ''}`}
                             disabled={i >= (save.flux || 0)}
-                            onClick={() => setRuneFlux(i + 1 === runeFlux ? i : i + 1)}>⚗</button>
+                            onClick={() => setRuneFlux(i + 1 === runeFlux ? i : i + 1)}><GameIcon name="cur_shards" size={11} /></button>
                   ))}
                 </div>
                 <span className="forge-flux-have">{save.flux || 0} held · +15% each</span>

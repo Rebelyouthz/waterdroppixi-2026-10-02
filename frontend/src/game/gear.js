@@ -394,27 +394,27 @@ export function addParts(save, slot, amount) {
 // so nothing new has to be plumbed through to the engine.
 export const GEAR_SETS = {
   tidewalker: {
-    id: 'tidewalker', name: 'Tidewalker', icon: '🌊', accent: '#4fd8ff',
+    id: 'tidewalker', name: 'Tidewalker', icon: 'tidalWave', accent: '#4fd8ff',
     t2: { label: '+8% move speed', apply: (r) => { r.mspd += 0.08; } },
     t4: { label: '+8% dodge, +15% pickup range', apply: (r) => { r.dodge += 0.08; r.pickup += 0.15; } },
   },
   bulwark: {
-    id: 'bulwark', name: 'Bulwark', icon: '🛡', accent: '#9fb3c8',
+    id: 'bulwark', name: 'Bulwark', icon: 'ui_shield', accent: '#9fb3c8',
     t2: { label: '+22 max HP', apply: (r) => { r.maxHp += 22; } },
     t4: { label: '+7 armour, +0.4 regen', apply: (r) => { r.armor += 7; r.regen += 0.4; } },
   },
   marksman: {
-    id: 'marksman', name: "Marksman's Kit", icon: '🎯', accent: '#ffd166',
+    id: 'marksman', name: "Marksman's Kit", icon: 'ui_loadout', accent: '#ffd166',
     t2: { label: '+6% crit', apply: (r) => { r.crit += 0.06; } },
     t4: { label: '+30% crit damage, +8% headshot', apply: (r) => { r.critd += 0.30; r.headshot += 0.08; } },
   },
   prospector: {
-    id: 'prospector', name: "Prospector's Rig", icon: '⛏', accent: '#c8f0a0',
+    id: 'prospector', name: "Prospector's Rig", icon: 'ui_pickaxe', accent: '#c8f0a0',
     t2: { label: '+12% gold', apply: (r) => { r.gold += 0.12; } },
     t4: { label: '+14% XP, +1 luck', apply: (r) => { r.xp += 0.14; r.luck += 1; } },
   },
   voidtouched: {
-    id: 'voidtouched', name: 'Voidtouched', icon: '🔮', accent: '#b362ff',
+    id: 'voidtouched', name: 'Voidtouched', icon: 'rune', accent: '#b362ff',
     t2: { label: '+7% damage', apply: (r) => { r.dmg += 0.07; } },
     t4: { label: '+18% boss damage, +1 pierce', apply: (r) => { r.bossDmg += 0.18; r.pierce += 1; } },
   },

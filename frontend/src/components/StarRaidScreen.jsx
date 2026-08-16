@@ -240,7 +240,7 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
       <div className="modal-overlay">
         <div className="raid-menu" data-testid="starraid-menu">
           <div className="raid-menu-head">
-            <div className="raid-menu-title">🚀 STAR RAID</div>
+            <div className="raid-menu-title"><GameIcon name="ui_rocket" size={18} /> STAR RAID</div>
             <div className="raid-menu-sub">One-thumb space raid — autofire, dodge, collect Scrap.</div>
             <div className="raid-menu-ship" style={{ '--sc': SHIP_COLORS.find(c => c.id === save.profile?.shipColor)?.color || '#5fd6ff' }}>
               Flying: <b>{curShip?.name || 'Skiff'}</b>
@@ -264,7 +264,7 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
                   className={`raid-stage-card${sel ? ' sel' : ''}${locked ? ' locked' : ''}`}
                   onClick={() => { if (locked) return; Audio.atlasSelect(); setStageIdx(i); }} data-testid={`starraid-stage-${i}`}>
                   {locked
-                    ? <span className="raid-stage-lock">🔒</span>
+                    ? <span className="raid-stage-lock"><GameIcon name="ui_lock" size={20} /></span>
                     : <GameIcon name={STAGE_ICON[i] || 'meteor'} size={22} tone={sel ? '#ffd166' : '#7cd6ff'} />}
                   <span className="raid-stage-name">{s.name}</span>
                   <span className="raid-stage-boss">{s.bossName}</span>
@@ -306,8 +306,8 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
 
           <div className="raid-menu-actions">
             <button className="prosp-btn ghost" onClick={onExit} data-testid="starraid-exit">↩ Camp</button>
-            <button className="prosp-btn" onClick={() => setScreen('shop')} data-testid="starraid-shop">🔧 Hangar</button>
-            <button className="prosp-btn go" onClick={startRun} data-testid="starraid-launch">🚀 LAUNCH</button>
+            <button className="prosp-btn" onClick={() => setScreen('shop')} data-testid="starraid-shop"><GameIcon name="ui_cog" size={14} /> Hangar</button>
+            <button className="prosp-btn go" onClick={startRun} data-testid="starraid-launch"><GameIcon name="ui_rocket" size={14} /> LAUNCH</button>
           </div>
         </div>
       </div>
@@ -319,7 +319,7 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
       <div className="modal-overlay">
         <div className="raid-menu raid-shop" data-testid="starraid-shop-panel">
           <div className="raid-menu-head">
-            <div className="raid-menu-title">🔧 HANGAR</div>
+            <div className="raid-menu-title"><GameIcon name="ui_cog" size={18} /> HANGAR</div>
           </div>
           <div className="raid-currency-row">
             {/* '⚙', not a coin icon — Scrap uses this glyph everywhere else on
@@ -407,14 +407,14 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
             <div className="go-stat"><span>STAGE</span><b>{STAGES[stageIdx].name}</b></div>
           </div>
           {result?.gotToken && (
-            <div className="go-badges"><div className="go-badge"><span>🎰</span><b>GACHA TOKEN EARNED</b></div></div>
+            <div className="go-badges"><div className="go-badge"><GameIcon name="cur_slot" size={16} /><b>GACHA TOKEN EARNED</b></div></div>
           )}
           {result?.gotRune && (
-            <div className="go-badges"><div className="go-badge"><span>{result.gotRune.icon}</span><b>{result.gotRune.name.toUpperCase()} EARNED</b></div></div>
+            <div className="go-badges"><div className="go-badge"><GameIcon name={result.gotRune.icon} size={16} /><b>{result.gotRune.name.toUpperCase()} EARNED</b></div></div>
           )}
           <div className="go-actions">
             <button className="go-btn go-btn-ghost" onClick={onExit}>↩ Camp</button>
-            <button className="go-btn go-btn-camp" onClick={() => setScreen('shop')}>🔧 Upgrade</button>
+            <button className="go-btn go-btn-camp" onClick={() => setScreen('shop')}><GameIcon name="ui_cog" size={14} /> Upgrade</button>
             <button className="go-btn go-btn-retry" onClick={() => setScreen('playing')}>↻ RETRY</button>
           </div>
         </div>
