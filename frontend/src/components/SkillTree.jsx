@@ -267,6 +267,40 @@ export default function SkillTree({ save, setSave, onClose }) {
                   <stop offset="60%" stopColor="#000000" stopOpacity="0.25" />
                   <stop offset="100%" stopColor="#000000" stopOpacity="0.62" />
                 </radialGradient>
+                {/* Timmy: the background itself should feel like it's holding
+                    the nodes — "vener på en arm" with "skålade hål" for each
+                    node — not a flat wash with nodes floating on top. This is
+                    the carved-hollow-in-the-surface layer, drawn once behind
+                    every node (locked or not) so unlocking a node fills an
+                    existing socket rather than creating one. Lit from the
+                    same top-left direction as the node's own gem-shade so the
+                    whole field reads as one consistently-lit surface: a
+                    bright rim catching light, falling to a dark floor. */}
+                <radialGradient id="poe-surface-socket" cx="38%" cy="30%" r="80%">
+                  <stop offset="0%" stopColor="#2a1f42" stopOpacity="0.55" />
+                  <stop offset="30%" stopColor="#0d0820" stopOpacity="0.7" />
+                  <stop offset="72%" stopColor="#050310" stopOpacity="0.88" />
+                  <stop offset="100%" stopColor="#000000" stopOpacity="0.95" />
+                </radialGradient>
+                <radialGradient id="poe-surface-rim" cx="35%" cy="28%" r="50%">
+                  <stop offset="0%" stopColor="#ffffff" stopOpacity="0.10" />
+                  <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+                </radialGradient>
+                {/* Organic mottling — a handful of large, soft, irregular
+                    tints rather than a uniform gradient, so the field under
+                    the veins reads as tissue rather than a UI panel. */}
+                <radialGradient id="poe-tissue-a" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stopColor="#4a1a5e" stopOpacity="0.16" />
+                  <stop offset="100%" stopColor="#4a1a5e" stopOpacity="0" />
+                </radialGradient>
+                <radialGradient id="poe-tissue-b" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stopColor="#1a2f5e" stopOpacity="0.14" />
+                  <stop offset="100%" stopColor="#1a2f5e" stopOpacity="0" />
+                </radialGradient>
+                <radialGradient id="poe-tissue-c" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stopColor="#5e1a2a" stopOpacity="0.10" />
+                  <stop offset="100%" stopColor="#5e1a2a" stopOpacity="0" />
+                </radialGradient>
               </defs>
 
               <g style={{ transform: `translate(${pan.x}px,${pan.y}px) scale(${scale})`, transformOrigin: '0px 0px' }}>
@@ -290,6 +324,35 @@ export default function SkillTree({ save, setSave, onClose }) {
                     <path key={`wedge-${key}`}
                       d={`M ${RADIAL_CENTER} ${RADIAL_CENTER} L ${x0} ${y0} A ${R} ${R} 0 0 1 ${x1} ${y1} Z`}
                       fill={b.color} opacity={0.045} />
+                  );
+                })}
+
+                {/* ── Organic tissue mottling — large soft irregular tints
+                    under everything, so the field reads as a surface rather
+                    than a flat UI wash. Fixed, hand-placed blobs rather than
+                    a noise filter: cheap, and the placement can be art-
+                    directed instead of left to chance. ── */}
+                <ellipse cx={RADIAL_CENTER - 500} cy={RADIAL_CENTER - 300} rx={900} ry={700} fill="url(#poe-tissue-a)" />
+                <ellipse cx={RADIAL_CENTER + 600} cy={RADIAL_CENTER + 200} rx={950} ry={750} fill="url(#poe-tissue-b)" />
+                <ellipse cx={RADIAL_CENTER - 200} cy={RADIAL_CENTER + 650} rx={800} ry={600} fill="url(#poe-tissue-c)" />
+                <ellipse cx={RADIAL_CENTER + 300} cy={RADIAL_CENTER - 700} rx={700} ry={650} fill="url(#poe-tissue-b)" />
+
+                {/* ── Node sockets carved into the surface — one per node,
+                    drawn BEFORE the node itself and before connections, so a
+                    vein visibly runs INTO a hollow rather than under a disc.
+                    Same hollow whether the node is locked or owned; the node
+                    circle is what changes, not its seat. ── */}
+                {POE_RADIAL_NODES.map(n => {
+                  const r = nodeRadius[n.type] + 7;
+                  return (
+                    <g key={`socket-${n.id}`}>
+                      <circle cx={n.rx} cy={n.ry} r={r} fill="url(#poe-surface-socket)" />
+                      <circle cx={n.rx} cy={n.ry} r={r} fill="none" stroke="#000000" strokeWidth={1.5} opacity={0.5} />
+                      {/* The lit rim — only the top-left arc, echoing the
+                          node's own light direction so the socket reads as
+                          catching the same light rather than its own thing. */}
+                      <circle cx={n.rx} cy={n.ry} r={r} fill="url(#poe-surface-rim)" />
+                    </g>
                   );
                 })}
 
@@ -340,10 +403,12 @@ export default function SkillTree({ save, setSave, onClose }) {
                   const partial   = ownedFrom && !ownedTo;
                   return (
                     <g key={`ln-${from}-${to}`}>
-                      {/* Glow underlay for active connections */}
+                      {/* Glow underlay for active connections — pulses
+                          slowly so the veins read as carrying something
+                          live, not just lit. */}
                       {active && (
-                        <line x1={fnNode.rx} y1={fnNode.ry} x2={toNode.rx} y2={toNode.ry}
-                          stroke={bCol} strokeWidth={8} opacity={0.15} strokeLinecap="round" />
+                        <line className="poe-vein-pulse" x1={fnNode.rx} y1={fnNode.ry} x2={toNode.rx} y2={toNode.ry}
+                          stroke={bCol} strokeWidth={9} strokeLinecap="round" />
                       )}
                       {/* A dark groove under every line — even the faint,
                           unowned ones — so it reads as a channel cut into the

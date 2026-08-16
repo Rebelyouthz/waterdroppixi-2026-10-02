@@ -5290,6 +5290,16 @@
     radial-gradient(ellipse 120% 90% at 50% 50%, transparent 38%, rgba(0,0,0,0.78) 100%),
     linear-gradient(180deg, #05090f 0%, #03060a 100%) !important;
 }
+/* The active-connection "veins" between owned nodes — a slow breathing
+   pulse so they read as carrying something live rather than just being lit.
+   CSS animation on an SVG presentation attribute (opacity) overrides the
+   element's own inline value, which is why the JSX no longer sets a fixed
+   opacity on this line. */
+.poe-vein-pulse { animation: poeVeinPulse 2.6s ease-in-out infinite; }
+@keyframes poeVeinPulse {
+  0%, 100% { opacity: 0.12; }
+  50%      { opacity: 0.32; }
+}
 /* Starfield behind the canvas — three sizes so it has depth rather than
    reading as noise. Fixed, so the nodes parallax against it while panning. */
 .poe-overlay::before {
