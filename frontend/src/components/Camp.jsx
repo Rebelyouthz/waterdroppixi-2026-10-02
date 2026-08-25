@@ -17,6 +17,7 @@ import { nextCampaignNode, isCampTabLocked, campUnlockHint, campUnlockStage, isC
 import { currentStep } from '../game/path';
 import ClickerScreen from './ClickerScreen';
 import BasePanel from './BasePanel';
+import StationRoom from './StationRoom';
 import BaseDefenceScreen from './BaseDefenceScreen';
 import PathPanel from './PathPanel';
 import TcgScreen from './TcgScreen';
@@ -261,11 +262,17 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
   const [prospectorOpen, setProspectorOpen] = useState(false);
   const [clickerOpen, setClickerOpen] = useState(false);
   const [baseOpen, setBaseOpen] = useState(false);
+  const [stationOpen, setStationOpen] = useState(false);
   const [defenceOpen, setDefenceOpen] = useState(false);
   // Entering a building opens the system it houses, so the base is the way
   // into everything rather than a sixth place that duplicates them.
   const enterBuilding = (id) => {
     setBaseOpen(false);
+    // The walkable room's doors route through THIS function, not a second
+    // switch of their own — a door in the Main Hall and a card in the module
+    // list have to land in the same place forever, and the only way to
+    // guarantee that is for there to be one mapping.
+    setStationOpen(false);
     if (id === 'hangar') { onStarRaid && onStarRaid(); return; }
     if (id === 'incubator') { setPetOpen(true); return; }
     if (id === 'well') { setClickerOpen(true); return; }
@@ -1152,7 +1159,20 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
       {explorationOpen && <ExplorationScreen save={save} setSave={setSave} onClose={() => setExplorationOpen(false)} />}
       {prospectorOpen && <ProspectorScreen save={save} setSave={setSave} onClose={() => setProspectorOpen(false)} />}
       {clickerOpen && <ClickerScreen save={save} setSave={setSave} onClose={() => setClickerOpen(false)} />}
-      {baseOpen && <BasePanel save={save} setSave={setSave} onOpen={enterBuilding} onClose={() => setBaseOpen(false)} onUnlock={queueUnlocks} />}
+      {baseOpen && <BasePanel save={save} setSave={setSave} onOpen={enterBuilding} onClose={() => setBaseOpen(false)} onUnlock={queueUnlocks}
+                              onWalk={() => { setBaseOpen(false); setStationOpen(true); }} />}
+      {/* THE MAIN HALL — the station as a place. Leaving it drops you back on
+          the module list you came from rather than out in the camp, so the two
+          views read as one screen with two ways of looking at it. */}
+      {stationOpen && (
+        <StationRoom
+          save={save}
+          setSave={setSave}
+          onOpen={enterBuilding}
+          onBuild={() => { setStationOpen(false); setBaseOpen(true); }}
+          onClose={() => { setStationOpen(false); setBaseOpen(true); }}
+        />
+      )}
       {defenceOpen && <BaseDefenceScreen save={save} setSave={setSave} onClose={() => setDefenceOpen(false)} />}
       {profileOpen && <ProfilePanel save={save} setSave={setSave} onClose={() => setProfileOpen(false)} onBadges={() => { setProfileOpen(false); setBadgeOpen(true); }} />}
       {badgeOpen && <BadgePicker save={save} setSave={setSave} onClose={() => setBadgeOpen(false)} />}

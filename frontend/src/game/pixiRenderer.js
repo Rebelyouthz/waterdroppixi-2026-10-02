@@ -3,7 +3,9 @@
 // All GAME LOGIC/STATE lives in engine.js (untouched) â€” this file is PURE
 // drawing: it reads the Game instance's pooled state every frame and paints
 // it using PixiJS Graphics/Text, layered to match the original z-order.
-import { Application, Container, Graphics, Text, TextStyle, FillGradient, Sprite, Filter, Texture, defaultFilterVert, ColorMatrixFilter, ParticleContainer, Particle, Rectangle } from 'pixi.js';
+// `Texture` left this import with the normal-map baking — litShading.js owns
+// that now and nothing else in this file constructs one.
+import { Application, Container, Graphics, Text, TextStyle, FillGradient, Sprite, Filter, defaultFilterVert, ColorMatrixFilter, ParticleContainer, Particle, Rectangle } from 'pixi.js';
 import { AdvancedBloomFilter } from 'pixi-filters';
 import { WEAPONS } from './data';
 import { heroHalfPoints, HERO_COLORS } from './heroShape';
@@ -12,7 +14,16 @@ import { HeroAnim } from './heroAnim';
 // can draw the SAME character the run does — see that file's header. `rot`
 // and `rotPoly` moved with them; they are re-imported here so all 48 call
 // sites in this file are untouched.
-import { rot, rotPoly, drawHeldWeapon, drawArms, drawHeroFace } from './heroDraw';
+// `drawLegs` is deliberately NOT imported here yet. Giving the RUN legs means
+// giving it a HeroGait and re-tuning the walk against live input, and that is a
+// gameplay-feel change that has to be played, not screenshotted. The station
+// room is where the gait is being reviewed first.
+import { rot, rotPoly, drawHeldWeapon, drawArms, drawHeroFace, drawHeadband } from './heroDraw';
+// The ONE approved lighting technique — the baked normal maps, the shared
+// per-pixel GLSL shader, and the uniform feed. Lifted out of this file so the
+// walkable station room renders through exactly the same code path; see
+// litShading.js's header for why a second copy was not an option.
+import { LIT_FRAGMENT, buildNormalLitTextures, makeLitFilter, updateLitUniforms } from './litShading';
 
 const TAU = Math.PI * 2;
 
@@ -749,81 +760,17 @@ export class PixiRenderer {
   // from a different relative light-offset every frame.
   // ===========================================================================
   _buildNormalLitSystem() {
-    const nsize = 128;
-    const canvas = document.createElement('canvas');
-    canvas.width = nsize; canvas.height = nsize;
-    const ctx = canvas.getContext('2d');
-    const img = ctx.createImageData(nsize, nsize);
-    const rr = nsize / 2;
-    for (let y = 0; y < nsize; y++) {
-      for (let x = 0; x < nsize; x++) {
-        const dx = (x - rr + 0.5) / rr, dy = (y - rr + 0.5) / rr;
-        const d2 = dx * dx + dy * dy;
-        const idx = (y * nsize + x) * 4;
-        if (d2 <= 1) {
-          const dz = Math.sqrt(1 - d2);
-          img.data[idx] = Math.round((dx * 0.5 + 0.5) * 255);
-          img.data[idx + 1] = Math.round((dy * 0.5 + 0.5) * 255);
-          img.data[idx + 2] = Math.round((dz * 0.5 + 0.5) * 255);
-          img.data[idx + 3] = 255;
-        } else {
-          img.data[idx] = 128; img.data[idx + 1] = 128; img.data[idx + 2] = 255; img.data[idx + 3] = 0;
-        }
-      }
-    }
-    ctx.putImageData(img, 0, 0);
-    this.normalTex = Texture.from(canvas);
-
-    // Flat "ground" normal map (constant straight-up normal, RGB 128,128,255)
-    // â€” reusing the exact same per-pixel Lambertian/specular shader as the
-    // sphere normal map above but on a flat surface, so light patches cast
-    // by projectiles/muzzle-flash onto the ground/enemies use the SAME
-    // GlProgram lighting pipeline instead of a plain additive glow sprite.
-    const flatCanvas = document.createElement('canvas');
-    flatCanvas.width = 4; flatCanvas.height = 4;
-    const fctx = flatCanvas.getContext('2d');
-    fctx.fillStyle = 'rgb(128,128,255)';
-    fctx.fillRect(0, 0, 4, 4);
-    this.flatNormalTex = Texture.from(flatCanvas);
-
-    // Flat white circle diffuse â€” same silhouette as the normal map exactly
-    // (both are circles of the same size), tinted per-object via .tint so no
-    // separate art is needed per color/entity.
-    const dg = new Graphics();
-    dg.circle(nsize / 2, nsize / 2, nsize / 2).fill('#ffffff');
-    this.litDiffuseTex = this.app.renderer.generateTexture({ target: dg, antialias: true });
-    dg.destroy();
-
-    this._litFragment = `
-in vec2 vTextureCoord;
-out vec4 finalColor;
-
-uniform sampler2D uTexture;
-uniform sampler2D uNormalTexture;
-uniform vec2 uLightPos;
-uniform vec3 uLightColor;
-uniform float uLightRadius;
-uniform float uAmbient;
-uniform vec2 uObjSize;
-
-void main() {
-  vec4 base = texture(uTexture, vTextureCoord);
-  if (base.a < 0.01) { finalColor = vec4(0.0); return; }
-  vec4 nSample = texture(uNormalTexture, vTextureCoord);
-  vec3 normal = normalize(nSample.rgb * 2.0 - 1.0);
-  vec2 fragLocal = (vTextureCoord - 0.5) * uObjSize;
-  vec2 toLight2D = uLightPos - fragLocal;
-  float dist = length(toLight2D);
-  vec3 lightDir = normalize(vec3(toLight2D, 55.0));
-  float diff = max(dot(normal, lightDir), 0.0);
-  float atten = clamp(1.0 - dist / uLightRadius, 0.0, 1.0);
-  atten *= atten;
-  vec3 viewDir = vec3(0.0, 0.0, 1.0);
-  vec3 halfV = normalize(lightDir + viewDir);
-  float spec = pow(max(dot(normal, halfV), 0.0), 20.0) * atten;
-  vec3 lit = base.rgb * (uAmbient + diff * atten * uLightColor) + spec * uLightColor * 0.8;
-  finalColor = vec4(lit, base.a);
-}`;
+    // The technique itself now lives in litShading.js, so the walkable station
+    // room (game/stationRoom.js) can light through the SAME shader and the SAME
+    // baked normal maps instead of growing a second copy that silently drifts
+    // out of step with this one. Identical move, and identical reasoning, to
+    // heroDraw.js on 2026-08-18.
+    const litTex = buildNormalLitTextures(this.app);
+    this.normalTex = litTex.normalTex;
+    this.flatNormalTex = litTex.flatNormalTex;
+    this.litDiffuseTex = litTex.litDiffuseTex;
+    // Kept as a field because callers and future tuning passes look for it here.
+    this._litFragment = LIT_FRAGMENT;
 
     // Player body â€” the one sprite for this step-1 test.
     this.playerBodySprite = new Sprite(this.litDiffuseTex);
@@ -861,21 +808,11 @@ void main() {
     // those 10 filter instances with it. See _drawGems.)
   }
 
+  // Delegations. The bodies moved to litShading.js; these stay so that all
+  // existing call sites in this file are untouched — the same pattern the
+  // heroDraw.js extraction used.
   _makeLitFilter(normalTex) {
-    return Filter.from({
-      gl: { vertex: defaultFilterVert, fragment: this._litFragment },
-      resources: {
-        uNormalTexture: (normalTex || this.normalTex).source,
-        uLight: {
-          uLightPos: { value: [0, 0], type: 'vec2<f32>' },
-          uLightColor: { value: [1, 1, 1], type: 'vec3<f32>' },
-          uLightRadius: { value: 140, type: 'f32' },
-          uAmbient: { value: 0.18, type: 'f32' },
-          uObjSize: { value: [40, 40], type: 'vec2<f32>' },
-        },
-      },
-      padding: 0,
-    });
+    return makeLitFilter(normalTex || this.normalTex);
   }
 
   // Feeds one moving light + this object's own size/position into its filter
@@ -888,12 +825,7 @@ void main() {
   // light on the player's body breathe every time he turned. Callers that
   // rotate pass the intended unrotated size instead.
   _updateLitUniforms(filter, sprite, light, sizeOverride) {
-    const u = filter.resources.uLight.uniforms;
-    u.uLightPos = [light.x - sprite.x, light.y - sprite.y];
-    u.uLightColor = light.rgb;
-    u.uLightRadius = light.radius;
-    u.uAmbient = light.ambient;
-    u.uObjSize = sizeOverride || [sprite.width, sprite.height];
+    return updateLitUniforms(filter, sprite, light, sizeOverride);
   }
 
   resize(W, H) {
@@ -3506,27 +3438,12 @@ void main() {
     // wants them regardless.
     const bandCol = cos.headbandColor || '#d9cba8';
     if (cos.headbandColor) {
-      const bandY = -r * 0.70;
-      gf.poly(rotPoly(bx, by, bodyAng, [
-        -r * 0.58, bandY - r * 0.13,
-         r * 0.58, bandY - r * 0.13,
-         r * 0.55, bandY + r * 0.13,
-        -r * 0.55, bandY + r * 0.13,
-      ])).fill({ color: bandCol, alpha: 0.97 });
-      // One tail, and only when it reads. The threshold is well clear of the
-      // actual drawn radius (14 * 1.22 = 17.1) rather than sitting right on
-      // it — a cutoff a tenth of a pixel from the value it tests makes the
-      // tail blink in and out on any future scale tweak.
-      if (r > 15) {
-        const sway = Math.sin(game.time * 2.2) * 0.2;
-        const ta = bodyAng + 0.75 + sway;
-        gf.poly(rotPoly(bx, by, bodyAng, [
-          r * 0.56, bandY - r * 0.06,
-          r * 0.56 + Math.cos(ta) * r * 0.44, bandY + Math.sin(ta) * r * 0.44 - r * 0.02,
-          r * 0.56 + Math.cos(ta) * r * 0.44, bandY + Math.sin(ta) * r * 0.44 + r * 0.09,
-          r * 0.56, bandY + r * 0.09,
-        ])).fill({ color: bandCol, alpha: 0.9 });
-      }
+      // The band moved into heroDraw.js so the intro film, the paperdoll and
+      // the walkable station all wear the same one. It was drawn ONLY here,
+      // from numbers hardcoded in this file, while heroShape.js carried a
+      // headband entry nothing read — one look in the run and a bare head
+      // everywhere else. Same class of defect as the parallel gear system.
+      drawHeadband(gf, bx, by, r, bandCol, { sqx, sqy, lean: bodyAng, t: game.time });
     }
 
     // Cigar: menus only, same reasoning as the bandage above. Kept behind the

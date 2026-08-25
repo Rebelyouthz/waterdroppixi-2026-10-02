@@ -25,8 +25,82 @@ export const HERO_BODY = {
 export const HERO_RIG = {
   shoulder: [0.62, 0.05],
   handRest: [0.95, 0.30],
-  headband: { y: -0.85, halfW: 0.55, drop: 0.23 },
+  // These were DEAD until 2026-08-24: declared here since the rig was written,
+  // and `pixiRenderer.js` drew the band from its own hardcoded -0.70 / 0.58 /
+  // 0.13 instead. Nothing read them. That is this project's dominant bug class
+  // — a table that looks live and has no consumer — found again in the one
+  // file whose whole premise is "one source of truth".
+  //
+  // Realigned to what the renderer was actually drawing, because that is the
+  // band Timmy has been looking at and approves of, and the renderer now calls
+  // drawHeadband() so there is one band everywhere.
+  headband: { y: -0.70, halfW: 0.58, drop: 0.26, tail: 0.44 },
+  // Where the legs hang from, and how long they are. The reference art has
+  // short thick limbs — he is a drop, not a runway model — and the numbers are
+  // in body radii like everything else here so they survive any scale.
+  hip: [0.30, 0.86],
+  leg: { len: 0.52, width: 0.26, footLen: 0.34, footH: 0.17 },
 };
+
+// ── EQUIPMENT SOCKETS ────────────────────────────────────────────────
+// Timmy, 2026-08-24, with the CHARACTER VARIANTS sheet: "han ska aven kunna ha
+// equipment pa sig a byta panband a ha hjalmar p rustning osv".
+//
+// Six variants on that sheet — headband, printed bandana, combat helmet,
+// wizard hat, full plate helm, horned helm; vest, riot shield, backpack, fuel
+// cell, staff, medkit, cigar, war paint, a rage aura — and every one of them is
+// the SAME body wearing different things. So the body must not know about any
+// of it. It exposes named points, and gear draws itself at a point.
+//
+// That contract is what makes the whole list possible without the character
+// being redrawn once per variant, and it is what backlog #46 (a portrait per
+// level, headband colour = rarity tier) has been waiting for.
+//
+// Positions are in body radii, in the character's own upright frame, BEFORE
+// lean/squash/gait are applied — the rig applies those, so a hat added later
+// automatically leans, bobs and squashes with him and nobody has to remember.
+// `ang` is the natural resting angle of a thing mounted there.
+export const HERO_SOCKETS = {
+  crown:   { x: 0,     y: -1.05, ang: 0,     scale: 0.95 },  // hats, helms — sits ON the tip
+  brow:    { x: 0,     y: -0.85, ang: 0,     scale: 1.00 },  // headbands, bandanas, goggles
+  face:    { x: 0,     y: -0.42, ang: 0,     scale: 1.00 },  // war paint, visors, scars
+  mouth:   { x: 0.18,  y: -0.18, ang: -0.18, scale: 0.80 },  // the cigar
+  chest:   { x: 0,     y: 0.34,  ang: 0,     scale: 1.00 },  // vests, plate, bandoliers
+  back:    { x: -0.10, y: 0.22,  ang: 0,     scale: 0.92 },  // backpacks, fuel cells, tanks
+  handL:   { x: -0.95, y: 0.30,  ang: 0,     scale: 1.00 },  // shields, staves, medkits
+  handR:   { x: 0.95,  y: 0.30,  ang: 0,     scale: 1.00 },  // the gun hand
+  hipL:    { x: -0.30, y: 0.86,  ang: 0,     scale: 1.00 },
+  hipR:    { x: 0.30,  y: 0.86,  ang: 0,     scale: 1.00 },
+  aura:    { x: 0,     y: 0,     ang: 0,     scale: 1.60 },  // rage flames, shields, buffs
+};
+
+/** A socket resolved into drawing coordinates.
+ *
+ *  Everything a piece of gear needs and nothing it should know: where, how big,
+ *  which way up. Gear that reaches past this into the body's own numbers is how
+ *  a helmet ends up floating when the walk cycle changes. */
+export function heroSocket(name, r, cx = 0, cy = 0, opts = {}) {
+  const s = HERO_SOCKETS[name];
+  if (!s) return null;
+  const { lean = 0, sqx = 1, sqy = 1, faceX = 0 } = opts;
+  // Squash first, then lean — the same order the body itself is built in, or
+  // gear drifts off him at the extremes of a jump or a hard stop.
+  let x = s.x * r * sqx;
+  let y = s.y * r * sqy;
+  const ca = Math.cos(lean), sa = Math.sin(lean);
+  const rx = x * ca - y * sa;
+  const ry = y * ca + x * sa;
+  return {
+    x: cx + rx,
+    // A profile turn slides face-mounted gear across the head rather than
+    // rotating it, matching how heroDraw lays the face out on two axes rather
+    // than one angle.
+    y: cy + ry,
+    ang: s.ang + lean,
+    r: r * s.scale,
+    flip: faceX < 0 ? -1 : 1,
+  };
+}
 
 export const HERO_COLORS = {
   body: '#5fd6ff',

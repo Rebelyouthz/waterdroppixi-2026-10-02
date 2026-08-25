@@ -143,6 +143,19 @@ export function isStationRepaired(save) {
   return !!(save && save.stationRepaired) || hasLegacyModules(save);
 }
 
+// The repair itself, as a save transform rather than a button handler.
+//
+// It lives here because there are now TWO places you can do it: the module list
+// (BasePanel) and standing in the middle of the room (StationRoom). Two copies
+// of "set the flag and hope nothing else was needed" is exactly the failure
+// mode this project keeps paying for, so there is one function and both call
+// it. Idempotent — repairing an already-repaired station is a no-op, which
+// matters because the room and the panel can both be mounted at once.
+export function repairStation(save) {
+  if (!save || save.stationRepaired) return save;
+  return { ...save, stationRepaired: true };
+}
+
 // After the repair, exactly ONE thing is buildable: the hull. Every other module
 // stays dark until the hull is sealed.
 export function isModuleAvailable(save, id) {

@@ -3088,13 +3088,53 @@
 /* Each tile SMASHES into the list as its turn comes — a hard drop with
    overshoot and a brief impact flash, not a gentle fade. Timmy: the reward
    should visibly hit the card; the card itself must never move. */
-.lu-rwd-in { animation: luRwdIn 380ms cubic-bezier(.16,1.4,.3,1) both; }
+/* THE SHAKE, AND WHY IT WAS ONE.
+   Reported: "profile level up skarmen skakar nar valutorna kommer ... sluta
+   skala". It was this animation. Every tile arrived at scale(1.7) and 34px
+   high, one every 520ms, seven times in a row — so a 72px tile briefly
+   occupied 122px, swamped both neighbours, and the whole row lurched once per
+   currency. At the row's edges it also overflowed `.lu-card`'s chamfer
+   clip-path, which is the "corners get cut off" half of the same report.
+
+   The replacement moves LIGHT, not SIZE — the rule this project already
+   arrived at twice, for the meta cards and the buy buttons: pulse the glow,
+   never move the thing the eye is tracking. A 7px rise for life, the accent
+   ring flaring as it lands, and the tick stamping on top. Nothing changes
+   width, so nothing can push anything, and no frame is ever clipped. */
+.lu-rwd-in { animation: luRwdIn 300ms cubic-bezier(.2,.9,.3,1.1) both; }
 @keyframes luRwdIn {
-  0%   { opacity: 0; transform: translateY(-34px) scale(1.7); }
-  60%  { opacity: 1; transform: translateY(2px) scale(0.94); }
-  80%  { transform: translateY(-1px) scale(1.04); }
-  100% { opacity: 1; transform: none; }
+  0%   { opacity: 0; transform: translateY(7px); }
+  100% { opacity: 1; transform: translateY(0); }
 }
+/* The landing itself, on the plate rather than on the box. Peaks at 45% so
+   the flare reads as the impact and not as an afterglow. */
+.lu-rwd-in::before { animation: luTileLand 460ms ease-out both; }
+@keyframes luTileLand {
+  0%   { box-shadow:
+           inset 0 0 0 1px rgba(226,232,240,0.25),
+           inset 0 0 0 3px rgba(8,4,5,0.9),
+           inset 0 0 0 4px color-mix(in srgb, var(--rc) 60%, transparent); }
+  45%  { box-shadow:
+           inset 0 0 0 1px rgba(255,255,255,0.7),
+           inset 0 0 0 3px rgba(8,4,5,0.9),
+           inset 0 0 0 5px var(--rc),
+           0 0 26px color-mix(in srgb, var(--rc) 75%, transparent); }
+  100% { box-shadow:
+           inset 0 0 0 1px rgba(226,232,240,0.25),
+           inset 0 0 0 3px rgba(8,4,5,0.9),
+           inset 0 0 0 4px color-mix(in srgb, var(--rc) 60%, transparent); }
+}
+/* The tick STAMPS — it is the "claimed" statement and the reference sheet
+   puts it front and centre, so it earns its own beat, slightly after the
+   plate flares. This is the one place an overshoot belongs: a stamp should
+   land harder than it settles. */
+.lu-rwd-in .lu-tile-check { animation: luCheckStamp 320ms cubic-bezier(.16,1.5,.3,1) 140ms both; }
+@keyframes luCheckStamp {
+  0%   { opacity: 0; transform: scale(2.1) rotate(-22deg); }
+  70%  { opacity: 1; transform: scale(0.92) rotate(3deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+.lu-rwd-pending .lu-tile-check { opacity: 0; }
 .lu-rwd-in::after {
   content: ''; position: absolute; inset: -3px;
   border-radius: inherit;
@@ -3225,23 +3265,43 @@
   display: flex; flex-wrap: wrap; justify-content: center; gap: 8px;
   margin-bottom: 10px;
 }
+/* THE PLATE IS A PSEUDO-ELEMENT, AND THAT IS THE WHOLE POINT.
+   `.lu-tile` used to carry the chamfer clip-path itself — and a clip-path
+   clips the element's CHILDREN as well as its own pseudo-elements. The green
+   tick badge sits at top:-5px right:-5px, outside the tile's box, so it was
+   sliced away every time. It has never once been visible, on a badge the
+   reference sheet puts front and centre.
+
+   That is the FOURTH instance of this same trap in this codebase (the XP
+   medallion, the plaque's brass corners, the chevron divider, now this).
+   Worth stating as a rule: if something is fully specified and simply is not
+   there, look at the PARENT for clip-path, overflow, or a display:none a
+   later rule failed to override.
+
+   Fix: the chamfered plate moves to ::before, which is what gets clipped.
+   The tile itself clips nothing, so the badge — and the landing flare — hang
+   outside it exactly as designed. */
 .lu-tile {
   position: relative;
   width: 72px; min-height: 84px;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
   padding: 8px 4px 6px;
+  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.8));
+}
+.lu-tile::before {
+  content: '';
+  position: absolute; inset: 0;
   background: linear-gradient(180deg, rgba(58,16,22,0.9), rgba(10,6,7,0.95));
-  /* Same fix as .lu-frame::before: the contact shadow was box-shadow, which
-     a same-element clip-path clips flush at the cut corners instead of
-     letting it fall naturally past them. Moved to filter: drop-shadow so
-     the tile actually casts a shadow shaped like its own chamfered corners. */
   box-shadow:
     inset 0 0 0 1px rgba(226,232,240,0.25),
     inset 0 0 0 3px rgba(8,4,5,0.9),
     inset 0 0 0 4px color-mix(in srgb, var(--rc) 60%, transparent);
-  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.8));
   clip-path: polygon(7px 0, calc(100% - 7px) 0, 100% 7px, 100% calc(100% - 7px), calc(100% - 7px) 100%, 7px 100%, 0 calc(100% - 7px), 0 7px);
+  pointer-events: none;
 }
+/* Content sits above the plate. Without this the ::before paints over the
+   icon, because a positioned pseudo-element beats non-positioned siblings. */
+.lu-tile > * { position: relative; z-index: 2; }
 .lu-tile-ic { filter: drop-shadow(0 2px 4px rgba(0,0,0,0.8)); }
 .lu-tile-amt {
   font-family: 'VT323', monospace; font-size: 17px; line-height: 1;
@@ -3253,6 +3313,12 @@
 }
 /* The struck checkmark, top-right, exactly as the sheets place it. */
 .lu-tile-check {
+  /* z-index folded in here rather than declared in a second `.lu-tile-check`
+     rule further up. That second rule existed for about ten minutes and its
+     only effect was to blind the guard below, which reads the FIRST matching
+     rule — two definitions of one selector, in the file whose duplicate count
+     is the measured cause of "allt blev fel". Caught by fault injection. */
+  z-index: 3;
   position: absolute; top: -5px; right: -5px;
   width: 19px; height: 19px; border-radius: 50%;
   display: grid; place-items: center;
@@ -3269,7 +3335,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   .lu-bezel-band, .lu-bezel-fili, .lu-strike-icon, .lu-strike-ring,
-  .lu-rwd-in { animation: none !important; }
+  .lu-rwd-in,
+  .lu-rwd-in::before,
+  .lu-rwd-in .lu-tile-check { animation: none !important; }
+  .lu-rwd-in .lu-tile-check { opacity: 1; }
   .lu-rwd-in { opacity: 1; }
 }
 
@@ -5965,11 +6034,7 @@ body.wc-busy .wc-shape { animation: wcBusyPulse 1.5s ease-in-out infinite; }
 .clk-mile-head { font-family: 'Cinzel', serif; font-weight: 800; letter-spacing: 0.12em; color: #a8e6ff; }
 .clk-mile-fill { box-shadow: 0 0 10px currentColor, inset 0 1px 0 #ffffff55; }
 .clk-mile-pip { box-shadow: inset 0 1px 0 #ffffff1a, 0 1px 2px #000a; }
-.clk-mile-pip.done { box-shadow: 0 0 8px currentColor, inset 0 1px 0 #ffffff55; }
-.clk-mile-next {
-  font-family: 'VT323', monospace; color: #ffd166; letter-spacing: 0.08em;
-  text-shadow: 0 0 10px rgba(255,209,102,0.35);
-}
+
 .clk-claim:not(:disabled) {
   border: 1px solid rgba(109,255,158,0.6) !important;
   background: linear-gradient(180deg, #0e2c1a 0%, #061509 100%) !important;
@@ -6019,6 +6084,107 @@ body.wc-busy .wc-shape { animation: wcBusyPulse 1.5s ease-in-out infinite; }
 }
 .clk-spring-btn:hover { filter: brightness(1.14); transform: translateY(-2px); }
 .clk-spring-btn:active { transform: translateY(2px); box-shadow: 0 0 0 #000; }
+
+/* ── Clicker Shop Tabs & Building Production Cycle Bars ────── */
+.clk-tabs-bar {
+  display: flex; gap: 8px; margin: 12px 0 8px; z-index: 10;
+}
+.clk-tab-btn {
+  flex: 1; padding: 7px 10px; font-family: 'Cinzel', serif; font-size: 11px; font-weight: 800;
+  letter-spacing: 0.10em; color: #a8e6ff; background: rgba(0,0,0,0.65);
+  border: 1px solid rgba(108,180,255,0.25); border-radius: 4px; cursor: pointer;
+  transition: all 0.15s ease;
+}
+.clk-tab-btn:hover { background: rgba(16,36,50,0.8); border-color: rgba(108,180,255,0.6); }
+.clk-tab-btn.active {
+  color: #ffd166; background: linear-gradient(180deg, #1f2c24 0%, #0c1410 100%);
+  border-color: #ffd166; box-shadow: inset 0 1px 0 rgba(255,209,102,0.3), 0 0 10px rgba(255,209,102,0.2);
+}
+
+.clk-building-row {
+  display: flex; flex-direction: column; gap: 3px;
+}
+
+.clk-cycle-bar {
+  position: relative; height: 18px; border-radius: 3px; overflow: hidden;
+  background: #060e12; border: 1px solid rgba(108,180,255,0.2);
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s ease;
+}
+.clk-cycle-fill {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  background: linear-gradient(90deg, rgba(77,255,212,0.35), rgba(77,255,212,0.75));
+  box-shadow: 0 0 8px rgba(77,255,212,0.4);
+  transition: width 0.1s linear;
+}
+.clk-cycle-label {
+  position: relative; z-index: 2; font-family: 'VT323', monospace; font-size: 12px;
+  letter-spacing: 0.08em; color: #eaf7ff; text-shadow: 0 1px 3px #000;
+}
+.clk-cycle-bar.is-harvest-ready {
+  border-color: #4dffd4; cursor: pointer;
+  background: linear-gradient(180deg, #0e2a1e 0%, #06180f 100%);
+  animation: codexClaimPulse 1.2s ease-in-out infinite;
+  box-shadow: 0 0 12px rgba(77,255,212,0.4);
+}
+.clk-harvest-btn-text {
+  color: #ffd166 !important; font-weight: bold; font-size: 13px !important;
+  text-shadow: 0 0 8px rgba(255,209,102,0.7);
+}
+
+/* ── Elite Celebrity Managers Cards ────────────────────────── */
+.clk-managers-list {
+  display: flex; flex-direction: column; gap: 8px; z-index: 10; margin-top: 6px;
+}
+.clk-mgr-intro {
+  font-family: 'VT323', monospace; font-size: 13px; color: #a8e6ff; opacity: 0.85;
+  text-align: center; margin-bottom: 4px; line-height: 1.2;
+}
+.clk-mgr-card {
+  padding: 10px 12px; border-radius: 5px; text-align: left;
+  background: linear-gradient(180deg, #101c18 0%, #060c0a 100%);
+  border: 1px solid rgba(77,255,212,0.22);
+  box-shadow: inset 0 1px 0 rgba(180,255,240,0.1), 0 2px 4px #000a;
+  display: flex; flex-direction: column; gap: 5px;
+}
+.clk-mgr-card.hired {
+  border-color: rgba(77,255,212,0.45);
+  background: linear-gradient(180deg, #0d2218 0%, #05100a 100%);
+}
+.clk-mgr-card.ready {
+  border-color: #ffd166;
+  box-shadow: inset 0 1px 0 rgba(255,209,102,0.2), 0 0 12px rgba(255,209,102,0.2);
+}
+.clk-mgr-card.locked { opacity: 0.65; }
+.clk-mgr-header { display: flex; align-items: center; gap: 10px; }
+.clk-mgr-name {
+  font-family: 'Cinzel', serif; font-weight: 800; font-size: 13px; color: #ffd166;
+  letter-spacing: 0.06em;
+}
+.clk-mgr-title { font-family: 'VT323', monospace; font-size: 12px; color: #4dffd4; }
+.clk-mgr-bio {
+  font-family: 'VT323', monospace; font-size: 12px; color: var(--ink-dim); opacity: 0.85;
+  font-style: italic; line-height: 1.2;
+}
+.clk-mgr-perk {
+  font-family: 'VT323', monospace; font-size: 13px; color: #eaf7ff;
+}
+.clk-mgr-hire-btn {
+  padding: 5px 10px; border-radius: 4px; font-family: 'VT323', monospace; font-size: 14px;
+  background: #14241c; border: 1px solid #444; color: #888; cursor: not-allowed;
+}
+.clk-mgr-hire-btn.can-afford {
+  background: linear-gradient(180deg, #1b442b 0%, #0b2214 100%);
+  border-color: #ffd166; color: #ffd166; cursor: pointer;
+  box-shadow: 0 0 10px rgba(255,209,102,0.3);
+}
+.clk-mgr-hire-btn.can-afford:hover { filter: brightness(1.15); transform: translateY(-1px); }
+.clk-mgr-badge.hired {
+  padding: 3px 8px; border-radius: 3px; font-family: 'VT323', monospace; font-size: 13px;
+  background: rgba(77,255,212,0.15); border: 1px solid #4dffd4; color: #4dffd4; font-weight: bold;
+}
+
+
 
 /* ============================================================
    MAPS / STORYLINE — a route, not a list of buttons
@@ -13174,3 +13340,820 @@ body.wc-busy .wc-shape { animation: wcBusyPulse 1.5s ease-in-out infinite; }
 .raid-lvlup-head { background: linear-gradient(90deg, transparent, rgba(0,80,122,0.8), transparent); border: none; }
 .raid-lvlup-kicker { color: #5fd6ff; letter-spacing: 4px; text-shadow: 0 0 8px #5fd6ff; }
 .raid-lvlup-title { color: #fff; text-shadow: 0 0 10px #fff; }
+
+/* ══════════════════════════════════════════════════════════════════════
+   THE WALKABLE STATION — MAIN HALL            (components/StationRoom.jsx)
+   ══════════════════════════════════════════════════════════════════════
+   The `sr-` prefix was grepped against this file AND index.css before a line
+   was written: zero hits, so nothing here can be beaten by an older block.
+   That check is not optional in this file — 164 of its selectors are defined
+   two or more times, and that is the measured cause of every "it went wrong
+   again". If a future pass adds a second `.sr-` rule, consolidate it into
+   this block rather than stacking a fifth generation on top.
+
+   Everything visual belongs to the Pixi canvas. This file only styles the
+   things you READ: the header, the prompt, the key hints, A.I.D.A.'s plate.
+   Keeping text in the DOM is what makes it sharp at any DPI and reachable by
+   focus and by touch. */
+
+.sr-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2600;
+  background: #04080b;
+  display: block;
+  /* Notches and home indicators. The prompt sits at the bottom edge, which is
+     exactly where an iPhone puts its gesture bar. */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+           env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+.sr-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  /* Tap-to-walk must not also select text or fire the browser's double-tap
+     zoom — both make the room feel broken on a phone. */
+  touch-action: manipulation;
+  user-select: none;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────── */
+.sr-head {
+  position: absolute;
+  top: calc(14px + env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 9px 16px;
+  max-width: min(560px, calc(100% - 28px));
+  background: linear-gradient(180deg, rgba(14,32,39,0.94), rgba(7,18,22,0.94));
+  border: 1px solid rgba(74,95,106,0.55);
+  /* Chamfered, not rounded — a rounded corner cannot look like this game. */
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+  box-shadow: 0 6px 22px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06);
+  pointer-events: none;
+}
+
+.sr-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-menu);
+  font-size: 15px;
+  letter-spacing: 0.16em;
+  color: #dff4ff;
+  white-space: nowrap;
+}
+
+.sr-sub {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: #7f9aa6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sr-close {
+  pointer-events: auto;
+  margin-left: 2px;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  background: rgba(8,20,26,0.9);
+  border: 1px solid rgba(74,95,106,0.6);
+  color: #9fbecb;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color .14s, border-color .14s, background .14s;
+}
+.sr-close:hover,
+.sr-close:focus-visible { color: #dff4ff; border-color: #4fe0e8; background: rgba(16,44,54,0.95); }
+
+/* ── Key hints ──────────────────────────────────────────────────────── */
+.sr-keys {
+  position: absolute;
+  top: calc(58px + env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 16px;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: #5f7885;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.sr-keys b { color: #9fbecb; font-weight: 700; }
+
+/* ── The prompt ─────────────────────────────────────────────────────── */
+.sr-prompt {
+  position: absolute;
+  left: 50%;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: min(520px, calc(100% - 28px));
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  background: linear-gradient(180deg, rgba(16,41,49,0.96), rgba(7,18,22,0.96));
+  /* The accent is a LIGHT on a dark plate, never the plate itself. Colouring
+     the plate is what produced the purple rail on the camp and had to be
+     undone; the reference is always a dark surface with a coloured edge. */
+  border: 1px solid color-mix(in srgb, var(--sr-accent, #7cd6ff) 55%, #223840);
+  border-left: 3px solid var(--sr-accent, #7cd6ff);
+  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.65),
+              inset 0 1px 0 rgba(255,255,255,0.05);
+  animation: sr-prompt-in .18s cubic-bezier(.2,.9,.3,1.2) both;
+}
+.sr-prompt.locked { border-left-color: #51636d; }
+
+@keyframes sr-prompt-in {
+  from { opacity: 0; transform: translate(-50%, 10px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.sr-prompt-copy { flex: 1 1 auto; min-width: 0; }
+
+.sr-prompt-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-menu);
+  font-size: 14px;
+  letter-spacing: 0.13em;
+  color: #eaf7ff;
+}
+
+.sr-lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: inherit;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: #8fa6b2;
+}
+
+.sr-prompt-hint {
+  margin-top: 3px;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: #86a2ae;
+}
+
+.sr-use {
+  flex: 0 0 auto;
+  /* 44px is the touch-target floor this project already holds itself to. */
+  min-height: 44px;
+  padding: 0 18px;
+  font-family: var(--font-menu);
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  color: #04141a;
+  background: linear-gradient(180deg,
+              color-mix(in srgb, var(--sr-accent, #7cd6ff) 92%, #ffffff),
+              var(--sr-accent, #7cd6ff));
+  border: 1px solid color-mix(in srgb, var(--sr-accent, #7cd6ff) 70%, #000000);
+  cursor: pointer;
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+  transition: transform .1s, filter .14s;
+}
+.sr-use:hover, .sr-use:focus-visible { filter: brightness(1.12); }
+/* Press TRAVEL, not a colour change — the button has to move under a thumb
+   that is covering it. */
+.sr-use:active { transform: translateY(2px); }
+
+.sr-prompt.locked .sr-use {
+  color: #cfe2ea;
+  background: linear-gradient(180deg, #33474f, #1e2d34);
+  border-color: #51636d;
+}
+
+/* ── A.I.D.A. ───────────────────────────────────────────────────────── */
+.sr-aida {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(2,8,12,0.55);
+  cursor: pointer;
+  animation: sr-fade-in .16s ease both;
+}
+@keyframes sr-fade-in { from { opacity: 0 } to { opacity: 1 } }
+
+.sr-aida-plate {
+  width: min(420px, calc(100% - 40px));
+  padding: 22px 22px 14px;
+  text-align: center;
+  background: linear-gradient(180deg, rgba(10,28,36,0.97), rgba(5,14,19,0.97));
+  border: 1px solid rgba(79,224,232,0.35);
+  clip-path: polygon(16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%, 0 16px);
+  box-shadow: 0 18px 50px rgba(0,0,0,0.7), inset 0 0 40px rgba(79,224,232,0.05);
+}
+
+/* Her eye. One slit, and it does not blink — she is never not watching, and
+   nobody in the game ever mentions it. */
+.sr-aida-eye {
+  width: 62px;
+  height: 32px;
+  margin: 0 auto 14px;
+  border-radius: 50% / 50%;
+  background: radial-gradient(ellipse at 50% 50%, #0a2c3a 0%, #041017 70%);
+  border: 1px solid rgba(79,224,232,0.5);
+  display: grid;
+  place-items: center;
+  box-shadow: 0 0 22px rgba(79,224,232,0.22);
+}
+.sr-aida-eye i {
+  width: 5px;
+  height: 18px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #dff4ff, #4fe0e8);
+  box-shadow: 0 0 12px #4fe0e8;
+  animation: sr-eye 5.5s ease-in-out infinite;
+}
+@keyframes sr-eye {
+  0%, 42%, 100% { transform: translateX(0) }
+  50%, 88%      { transform: translateX(9px) }
+}
+
+.sr-aida-text {
+  font-size: 14px;
+  line-height: 1.5;
+  color: #cfe9f4;
+  letter-spacing: 0.02em;
+}
+
+.sr-aida-dismiss {
+  margin-top: 14px;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: #4d6772;
+}
+
+/* ── Phone ──────────────────────────────────────────────────────────── */
+@media (max-width: 720px) {
+  /* The key hints are a desktop affordance. On a phone there is no WASD and
+     no Escape key, so the line is three lies taking up the top of the room. */
+  .sr-keys { display: none; }
+  .sr-head { top: calc(10px + env(safe-area-inset-top)); gap: 10px; padding: 8px 12px; }
+  .sr-title { font-size: 13px; letter-spacing: 0.12em; }
+  .sr-sub { font-size: 10px; }
+  .sr-prompt {
+    /* Stacked, because 520px of prompt does not fit 393px of phone and the
+       ENTER button is the half that must never be squeezed. */
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    width: calc(100% - 20px);
+  }
+  .sr-use { width: 100%; }
+}
+
+/* ── WALK THE STATION — the door out of the module list ───────────────
+   `.st-walk` grepped against overhaul.css and index.css first: zero hits.
+   It sits inside `.base-panel`, so it inherits that panel's ground and only
+   needs to be the one thing on the screen that is clearly a WAY IN. */
+.st-walk {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin: 10px 0 4px;
+  padding: 11px 14px;
+  text-align: left;
+  cursor: pointer;
+  background: linear-gradient(180deg, rgba(18,45,54,0.92), rgba(8,20,26,0.92));
+  border: 1px solid rgba(79,224,232,0.34);
+  border-left: 3px solid #4fe0e8;
+  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+  transition: border-color .15s, filter .15s, transform .1s;
+}
+.st-walk:hover,
+.st-walk:focus-visible { border-color: rgba(79,224,232,0.7); filter: brightness(1.1); }
+.st-walk:active { transform: translateY(2px); }
+
+.st-walk-icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  background: radial-gradient(circle at 38% 32%, #12333d, #061219 72%);
+  border: 1px solid rgba(79,224,232,0.35);
+  border-radius: 50%;
+  /* A halo, not a per-element filter: this is React chrome, but the cheap
+     lesson from the Skill Tree still applies — 82 per-element SVG filters
+     were the measured cost there. */
+  box-shadow: 0 0 14px rgba(79,224,232,0.18), inset 0 1px 0 rgba(255,255,255,0.07);
+}
+
+.st-walk-copy { flex: 1 1 auto; min-width: 0; display: block; }
+.st-walk-copy b {
+  display: block;
+  font-family: var(--font-menu);
+  font-size: 13px;
+  letter-spacing: 0.15em;
+  color: #eaf7ff;
+}
+.st-walk-copy i {
+  display: block;
+  margin-top: 2px;
+  font-style: normal;
+  font-size: 11px;
+  color: #86a2ae;
+}
+
+.st-walk-go {
+  flex: 0 0 auto;
+  font-size: 16px;
+  color: #4fe0e8;
+  /* The only thing on this control that moves. If everything pulsed, nothing
+     would read as "press me". */
+  animation: st-walk-nudge 2.4s ease-in-out infinite;
+}
+@keyframes st-walk-nudge {
+  0%, 72%, 100% { transform: translateX(0); opacity: .75 }
+  84%           { transform: translateX(4px); opacity: 1 }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .st-walk-go { animation: none; opacity: .9; }
+}
+
+/* ============================================================
+   CLICKER WORLD — PixiJS conspiracy canvas + superpolish
+   ============================================================ */
+
+/* ── World canvas wrapper (Big & Crisp Survivor Arena) ───── */
+.clk-world-wrap {
+  position: relative;
+  width: 100%;
+  height: 250px;
+  margin: 6px 0 12px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1.5px solid rgba(77, 255, 145, 0.25);
+  box-shadow: inset 0 0 35px rgba(0, 0, 0, 0.9), 0 0 24px rgba(77, 255, 145, 0.1);
+  cursor: crosshair;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.clk-world-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ── Combo counter ────────────────────────────────────────── */
+.clk-combo {
+  font-family: 'VT323', monospace;
+  font-size: 16px;
+  letter-spacing: 0.14em;
+  color: #ffd166;
+  text-shadow: 0 0 12px rgba(255, 209, 102, 0.6);
+  animation: clkComboIn 200ms cubic-bezier(.2,.9,.3,1.5) both;
+  margin-top: 2px;
+}
+@keyframes clkComboIn {
+  0%   { opacity: 0; transform: scale(0.5); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* ── Rate pop on purchase ─────────────────────────────────── */
+.clk-rate-pop {
+  animation: clkRatePop 250ms ease-out;
+}
+@keyframes clkRatePop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.18); color: #4dffd4; }
+  100% { transform: scale(1); }
+}
+
+/* ── Bulk buy bar ─────────────────────────────────────────── */
+.clk-bulk-bar {
+  display: flex;
+  gap: 4px;
+  padding: 4px 0;
+  margin-bottom: 6px;
+}
+.clk-bulk-btn {
+  flex: 1;
+  padding: 6px 0;
+  font-family: 'VT323', monospace;
+  font-size: 15px;
+  letter-spacing: 0.12em;
+  color: #7a6f8a;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.clk-bulk-btn:hover {
+  background: rgba(77, 255, 145, 0.08);
+  border-color: rgba(77, 255, 145, 0.3);
+  color: #e0f0e0;
+}
+.clk-bulk-btn.active {
+  background: rgba(77, 255, 145, 0.15);
+  border-color: #4dff91;
+  color: #4dff91;
+  text-shadow: 0 0 8px rgba(77, 255, 145, 0.4);
+  box-shadow: 0 0 10px rgba(77, 255, 145, 0.15);
+}
+.clk-buy-qty {
+  font-size: 11px;
+  color: #7fc4e8;
+  font-style: normal !important;
+  margin-left: 4px;
+}
+
+/* ── 2-Layer Purchase Progress System for Buttons ─────────── */
+.clk-buy {
+  position: relative !important;
+  overflow: hidden !important;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.1s !important;
+}
+
+/* Layer 1: The charging progress fill bar */
+.clk-buy-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, rgba(77, 196, 255, 0.06), rgba(77, 255, 145, 0.16));
+  border-right: 2px solid rgba(77, 255, 145, 0.35);
+  transition: width 0.25s cubic-bezier(0.2, 0.8, 0.4, 1);
+  z-index: 1;
+  pointer-events: none;
+}
+
+.clk-buy-inner {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+}
+
+/* Almost ready (70%+): subtle warning glow on the edge */
+.clk-buy.is-almost-ready {
+  border-color: rgba(255, 209, 102, 0.25) !important;
+}
+.clk-buy.is-almost-ready .clk-buy-fill {
+  background: linear-gradient(90deg, rgba(255, 209, 102, 0.08), rgba(255, 209, 102, 0.22));
+  border-right: 2px solid #ffd166;
+  box-shadow: 2px 0 10px rgba(255, 209, 102, 0.3);
+}
+
+/* Layer 2: Fully ready ignition state */
+.clk-buy.can-afford.is-ready {
+  border-color: rgba(77, 255, 145, 0.45) !important;
+  box-shadow: 0 0 14px rgba(77, 255, 145, 0.18), inset 0 0 12px rgba(77, 255, 145, 0.06) !important;
+}
+.clk-buy.can-afford.is-ready:hover {
+  border-color: #4dff91 !important;
+  box-shadow: 0 0 20px rgba(77, 255, 145, 0.35), inset 0 0 15px rgba(77, 255, 145, 0.1) !important;
+  transform: translateY(-1px);
+}
+.clk-buy.can-afford.is-ready .clk-buy-fill {
+  background: linear-gradient(90deg, rgba(77, 255, 145, 0.12), rgba(77, 255, 145, 0.24));
+  border-right: none;
+}
+.clk-buy-cost.cost-ready {
+  color: #ffd166 !important;
+  text-shadow: 0 0 8px rgba(255, 209, 102, 0.5);
+}
+
+/* ── Event alarm treatment ────────────────────────────────── */
+.clk-alarm-active {
+  border: 1px solid rgba(255, 100, 60, 0.6) !important;
+  animation: clkAlarmPulse 1s ease-in-out infinite !important;
+  position: relative;
+  overflow: hidden;
+}
+@keyframes clkAlarmPulse {
+  0%, 100% {
+    box-shadow: 0 0 12px rgba(255, 100, 60, 0.3), inset 0 0 20px rgba(255, 80, 40, 0.05);
+    border-color: rgba(255, 100, 60, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(255, 100, 60, 0.6), inset 0 0 30px rgba(255, 80, 40, 0.1);
+    border-color: rgba(255, 100, 60, 0.8);
+  }
+}
+.clk-event-scanline {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent 0px,
+    transparent 2px,
+    rgba(255, 100, 60, 0.04) 2px,
+    rgba(255, 100, 60, 0.04) 4px
+  );
+  animation: clkScanScroll 2s linear infinite;
+  z-index: 0;
+}
+@keyframes clkScanScroll {
+  0%   { background-position: 0 0; }
+  100% { background-position: 0 40px; }
+}
+
+/* ── Conspiracy milestone cards ───────────────────────────── */
+.clk-milestone-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 0 12px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 209, 102, 0.2) transparent;
+}
+.clk-milestone-scroll::-webkit-scrollbar { width: 4px; }
+.clk-milestone-scroll::-webkit-scrollbar-track { background: transparent; }
+.clk-milestone-scroll::-webkit-scrollbar-thumb { background: rgba(255, 209, 102, 0.2); border-radius: 2px; }
+
+.clk-milestone-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(160deg, rgba(18, 14, 28, 0.95), rgba(8, 6, 14, 0.95));
+  cursor: pointer;
+  transition: all 0.15s;
+  overflow: hidden;
+}
+.clk-milestone-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 0% 50%, color-mix(in srgb, var(--chest-glow) 8%, transparent), transparent 60%);
+  pointer-events: none;
+}
+.clk-milestone-card:hover:not(.locked) {
+  border-color: var(--chest-glow);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--chest-glow) 25%, transparent);
+  transform: translateY(-1px);
+}
+
+/* State: locked */
+.clk-milestone-card.locked {
+  opacity: 0.45;
+  filter: grayscale(0.5);
+  cursor: default;
+}
+.clk-milestone-card.locked .clk-mc-name {
+  letter-spacing: 0.3em;
+  color: #3a3040;
+}
+
+/* State: ready (claimable) */
+.clk-milestone-card.ready {
+  border-color: color-mix(in srgb, var(--chest-glow) 50%, transparent);
+  animation: clkMileReady 1.8s ease-in-out infinite;
+}
+@keyframes clkMileReady {
+  0%, 100% { box-shadow: 0 0 8px color-mix(in srgb, var(--chest-glow) 20%, transparent); }
+  50%      { box-shadow: 0 0 22px color-mix(in srgb, var(--chest-glow) 50%, transparent); }
+}
+
+/* State: done */
+.clk-milestone-card.done {
+  opacity: 0.6;
+  border-color: rgba(77, 255, 212, 0.15);
+}
+
+/* Claiming burst */
+.clk-milestone-card.claiming {
+  animation: clkMileClaim 0.5s cubic-bezier(.2,.9,.3,1.5);
+}
+@keyframes clkMileClaim {
+  0%   { transform: scale(1); }
+  30%  { transform: scale(1.04); background: rgba(255, 209, 102, 0.1); }
+  100% { transform: scale(1); }
+}
+
+/* Card parts */
+.clk-mc-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.clk-mc-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.clk-mc-name {
+  font-family: 'Cinzel', serif;
+  font-weight: 800;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: #e8e0d0;
+  text-shadow: 0 1px 2px #000;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.clk-mc-threshold {
+  font-family: 'VT323', monospace;
+  font-size: 12px;
+  color: #7a6f8a;
+  letter-spacing: 0.06em;
+}
+.clk-mc-reward {
+  font-family: 'VT323', monospace;
+  font-size: 11px;
+  color: #ffd166;
+  opacity: 0.8;
+}
+
+/* Stamps */
+.clk-mc-stamp {
+  text-align: right;
+}
+.clk-stamp-done {
+  font-family: 'VT323', monospace;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: #4dffd4;
+  opacity: 0.5;
+  transform: rotate(-3deg);
+  display: inline-block;
+  border: 1px solid rgba(77, 255, 212, 0.2);
+  padding: 1px 5px;
+}
+.clk-stamp-ready {
+  font-family: 'VT323', monospace;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: #ff4444;
+  transform: rotate(-5deg);
+  display: inline-block;
+  border: 1px solid rgba(255, 68, 68, 0.4);
+  padding: 1px 5px;
+  animation: clkStampPulse 1.2s ease-in-out infinite;
+}
+@keyframes clkStampPulse {
+  0%, 100% { opacity: 0.7; }
+  50%      { opacity: 1; text-shadow: 0 0 8px rgba(255, 68, 68, 0.5); }
+}
+.clk-stamp-locked {
+  font-family: 'VT323', monospace;
+  font-size: 10px;
+  color: #2a2030;
+  letter-spacing: 0.3em;
+}
+
+.clk-mc-check {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+}
+.clk-mc-bang {
+  position: absolute;
+  top: 3px;
+  right: 8px;
+  font-family: 'Cinzel', serif;
+  font-weight: 900;
+  font-size: 14px;
+  color: #ffd166;
+  text-shadow: 0 0 10px rgba(255, 209, 102, 0.6);
+  animation: clkBangBounce 0.8s ease-in-out infinite;
+}
+@keyframes clkBangBounce {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50%      { transform: translateY(-3px) scale(1.15); }
+}
+
+/* Milestone detail expansion */
+.clk-mc-detail {
+  grid-column: 1 / -1;
+  padding-top: 8px;
+  margin-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  animation: clkDetailIn 0.2s ease-out;
+}
+@keyframes clkDetailIn {
+  0%   { opacity: 0; max-height: 0; }
+  100% { opacity: 1; max-height: 100px; }
+}
+.clk-mc-flavor {
+  font-family: 'VT323', monospace;
+  font-size: 12px;
+  font-style: italic;
+  color: #8a7fa0;
+  line-height: 1.3;
+  margin-bottom: 6px;
+}
+.clk-mc-rewards-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.clk-mc-reward-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: 'VT323', monospace;
+  font-size: 12px;
+  color: #d0c8e0;
+  padding: 2px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.clk-milestone-detail-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+}
+
+/* ── Spring icons ─────────────────────────────────────────── */
+.clk-spring-icon {
+  display: inline-block;
+  font-size: 10px;
+  margin: 0 1px;
+  filter: drop-shadow(0 0 4px rgba(77, 196, 255, 0.4));
+  animation: clkSpringGlow 2s ease-in-out infinite alternate;
+}
+@keyframes clkSpringGlow {
+  0%   { filter: drop-shadow(0 0 3px rgba(77, 196, 255, 0.3)); }
+  100% { filter: drop-shadow(0 0 8px rgba(77, 196, 255, 0.6)); }
+}
+
+/* ── Prestige beam (gold light sweep) ─────────────────────── */
+.clk-prestige-beam {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    120deg,
+    transparent 0%,
+    transparent 30%,
+    rgba(255, 209, 102, 0.3) 45%,
+    rgba(255, 235, 190, 0.5) 50%,
+    rgba(255, 209, 102, 0.3) 55%,
+    transparent 70%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: clkPrestigeBeam 800ms ease-out forwards;
+}
+@keyframes clkPrestigeBeam {
+  0%   { background-position: 200% 0; opacity: 1; }
+  100% { background-position: -100% 0; opacity: 0; }
+}
+
+/* ── Tactical Anomaly Choice Modal ────────────────────────── */
+.clk-choice-modal {
+  border: 1.5px solid #00e5ff !important;
+  box-shadow: 0 0 35px rgba(0, 229, 255, 0.35), inset 0 0 25px rgba(0, 0, 0, 0.9) !important;
+  max-width: 440px;
+}
+.clk-choice-btn {
+  flex: 1;
+  padding: 12px 10px;
+  background: rgba(14, 18, 28, 0.95);
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s;
+  font-family: 'Cinzel', serif;
+}
+.clk-choice-btn.opt-a {
+  border: 1px solid rgba(255, 209, 102, 0.4);
+}
+.clk-choice-btn.opt-a:hover {
+  border-color: #ffd166;
+  background: rgba(255, 209, 102, 0.12);
+  box-shadow: 0 0 16px rgba(255, 209, 102, 0.3);
+  transform: translateY(-2px);
+}
+.clk-choice-btn.opt-b {
+  border: 1px solid rgba(0, 229, 255, 0.4);
+}
+.clk-choice-btn.opt-b:hover {
+  border-color: #00e5ff;
+  background: rgba(0, 229, 255, 0.12);
+  box-shadow: 0 0 16px rgba(0, 229, 255, 0.3);
+  transform: translateY(-2px);
+}

@@ -15,7 +15,7 @@
 //
 // `rot` and `rotPoly` came along because these functions need them; the
 // renderer imports them back, so its 48 existing call sites are unchanged.
-import { heroHalfWidthAt } from './heroShape';
+import { heroHalfWidthAt, HERO_RIG, HERO_COLORS } from './heroShape';
 
 export function rot(x, y, ang) {
   const c = Math.cos(ang), s = Math.sin(ang);
@@ -343,5 +343,126 @@ export function drawHeroFace(gf, bx, by, r, bodyAng, sqx, sqy, A, p) {
       gf.circle(bx + vx, by + vy, 1.2 + Math.random() * 1.6)
         .fill({ color: '#ffb066', alpha: 0.35 });
     }
+  }
+}
+
+
+// ── LEGS, FEET AND THE THING THAT SELLS THE WEIGHT ───────────────────
+// Timmy, 2026-08-24: "han ska ha tyng i sig nar han gar ... rena rama assasins
+// creed kannsla". Every reference he has sent — the 16-frame idle sheet and the
+// six CHARACTER VARIANTS — has two stubby legs under the drop. Until now the
+// in-game character had none: he was a teardrop with arms that slid across the
+// floor, and no amount of shading fixes skating.
+//
+// The pose comes from game/heroGait.js, which owns the maths and has no PixiJS
+// in it so the no-slide property can actually be tested. This function only
+// paints what that hands it.
+//
+// The one rule that matters here: THE SHADOW STAYS ON THE GROUND. A lifted foot
+// moves up; its shadow does not follow. That separation is the entire read of
+// "this foot left the floor" — draw the shadow at the foot and the character
+// floats no matter how good the rest is.
+export function drawLegs(gf, gait, r, cx, cy, opts = {}) {
+  const { sqx = 1, lean = 0, back = false } = opts;
+  const L = HERO_RIG.leg;
+  const legW = L.width * r * sqx;
+  const footL = L.footLen * r * sqx;
+  const footH = L.footH * r;
+  const dark = HERO_COLORS.outline;
+  const body = HERO_COLORS.body;
+  const deep = HERO_COLORS.bodyDeep;
+
+  for (let i = 0; i < 2; i++) {
+    const f = gait.footDraw(i);
+    // Draw the FAR leg first, so the near one overlaps it. Which is far
+    // depends on the lean: whichever hip is turned away from the camera.
+    const isBack = (lean >= 0) === (i === 0);
+    if (isBack !== back) continue;
+
+    const hipX = cx + (i === 0 ? -HERO_RIG.hip[0] : HERO_RIG.hip[0]) * r * sqx;
+    const hipY = cy + HERO_RIG.hip[1] * r;
+    const footX = cx + f.x * r;
+    // The feet hang BELOW the hip. The first version measured the leg from the
+    // body CENTRE instead of from the hip, which put the ankle at 0.52r while
+    // the hip was at 0.86r — the legs pointed upward, inside the body, and
+    // nothing was visible at all. Measured live before it was fixed rather
+    // than guessed at: hipY 22.4, footY 12.0.
+    const footY = hipY + L.len * r + f.y * r;
+    const shadowY = hipY + L.len * r + f.shadowY * r;
+
+    // Contact shadow, sized off the LIFT. It shrinks and softens as the foot
+    // rises, which is what makes the rise readable at all.
+    const s = 1 - Math.min(1, f.lift * 2.2);
+    gf.ellipse(footX, shadowY + footH * 0.5, footL * 0.55 * s, footH * 0.42 * s)
+      .fill({ color: 0x000000, alpha: 0.32 * s });
+
+    // The leg: one thick capsule from hip to ankle. A two-segment knee looks
+    // wrong on a body this stubby — there is nowhere for a shin to be.
+    gf.moveTo(hipX, hipY).lineTo(footX, footY)
+      .stroke({ width: legW + 2.4, color: dark, cap: 'round' });
+    gf.moveTo(hipX, hipY).lineTo(footX, footY)
+      .stroke({ width: legW, color: isBack ? deep : body, cap: 'round' });
+    // A lit edge on the leading side only. A full outline reads as a tube; one
+    // side reads as a limb with light on it.
+    if (!isBack) {
+      gf.moveTo(hipX - legW * 0.22, hipY).lineTo(footX - legW * 0.22, footY)
+        .stroke({ width: legW * 0.26, color: 0xbdeaff, alpha: 0.30, cap: 'round' });
+    }
+
+    // The foot. Wider than the leg and blunt — the reference has round paddle
+    // feet, not shoes.
+    gf.ellipse(footX, footY + footH * 0.35, footL * 0.5, footH * 0.62)
+      .fill({ color: isBack ? deep : body })
+      .stroke({ width: 1.8, color: dark });
+    // Toe highlight, only on the near foot and only while it is down: a
+    // specular on a foot in the air points nowhere.
+    if (!isBack && f.lift < 0.02) {
+      gf.ellipse(footX - footL * 0.12, footY + footH * 0.18, footL * 0.18, footH * 0.20)
+        .fill({ color: 0xffffff, alpha: 0.22 });
+    }
+  }
+}
+
+// The headband, from the shared rig rather than from inside the renderer.
+//
+// It was drawn in pixiRenderer.js and NOWHERE ELSE, so the intro film, the
+// paperdoll and the station room all showed a bare-headed character while the
+// run showed a banded one — the drift this whole module exists to stop. It also
+// has to move here before helmets and hats can exist, because they all mount on
+// the same two sockets.
+export function drawHeadband(gf, cx, cy, r, color, opts = {}) {
+  const { sqx = 1, sqy = 1, lean = 0, stripe = '#ffffff' } = opts;
+  const B = HERO_RIG.headband;
+  const y = B.y * r * sqy;
+  // Clamped against the real silhouette. The drop narrows to a point, so a band
+  // drawn at a fixed half-width hangs in open space beside his head at the top
+  // — the exact bug the brow had, recorded in heroShape.js.
+  const hw = Math.min(B.halfW, heroHalfWidthAt(B.y) * 1.06) * r * sqx;
+  const drop = B.drop * r * sqy;
+  // Slightly wider at the top than the bottom: a band wrapping a curved head
+  // reads as a trapezoid, and a plain rectangle reads as a sticker.
+  const pts = rotPoly(cx, cy, lean, [
+    -hw, y - drop / 2, hw, y - drop / 2,
+    hw * 0.95, y + drop / 2, -hw * 0.95, y + drop / 2,
+  ]);
+  gf.poly(pts).fill({ color }).stroke({ width: 1.6, color: HERO_COLORS.outline });
+  // The lighter centre stripe every reference band has.
+  const s0 = y - drop * 0.10, s1 = y + drop * 0.16;
+  gf.poly(rotPoly(cx, cy, lean, [-hw * 0.98, s0, hw * 0.98, s0, hw * 0.93, s1, -hw * 0.93, s1]))
+    .fill({ color: stripe, alpha: 0.55 });
+
+  // The tail. Only when it would actually read — the threshold sits well clear
+  // of the drawn radius rather than right on it, so it cannot blink in and out
+  // on a future scale tweak. `t` is a free-running clock; pass the game's own
+  // so the sway matches everything else on screen.
+  if (r > 15 && B.tail) {
+    const ta = lean + 0.75 + Math.sin((opts.t || 0) * 2.2) * 0.2;
+    const tx = hw * 0.97, ty = y;
+    gf.poly(rotPoly(cx, cy, lean, [
+      tx, ty - drop * 0.24,
+      tx + Math.cos(ta) * B.tail * r, ty + Math.sin(ta) * B.tail * r - drop * 0.08,
+      tx + Math.cos(ta) * B.tail * r, ty + Math.sin(ta) * B.tail * r + drop * 0.35,
+      tx, ty + drop * 0.35,
+    ])).fill({ color, alpha: 0.9 });
   }
 }

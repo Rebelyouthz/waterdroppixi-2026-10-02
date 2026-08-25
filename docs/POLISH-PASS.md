@@ -2499,3 +2499,258 @@ assumed.
   and earlier, so it lost — which is why the divider kept landing across the
   heading regardless of the value set. Matched `.full-width` to reach (0,3,0)
   rather than editing their rule.
+
+## 2026-08-24 — THE WALKABLE STATION, room 1: the Main Hall
+
+Timmy's brief was written down first (`waterdrop-walkable-station` memory) with
+an explicit "when you are ready, just go". This is steps 1–3 of that order: a
+room you walk around, doors that open the systems that already exist, and a way
+out that can never trap you.
+
+**The three architecture questions the plan said to settle first, settled:**
+top-down (the hero rig is drawn for it, and a side-on station would need a
+second character drawing that `wiring.test.mjs` exists to prevent); a Pixi room
+with React panels over it (the split `GameScreen` already uses); and walking is
+never the tax — every door also exists in the module list, Escape closes the
+room, and leaving drops you back on the console you came from.
+
+### New files
+- **`game/stationLayout.js`** — the floor plan, with no PixiJS in it. Split out
+  deliberately: `stationRoom.js` imports pixi, which the headless suite cannot
+  load, and *a room whose geometry is only checkable by eye is a room whose
+  geometry never gets checked.*
+- **`game/stationRoom.js`** — the room. Fixed 960×540 authored stage, scaled to
+  fit, the same decision `introCinema.js` documents: a ROOM must not show more
+  world on a bigger screen or the far wall walks away from you on a monitor.
+- **`components/StationRoom.jsx`** — the readable half. WASD / tap-to-walk,
+  E to use, Escape to leave.
+- **`game/litShading.js`** — see below.
+- **`test/station.test.mjs`** — 19 checks, added to `test:logic`.
+
+### `litShading.js` — the lighting technique stops living in one file
+The `waterdrop-lighting` mandate is that light is made exactly one way: baked
+sphere/flat normal maps, one shared per-pixel Lambertian + Blinn-Phong GLSL
+filter, and pooled additive sprites off a baked radial texture for the sources.
+All of it lived inside `pixiRenderer.js`. The moment a second Pixi surface
+needed real light the choice was copy or lift — and a copy is how a lighting
+tune lands in the run and not in the station, silently, forever.
+
+Lifted. `pixiRenderer.js` keeps `_makeLitFilter` / `_updateLitUniforms` as thin
+delegations so all its call sites are untouched, the same shape the `heroDraw.js`
+extraction used. `test/station.test.mjs` fails if the fragment shader ever
+reappears in the renderer.
+
+### `repairStation()` moved into `game/base.js`
+There are now two places you can repair the station: the module list, and
+standing at the dead core in the middle of the room. Two copies of "set the flag
+and hope nothing else was needed" is the failure this project keeps paying for,
+so there is one function and both call it. Guarded.
+
+### Three real defects, and how each was found
+1. **The core and the floor emblem were drawn at the same coordinate.** The
+   plinth covered the inlaid drop and the armed-station ring landed concentric
+   inside the emblem's own ring. Found by *looking at it* — no arithmetic check
+   knew they were different features. It is a check now, and that check
+   immediately caught a **second** collision: the DEFENCE console's ring sat 69
+   units from an emblem of radius 74.
+2. **The hero rendered near-black in a lit room, and the shader was innocent.**
+   `_computeRoomLight` picked the strongest light in the frame — but the ceiling
+   lamps are always in that list, so a weak lamp 300 units away always won,
+   attenuated to almost nothing, and the body came out at bare ambient. It was
+   the light SELECTION that was broken. A room light now has to be genuinely
+   strong where he stands before it takes over from the key light.
+3. **The character was smaller than his own logo.** At `HERO_R` 18 the emblem's
+   inlaid drop was larger than the actual player. Read as a tiny head walking
+   across a badge. Now 26.
+
+### Fault injection
+Six faults injected and each confirmed to turn the suite red: a door on the
+viewport, an unknown module id, a door with no route in `enterBuilding`, a
+`GlowFilter` in the game layer, two stations close enough to fight over the
+prompt, and the room declaring its own building costs. Files restored and proved
+byte-identical by hash afterwards.
+
+The first version of the GlowFilter guard went red on the *comment* saying
+GlowFilter is forbidden. Funny, and the same defect in both directions — a guard
+that reads prose can be tripped by prose and silenced by rewording it. The
+checks strip comments now.
+
+### Verified, and not verified
+All 16 suites green. Seen in a real browser at 1568px: the room, the viewport
+with Earth, the plating, the plant, padlocked doors, a lit door with its cable
+running to the core, the exit, the prompt, and the character walking.
+
+**NOT verified: the phone viewport, and the last round of changes** (hero size,
+spawn position, emblem radius, the centre fill light). The tab wedged after each
+hot reload with the Pixi Application live — a known failure mode here — and
+chasing it further was not worth what it costs. The changes are small, guarded,
+and the bundle serves them; they have not been looked at.
+
+### Left for the next pass
+The other six rooms, the restore-per-room animation, re-pointing the unlock
+batches at rooms, the ship, A.I.D.A.'s hologram slideshow (she has a plate here,
+not the picture-slideshow the story bible calls for), and per-room sound.
+
+## 2026-08-24 — THE CHARACTER: a weighted 360° rig, and the sockets gear hangs on
+
+Timmy, mid-session, with the 16-frame idle sheet and the six CHARACTER VARIANTS:
+*"vi ska hardkoda han ... de ska va 360 a realistiska rorelser a han ska ha idle
+animationer a han ska ha tyng i sig nar han gar de ska va rena rama assasins
+creed kannsla"*, then *"han ska aven kunna ha equipment pa sig a byta panband a
+ha hjalmar p rustning osv"*.
+
+Skills loaded first, as asked: `router`, `game-feel`, `physics-tuning`,
+`create-game-assets`, `pixijs`, `pixijs-scene-graphics`, `waterdrop-lighting`,
+`waterdrop-pixi-pitfalls`, `superpolish`.
+
+### `game/heroGait.js` — where the weight actually comes from
+The weight is not a drawing decision. Every weightless 2D character has the same
+single defect — the feet translate with the body — and no amount of shading
+fixes it. The one thing every animation with real weight does is the opposite:
+
+> **A planted foot does not move. The body travels over it.**
+
+The module is pure arithmetic with no PixiJS in it, for the same reason
+`stationLayout.js` has none: *a gait you can only check by eye is a gait nobody
+ever checks*. It carries foot planting, a distance-driven (never time-driven)
+cycle, the vertical bob phased to contact and mid-stance, weight shift onto the
+support foot, hip/shoulder counter-rotation, a lean that lags the input so the
+mass turns before the feet do, and three idle layers.
+
+### `test/gait.test.mjs` — 13 checks, and it found three real defects
+The no-slip property is invisible in a screenshot: a still frame of a skating
+character and a still frame of a walking one are identical. So it is measured.
+
+1. **The stride maths was wrong twice in a row and only the test knew.** Zero
+   slip requires `d(along) = -d(u)`, i.e. `along = 0.25 - u`. My first version
+   used `0.5 - 2u` — the foot travelled a full stride while the body travelled
+   half of one — and it slid at exactly walking speed. The correction overshot
+   the other way and slid at half. Measured 2.24 then 1.14 world units per
+   frame against a budget of 0.35.
+2. **The bob was a bouncing ball.** Wrong period (the feet are half a cycle
+   apart, so a footfall happens every HALF stride — period 0.5, not 1.0) and
+   wrong sign (negative is up, so contact must be positive).
+3. **The two idle layers ran at nearly the same rate** and would have lined up
+   into one visible loop — the exact failure layering exists to avoid. 1.15 and
+   0.63 became 1.27 and 0.41.
+
+Two of the test's own checks were also wrong and had to be fixed rather than
+worked around: it sampled `frac(s) = 0.5` as mid-stance when that is another
+contact, and it summed where it should have averaged. **A guard that fails
+correct code is worse than no guard.**
+
+`idleRock` and `idleShift` were split into separate fields because they were
+summed, and a fault injection that deleted the rock entirely still passed —
+the random shift alone kept the field moving. **Two concepts in one number is
+untestable by construction.**
+
+Eleven faults injected in total; every one confirmed red, files restored and
+proved byte-identical by hash.
+
+### `HERO_SOCKETS` — the contract gear hangs on
+Eleven named attachment points (crown, brow, face, mouth, chest, back, handL/R,
+hipL/R, aura) in body radii, resolved through `heroSocket()` which applies the
+squash and the lean for you. The six variants on his sheet — headband, printed
+bandana, combat helmet, wizard hat, plate helm, horned helm; vest, riot shield,
+backpack, fuel cell, staff, medkit, cigar, war paint, rage aura — are all the
+SAME body wearing different things, so the body must not know about any of it.
+
+This is also what backlog #46 has been waiting for: a portrait per level with
+the headband colour as the rarity tier.
+
+### Two real bugs found on the way
+- **`HERO_RIG.headband` was DEAD CONFIG.** Declared since the rig was written;
+  `pixiRenderer.js` drew the band from its own hardcoded `-0.70 / 0.58 / 0.13`
+  and nothing read the entry. So the run had a band and the intro film, the
+  paperdoll and the station room had a bare head. Found in the one file whose
+  whole premise is "ONE SOURCE OF TRUTH". Realigned to the numbers the renderer
+  was actually drawing — that is the band he has been looking at — and the
+  renderer now calls the shared `drawHeadband()`.
+- **The legs pointed upward, inside the body.** The first version measured the
+  leg from the body CENTRE instead of from the hip, so the ankle landed at
+  0.52r while the hip was at 0.86r and nothing was visible at all. Measured
+  live (hipY 22.4, footY 12.0) rather than guessed at.
+
+### Verified, and NOT verified
+All 18 suites green, the bundle compiles, and the character was seen walking in
+the station room with the headband on — but **that screenshot was taken BEFORE
+the leg fix.** The browser tooling then reported a 0×0 viewport and stopped
+responding, and chasing it further was not worth what it costs.
+
+So: **the legs have never been seen.** They are guarded by 13 checks and the
+geometry error that hid them is fixed and understood, but nobody has looked.
+The phone and 1920×1080 viewports are also unverified.
+
+### Deliberately NOT done
+- **The RUN still has no legs.** `drawLegs` is not imported into
+  `pixiRenderer.js` on purpose: giving the run legs means giving it a HeroGait
+  and re-tuning the walk against live input, and that is a gameplay-feel change
+  that has to be played, not screenshotted.
+- The gear pieces themselves — helmets, shields, packs, the cigar, war paint,
+  the rage aura. The sockets are the contract; nothing is mounted on them yet.
+- **The body is not yet built in PARTS.** The superpolish skill's requirement
+  that limbs be independent so pieces can be shot off is the next structural
+  step, and the gait's per-foot state plus the socket table are the half of it
+  that now exists.
+- The enemies, which he named at the end of the session and which need the same
+  rig treatment.
+
+## 2026-08-25 — PROFILE LEVEL UP: the shake, and a tick that was never once visible
+
+Timmy: *"profile level up skarmen skakar nar valutorna kommer de ska de inte
+gora ... sluta skala"*, alongside five reference sheets.
+
+**The shake was `luRwdIn`.** Every reward tile arrived at `scale(1.7)` and 34px
+high, one every 520ms, seven times in a row — so a 72px tile briefly occupied
+122px, shoved both neighbours aside, and the row lurched once per currency. At
+the row's edges it also overflowed `.lu-card`'s chamfer clip-path, which is the
+"corners get cut off" half of the same report.
+
+Replaced with motion of LIGHT, not size: a 7px rise, the accent ring flaring as
+it lands, and the tick stamping on top. This project had already reached the
+same conclusion twice — for the camp panel's translate and the meta card's
+scale — and written it down both times: *pulse the glow, never move the thing
+the eye is tracking.*
+
+**The bigger find: `.lu-tile-check` has never been visible.** The green
+"claimed" tick sits at `top:-5px; right:-5px` inside `.lu-tile`, which carried a
+`clip-path`. A clip-path clips its element's CHILDREN as well as its
+pseudo-elements, so the badge was sliced away every single time — on the element
+the reference sheet puts front and centre. The chamfered plate moved to
+`::before`, which is what gets clipped; the tile itself now clips nothing.
+
+That is the **fourth** instance of this exact trap here (the XP medallion, the
+plaque's brass corners, the chevron divider, now this).
+
+### Four guards in `layout.test.mjs`, all proved red by injection
+Clipping parents, the tile-scale budget, the tick's hide/reveal pair, and a
+top-level duplicate-selector count for the handful of selectors these guards
+depend on.
+
+**Three of them did not bite at first, and each failure was mine:**
+1. I added a **second `.lu-tile-check` rule** for one z-index — a duplicate
+   selector, in the file whose 164 duplicates are the measured cause of "allt
+   blev fel". It contained no `top: -Npx`, so the clip guard decided the badge
+   did not hang outside anything and passed vacuously. Folded back into the one
+   rule.
+2. The reveal check matched the bare word `animation`, which the
+   `prefers-reduced-motion` block also contains, so a renamed selector passed on
+   the strength of THAT rule. Now matches the named keyframe.
+3. Three separate attempts to escape a selector into a dynamic `RegExp` were
+   mangled by shell and Python quoting on the way into the file; one reported
+   `.lu-tile` as "defined 101 times". Replaced with plain string scanning, which
+   cannot be mis-escaped.
+
+The duplicate counter then failed **correct** code twice — first by counting
+`.lu-rwd-in .lu-tile-check` as a definition of `.lu-tile-check`, then by
+counting a `prefers-reduced-motion` override as a duplicate. Both fixed: it
+counts standalone selectors at brace depth 0 only. *A guard that fails correct
+code is worse than no guard*, and it took two rounds to hold to that.
+
+All 18 suites green.
+
+### NOT done, and it is most of what he asked for
+The Character menu, the ADVANCED STATISTICS diagrams, the main-menu rework, and
+the hardcoded idle animation inside those menus. Five reference sheets saved to
+`chat bilder/2026-08-25 REF *`. This is a multi-session build; only the named
+defect was closed.

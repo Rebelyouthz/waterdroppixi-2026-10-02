@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BUILDINGS, buildingLevel, buildingCost, isStationRepaired, isModuleAvailable } from '../game/base';
+import { BUILDINGS, buildingLevel, buildingCost, isStationRepaired, isModuleAvailable, repairStation } from '../game/base';
 import { totalBuildingLevels, campNewlyUnlocked } from '../game/campaign';
 import { COMPANION_LIST, isRescued } from '../game/companions';
 import { Audio } from '../game/audio';
@@ -27,7 +27,7 @@ import GameIcon from './GameIcon';
 // purchase can crack open the next batch of camp menus (campaign.js's
 // CAMP_UNLOCK_BATCHES), and `onUnlock` hands the newly-opened tab ids up to
 // Camp.jsx so it can play the reveal banners.
-export default function BasePanel({ save, setSave, onOpen, onClose, onUnlock }) {
+export default function BasePanel({ save, setSave, onOpen, onClose, onUnlock, onWalk }) {
   const [toast, setToast] = useState('');
   const [sweeping, setSweeping] = useState(false);
   const say = (m) => { setToast(m); setTimeout(() => setToast(''), 2400); };
@@ -42,7 +42,10 @@ export default function BasePanel({ save, setSave, onOpen, onClose, onUnlock }) 
     setSweeping(true);
     if (Audio.unlockReveal) Audio.unlockReveal(); else Audio.claimPing();
     setTimeout(() => {
-      setSave(s => ({ ...s, stationRepaired: true }));
+      // The transform lives in game/base.js because the walkable room can do
+      // this too (you can stand at the core and press REPAIR). One function,
+      // two callers — not two copies of "set the flag and hope".
+      setSave(s => repairStation(s));
       say('Station sealed. Lights are on.');
     }, 520);
     setTimeout(() => setSweeping(false), 1500);
@@ -118,6 +121,24 @@ export default function BasePanel({ save, setSave, onOpen, onClose, onUnlock }) 
           <button className="prosp-close" onClick={onClose}>✕</button>
         </div>
         {toast && <div className="base-toast">{toast}</div>}
+
+        {/* ── The way IN ──────────────────────────────────────────────
+            This panel is the station's console. The button below is the
+            station itself — the same modules, walked rather than listed.
+            It is offered in BOTH states on purpose: while derelict, standing
+            at the dead core and pressing REPAIR is a far better first action
+            than pressing a row in a list, and it is the beat the story bible
+            opens the hub with. */}
+        {onWalk && (
+          <button className="st-walk" onClick={onWalk} data-testid="station-walk">
+            <span className="st-walk-icon"><GameIcon name="ui_base" size={18} /></span>
+            <span className="st-walk-copy">
+              <b>WALK THE STATION</b>
+              <i>{repaired ? 'Every module you built, as a room you stand in.' : 'It is dark in there. Go and see.'}</i>
+            </span>
+            <span className="st-walk-go">▸</span>
+          </button>
+        )}
 
         {/* ── REPAIR — the first thing you can touch ─────────────────── */}
         <div className={`st-repair${repaired ? ' done' : ''}`}>
