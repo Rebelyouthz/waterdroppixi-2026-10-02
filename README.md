@@ -48,7 +48,7 @@ frontend/src/
 │   ├── MobileControls, MissionReveal, Shop, SkillTree, Weaponsmith
 │   └── ...
 ├── store.js                # localStorage save + backend sync
-└── index.css               # gritty Dead Cells-themed CSS
+└── index.css               # grittYdark-fantasy CSS + the genre/progression header
 backend/
 └── server.py               # /api/health, /api/save, /api/run-result, /api/leaderboard
 ```

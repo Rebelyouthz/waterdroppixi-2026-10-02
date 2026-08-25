@@ -1,5 +1,6 @@
 // Extended save store with profile, skills, equipment, quests, daily streak.
 import axios from 'axios';
+import { META_UPGRADES } from './game/data';
 import { dailyQuests, accountXpToNext, weeklyQuests, weekIdx, MILESTONES } from './game/data_ext';
 import { ACHIEVEMENTS, CAMPAIGN_QUESTS, achMetric } from './game/data_ext2';
 import { currentStep } from './game/path';
@@ -185,6 +186,9 @@ export const DEFAULT_SAVE = {
   unlockedActives: [], // ACTIVE_SKILLS ids unlocked via the card shop
   unlockedEvos: [],    // weapon ids with evolution unlocked
   lifetimeGold: 0,
+  // Master Milestone reward system — accumulates points from ALL activities
+  // across every game mode and awards chests at tier thresholds.
+  mastery: { points: 0, claimed: {}, snap: {} },
 };
 
 export function loadSave() {
@@ -197,6 +201,7 @@ export function loadSave() {
     s.daily = { ...DEFAULT_SAVE.daily, ...(s.daily || {}) };
     s.quests = { ...DEFAULT_SAVE.quests, ...(s.quests || {}) };
     s.milestones = { ...DEFAULT_SAVE.milestones, ...(s.milestones || {}) };
+    s.mastery = { ...DEFAULT_SAVE.mastery, ...(s.mastery || {}) };
     s.skills = s.skills || {};
     s.weaponParts = s.weaponParts || {};
     s.inventory = s.inventory || [];
@@ -212,6 +217,30 @@ export function loadSave() {
     s.gems = s.gems || 0;
     s.slotCoins = s.slotCoins || 0;
     s.talentPoints = s.talentPoints || 0;
+
+    // META_RESHAPE clamp (2026-08-23). The meta tracks went from 1404 levels to
+    // 166 with `max * amount` held CONSTANT, so each level is ~10x fatter. A save
+    // carrying level 80 in a track that now caps at 10 would otherwise be handed
+    // ten times the intended power, silently and permanently.
+    //
+    // NO REFUND, and that is deliberate. The first version of this paid gold back
+    // for the removed levels and handed a test save 598,810 gold — four times the
+    // cost of the entire tree, which would have instantly re-maxed everything.
+    // The reasoning behind it was simply wrong: a clamped track ends up MAXED at
+    // the new amounts, and 10 x 2% beats 80 x 0.2%. Nobody loses power here, so
+    // there is nothing to compensate. Only the level COUNT shrinks.
+    if (s.meta) {
+      let clamped = 0;
+      for (const upg of META_UPGRADES) {
+        const have = s.meta[upg.id] || 0;
+        if (have <= upg.max) continue;
+        clamped += have - upg.max;
+        s.meta[upg.id] = upg.max;
+      }
+      // Recorded so the camp can explain the change rather than letting levels
+      // quietly vanish between one launch and the next.
+      if (clamped > 0) s.metaReshapeClamped = clamped;
+    }
     s.petFood = s.petFood || 0;
     s.pets = s.pets || [];
     s.petEggs = s.petEggs || [];
@@ -547,7 +576,22 @@ export function addAccountXp(save, amount) {
     // Profile levels come steadily from every run, so one-per-level made
     // the level-up screen the single largest gem faucet in the game.
     const gemsBonus = (lv % 5 === 0 ? 2 : 0) + Math.floor(lv / 10);
-    save.pendingLevelUp = {
+    // ── ACCUMULATE, never overwrite ────────────────────────────────────
+    // This used to be a plain `save.pendingLevelUp = {…}`, and the ONLY thing
+    // that ever pays these out is LevelUpOverlay's `onCollect` in Camp.jsx. So
+    // any level-up happening before the previous one had been collected
+    // silently deleted the earlier reward — the player never received that
+    // gold, SP or talent point at all. Timmy hit this on a fresh save: "då får
+    // ja inte skillpoint å allt man ska få i level up".
+    //
+    // Two ways it lost rewards, both closed here:
+    //   1. Levelling twice before opening camp. The overlay is deferred (see
+    //      Camp.jsx's gate), so this is the normal case, not an edge case.
+    //   2. The `while` loop above can cross SEVERAL levels in one call, and
+    //      only one payout was ever written, for the final level.
+    // Every level's rewards are summed into the pending bundle now, so the
+    // celebration still shows once but pays for everything that was earned.
+    const earned = {
       level: lv,
       // The level you came FROM, so the celebration can tell a plain profile
       // level-up apart from an actual rank-up. Rank only moves every 4 levels
@@ -570,6 +614,32 @@ export function addAccountXp(save, amount) {
       pieces: scale(4 + lv * 2),
       shards: lv % 5 === 0 ? 3 : 0,
     };
+    const held = save.pendingLevelUp;
+    if (!held) {
+      save.pendingLevelUp = earned;
+    } else {
+      save.pendingLevelUp = {
+        ...earned,
+        // Keep the OLDEST `fromLevel` so the overlay's rank-up test spans the
+        // whole uncollected jump — otherwise crossing a rank boundary on the
+        // first of two levels would stop reading as a rank-up.
+        fromLevel: Math.min(
+          Number.isFinite(held.fromLevel) ? held.fromLevel : prevLevel,
+          prevLevel,
+        ),
+        xpGained:     (held.xpGained     || 0) + earned.xpGained,
+        gold:         (held.gold         || 0) + earned.gold,
+        sp:           (held.sp           || 0) + earned.sp,
+        talentPoints: (held.talentPoints || 0) + earned.talentPoints,
+        gems:         (held.gems         || 0) + earned.gems,
+        slotCoins:    (held.slotCoins    || 0) + earned.slotCoins,
+        pieces:       (held.pieces       || 0) + earned.pieces,
+        shards:       (held.shards       || 0) + earned.shards,
+        // A free spin earned at any level in the bundle is still owed.
+        freeSpin:     !!held.freeSpin || earned.freeSpin,
+        streakBonus:  !!held.streakBonus || earned.streakBonus,
+      };
+    }
   }
 }
 
@@ -601,7 +671,12 @@ export function applyReward(save, reward, openChest) {
   if (reward.type === 'gems')  save.gems      = (save.gems      || 0) + reward.amount;
   if (reward.type === 'chest' && reward.chestId && openChest) {
     const drops = openChest(reward.chestId);
-    if (drops && drops.length) save.inventory = [...(save.inventory || []), ...drops];
+    // Same dead-end save.inventory field the Shop chest-purchase flow used
+    // to write into (see the comment above rollChest in game/data_ext.js) —
+    // reward-bag chests (quest/daily/welcome-back rewards) go through this
+    // same resolver, so they need the same fix: land in save.gearInventory,
+    // the field GearPanel actually reads.
+    if (drops && drops.length) save.gearInventory = [...(save.gearInventory || []), ...drops];
   }
 }
 

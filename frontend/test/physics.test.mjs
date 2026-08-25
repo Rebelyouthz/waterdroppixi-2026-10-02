@@ -214,11 +214,16 @@ check('the brow stays inside the silhouette at every angle', () => {
   return worst <= 1e-9 ? null : `overflows by ${worst.toFixed(4)}r at ${JSON.stringify(worstCase)}`;
 });
 
-check('the renderer applies both brow clamps', () => {
+check('the face rig applies both brow clamps', () => {
+  // The face rig moved out of pixiRenderer into game/heroDraw.js on 2026-08-18
+  // so the intro film could draw the SAME character the run does. The clamps
+  // moved with it — this guard follows the CODE rather than the filename, or it
+  // would sit green while protecting nothing. It caught exactly that on the move.
   const src = fs.readFileSync(
-    path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'game', 'pixiRenderer.js'), 'utf8');
-  if (!/BROW_CEIL/.test(src)) return 'pixiRenderer has no BROW_CEIL clamp';
-  if (!/heroHalfWidthAt/.test(src)) return 'pixiRenderer does not clamp brow ends to the silhouette';
+    path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'game', 'heroDraw.js'), 'utf8');
+  if (!/drawHeroFace/.test(src)) return 'heroDraw.js no longer defines drawHeroFace — has the rig moved again?';
+  if (!/BROW_CEIL/.test(src)) return 'the face rig has no BROW_CEIL clamp';
+  if (!/heroHalfWidthAt/.test(src)) return 'the face rig does not clamp brow ends to the silhouette';
   return null;
 });
 

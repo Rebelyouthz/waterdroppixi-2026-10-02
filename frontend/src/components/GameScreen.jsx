@@ -1,3 +1,5 @@
+import { META_UPGRADES } from '../game/data';
+import { buildTalentFlags } from '../game/talents';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Game } from '../game/engine';
 import { SKILL_INDEX, WEAPON_PARTS } from '../game/data_ext';
@@ -24,11 +26,22 @@ import GameIcon from './GameIcon';
 function buildMetaEffects(save) {
   const m = save.meta || {};
   const sk = save.skills || {};
-  const eqList = Object.values(save.equipped || {});
   const shopB = save.shopBonuses || {};
   const cb = save.charBonuses || {};
   const tb = save.talentBonuses || {};
-  const metaSum = (id, mult) => (m[id] || 0) * mult;
+  // Reads the per-level amount from META_UPGRADES instead of repeating it here.
+  //
+  // This used to take the amount as an argument — `metaSum('m_dmg')` —
+  // i.e. a SECOND copy of every number already in data.js. When the meta tracks
+  // were reshaped on 2026-08-23 (1404 levels -> 166, each level ~10x fatter)
+  // this file still multiplied by the old figures, so every player's meta power
+  // silently dropped by 10x with nothing throwing and nothing to see. That is
+  // the project's dominant bug class in its purest form: two parallel
+  // definitions of one value, drifting apart.
+  //
+  // There is now exactly one place a meta amount is written: the table.
+  const META_BY_ID = Object.fromEntries(META_UPGRADES.map(u => [u.id, u]));
+  const metaSum = (id) => (m[id] || 0) * (META_BY_ID[id]?.amount ?? 0);
 
   // Weapon / active-skill slots. The rule lives in data_ext2's characterSlots
   // so this and the Character panel can never disagree about what a level
@@ -38,41 +51,46 @@ function buildMetaEffects(save) {
   const { slots, skillSlots } = characterSlots(charRarity, charLvl);
 
   const result = {
-    maxHp:    metaSum('m_hp', 1)     + (shopB.maxHp || 0) + (cb.maxHp || 0) + (tb.maxHp || 0),
-    dmg:      metaSum('m_dmg', 0.002) + (shopB.dmg || 0)  + (cb.dmg   || 0) + (tb.dmg   || 0),
-    atks:     metaSum('m_atks', 0.002) + (shopB.atks || 0),
-    mspd:     metaSum('m_spd', 0.002) + (shopB.mspd || 0) + (cb.mspd  || 0) + (tb.mspd  || 0),
-    crit:     metaSum('m_crit', 0.001) + (shopB.crit || 0) + (cb.crit  || 0) + (tb.crit  || 0),
-    critd:    metaSum('m_critd', 0.005) + (shopB.critd || 0) + (cb.critd || 0) + (tb.critd || 0),
-    superCrit: metaSum('m_superCrit', 0.005),
-    megaCrit:  metaSum('m_megaCrit',  0.002),
-    armor:    metaSum('m_armor', 0.1) + (shopB.armor || 0) + (cb.armor  || 0) + (tb.armor  || 0),
-    regen:    metaSum('m_regen', 0.02),
-    pickup:   metaSum('m_pickup', 0.01) + (shopB.pickup || 0),
-    xp:       metaSum('m_xp', 0.005) + (shopB.xp || 0)   + (cb.xp    || 0) + (tb.xp    || 0),
-    gold:     metaSum('m_gold', 0.005) + (shopB.gold || 0) + (cb.gold  || 0) + (tb.gold  || 0),
-    luck:     metaSum('m_luck', 0.05) + (shopB.luck || 0),
-    dodge:    metaSum('m_dodge', 0.001),
-    heartHeal: metaSum('m_heal', 0.5),
-    zoom:     metaSum('m_zoom', 0.005),
+    maxHp:    metaSum('m_hp')     + (shopB.maxHp || 0) + (cb.maxHp || 0) + (tb.maxHp || 0),
+    dmg:      metaSum('m_dmg') + (shopB.dmg || 0)  + (cb.dmg   || 0) + (tb.dmg   || 0),
+    atks:     metaSum('m_atks') + (shopB.atks || 0),
+    mspd:     metaSum('m_spd') + (shopB.mspd || 0) + (cb.mspd  || 0) + (tb.mspd  || 0),
+    crit:     metaSum('m_crit') + (shopB.crit || 0) + (cb.crit  || 0) + (tb.crit  || 0),
+    critd:    metaSum('m_critd') + (shopB.critd || 0) + (cb.critd || 0) + (tb.critd || 0),
+    superCrit: metaSum('m_superCrit'),
+    megaCrit:  metaSum('m_megaCrit'),
+    armor:    metaSum('m_armor') + (shopB.armor || 0) + (cb.armor  || 0) + (tb.armor  || 0),
+    regen:    metaSum('m_regen'),
+    pickup:   metaSum('m_pickup') + (shopB.pickup || 0),
+    xp:       metaSum('m_xp') + (shopB.xp || 0)   + (cb.xp    || 0) + (tb.xp    || 0),
+    gold:     metaSum('m_gold') + (shopB.gold || 0) + (cb.gold  || 0) + (tb.gold  || 0),
+    luck:     metaSum('m_luck') + (shopB.luck || 0),
+    dodge:    metaSum('m_dodge'),
+    heartHeal: metaSum('m_heal'),
+    zoom:     metaSum('m_zoom'),
     // engine.js seeds projSpeedMult/projRangeMult from `meta.projspd` and
     // `meta.projrange`. Those keys were never written here, so both stayed
     // undefined and every level of Swift Rounds / Long Barrel bought with gold
     // did nothing at all — while the in-run STAT_CARDS versions worked, which
     // made the meta ones look randomly broken rather than unimplemented.
-    projspd:   metaSum('m_projspd', 0.0015),
-    projrange: metaSum('m_projrange', 0.0012),
+    projspd:   metaSum('m_projspd'),
+    projrange: metaSum('m_projrange'),
     // Same silent-gap bug as projspd, found by the dead-config sweep:
     // engine.js seeds the level-up blast from `meta.lvlBoomDmg` /
     // `meta.lvlBoomKB`, and nothing here wrote either key — so Shockwave
     // Mastery and Earthshaker, 20 gold-bought levels each, changed nothing.
-    lvlBoomDmg: metaSum('m_lvlBoomDmg', 10),
-    lvlBoomKB:  metaSum('m_lvlBoomKB', 20),
+    lvlBoomDmg: metaSum('m_lvlBoomDmg'),
+    lvlBoomKB:  metaSum('m_lvlBoomKB'),
     revive:   !!m.m_revive,
     startBoon:(m.m_start || 0),
     area: 0, proj: 0, pierce: 0,
     headshot: 0, berserk: false, dash: false, dashcd: 0, blink: false, shield: false, swipeAttack: false, bossDmg: 0, voidBurst: 0,
-    flags: {},
+    // Talent flags land here, in the SAME bag the level-up cards use, because
+    // the engine already reads exactly one flag bag (`run.stats.flags`). A
+    // parallel `talentFlags` would be a second implementation of one concept —
+    // this project's most expensive recurring bug — so there is deliberately
+    // only one.
+    flags: { ...buildTalentFlags(save) },
     // Character system
     weaponSlots: slots,
     skillSlots,
@@ -127,16 +145,6 @@ function buildMetaEffects(save) {
     if (a.stat === 'maxHp') result.maxHp += bonus;
     else if (result[a.stat] !== undefined) result[a.stat] += bonus;
     else result[a.stat] = bonus;
-  }
-
-  for (const eq of eqList) {
-    if (!eq) continue;
-    for (const st of eq.stats) {
-      if (st.stat === 'maxhp') result.maxHp += st.val;
-      else if (st.stat === 'armor') result.armor += st.val;
-      else if (st.stat === 'regen') result.regen += st.val;
-      else if (result[st.stat] !== undefined) result[st.stat] += st.val;
-    }
   }
 
   // Old weaponsmith tiers (kept for compatibility)
@@ -253,9 +261,26 @@ export default function GameScreen({ save, setSave, onExit, onRunEnd, mission, p
       activePet: forceBaseline ? null : ((save.pets || []).find(p => p.active) || null),
       unlockedEvos: forceBaseline ? [] : (save.unlockedEvos || []),
       skills: forceBaseline ? {} : (save.skills || {}),
-      // Two only — one pod per joystick dial. Unknown ids (a save carrying a
-      // retired skill) are dropped rather than reaching the engine.
-      activeSkills: forceBaseline ? [] : (save.equippedActives || []).filter(id => id && ACTIVE_SKILLS[id]).slice(0, 2),
+      // ── ONE active skill + ONE ability, one per joystick ─────────────
+      // Timmy, 2026-08-17: "de ju 2 st nu kan va bara 1 istället de
+      // räcker" — the two identical active-skill slots become one ACTIVE
+      // SKILL (right stick) and one ABILITY (left stick, beside dash).
+      //
+      // They have to be SPLIT rather than sliced, because abilities live
+      // in ACTIVE_SKILLS too (deliberately — see data_ext2.js). A plain
+      // `.slice(0, 2)` would happily fill both sides with two abilities or
+      // two skills and leave one joystick with nothing to show.
+      //
+      // Order matters: the engine maps hotkeys by index, so index 0 is the
+      // active skill (right stick) and index 1 the ability (left stick).
+      // Unknown ids — a save carrying a retired skill — are dropped rather
+      // than reaching the engine.
+      activeSkills: forceBaseline ? [] : (() => {
+        const eq = (save.equippedActives || []).filter(id => id && ACTIVE_SKILLS[id]);
+        const skill = eq.find(id => !ACTIVE_SKILLS[id].ability);
+        const ability = eq.find(id => ACTIVE_SKILLS[id].ability);
+        return [skill, ability].filter(Boolean);
+      })(),
       // The tutorial dictates its own loadout — it is teaching two specific
       // weapons. pond_1 dictates its own too — it's the katana, always,
       // regardless of what's equipped in the Weaponsmith's START group so
@@ -448,7 +473,8 @@ export default function GameScreen({ save, setSave, onExit, onRunEnd, mission, p
     if (gameRef.current) gameRef.current.setMobileInput(joyMove, joyAim, firing);
   }, []);
   const onMobileReload = () => gameRef.current && gameRef.current.tryReload();
-  const onMobileDashDir = (nx, ny) => gameRef.current && gameRef.current.tryDash(nx, ny);
+  // `power` is the analog strength of the flick — speed AND length, 0..1.
+  const onMobileDashDir = (nx, ny, power) => gameRef.current && gameRef.current.tryDash(nx, ny, power);
   const onMobileSwipeAttack = (nx, ny) => gameRef.current && gameRef.current.trySwipeAttack(nx, ny);
   const onActiveSkill = (i) => gameRef.current && gameRef.current.tryActiveSkill(i);
 

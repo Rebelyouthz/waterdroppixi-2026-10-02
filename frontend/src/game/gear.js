@@ -12,6 +12,19 @@ export const GEAR_SLOT_NAMES = {
   helmet:'Helmet', chest:'Chest', arms:'Gloves', legs:'Legs', boots:'Boots', ring:'Ring', amulet:'Amulet'
 };
 
+// Human labels + display formatting for a rolled item's primary/secondary
+// stat. Lives here (not in GearPanel) so any surface showing a gear item —
+// GearPanel, the chest-opening reveal in Shop — formats it the same way.
+export const GEAR_STAT_LABELS = {
+  maxHp:'Max HP', armor:'Armor', dmg:'ATK %', atks:'Atk Spd', mspd:'Move Spd',
+  dodge:'Dodge', pickup:'Pickup', crit:'Crit%', critd:'Crit DMG', xp:'XP Gain', gold:'Gold Find',
+  area:'Area', pierce:'Pierce', proj:'+Projectiles', regen:'HP Regen', headshot:'Headshot %',
+};
+export function fmtGearVal(stat, val) {
+  const pct = ['dmg','atks','mspd','dodge','pickup','crit','critd','xp','gold','headshot','area'].includes(stat);
+  return pct ? `+${(val * 100).toFixed(1)}%` : `+${val}`;
+}
+
 // `mythicplus` sits above mythical as the ceiling of the whole ladder. It is
 // deliberately NOT on the drop table — see rollGearDrop. The only way to hold
 // one is to finish a mythical at max level and forge it, which makes it the
@@ -190,6 +203,13 @@ const NAME_PREFIX = {
   epic:      ['Voidforged','Ancient','Resonant'],
   legendary: ['Annunaki','Celestial','Eternal'],
   mythical:  ['Waterborn','Genesis','Primordial'],
+  // `mythicplus` was declared in GEAR_RARITIES and given the biggest
+  // multiplier in GEAR_RARITY_MULT (14x) - and then left out of this table,
+  // so `generateGearItem(slot, 'mythicplus')` threw on
+  // `prefixes[Math.floor(rand() * prefixes.length)]` every single time.
+  // The top rarity in the game could not be created. Found 2026-08-23 while
+  // measuring what gear actually contributes; it had never dropped once.
+  mythicplus: ['Nibiru-Wrought','Soulbound','Anunnaki-Prime'],
 };
 const SLOT_NAME_SUFFIX = {
   helmet:'Helm', chest:'Plate', arms:'Grips', legs:'Greaves',

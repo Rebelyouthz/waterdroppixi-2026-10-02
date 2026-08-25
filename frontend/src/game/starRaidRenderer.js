@@ -180,24 +180,28 @@ export class StarRaidRenderer {
       tilt: rnd(-0.5, 0.5),
     };
 
-    // Asteroid belt — closest background layer, tumbling.
+    // Asteroid belt — deeper, multi-layered belts with more varied shapes and sizes
     this._belt = [];
-    for (let i = 0; i < 26; i++) {
+    for (let i = 0; i < 65; i++) {
+      const isFar = Math.random() < 0.6;
       this._belt.push({
         x: Math.random() * W, y: Math.random() * H,
-        r: rnd(3, 11), rot: Math.random() * TAU, spin: rnd(-1.4, 1.4),
-        speed: rnd(60, 120), sides: 5 + ((Math.random() * 3) | 0),
+        r: isFar ? rnd(2, 6) : rnd(7, 18),
+        rot: Math.random() * TAU, spin: rnd(-1.4, 1.4) * (isFar ? 0.6 : 1),
+        speed: rnd(50, 140) * (isFar ? 0.5 : 1),
+        sides: 5 + ((Math.random() * 4) | 0),
+        dark: isFar
       });
     }
 
-    // Nebula clouds — a handful of soft coloured blobs, slowest of all.
+    // Nebula clouds — richer, multi-layered AAA volumetric clouds
     this._nebulas = [];
-    const hues = ['#5a2a8a', '#1f5a7a', '#7a2a4a'];
-    for (let i = 0; i < 4; i++) {
+    const hues = ['#4a1a7a', '#154a6a', '#7a1a3a', '#0f3a4a', '#8a3a1a'];
+    for (let i = 0; i < 9; i++) {
       this._nebulas.push({
-        x: rnd(-W * 0.2, W * 1.2), y: rnd(-H * 0.5, H * 1.2),
-        r: rnd(H * 0.16, H * 0.34), color: hues[(Math.random() * hues.length) | 0],
-        speed: rnd(2, 5),
+        x: rnd(-W * 0.3, W * 1.3), y: rnd(-H * 0.5, H * 1.5),
+        r: rnd(H * 0.2, H * 0.45), color: hues[(Math.random() * hues.length) | 0],
+        speed: rnd(1.5, 6),
       });
     }
   }
@@ -299,11 +303,15 @@ export class StarRaidRenderer {
       const pts = [];
       for (let i = 0; i < a.sides; i++) {
         const ang = a.rot + (i / a.sides) * TAU;
-        const rr = a.r * (0.72 + ((i * 37) % 5) * 0.07);
+        const rr = a.r * (0.7 + ((i * 41) % 7) * 0.06);
         pts.push(a.x + Math.cos(ang) * rr, a.y + Math.sin(ang) * rr);
       }
-      gb.poly(pts).fill({ color: '#5a5348', alpha: 0.62 });
-      gb.circle(a.x - a.r * 0.25, a.y - a.r * 0.25, a.r * 0.3).fill({ color: '#8a8375', alpha: 0.35 });
+      const baseCol = a.dark ? '#3a3328' : '#5a5348';
+      const litCol = a.dark ? '#5a5345' : '#8a8375';
+      const alpha = a.dark ? 0.4 : 0.7;
+      gb.poly(pts).fill({ color: baseCol, alpha: alpha });
+      // Edge highlight instead of flat circle crater for better depth
+      gb.moveTo(pts[0], pts[1]).lineTo(pts[2], pts[3]).lineTo(pts[4], pts[5]).stroke({ width: a.r*0.2, color: litCol, alpha: alpha * 0.8 });
     }
   }
 
@@ -387,12 +395,28 @@ export class StarRaidRenderer {
       }
     }
 
-    // Engine flare out the back of every hull, pulsing.
+    // Dynamic engine flare out the back of every hull, pulsing and scaling with speed.
+    const speed = Math.hypot(e.vx || 0, e.vy || 0);
+    const thrust = Math.min(1, speed / 80);
     const ex = e.x - Math.cos(ang) * r * 0.85;
     const ey = e.y - Math.sin(ang) * r * 0.85;
-    const pulse = 0.75 + Math.sin((e._t = (e._t || 0) + dt * 14)) * 0.25;
+    const pulse = 0.5 + Math.sin((e._t = (e._t || 0) + dt * (14 + thrust * 10))) * 0.2 + thrust * 0.5;
+    
+    // Core flare
     g.circle(ex, ey, r * 0.26 * pulse).fill({ color: '#ffb066', alpha: 0.85 });
-    this._emitLight(ex, ey, r * 1.5 * pulse, '#ff8a33', 0.35);
+    // Bright center
+    g.circle(ex, ey, r * 0.15 * pulse).fill({ color: '#ffffff', alpha: 0.9 });
+    
+    // Tail trail based on thrust
+    const tailLen = r * 0.8 * thrust * (0.8 + Math.random() * 0.4);
+    const tailX = ex - Math.cos(ang) * tailLen;
+    const tailY = ey - Math.sin(ang) * tailLen;
+    g.moveTo(ex - Math.sin(ang)*r*0.15, ey + Math.cos(ang)*r*0.15)
+     .lineTo(tailX, tailY)
+     .lineTo(ex + Math.sin(ang)*r*0.15, ey - Math.cos(ang)*r*0.15)
+     .fill({ color: '#ff9a4d', alpha: 0.6 });
+
+    this._emitLight(ex, ey, r * 1.5 * pulse, '#ff8a33', 0.35 + thrust * 0.2);
   }
 
   _drawPlayerShip(g, p, game, dt) {
@@ -401,36 +425,27 @@ export class StarRaidRenderer {
     const shipColor = hit ? '#ffffff' : (game.shipColor || '#5fd6ff');
     const dark = hit ? '#ffffff' : '#0a2033';
 
-    // Hull shape follows the ship you actually chose — a roster where every
-    // hull looks the same is a roster you cannot see.
-    const HULLS = {
-      // long, thin, swept right back
-      interceptor: [0, -25, -4, -8, -11, 6, -9, 15, -3, 9, 0, 13, 3, 9, 9, 15, 11, 6, 4, -8],
-      // wide and blunt with squared shoulders and outboard gun pods
-      gunship: [0, -17, -9, -8, -19, -2, -18, 9, -10, 7, -5, 14, 5, 14, 10, 7, 18, 9, 19, -2, 9, -8],
-      // fat, slab-sided cargo body
-      hauler: [0, -15, -11, -9, -16, 2, -14, 15, 14, 15, 16, 2, 11, -9],
-      skiff: [0, -20, -6, -6, -15, 4, -13, 13, -5, 8, 0, 12, 5, 8, 13, 13, 15, 4, 6, -6],
-    };
-    const hull = HULLS[game.shipId] || HULLS.skiff;
-    this._hull(g, p.x, p.y, bank, hull, shipColor, dark, 2);
-    // canopy
-    this._hull(g, p.x, p.y, bank, [0, -14, -4, -4, 0, 0, 4, -4], '#d8fbff');
+    // Hull shape follows the ship you actually chose, using high-detail path layers
+    const cx = p.x, cy = p.y;
+    const s = Math.sin(bank), c = Math.cos(bank);
+    const tx = (lx, ly) => cx + lx * c - ly * s;
+    const ty = (lx, ly) => cy + lx * s + ly * c;
 
-    if (game.shipId === 'gunship') {
-      // outboard cannons, which is what the extra barrel looks like
-      for (const side of [-1, 1]) {
-        this._hull(g, p.x, p.y, bank, [side * 13, -6, side * 17, -6, side * 17, 6, side * 13, 6], dark);
-        this._hull(g, p.x, p.y, bank, [side * 14, -14, side * 16, -14, side * 16, -5, side * 14, -5], '#9fb4c8');
-      }
-    } else if (game.shipId === 'hauler') {
-      // cargo ribs
-      for (const y of [-4, 1, 6]) this._hull(g, p.x, p.y, bank, [-14, y, 14, y, 14, y + 1.6, -14, y + 1.6], dark);
-    } else {
-      // wing stripes
-      this._hull(g, p.x, p.y, bank, [-13, 4, -8, 4, -7, 11, -12, 11], dark);
-      this._hull(g, p.x, p.y, bank, [13, 4, 8, 4, 7, 11, 12, 11], dark);
-    }
+    g.moveTo(tx(0, -25), ty(0, -25))
+     .lineTo(tx(-6, -10), ty(-6, -10)).lineTo(tx(-18, 5), ty(-18, 5)).lineTo(tx(-14, 18), ty(-14, 18))
+     .lineTo(tx(-4, 12), ty(-4, 12)).lineTo(tx(0, 16), ty(0, 16)).lineTo(tx(4, 12), ty(4, 12))
+     .lineTo(tx(14, 18), ty(14, 18)).lineTo(tx(18, 5), ty(18, 5)).lineTo(tx(6, -10), ty(6, -10))
+     .fill({ color: shipColor, alpha: 0.9 })
+     .stroke({ width: 1.5, color: dark });
+
+    // Panel lines
+    g.moveTo(tx(0, -20), ty(0, -20)).lineTo(tx(-8, 5), ty(-8, 5)).lineTo(tx(0, 12), ty(0, 12)).lineTo(tx(8, 5), ty(8, 5)).lineTo(tx(0, -20), ty(0, -20))
+     .fill({ color: hit ? '#ffffff' : '#2b3a4a', alpha: 0.9 })
+     .stroke({ width: 1, color: '#1a2a3a' });
+
+    // Canopy
+    g.moveTo(tx(0, -12), ty(0, -12)).bezierCurveTo(tx(-5, -6), ty(-5, -6), tx(-4, 2), ty(-4, 2), tx(0, 4), ty(0, 4)).bezierCurveTo(tx(4, 2), ty(4, 2), tx(5, -6), ty(5, -6), tx(0, -12), ty(0, -12))
+     .fill({ color: '#d8fbff', alpha: 0.95 });
 
     if (p.iframes > 0) {
       // shield bubble flickers while invulnerable
@@ -540,23 +555,22 @@ export class StarRaidRenderer {
       this.bossText.visible = false;
     }
 
-    // Player shots — bright bolt with a trailing streak and its own light.
+    // Player shots — plasma bolt with glowing trail
     for (const pr of game.projs) {
       const col = pr.color || '#fff44d';
-      const len = 12;
-      g.rect(pr.x - 1.6, pr.y - len * 0.5, 3.2, len).fill({ color: col, alpha: 0.55 });
-      g.circle(pr.x, pr.y, 2.6).fill('#ffffff');
-      g.circle(pr.x, pr.y + 3, 1.8).fill({ color: col, alpha: 0.8 });
-      this._emitLight(pr.x, pr.y, 22, col, 0.30);
+      const len = 18;
+      g.moveTo(pr.x, pr.y + 2).lineTo(pr.x - 2, pr.y - len * 0.4).lineTo(pr.x, pr.y - len).lineTo(pr.x + 2, pr.y - len * 0.4).fill({ color: col, alpha: 0.7 });
+      g.circle(pr.x, pr.y, 2.8).fill('#ffffff');
+      this._emitLight(pr.x, pr.y, 26, col, 0.40);
     }
-    // Enemy shots — hostile red, and they light the field too so incoming
-    // fire is legible against a busy background.
+    // Enemy shots — plasma drops with glowing trails
     for (const ep of game.eprojs) {
       const col = ep.color || '#ff5566';
-      g.circle(ep.x, ep.y, 4.6).fill({ color: col, alpha: 0.35 });
-      g.circle(ep.x, ep.y, 2.8).fill(col);
+      const len = 14;
+      g.moveTo(ep.x, ep.y - 2).lineTo(ep.x - 2.5, ep.y + len * 0.4).lineTo(ep.x, ep.y + len).lineTo(ep.x + 2.5, ep.y + len * 0.4).fill({ color: col, alpha: 0.65 });
+      g.circle(ep.x, ep.y, 3.2).fill('#ffffff');
       g.circle(ep.x - 0.8, ep.y - 0.8, 1.2).fill({ color: '#ffe0e0', alpha: 0.9 });
-      this._emitLight(ep.x, ep.y, 18, col, 0.34);
+      this._emitLight(ep.x, ep.y, 22, col, 0.40);
     }
 
     // Pickups — faceted crystals, matching the main game's XP orbs.

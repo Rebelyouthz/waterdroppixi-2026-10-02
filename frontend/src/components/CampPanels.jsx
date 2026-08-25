@@ -1,8 +1,7 @@
 // Combined extended Camp panels in one file to save bundle weight.
 import React, { useState, useEffect } from 'react';
-import { MISSION_DEFS, MISSION_DAILY_LIMIT, MISSION_REGEN_MS, rollMissionRewards, ACHIEVEMENTS, CHALLENGES, STAGES, MILESTONE_BAR, SHOP_CARD_POOL, shopCardCost, rollShopPull3, ACTIVE_SKILLS, ACTIVE_SKILL_KEYS, ADVANCED_CARDS, STARTER_WEAPONS, PART_RARITY_COLORS, PART_SLOTS, PART_SLOT_INFO, STAT_DISPLAY, rollPart, MAP_STAGES, DAILY_CHALLENGE_POOL, getDailyChallenges, achMetric } from '../game/data_ext2';
+import { MISSION_DEFS, MISSION_DAILY_LIMIT, MISSION_REGEN_MS, ACHIEVEMENTS, CHALLENGES, MILESTONE_BAR, rollShopPull3, ACTIVE_SKILLS, STARTER_WEAPONS, PART_RARITY_COLORS, PART_SLOTS, PART_SLOT_INFO, STAT_DISPLAY, MAP_STAGES, getDailyChallenges, achMetric } from '../game/data_ext2';
 import { Audio } from '../game/audio';
-import { accountXpToNext } from '../game/data_ext';
 import { pushToast } from '../game/toastBus';
 import { progressFor } from '../game/difficulty';
 import DifficultyPicker from './DifficultyPicker';
@@ -241,7 +240,6 @@ export function CardShopModal({ save, setSave, onClose }) {
   const [reelRarity, setReelRarity] = useState('common');
 
   const pullCount = save.shopPulls || 0;
-  const cost = shopCardCost(pullCount);
   const luck = (save.meta?.m_luck || 0) * 0.5 + (save.skills?.sk_luck || 0) * 0.5;
   const freeSpins = save.freeShopSpins || 0;
   const slotCoins = save.slotCoins || 0;
@@ -388,7 +386,6 @@ export function CardShopModal({ save, setSave, onClose }) {
                 {[0, 1, 2].map(idx => {
                   const rr = reelResults[idx];
                   const cellRarColor = rr ? (RARITY_COLORS[rr.rarity] || '#fff') : '#fff';
-                  const isMatch = result && jackpot;
                   return (
                     <div key={idx} className={`slot-cell ${stopped[idx] ? 'stopped' : 'spinning'}`}
                       style={{ boxShadow: (stopped[idx] && rr) ? `0 0 20px ${cellRarColor}66, inset 0 0 10px ${cellRarColor}22` : 'none' }}>
@@ -581,6 +578,20 @@ export function SettingsPanel({ save, setSave, onClose, onReset }) {
         <div className="setting-row"><span>SFX Volume</span><input type="range" min="0" max="1" step="0.05" value={s.sfx ?? 1.0} onChange={(e) => set('sfx', +e.target.value)} /></div>
         <div className="setting-row"><span>Music Volume</span><input type="range" min="0" max="1" step="0.05" value={s.music ?? 0.28} onChange={(e) => set('music', +e.target.value)} /></div>
         <div className="setting-row"><span>Mute All</span><input type="checkbox" checked={s.muted ?? false} onChange={(e) => set('muted', e.target.checked)} /></div>
+        {/* REPLAY INTRO. The comic-book origin film only ever played once,
+            gated on `save.introSeen`, and there was no way back to it - so
+            once it had run, nobody (including whoever is building it) could
+            watch it again without editing the save by hand. Clearing the flag
+            sends the next boot through the film; nothing else in the save
+            moves, and the film sets it back to true when it finishes. */}
+        <div className="setting-row">
+          <span>Replay Intro Film</span>
+          <button
+            data-testid="replay-intro"
+            onClick={() => { Audio.click(); setSave({ ...save, introSeen: false }); onClose(); }}
+            style={{ padding: '6px 14px', fontSize: 12 }}
+          >WATCH AGAIN</button>
+        </div>
         <div className="setting-row"><span>Screen Shake</span><input type="checkbox" checked={s.shake ?? true} onChange={(e) => set('shake', e.target.checked)} /></div>
         <div className="setting-row"><span>Particle Density</span>
           <select value={s.particles ?? 'high'} onChange={(e) => set('particles', e.target.value)}>
@@ -803,5 +814,104 @@ export function MapsPanel({ save, setSave, onStart }) {
         })}
       </div>
     </>
+  );
+}
+
+// ---------- Daily Rewards Drawer (Image 3) ----------
+export const DAILY_REWARDS_TABLE = [
+  { day: 1, name: 'Guld-paket', icon: 'cur_gold', desc: '500 Guld', type: 'gold', val: 500, color: '#ffd166' },
+  { day: 2, name: 'Material boxes', icon: 'gear', desc: '10 Gear Parts', type: 'gear', val: 10, color: '#9a8fa6' },
+  { day: 3, name: 'Energy boxes', icon: 'ui_bolt', desc: '5 Mission Energy', type: 'energy', val: 5, color: '#4dc4ff' },
+  { day: 4, name: 'Energy cache', icon: 'ui_bolt', desc: '2 Skill Points', type: 'sp', val: 2, color: '#4dffd4' },
+  { day: 5, name: 'Material boxes', icon: 'gear', desc: '15 Gear Parts', type: 'gear', val: 15, color: '#b362ff' },
+  { day: 6, name: 'Energy boxes', icon: 'ui_leaf', desc: '2 Talent Points', type: 'tp', val: 2, color: '#7ad96b' },
+  { day: 7, name: 'Epic War Case', icon: 'ui_chest', desc: 'Legendary Kista & 1000g', type: 'epicCase', val: 1000, color: '#ff7a1a' },
+];
+
+export function DailyRewardsWidget({ save, setSave }) {
+  const daily = save.daily || { lastClaim: 0, streak: 0 };
+  const nowDay = Math.floor(Date.now() / 86400000);
+  const lastDay = daily.lastClaim || 0;
+  const isClaimable = nowDay > lastDay;
+  const currentStreak = (daily.streak || 0) % 7; // 0 to 6
+
+  const claimReward = () => {
+    if (!isClaimable) return;
+    const rwd = DAILY_REWARDS_TABLE[currentStreak];
+    const newStreak = (daily.streak || 0) + 1;
+    const ns = {
+      ...save,
+      daily: { lastClaim: nowDay, streak: newStreak },
+    };
+
+    if (rwd.type === 'gold') {
+      ns.gold = (ns.gold || 0) + rwd.val;
+    } else if (rwd.type === 'sp') {
+      ns.sp = (ns.sp || 0) + rwd.val;
+    } else if (rwd.type === 'tp') {
+      ns.talentPoints = (ns.talentPoints || 0) + rwd.val;
+    } else if (rwd.type === 'epicCase') {
+      ns.gold = (ns.gold || 0) + rwd.val;
+      ns.chests = { ...(ns.chests || {}), legendary: (ns.chests?.legendary || 0) + 1 };
+    }
+
+    setSave(ns);
+    Audio.levelUp();
+    Audio.claimPing?.();
+    pushToast({ tone: 'gold', title: `DAG ${rwd.day} HÄMTAD!`, text: rwd.name, icon: rwd.icon });
+  };
+
+  const progressPct = Math.min(100, ((currentStreak + (isClaimable ? 0 : 1)) / 7) * 100);
+
+  return (
+    <div className="daily-rewards-widget" data-testid="daily-rewards-widget">
+      <div className="dr-header">
+        <div className="dr-title" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <GameIcon name="ui_calendar" size={16} tone="#ffd166" />
+          <span>DAILY REWARDS</span>
+        </div>
+        <div className="dr-day7-preview" title="Dag 7: Epic War Case">
+          <GameIcon name="ui_chest" size={16} tone="#b362ff" />
+        </div>
+      </div>
+
+      <div className="dr-cards-row">
+        {DAILY_REWARDS_TABLE.map((r, idx) => {
+          const isCurrent = idx === currentStreak;
+          const isClaimed = idx < currentStreak || (idx === currentStreak && !isClaimable);
+          return (
+            <div
+              key={r.day}
+              className={`dr-card${isCurrent && isClaimable ? ' dr-card-active' : ''}${isClaimed ? ' dr-card-claimed' : ''}`}
+              style={{ '--r-color': r.color }}
+            >
+              <div className="dr-card-day">DAG {r.day}</div>
+              <div className="dr-card-icon">
+                <GameIcon name={r.icon} size={22} tone={r.color} />
+              </div>
+              <div className="dr-card-name">{r.name}</div>
+              {isClaimed && <span className="dr-check">✓</span>}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="dr-action-bar">
+        <button
+          className={`dr-claim-btn${isClaimable ? ' dr-can-claim' : ''}`}
+          onClick={claimReward}
+          disabled={!isClaimable}
+          data-testid="daily-claim-btn"
+        >
+          {isClaimable ? 'HÄMTA BELÖNING' : 'HÄMTAD IDAG'}
+        </button>
+        <div className="dr-progress-track">
+          <div className="dr-progress-fill" style={{ width: `${progressPct}%` }} />
+        </div>
+        <span className="dr-lock-icon">
+          <GameIcon name={progressPct >= 100 ? 'ui_star' : 'ui_lock'} size={13} tone="#4dc4ff" />
+        </span>
+      </div>
+    </div>
   );
 }

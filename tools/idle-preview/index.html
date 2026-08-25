@@ -1,0 +1,49 @@
+<!doctype html><meta charset="utf-8"><title>idle preview</title>
+<style>
+body{margin:0;background:#0a1018;color:#cfe6ec;font:13px system-ui,sans-serif;
+display:flex;flex-direction:column;align-items:center;gap:16px;padding:24px}
+h2{margin:0;color:#e9dcb6;font-family:Georgia,serif;letter-spacing:.14em}
+.stage{display:flex;gap:30px;align-items:flex-end}
+canvas{background:#111a24;border:1px solid #24384a;border-radius:6px}
+.row{display:flex;gap:12px;align-items:center}
+.strip{display:flex;flex-wrap:wrap;gap:4px;max-width:920px;justify-content:center}
+.strip img{width:70px;border:1px solid #223;border-radius:3px;cursor:pointer;background:#0d151d}
+.strip img.on{border-color:#7ce0ea;box-shadow:0 0 8px #7ce0ea66}
+b{color:#e9dcb6}
+</style>
+<h2>IDLE &mdash; 16 RUTOR</h2>
+<div class="stage">
+<div><div style="text-align:center;opacity:.55;margin-bottom:6px">full</div>
+<canvas id="a" width="256" height="256"></canvas></div>
+<div><div style="text-align:center;opacity:.55;margin-bottom:6px">i spelstorlek</div>
+<canvas id="b" width="96" height="96"></canvas></div>
+</div>
+<div class="row">
+<button id="pp">pausa</button>
+<label>fps <b id="fv">10</b></label>
+<input id="f" type="range" min="1" max="30" value="10">
+<button id="pv">&lt;</button><b id="fi">0</b><button id="nx">&gt;</button>
+</div>
+<div class="strip" id="s"></div>
+<script>
+const files=["frame_00.png", "frame_01.png", "frame_02.png", "frame_03.png", "frame_04.png", "frame_05.png", "frame_06.png", "frame_07.png", "frame_08.png", "frame_09.png", "frame_10.png", "frame_11.png", "frame_12.png", "frame_13.png", "frame_14.png", "frame_15.png"];
+const imgs=files.map(f=>{const i=new Image();i.src=f;return i});
+const a=document.getElementById('a').getContext('2d');
+const b=document.getElementById('b').getContext('2d');
+const strip=document.getElementById('s');
+files.forEach((f,i)=>{const e=document.createElement('img');e.src=f;
+e.onclick=()=>{i0=i;playing=false;pp.textContent='spela';draw()};strip.appendChild(e)});
+let i0=0,playing=true,fps=10,acc=0,last=0;
+const pp=document.getElementById('pp');
+pp.onclick=()=>{playing=!playing;pp.textContent=playing?'pausa':'spela'};
+document.getElementById('f').oninput=e=>{fps=+e.target.value;document.getElementById('fv').textContent=fps};
+document.getElementById('pv').onclick=()=>{i0=(i0+15)%16;playing=false;pp.textContent='spela';draw()};
+document.getElementById('nx').onclick=()=>{i0=(i0+1)%16;playing=false;pp.textContent='spela';draw()};
+function draw(){const im=imgs[i0];
+a.clearRect(0,0,256,256);a.drawImage(im,0,0,256,256);
+b.clearRect(0,0,96,96);b.drawImage(im,0,0,96,96);
+document.getElementById('fi').textContent=i0;
+[...strip.children].forEach((c,k)=>c.classList.toggle('on',k===i0))}
+function loop(t){if(playing){acc+=t-last;if(acc>1000/fps){acc=0;i0=(i0+1)%16;draw()}}last=t;requestAnimationFrame(loop)}
+imgs[15].onload=()=>{draw();requestAnimationFrame(t=>{last=t;loop(t)})};
+</script>

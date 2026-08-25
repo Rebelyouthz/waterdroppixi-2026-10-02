@@ -23,8 +23,6 @@
 // detail finer than ~2px — sub-pixel hairlines simply disappear. Strokes are
 // 2px minimum and shapes are chunky by design.
 
-import { Graphics } from 'pixi.js';
-
 const TAU = Math.PI * 2;
 
 // Deterministic noise. Materials must look the same every time a card is
@@ -403,7 +401,7 @@ export function paintBand(g, perim, m, bw, faceCol, t) {
  * facets — the SHAPE is shared, the substance is not.
  */
 export function paintCornerGussets(g, perim, m, t, seed, detail) {
-  const { x, y, w, h, r } = perim;
+  const { x, y, w, h } = perim;
   const reach = (26 + 30 * m.in) ;          // how far in across the corner
   const thick = 9 + 12 * m.sc;
   const corners = [
@@ -615,9 +613,6 @@ function paintVines(g, perim, m, t, seed) {
 // edge in both directions. Shards are quads, not triangles: a quad has a
 // visible facet, which is what makes them read as crystal rather than as spikes.
 function paintIce(g, perim, m, t, seed) {
-  const { x, y, w, h, r } = perim;
-
-
   // Chunky ice BLOCKS encrusting the band, not spikes. The reference has
   // slabs with flat faces catching light, clustered heavily at the corners and
   // thinning along the runs — a row of even needles reads as a comb.

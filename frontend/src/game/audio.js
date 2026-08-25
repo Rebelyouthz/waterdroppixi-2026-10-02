@@ -355,15 +355,35 @@ export const Audio = {
     const now = c.currentTime;
     if (now - _xpPingLastT < 0.09) return;
     _xpPingLastT = now;
-    const vol = Math.min(0.32, 0.16 + size * 0.05);
+    // +25%, Timmy 2026-08-19: "höjj volymen på ta xp kristaller me 25% så man
+    // hör det bättre". Both the base AND the ceiling move, or a big orb would
+    // hit the old 0.32 cap and the raise would apply only to small ones — which
+    // is backwards, since the big pickups are the ones worth hearing.
+    const vol = Math.min(0.40, 0.20 + size * 0.0625);
     const freq = 480 + progress * 1400;
     osc({ type: 'sine', freq, dur: 0.09, vol, sweepTo: freq * 1.06, attack: 0.003 });
     if (size > 1.4) osc({ type: 'sine', freq: freq * 1.5, dur: 0.07, vol: vol * 0.4, attack: 0.005 });
   },
+  // Timmy asked for a coin "pling" on gold as if there were none. There WAS
+  // one — it was just inaudible next to everything around it: a lone triangle
+  // at vol 0.09, against xpPing's 0.20-0.40, under combat. So this is not a new
+  // sound, it is the existing one made to actually read as metal.
+  //
+  // A coin is TWO things at once: a bright inharmonic strike, and a ringing
+  // body that decays slower. One oscillator can only ever be a beep. The pair
+  // an octave-and-a-fifth apart (x2.99) is what the ear hears as struck metal
+  // rather than as a tone.
   gold(amount = 1) {
     const n = Math.min(3, 1 + Math.floor(amount / 40));
     for (let i = 0; i < n; i++) {
-      setTimeout(() => osc({ type: 'triangle', freq: 1400 + i * 90, dur: 0.09, vol: 0.09, sweepTo: 1000, attack: 0.002 }), i * 35);
+      setTimeout(() => {
+        const f = 1480 + i * 110;
+        // The strike: short, bright, slightly detuned upward.
+        osc({ type: 'triangle', freq: f, dur: 0.07, vol: 0.17, sweepTo: f * 0.72, attack: 0.001 });
+        // The ring: quieter, higher, and it outlives the strike. This is the
+        // part that makes it a coin instead of a click.
+        osc({ type: 'sine', freq: f * 2.99, dur: 0.20, vol: 0.075, sweepTo: f * 2.7, attack: 0.002 });
+      }, i * 42);
     }
   },
   heartPickup() { osc({ type: 'sine', freq: 600, dur: 0.06, vol: 0.14, sweepTo: 900 }); setTimeout(() => osc({ type: 'sine', freq: 900, dur: 0.10, vol: 0.10, sweepTo: 1200 }), 60); },
@@ -380,6 +400,149 @@ export const Audio = {
     osc({ type: 'triangle', freq: 620 + rank * 460, dur: 0.035, vol: 0.035, attack: 0.002 });
   },
   blueprint() { osc({ type: 'triangle', freq: 523, dur: 0.10, vol: 0.10 }); setTimeout(() => osc({ type: 'triangle', freq: 1046, dur: 0.18, vol: 0.12 }), 80); },
+  // ---- The comic-book intro -----------------------------------------------
+  // A panel SLAMMING onto the page. Three layers, because one thud reads as a
+  // UI click rather than as paper hitting a table: a low body you feel, a
+  // mid-range crack that carries the edge of the frame, and a short paper
+  // rustle on top. Pitched DOWN as the sequence advances (p falls with the
+  // panel index) so six slams in a row build instead of repeating - the same
+  // reason a drum fill descends.
+  comicSlam(i = 0) {
+    const p = Math.max(0.62, 1 - i * 0.075);
+    osc({ type: 'sine', freq: 96 * p, dur: 0.30, vol: 0.20, sweepTo: 38 * p, attack: 0.002 });
+    osc({ type: 'square', freq: 240 * p, dur: 0.07, vol: 0.09, sweepTo: 90 * p, attack: 0.001 });
+    noiseBurst({ dur: 0.13, vol: 0.17, filterType: 'lowpass', freq: 2600, sweepTo: 320 });
+    noiseBurst({ dur: 0.05, vol: 0.06, filterType: 'highpass', freq: 3800, sweepTo: 6200 });
+  },
+  // The title card landing. Heavier and slower than a panel: this one is the
+  // full stop at the end of the sequence.
+  comicTitle() {
+    osc({ type: 'sine', freq: 70, dur: 0.70, vol: 0.24, sweepTo: 28, attack: 0.003 });
+    noiseBurst({ dur: 0.34, vol: 0.18, filterType: 'lowpass', freq: 1800, sweepTo: 180 });
+    setTimeout(() => chord([392, 523, 659], 0.55, 'triangle', 0.10), 120);
+  },
+
+  // ---- Menu navigation: the waterdrop, going two directions ----------------
+  // Timmy, 2026-08-17: "standar ljud för klick på back i meny de ska höras på
+  // pitchen i vattendroppen som ska låta att man går bakåt å när man går in i
+  // menyer ska de va tvärs om höras att man får upp nå nytt".
+  //
+  // Both are built on `waterDrop()`'s timbre on purpose — sine, a fast pitch
+  // sweep, a smaller second droplet trailing it — so the game's navigation
+  // shares one voice and the DIRECTION of the sweep carries the meaning.
+  // That is why this is two functions and not one with a sign flip: forward
+  // has to be brighter and open OUT, back has to be darker, shorter and close
+  // DOWN. A single sweep reversed just sounds like tape running backwards.
+
+  // Going deeper / opening something. Rises and lands bright — "new thing".
+  menuOpen() {
+    osc({ type: 'sine', freq: 520, dur: 0.20, vol: 0.13, sweepTo: 1500, attack: 0.006 });
+    // The satellite droplet, higher and later — this is what makes it read
+    // as water rather than as a UI blip.
+    setTimeout(() => osc({ type: 'sine', freq: 1200, dur: 0.13, vol: 0.06, sweepTo: 2050, attack: 0.004 }), 55);
+    // Air on top: inaudible alone, obvious by its absence.
+    setTimeout(() => noiseBurst({ dur: 0.09, vol: 0.028, filterType: 'highpass', freq: 3600, sweepTo: 6800 }), 40);
+  },
+
+  // Backing out. Falls, shorter, with a soft low settle under it — the drop
+  // landing rather than lifting. Deliberately quieter than menuOpen: backing
+  // out happens far more often, and a loud one becomes a nag.
+  menuBack() {
+    osc({ type: 'sine', freq: 1150, dur: 0.16, vol: 0.10, sweepTo: 360, attack: 0.003 });
+    setTimeout(() => osc({ type: 'sine', freq: 520, dur: 0.12, vol: 0.05, sweepTo: 210, attack: 0.003 }), 45);
+    // The settle — no pitch content, so it reads as weight, not a note.
+    setTimeout(() => osc({ type: 'sine', freq: 150, dur: 0.11, vol: 0.07, sweepTo: 70 }), 60);
+  },
+
+  // ---- Menu / feature UNLOCKED ---------------------------------------------
+  // Timmy, 2026-08-17: every "UNLOCKED" reveal shares one sound —
+  // "shysst juice gärna me ljud samma på alla dom när dom visas".
+  //
+  // Deliberately the most ceremonial sound in the game, and deliberately
+  // NOT levelUp() or achievement(): those fire many times per session, and
+  // reusing one here would make opening a whole new part of the game feel
+  // like picking up a coin. This is heard a handful of times per save.
+  //
+  // Structure: a low swell that arrives BEFORE the banner is readable
+  // (anticipation), a bright triad on the beat the logo lands, then a long
+  // shimmer so it rings out under the text instead of stopping dead.
+  unlockReveal() {
+    const c = ctx(); if (!c || _muted) return;
+    const now = c.currentTime;
+
+    // 1. the swell — two detuned saws rising. The detune gives it width;
+    //    a single oscillator sounds thin no matter how loud it is.
+    for (const det of [0, 9]) {
+      const o = c.createOscillator(); const g = c.createGain();
+      o.connect(g); g.connect(_master);
+      o.type = 'sawtooth';
+      o.frequency.setValueAtTime(110 + det, now);
+      o.frequency.exponentialRampToValueAtTime(440 + det * 3, now + 0.5);
+      g.gain.setValueAtTime(0.0001, now);
+      g.gain.exponentialRampToValueAtTime(_sfxVol * 0.20, now + 0.34);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + 0.72);
+      o.start(now); o.stop(now + 0.74);
+    }
+    // 2. the arrival — bright triad on the beat the logo lands.
+    setTimeout(() => {
+      chord([523, 659, 784, 1047], 0.75, 'triangle', 0.15);
+      noiseBurst({ dur: 0.10, vol: 0.07, filterType: 'highpass', freq: 3000, sweepTo: 7000 });
+      osc({ type: 'sine', freq: 160, dur: 0.22, vol: 0.15, sweepTo: 62, attack: 0.003 });
+    }, 420);
+    // 3. the tail — long and quiet, so the banner never sits in silence.
+    setTimeout(() => noiseBurst({ dur: 0.9, vol: 0.028, filterType: 'highpass', freq: 4600, sweepTo: 11000 }), 560);
+    setTimeout(() => chord([1047, 1319], 0.7, 'sine', 0.05), 700);
+  },
+
+  // ---- Skill tree ----------------------------------------------------------
+  // Selecting a node. Pitched by importance so the wheel is audibly tiered —
+  // you hear that you hit a keystone before the panel has rendered. Tiny on
+  // purpose: this fires constantly while browsing.
+  skillHover(type = 'minor') {
+    const f = type === 'keystone' ? 1180 : type === 'notable' ? 880 : 660;
+    osc({ type: 'triangle', freq: f, dur: 0.032, vol: 0.032, attack: 0.002 });
+  },
+
+  // BUYING a node — "ett unikt dopamin juice ljud", explicitly not a reuse of
+  // levelUp()'s flat chord or claimPing().
+  //
+  // Three stacked events, in the order the eye sees the animation:
+  //   1. a SEAT — the orb dropping into its socket. Filtered noise + a low
+  //      sine thunk. The physical half; without it this is a menu beep.
+  //   2. a RISING arpeggio, root pitched by node tier, so a keystone is
+  //      audibly a bigger deal. The ascent is the actual dopamine carrier —
+  //      a flat chord lands, a rising run promises.
+  //   3. a shimmer tail so it rings out instead of stopping dead.
+  // Finishing a node's last level adds a flourish a fifth above the run.
+  skillBuy(type = 'minor', maxed = false) {
+    const c = ctx(); if (!c || _muted) return;
+    const root = type === 'keystone' ? 392 : type === 'notable' ? 494 : 587; // G4 / B4 / D5
+
+    noiseBurst({ dur: 0.07, vol: 0.075, filterType: 'lowpass', freq: 1500, sweepTo: 380 });
+    osc({ type: 'sine', freq: 190, dur: 0.13, vol: 0.13, sweepTo: 72, attack: 0.002 });
+
+    // Major triad + octave, 55ms apart — fast enough to read as one gesture.
+    [1, 1.25, 1.5, 2].forEach((mul, i) => {
+      setTimeout(() => {
+        osc({ type: 'triangle', freq: root * mul, dur: 0.16 + i * 0.03, vol: 0.11 - i * 0.012, attack: 0.003 });
+        // A quiet sine an octave up adds sparkle without reading as a second
+        // instrument.
+        osc({ type: 'sine', freq: root * mul * 2, dur: 0.10, vol: 0.035, attack: 0.004 });
+      }, 45 + i * 55);
+    });
+
+    setTimeout(() => noiseBurst({ dur: 0.24, vol: 0.032, filterType: 'highpass', freq: 4200, sweepTo: 9000 }), 200);
+    if (maxed) setTimeout(() => chord([root * 3, root * 4, root * 5], 0.42, 'triangle', 0.10), 300);
+  },
+
+  // Can't afford / not reachable. A dull damped double-thud: the sound of
+  // something not moving. Deliberately NOT a descending error buzz — those
+  // read as the game scolding you, and this screen should never do that.
+  skillDenied() {
+    osc({ type: 'sine', freq: 210, dur: 0.09, vol: 0.09, sweepTo: 150, attack: 0.002 });
+    setTimeout(() => osc({ type: 'sine', freq: 165, dur: 0.10, vol: 0.06, sweepTo: 120, attack: 0.002 }), 70);
+    noiseBurst({ dur: 0.05, vol: 0.03, filterType: 'lowpass', freq: 600 });
+  },
 
   // ---- Profile level-up ----
   // The XP bar filling. `t` is 0..1 along the bar and pitches the tick up with
@@ -437,6 +600,47 @@ export const Audio = {
   waterDrop() {
     osc({ type: 'sine', freq: 1800, dur: 0.22, vol: 0.16, sweepTo: 600, attack: 0.004 });
     setTimeout(() => osc({ type: 'sine', freq: 900, dur: 0.14, vol: 0.07, sweepTo: 400 }), 40);
+  },
+
+  /**
+   * A songbird, for the intro film's lake ("kvittra fåglar").
+   *
+   * Built as a PHRASE, not a tone. A single chirp reads as a UI blip; what
+   * makes an ear hear "bird" is a short run of 3-5 notes with an uneven rhythm,
+   * each note sweeping in pitch. The note count, spacing and direction are
+   * randomised per call so two calls are never the same phrase — sameness is
+   * the one thing that would immediately give it away as a sound effect.
+   *
+   * @param {number} [distance] 0 = close by, 1 = far across the lake. Further
+   *   away is quieter, duller and slightly lower — the cheap stand-in for air
+   *   absorption, which is what actually makes distance audible.
+   */
+  birdChirp(distance = 0) {
+    const c = ctx(); if (!c || _muted) return;
+    const d = Math.max(0, Math.min(1, distance));
+    const notes = 3 + Math.floor(Math.random() * 3);
+    const vol = 0.075 * (1 - d * 0.62);
+    // Higher birds carry further, so the far one is not simply the near one
+    // turned down — it sits a little lower and loses its top end.
+    const base = 2450 - d * 520;
+    let at = 0;
+    for (let i = 0; i < notes; i++) {
+      const up = Math.random() < 0.62;          // most notes rise
+      const f = base * (0.82 + Math.random() * 0.36);
+      const span = (0.18 + Math.random() * 0.34) * (up ? 1 : -1);
+      const dur = 0.05 + Math.random() * 0.05;
+      setTimeout(() => osc({
+        type: 'sine',
+        freq: up ? f : f * (1 + Math.abs(span)),
+        sweepTo: up ? f * (1 + span) : f,
+        dur,
+        vol: vol * (0.7 + Math.random() * 0.5),
+        attack: 0.004,
+      }), at * 1000);
+      // Uneven gaps, with a longer one before the last note — birds phrase,
+      // they do not tick.
+      at += dur + 0.03 + Math.random() * 0.06 + (i === notes - 2 ? 0.09 : 0);
+    }
   },
 
   // ---- Reload variants ------------------------------------------------------

@@ -72,8 +72,10 @@ function ToastEmblem({ kind, color }) {
 // "+8% dmg, -2% armor" shows the gain and the cost at a glance instead of
 // making you read every word. Splits on whitespace and only recolors a
 // token that actually starts with a sign — everything else (names, plain
-// numbers, "SP", punctuation) stays the default toast-text color.
-function StatText({ text }) {
+// numbers, "SP", punctuation) stays the default toast-text color. Exported
+// so other screens (e.g. SkillTree's node-inspect panel) can reuse the same
+// convention instead of re-deriving their own stat-coloring rule.
+export function StatText({ text }) {
   const parts = text.split(/(\s+)/);
   return (
     <>

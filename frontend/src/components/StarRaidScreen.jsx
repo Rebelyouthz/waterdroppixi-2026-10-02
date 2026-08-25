@@ -6,6 +6,7 @@ import { rollRune } from '../game/runes';
 import { raidHullMult } from '../game/base';
 import { todayIdx } from '../store';
 import GameIcon from './GameIcon';
+import StarRaidMilestonesTrack from './StarRaidMilestonesTrack';
 import { Audio } from '../game/audio';
 
 // Keep this the same length as STAGES (starRaidEngine.js) — a stage past
@@ -44,16 +45,13 @@ const MOD_LABELS = {
 //   minigun), the companion-ship system, expansion from 3 stages to 5,
 //   and raster ship/enemy sprite art (no image-generation tool available
 //   in this environment — see waterdrop-lighting skill's "no hand-authored
-//   art" note; ship banking left/right is delivered via rotation instead
-//   of frame-swapped images, same felt effect).
-// ═══════════════════════════════════════════════════════════════════════
+//   art" note; ship banking left/right is delivered
+//   [sentence truncated by a bad paste that dropped an import statement
+//   into the middle of this line — the import is in the block above now]
 
 export default function StarRaidScreen({ save, setSave, onExit }) {
   const [screen, setScreen] = useState('menu'); // 'menu' | 'shop' | 'playing' | 'result'
   const [stageIdx, setStageIdx] = useState(save.starRaid?.stageUnlocked || 0);
-  // Two modes, same ship/stages/upgrades — only the final-stage-clear
-  // reward differs. Per spec: "ett läge där man får runes och ett där man
-  // får artifacts".
   const [mode, setMode] = useState('artifact'); // 'artifact' | 'rune'
   const [result, setResult] = useState(null);
   const canvasRef = useRef(null);
@@ -63,11 +61,8 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
   const inputRef = useRef({ x: 0, y: 0 });
   const dragAnchor = useRef(null);
 
-  const sr = save.starRaid || { levels: {}, scrap: 0, stageUnlocked: 0 };
+  const sr = save.starRaid || { levels: {}, scrap: 0, stageUnlocked: 0, lifetimeScrap: 0 };
 
-  // The Atlas gets its own track for as long as the screen is open, and hands
-  // the menu track back on the way out. Without the cleanup the map's music
-  // would follow you back into the camp.
   useEffect(() => {
     Audio.swapToAtlasMusic();
     return () => Audio.swapToMenuMusic();
@@ -84,7 +79,7 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
     const game = new StarRaidGame(canvas, {
       shipLevels: sr.levels,
       shipId: sr.shipId || 'skiff',
-      hullMult: raidHullMult(save),   // Hangar building
+      hullMult: raidHullMult(save),
       endless: mode === 'endless',
       stageIdx,
       shipColor: SHIP_COLORS.find(c => c.id === save.profile?.shipColor)?.color || '#5fd6ff',
@@ -92,30 +87,16 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
         onTick: (s) => setSnap(s),
         onGameOver: (s) => {
           const scrapEarned = s.scrap;
-          const newSr = { ...sr, scrap: (sr.scrap || 0) + scrapEarned };
+          const newSr = { ...sr, scrap: (sr.scrap || 0) + scrapEarned, lifetimeScrap: (sr.lifetimeScrap || 0) + scrapEarned };
           let gotToken = false, gotRune = null;
           if (s.cleared) {
             const nextUnlocked = Math.max(newSr.stageUnlocked || 0, stageIdx + 1);
             newSr.stageUnlocked = Math.min(STAGES.length - 1, nextUnlocked);
-            // A reward for EVERY boss cleared, not only the last stage.
-            //
-            // This used to require `stageIdx === STAGES.length - 1`. That was
-            // survivable when there were three stages; when the roster grew to
-            // seven the single rune moved from "clear stage 3" to "clear stage
-            // 7" and became all but unreachable — which is exactly the "I only
-            // ever get scrap" report. My own expansion caused it.
-            //
-            // Each stage's guardian is a checkpoint now, and later stages pay
-            // better: the rune roll gets the accumulated stage index as luck,
-            // so pushing deep is what buys rarity rather than just repetition.
+            newSr.bossesSlain = (newSr.bossesSlain || 0) + 1;
             if (mode === 'rune') gotRune = rollRune(stageIdx * 1.5);
             else gotToken = true;
             newSr._clearedStage = stageIdx + 1;
           }
-          // Endless: the deeper you get, the more you bring back — but the
-          // count is capped PER DAY, not per run. Uncapped it would just be a
-          // matter of replaying the same first two minutes over and over,
-          // which is exactly the farm the whole mode is supposed to avoid.
           if (mode === 'endless') {
             const today = todayIdx();
             const day = newSr.endlessDay === today ? newSr : { ...newSr, endlessDay: today, endlessTokens: 0 };
@@ -150,8 +131,6 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
     window.addEventListener('resize', onResize);
     onResize();
 
-    // Input: drag-anywhere joystick (touch) + WASD/arrows (desktop) — a
-    // single control scheme, per spec "styr med 1 tumme".
     const keys = {};
     const onKeyDown = (e) => { keys[e.key.toLowerCase()] = true; };
     const onKeyUp = (e) => { keys[e.key.toLowerCase()] = false; };
@@ -172,12 +151,6 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
       const rect = canvas.getBoundingClientRect();
       return { x: clientX - rect.left, y: clientY - rect.top };
     };
-    // Direct finger-follow: the ship chases wherever the finger/cursor is
-    // (with an "arrive" ease handled engine-side, see setChaseTarget) rather
-    // than a virtual-joystick anchor-drag — matches Sky Force Reloaded's
-    // "hold your thumb down, the ship trails toward it" feel, and fixes the
-    // old scheme's awkward backward/upward drag behavior (dragging back
-    // toward the anchor point used to fight the joystick's deadzone).
     const onPointerDown = (e) => {
       const pt = e.touches ? e.touches[0] : e;
       dragAnchor.current = true;
@@ -223,8 +196,6 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
     setSave({ ...save, starRaid: { ...sr, scrap: sr.scrap - cost, levels: { ...sr.levels, [id]: lvl + 1 } } });
   };
 
-  // Buying a hull also flies it — nobody buys a ship and then leaves it in
-  // the hangar, and making that a second click is friction for its own sake.
   const buyShip = (s) => {
     if ((sr.scrap || 0) < s.cost) return;
     setSave({
@@ -238,23 +209,22 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
     const curShip = SHIPS[sr.shipId || 'skiff'];
     return (
       <div className="modal-overlay">
-        <div className="raid-menu" data-testid="starraid-menu">
+        <div className="raid-menu star-atlas-main" data-testid="starraid-menu">
           <div className="raid-menu-head">
-            <div className="raid-menu-title"><GameIcon name="ui_rocket" size={18} /> STAR RAID</div>
-            <div className="raid-menu-sub">One-thumb space raid — autofire, dodge, collect Scrap.</div>
-            <div className="raid-menu-ship" style={{ '--sc': SHIP_COLORS.find(c => c.id === save.profile?.shipColor)?.color || '#5fd6ff' }}>
+            <div className="raid-menu-title"><GameIcon name="ui_rocket" size={18} tone="#5fd6ff" /> STAR ATLAS</div>
+            <div className="raid-menu-sub">Push back the void. Scavenge tech. Upgrade the hull.</div>
+          </div>
+          
+          <StarRaidMilestonesTrack save={save} setSave={setSave} />
+
+          <div className="raid-currency-row" style={{ marginTop: '16px' }}>
+            <span className="raid-currency-chip">⚙ {sr.scrap || 0} Scrap</span>
+            <div className="raid-menu-ship" style={{ '--sc': SHIP_COLORS.find(c => c.id === save.profile?.shipColor)?.color || '#5fd6ff', fontSize: '13px' }}>
               Flying: <b>{curShip?.name || 'Skiff'}</b>
             </div>
           </div>
 
-          <div className="raid-currency-row">
-            {/* '⚙', not a coin icon — Scrap uses this glyph everywhere else on
-                this screen (run HUD, upgrade cost, hull cost), and 'coin' is
-                already Gold's icon elsewhere in the game (see GameIcon.jsx). */}
-            <span className="raid-currency-chip">⚙ {sr.scrap || 0} Scrap</span>
-          </div>
-
-          <div className="raid-section-label">STAGE</div>
+          <div className="raid-section-label">SELECT DROP ZONE</div>
           <div className="raid-stage-grid">
             {STAGES.map((s, i) => {
               const locked = i > (sr.stageUnlocked || 0);
@@ -362,35 +332,25 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
             })}
           </div>
 
-          <div className="raid-section-label">UPGRADES</div>
-          <div className="raid-upgrade-grid">
-            {Object.entries(SHIP_UPGRADES).map(([id, u]) => {
-              const lvl = sr.levels[id] || 0;
-              const maxed = lvl >= u.max;
-              const cost = upgradeCost(id, lvl);
-              const canAfford = (sr.scrap || 0) >= cost;
-              return (
-                <div key={id} className={`raid-upgrade-card${maxed ? ' maxed' : ''}`}>
-                  <div className="raid-upgrade-top">
-                    <span className="raid-upgrade-icon"><GameIcon name={u.icon} size={22} /></span>
-                    <span className="raid-upgrade-name">{u.name}</span>
-                    <span className="raid-upgrade-lvl">{lvl}<i>/{u.max}</i></span>
-                  </div>
-                  <div className="raid-upgrade-pips">
-                    {Array.from({ length: u.max }).map((_, i) => (<i key={i} className={i < lvl ? 'on' : ''} />))}
-                  </div>
-                  {!maxed ? (
-                    <button className="prosp-btn buy" disabled={!canAfford} onClick={() => buyUpgrade(id)}>
-                      ⚙ {cost}
-                    </button>
-                  ) : (
-                    <span className="raid-upgrade-max">MAX</span>
-                  )}
-                </div>
-              );
-            })}
+          <div className="raid-section-label">UPGRADE NODES</div>
+          <div className="raid-skill-tree">
+            {/* Background connecting lines can be added here with absolute positioning */}
+            <div className="raid-tree-connector" style={{ width: '2px', height: '100%', left: '50%', transform: 'translateX(-50%)', top: 0 }} />
+            
+            {/* Row 1: Core */}
+            <div className="raid-node-row">
+              {['hp', 'mspd'].map(id => renderNode(id, sr, buyUpgrade))}
+            </div>
+            {/* Row 2: Utility */}
+            <div className="raid-node-row">
+              {['magnet', 'atks'].map(id => renderNode(id, sr, buyUpgrade))}
+            </div>
+            {/* Row 3: Weapons */}
+            <div className="raid-node-row">
+              {['dmg', 'pierce'].map(id => renderNode(id, sr, buyUpgrade))}
+            </div>
           </div>
-          <button className="prosp-btn ghost" style={{ marginTop: 14, width: '100%' }} onClick={() => setScreen('menu')}>↩ Back</button>
+          <button className="prosp-btn ghost" style={{ marginTop: 24, width: '100%' }} onClick={() => setScreen('menu')}>↩ Back to Launchpad</button>
         </div>
       </div>
     );
@@ -462,6 +422,26 @@ export default function StarRaidScreen({ save, setSave, onExit }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function renderNode(id, sr, buyUpgrade) {
+  const u = SHIP_UPGRADES[id];
+  const lvl = sr.levels[id] || 0;
+  const maxed = lvl >= u.max;
+  const cost = upgradeCost(id, lvl);
+  const canAfford = !maxed && (sr.scrap || 0) >= cost;
+  return (
+    <div key={id} 
+      className={`raid-node ${maxed ? 'maxed' : ''} ${canAfford ? 'can-afford' : ''}`}
+      onClick={() => buyUpgrade(id)}
+      title={`${u.name}\n${maxed ? 'MAX' : `Cost: ${cost} Scrap`}`}
+    >
+      <div className="raid-node-name">{u.name}</div>
+      <div className="raid-node-icon"><GameIcon name={u.icon} size={28} /></div>
+      <div className="raid-node-lvl">{lvl}/{u.max}</div>
+      {!maxed && <div className="raid-node-cost">⚙ {cost}</div>}
     </div>
   );
 }

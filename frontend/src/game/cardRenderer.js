@@ -39,13 +39,75 @@ import { hasScene, paintScene } from './cardScenes';
 export const CARD = {
   W: 232, H: 560, R: 10, GAP: 52,
   PAD: 9,                       // inset from card edge to the panels
+  // Dead space above and below the row, INSIDE the canvas.
+  //
+  // These were the literal 208 (written out twice — once as the row's baseY and
+  // once inside `contentBottom`) and a bare `+ 320` on the canvas height. That
+  // made the canvas 944x880 while the cards themselves are only 560 tall: 36%
+  // of the height was empty margin, and because the modal is HEIGHT-limited on
+  // a 1080p screen, that margin was directly costing card size. Shrinking it
+  // makes the cards bigger without touching CARD.W/H or the display scale.
+  //
+  // Named, and used in all three places, so they can never drift apart again.
+  // DERIVED, not guessed — see PLATE_CLEARANCE below.
+  //
+  // These were trimmed to 112/40 to make the cards bigger, and that SILENTLY
+  // CLIPPED THE FRAME: paintStagePlate draws a 30px steel band centred on the
+  // plate edge (so 15px hangs outside it) plus a cast shadow reaching ~35px
+  // further. A Pixi canvas has no overflow — anything past width/height is
+  // simply not drawn, with no error and nothing in the console.
+  //
+  // Timmy has been reporting this class of bug since the move to Pixi: "de
+  // klipper av kanterna ... du vet inte om de nar de hander". This is that,
+  // caused by me, and the arithmetic is written down here so the next trim has
+  // to argue with a number instead of eyeballing it.
+  TOP: 176,                     // >= MARGIN(46) + 74 + PLATE_CLEARANCE
+  BOTTOM_PAD: 100,              // >= MARGIN(46) + PLATE_CLEARANCE
   TOP_H: 40,                    // badge + rarity strip
   UPPER_H: 300,                 // name, type, art
   BADGE: 40,
 };
 
-const PIXEL_SCALE = 0.5;        // the graininess. 0.5 = each drawn pixel is 2 screen px
-const SANS = '"Segoe UI", Inter, Roboto, system-ui, sans-serif';
+// FULL RESOLUTION, 2026-08-23. This was 0.5 — every card was drawn at half
+// size and upscaled, which is where the deliberate "chunky pixel" look came
+// from. That look survived while the cards displayed around 460px tall; once
+// they grew past 700px the same half-res layer stopped reading as texture and
+// started reading as a bad photocopy. Timmy: "jatte dalig kvalitet de ar
+// suddigt a konstigt inte alls som dom blev gjorda".
+// The grain is one number if it is ever wanted back; the art itself is
+// unchanged and was always drawn at full size.
+// How much empty canvas the stage plate needs OUTSIDE its own rectangle.
+// paintStagePlate: a 30px band centred on the edge (15px out) + a cast shadow
+// stepping out to ~35px. 50 covers both with a little slack.
+export const PLATE_CLEARANCE = 50;
+
+const PIXEL_SCALE = 1.0;
+
+// The pick sequence's beat sheet, in seconds. One source of truth: the renderer
+// animates against it and LevelUpModal hands off at PICK_SEQ_MS, so the two can
+// never drift. (The unlock banner once vanished mid-animation because its JS
+// dwell and its CSS exit were two numbers for one duration.)
+const PICK = { RUSH: 0.08, HOLD: 0.12, END: 0.18 };
+export const PICK_SEQ_MS = 180;
+// TWO fonts, two jobs. Timmy, 2026-08-19: "fonten på korten måste bytas till
+// nå shysstare" and "man ser inte va de står helt på dom".
+//
+// DISPLAY carries the card NAME, the rarity word and the LEVEL UP title — the
+// places where character matters more than density. Orizon: wide, flat-sided,
+// confident in caps. It is the same face the camp menu now uses, so a card and
+// the menu it was earned in speak with one voice.
+//
+// SANS keeps the description, the stat lines and every small caption. That is
+// deliberate and it is not laziness: rule text is read at ~10 screen px, and a
+// display face at that size is the reason the cards were unreadable in the
+// first place. A system UI font is hinted for exactly this and beats anything
+// in the folder at it.
+//
+// NEVER put DISPLAY on a number. Several faces in `Fonts/` have broken or
+// missing digits, and a stat that renders a fallback glyph for "5" is worse
+// than a plain font.
+const DISPLAY = '"Dragon Knight", "Brandal Legend", "Cinzel", "Velodrome Stencil", system-ui, sans-serif';
+const SANS = '"JetBrains Mono", "Segoe UI", Inter, system-ui, sans-serif';
 
 const RARITY_ORDER = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythical'];
 
@@ -68,8 +130,11 @@ const BACK_TINT = {
 
 function styleName(color, size) {
   return new TextStyle({
-    fontFamily: SANS, fontSize: size, fontWeight: '800', fill: color,
-    align: 'center', wordWrap: true, wordWrapWidth: CARD.W - 34, lineHeight: size * 1.12,
+    fontFamily: DISPLAY, fontSize: size, fontWeight: '800', fill: color,
+    // Wider wrap. At CARD.W - 34 a two-word name broke onto three lines and the
+    // third was clipped by the art panel below it; the card said its own name
+    // worse than the tooltip did.
+    align: 'center', wordWrap: true, wordWrapWidth: CARD.W - 22, lineHeight: size * 1.12,
     // A dark stroke, not just a shadow. Legendary and mythical put a bright
     // frame right behind the name, and a shadow alone leaves it swimming.
     stroke: { color: 0x05070d, width: 3.5, join: 'round' },
@@ -137,7 +202,41 @@ function markupDesc(desc) {
  * new art pipeline. Rendered at 2x the display size and then sampled NEAREST,
  * which keeps the glyph readable while still landing in the pixel layer.
  */
+// Rasterised glyphs, kept for the life of the page.
+//
+// Timmy, 2026-08-19: "level up korten kommer segare". This is why. Every
+// level-up rasterised EVERY glyph again from scratch — build a data URI,
+// decode an <img>, upload a texture — even though the same twenty-odd icons
+// come back over and over across a run. The work was identical each time and
+// none of it was kept.
+//
+// Keyed on size + markup, so the same glyph at two sizes stays two textures and
+// a glyph whose art changes cannot serve a stale picture. At most one entry per
+// icon per size (the set is ~150 glyphs and cards use three sizes), so it
+// cannot grow without bound the way a per-card key would.
+const _texCache = new Map();
+
 export function svgToTexture(markup, px) {
+  if (!markup) return Promise.resolve(Texture.EMPTY);
+  const key = px + '|' + markup;
+  const hit = _texCache.get(key);
+  // A destroyed texture must never be handed back. A lost WebGL context can
+  // take the cache down with it, and returning a dead Texture paints nothing,
+  // with no error anywhere — this project's favourite kind of bug.
+  if (hit) {
+    return hit.then((t) => {
+      if (t && !t.destroyed) return t;
+      const again = _rasterise(markup, px);
+      _texCache.set(key, again);
+      return again;
+    });
+  }
+  const p = _rasterise(markup, px);
+  _texCache.set(key, p);
+  return p;
+}
+
+function _rasterise(markup, px) {
   return new Promise((resolve) => {
     let svg = markup;
     if (!/xmlns=/.test(svg)) svg = svg.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
@@ -170,7 +269,7 @@ export class CardRenderer {
     const cols = Math.max(1, count);
     this.gap = gap;
     this.width = cols * CARD.W + (cols - 1) * gap + Math.max(60, gap * 2 + 40);
-    this.height = CARD.H + 320;
+    this.height = CARD.H + CARD.TOP + CARD.BOTTOM_PAD;
     await this.app.init({
       canvas: this.canvas,
       width: this.width, height: this.height,
@@ -207,9 +306,29 @@ export class CardRenderer {
     // what makes the ice catch light and the flame tips burn out to white.
     // filterArea is set explicitly per the skill's perf guardrail, so Pixi
     // does not recompute global bounds every frame.
-    this.pixelRoot.filters = [new AdvancedBloomFilter({
-      threshold: 0.68, bloomScale: 0.5, brightness: 1.0, blur: 2.5, quality: 2,
-    })];
+    // Timmy, 2026-08-19: "går tungt". This filter is the cost, and it is not a
+    // small one: it blurs the ENTIRE card row every frame, in several passes,
+    // and the price scales with area — so making the cards 20% bigger (which he
+    // also asked for) would have made it ~44% more expensive on its own.
+    //
+    // Two changes, neither of which alters the look in a way you can catch:
+    //   quality 2 -> 1     halves the blur passes
+    //   resolution 0.5     runs the whole filter at half res
+    // The half-res one is nearly free visually HERE specifically, because
+    // `pixelRoot` is already drawn at PIXEL_SCALE 0.5 and upscaled with
+    // nearest-neighbour on purpose — the source is half-res already, so
+    // blurring it at half res loses nothing the chunky look was keeping.
+    // Together that is roughly a quarter of the fill cost.
+    //
+    // `resolution` is set after construction rather than passed in: it is a
+    // property of the Filter base class, and older pixi-filters builds drop
+    // unknown keys from the options object silently — which would have looked
+    // exactly like it worked.
+    const bloom = new AdvancedBloomFilter({
+      threshold: 0.68, bloomScale: 0.5, brightness: 1.0, blur: 2.5, quality: 1,
+    });
+    bloom.resolution = 0.5;
+    this.pixelRoot.filters = [bloom];
     this.pixelRoot.filterArea = new Rectangle(0, 0, this.width, this.height);
     this.pixelSprite = new Sprite(this.rt);
     this.pixelSprite.scale.set(1 / PIXEL_SCALE);
@@ -263,8 +382,8 @@ export class CardRenderer {
     // Widened margin so the row has visible breathing room inside the frame
     // (Timmy: cards were sitting flush against the frame edge).
     const MARGIN = 46;
-    const contentTop = 142;
-    const contentBottom = 208 + CARD.H;
+    const contentTop = CARD.TOP - 74;
+    const contentBottom = CARD.TOP + CARD.H;
     const rowW = count * CARD.W + (count - 1) * gap;
     const contentLeft = (this.width - rowW) / 2;
     this._plate = {
@@ -305,6 +424,18 @@ export class CardRenderer {
    */
   async setCards(models) {
     if (!this.ready) return;
+    // A new hand means the previous pick is over. Reset the sequence and drop
+    // its snapshot, or the next level-up opens with the last card's shards
+    // still hanging in the air.
+    this._destroyShards();
+    this.picked = -1;
+    this.pickT = 0;
+    // Scrub handle, same shape as `window.__game` and `window.__cine`. The
+    // cleave is 74 frames at 60fps — far too fast to review by reload-and-race,
+    // and `waterdrop-pixi-pitfalls` is explicit that the handle comes first.
+    //   __cards.seekPick(0.9)  holds the exact frame
+    //   __cards.playPick()     resumes
+    if (typeof window !== 'undefined') window.__cards = this;
     this._clearCards();
     const n = models.length;
     const gap = this.gap != null ? this.gap : CARD.GAP;
@@ -315,7 +446,7 @@ export class CardRenderer {
       const m = models[i];
       const card = this._buildCard(m, i);
       card.baseX = x0 + i * (CARD.W + gap);
-      card.baseY = 208;
+      card.baseY = CARD.TOP;
       this.cards.push(card);
     }
     // Art textures resolve after the card exists, so a slow rasterisation
@@ -568,7 +699,12 @@ export class CardRenderer {
     typeTxt2.y = loY + 12;
     tx.addChild(typeTxt2);
 
-    const descTxt = new Text({ text: markupDesc(m.desc), style: styleDesc(14, color) });
+    // 14 -> 17. Timmy: "man ser inte va de står helt på dom". Measured rather
+    // than guessed: the canvas is 944 logical units wide displayed at 648px, so
+    // 14pt landed at 14 x 0.686 = 9.6 CSS PIXELS on screen. That is below the
+    // floor for any body text, and no amount of contrast work fixes a size
+    // problem. 17 lands at ~11.7px at the old width and ~14px at the new one.
+    const descTxt = new Text({ text: markupDesc(m.desc), style: styleDesc(17, color) });
     descTxt.anchor.set(0.5, 0);
     descTxt.x = CARD.W / 2;
     // Centred in whatever band is left rather than pinned under the divider.
@@ -677,12 +813,117 @@ export class CardRenderer {
     return card;
   }
 
-  setPicked(i) { this.picked = i; }
+  // ── THE PICK SEQUENCE ─────────────────────────────────────────────────────
+  // Timmy, 2026-08-19: "de ska vid val ge juice förs zooma in ordentligt å visa
+  // å sen slitas itu upp i hörnen".
+  //
+  // Three beats, and the middle one is the whole point. A pick used to be a
+  // 14px lift and a 6% scale for 480ms — a permanent, run-defining decision
+  // acknowledged with less feedback than a hover. Now:
+  //
+  //   0.00-0.36  RUSH IN   the card flies to the centre and swells to 1.8x,
+  //                        everything else drops away and dims
+  //   0.36-0.74  HOLD      it just sits there, big, so you can actually read
+  //                        what you took. This beat is the dopamine; cutting it
+  //                        is what makes a reward feel like a transaction.
+  //   0.74-1.24  CLEAVE    an X-cut through the centre splits it into four
+  //                        wedges that spin out of frame
+  //
+  // PICK_SEQ_MS is exported so LevelUpModal's hand-off timer cannot drift out
+  // of step with this — two numbers describing one duration in two files is how
+  // the unlock banner ended up vanishing before its own exit animation.
+  setPicked(i) {
+    if (this.picked === i) return;
+    this.picked = i;
+    this.pickT = 0;
+    this._shards = null;
+  }
+
+  // Scrub handle, built BEFORE the animation rather than after it. At 60fps
+  // this sequence is over in 74 frames — reviewing it by reload-and-race hands
+  // you frames you did not choose. `window.__cards.seekPick(0.9)` holds the
+  // exact one you want to judge.
+  seekPick(sec) {
+    if (this.picked < 0) this.setPicked(0);
+    this.pickT = sec;
+    this._tick({ deltaMS: 0 });
+    this.app.ticker.stop();
+    return this;
+  }
+  playPick() { this.app.ticker.start(); return this; }
+
+  // Snapshot the chosen card and cut it into four triangular wedges.
+  //
+  // The card is drawn across TWO layers with different scales — `px` lives in
+  // pixelRoot at PIXEL_SCALE and `tx` is crisp on top — so each shard carries a
+  // sprite of each, masked by the same triangle. Compositing them into one
+  // texture first would mean reparenting live display objects mid-frame, which
+  // is exactly the kind of thing that works until it doesn't.
+  _buildShards() {
+    const c = this.cards[this.picked];
+    if (!c) return null;
+    const W = CARD.W, H = CARD.H;
+    let texPx, texTx;
+    try {
+      texPx = this.app.renderer.generateTexture({ target: c.px });
+      texTx = this.app.renderer.generateTexture({ target: c.tx });
+    } catch (e) {
+      // A lost context here must not take the level-up down with it. Without
+      // shards the sequence simply fades the card out, which is worse-looking
+      // and still completely playable.
+      return null;
+    }
+    // An X through the centre. Four wedges, each pointing the way it will fly.
+    const cx = W / 2, cy = H / 2;
+    const WEDGES = [
+      { pts: [0, 0, W, 0, cx, cy], dir: [-0.55, -1.00] },   // top    -> up-left
+      { pts: [W, 0, W, H, cx, cy], dir: [1.00, -0.62] },    // right  -> up-right
+      { pts: [W, H, 0, H, cx, cy], dir: [0.62, 1.00] },     // bottom -> down-right
+      { pts: [0, H, 0, 0, cx, cy], dir: [-1.00, 0.55] },    // left   -> down-left
+    ];
+    const root = new Container();
+    this.app.stage.addChild(root);
+    const shards = WEDGES.map((w, k) => {
+      const g = new Container();
+      const sp = new Sprite(texPx);
+      sp.width = W; sp.height = H;
+      const st = new Sprite(texTx);
+      st.width = W; st.height = H;
+      // White overlay for the tear flash. Tint multiplies in Pixi, so it can
+      // only darken — putting white ON the piece is the only way to blow it out.
+      const flash = new Sprite(Texture.WHITE);
+      flash.width = W; flash.height = H;
+      flash.alpha = 0;
+      const mask = new Graphics();
+      mask.poly(w.pts).fill(0xffffff);
+      g.addChild(sp, st, flash, mask);
+      g.mask = mask;
+      // Pivot at the card centre so the wedge spins about the cut, not about
+      // its own corner — a shard rotating around its bounding box reads as a
+      // sprite being moved, not as a piece being torn away.
+      g.pivot.set(cx, cy);
+      root.addChild(g);
+      return { g, flash, dir: w.dir, spin: (k % 2 ? 1 : -1) * (1.6 + k * 0.35) };
+    });
+    return { root, shards, texPx, texTx };
+  }
+
+  _destroyShards() {
+    if (!this._shards) return;
+    const { root, texPx, texTx } = this._shards;
+    root.destroy({ children: true });
+    texPx?.destroy(true);
+    texTx?.destroy(true);
+    this._shards = null;
+  }
 
   _tick(ticker) {
     if (!this.ready || this._destroyed) return;
     const dt = Math.min(0.05, ticker.deltaMS / 1000);
     this.time += dt;
+    // Advanced here, never inside the card loop: with three cards that would
+    // step the clock three times a frame and the sequence would run 3x fast.
+    if (this.picked >= 0) this.pickT = (this.pickT || 0) + dt;
 
     for (const c of this.cards) {
       // Deal-in. Each card rises and fades in a beat after the one before it,
@@ -694,7 +935,13 @@ export class CardRenderer {
       const u = c.reveal;
       const rv = u >= 1 ? 1 : 1 + 2.2 * (u - 1) ** 3 + 1.2 * (u - 1) ** 2;
 
-      c.hover += (c.targetHover - c.hover) * Math.min(1, dt * 12);
+      // Timmy, 2026-08-19: "korten måste reagera snabbare på klick å hover
+      // effekt ... få dessa å svara lika snabbt [som] emergent versionen".
+      // At dt*12 the hover was only ~63% applied after 83ms and still visibly
+      // moving at 200ms, which on a mouse reads as lag rather than as easing.
+      // dt*26 lands it in ~38ms — under the ~50ms where a response still feels
+      // instant — while keeping a curve rather than a snap.
+      c.hover += (c.targetHover - c.hover) * Math.min(1, dt * 26);
 
       const chosen = this.picked === c.index;
       const rejected = this.picked >= 0 && !chosen;
@@ -702,12 +949,39 @@ export class CardRenderer {
       const scale = 1 + c.hover * 0.035 + (chosen ? 0.06 : 0) - (rejected ? 0.08 : 0);
       const alpha = Math.min(1, c.reveal * 1.6) * (rejected ? 0.25 : 1);
 
+      // Resting transform, then the pick sequence overrides it. Computed into
+      // locals first because the override has to LERP FROM the resting values —
+      // reading them back off the display object after assignment works until
+      // some future frame assigns in a different order.
+      let lx = c.baseX + CARD.W / 2;
+      let ly = c.baseY + CARD.H / 2 - lift + (1 - rv) * 150;
+      let ls = scale;
+      let la = alpha;
+
+      if (this.picked >= 0) {
+        const P = this.pickT || 0;
+        if (chosen) {
+          const t1 = Math.min(1, P / PICK.RUSH);
+          const e = 1 - (1 - t1) ** 3;
+          lx += (this.width / 2 - lx) * e * 0.4;
+          ly -= 24 * e;
+          ls += 0.12 * e;
+          la = 1;
+        } else {
+          const t1 = Math.min(1, P / PICK.RUSH);
+          const e = t1 * t1;
+          ly += 120 * e;
+          ls *= 1 - 0.15 * e;
+          la = alpha * (1 - e);
+        }
+      }
+
       for (const layer of [c.px, c.tx]) {
         layer.pivot.set(CARD.W / 2, CARD.H / 2);
-        layer.x = c.baseX + CARD.W / 2;
-        layer.y = c.baseY + CARD.H / 2 - lift + (1 - rv) * 150;
-        layer.scale.set(scale);
-        layer.alpha = alpha;
+        layer.x = lx;
+        layer.y = ly;
+        layer.scale.set(ls);
+        layer.alpha = la;
       }
 
       // The frame is repainted every frame. It is the only thing here that is
@@ -753,6 +1027,13 @@ export class CardRenderer {
         this.time * (0.09 + c.hover * 0.13) + c.index * 0.21, 1 + c.hover * 1.6);
       this._paintArtFx(c);
       if (c.dots) this._paintDots(c);
+    }
+
+    // Chosen card glows and flashes with excitement
+    if (this.picked >= 0 && this.cards[this.picked]) {
+      const c = this.cards[this.picked];
+      c.glowSprite.alpha = Math.min(1.0, c.glowSprite.alpha * 1.5);
+      c.backSprite.alpha = Math.min(1.0, c.backSprite.alpha * 1.5);
     }
 
     // Stage light: a pool behind each card in its own rarity colour, and a
@@ -861,7 +1142,7 @@ export class CardRenderer {
     for (let i = 0; i < motes; i++) {
       const a = this.time * (0.4 + (i % 3) * 0.16) + i * (Math.PI * 2 / motes);
       const rad = 48 + Math.sin(this.time * 1.3 + i) * 10;
-      const s = 2 + hash(i, c.seed) * 2.5;
+      const s = (2 + hash(i, c.seed) * 2.5) * pulse;
       g.rect(cx + Math.cos(a) * rad - s / 2, cy + Math.sin(a) * rad * 0.62 - s / 2, s, s)
         .fill({ color: art, alpha: 0.35 + 0.4 * Math.sin(this.time * 2 + i) });
     }
@@ -907,6 +1188,11 @@ export class CardRenderer {
     this._destroyed = true;
     if (!this.ready) return;
     this.app.ticker.remove(this._tick, this);
+    // The cleave snapshot holds two full-card RenderTextures. A level-up
+    // happens many times a run; leaking a pair each time is a real leak, not a
+    // theoretical one.
+    this._destroyShards();
+    if (typeof window !== 'undefined' && window.__cards === this) delete window.__cards;
     this._clearCards();
     if (this.rt) this.rt.destroy(true);
     if (this.glowTex) this.glowTex.destroy(true);

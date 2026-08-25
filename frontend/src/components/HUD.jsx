@@ -384,7 +384,9 @@ export default function HUD({ snap, isTutorial, mission, levelUpOpen = false }) 
       {/* Boss bar ABOVE the main hud — fixed, full width centered at very top */}
       {snap.bossActive && (
         <div className="hud-boss-bar" data-testid="hud-boss-bar">
-          <div className="hud-boss-name">⚠ {snap.bossName} ⚠</div>
+          <div className="hud-boss-name" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <GameIcon name="ui_void" size={16} /> {snap.bossName} <GameIcon name="ui_void" size={16} />
+          </div>
           <div className="hud-boss-bar-track">
             <div className="hud-boss-bar-fill" style={{ width: ((snap.bossHp / snap.bossMaxHp) * 100) + '%' }} />
           </div>
@@ -403,9 +405,9 @@ export default function HUD({ snap, isTutorial, mission, levelUpOpen = false }) 
         >
           {missionTimeLeft != null ? fmt(missionTimeLeft) : fmt(snap.time)}
         </div>
-        <div className="hud-wave">
-          {snap.killGoal > 0 ? `KILLS ${snap.kills} / ${snap.killGoal}` : `WAVE ${Math.ceil(snap.time / 30)}`} · KILLS {snap.kills} · ★ {snap.gold}
-          {snap.challenge && <span style={{ color: 'var(--accent)', marginLeft: 10 }}>· {snap.challenge.name}</span>}
+        <div className="hud-wave" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
+          {snap.killGoal > 0 ? `KILLS ${snap.kills} / ${snap.killGoal}` : `WAVE ${Math.ceil(snap.time / 30)}`} · KILLS {snap.kills} · <GameIcon name="gold" size={13} /> {snap.gold}
+          {snap.challenge && <span style={{ color: 'var(--accent)', marginLeft: 6 }}>· {snap.challenge.name}</span>}
         </div>
       </div>
 
@@ -418,19 +420,56 @@ export default function HUD({ snap, isTutorial, mission, levelUpOpen = false }) 
         <span className="hud-score-value">{(snap.score || 0).toLocaleString()}</span>
       </div>
 
-      {/* Combo meter + multiplier ladder */}
-      {snap.combo > 1 && (
-        <div className="combo-display" style={{ opacity: Math.min(1, snap.comboTimer) }}>
-          <div className="combo-count" style={{ fontSize: snap.combo >= 20 ? 32 : snap.combo >= 10 ? 26 : 22 }}>×{snap.combo}</div>
-          <div className="combo-label">COMBO</div>
-          <div className="combo-bar">
-            <div className="combo-fill" style={{ width: (snap.comboTimer / 1.8 * 100).toFixed(1) + '%' }} />
+      {/* Combo meter + multiplier ladder.
+          Timmy, 2026-08-23: "multiplier ska skaka mer a mer nar den haller pa
+          tappas a sa gungar den nastan a droppar ner a forsvinner ... de ska va
+          mer a mer farg a skak a fonten ska va mer a mer grym".
+
+          Three things drive it, all published by the engine's snapshot():
+            snap.combo        — the tier, which sets size and colour
+            snap.comboDanger  — 0..1 as the chain runs out, which sets the shake
+            snap.multDrop     — >0 for ~0.9s after a break, which plays the fall
+
+          It stays MOUNTED while multDrop is running even though combo is
+          already 0, because otherwise the thing vanishes on the exact frame it
+          is supposed to be seen falling. */}
+      {(snap.combo > 1 || (snap.multDrop || 0) > 0) && (() => {
+        // Same ladder as engine.js's COMBO_RANKS, so the HUD and the praise
+        // text can never disagree about what tier you are on.
+        const TIERS = [
+          [175, '#b362ff', 44], [120, '#ff3146', 40], [80, '#ff5566', 36],
+          [55, '#ff9933', 33], [35, '#ffd166', 30], [22, '#7ad96b', 27],
+          [12, '#4dffd4', 24], [0, '#8fe6ff', 22],
+        ];
+        const [, color, size] = TIERS.find(t => snap.combo >= t[0]) || TIERS[TIERS.length - 1];
+        const danger = snap.comboDanger || 0;
+        const dropping = (snap.multDrop || 0) > 0;
+        return (
+          <div
+            className={`combo-display combo-live${dropping ? ' is-dropping' : ''}`}
+            data-testid="hud-combo"
+            style={{
+              '--combo-c': color,
+              // Squared, so the shake stays calm for most of the chain's life
+              // and only becomes alarming right at the end. A linear ramp
+              // buzzes the whole time and stops meaning anything.
+              '--danger': (danger * danger).toFixed(3),
+              opacity: dropping ? 1 : Math.min(1, snap.comboTimer * 2),
+            }}
+          >
+            <div className="combo-count" style={{ fontSize: size, color }}>×{snap.combo}</div>
+            <div className="combo-label">COMBO</div>
+            <div className="combo-bar">
+              <div className="combo-fill" style={{ width: (snap.comboTimer / 1.8 * 100).toFixed(1) + '%', background: color }} />
+            </div>
+            {snap.multiplier > 1 && (
+              <div className="combo-multiplier" data-testid="hud-multiplier" style={{ color }}>
+                {snap.multiplier.toFixed(1)}x SCORE
+              </div>
+            )}
           </div>
-          {snap.multiplier > 1 && (
-            <div className="combo-multiplier" data-testid="hud-multiplier">{snap.multiplier.toFixed(1)}x SCORE</div>
-          )}
-        </div>
-      )}
+        );
+      })()}
 
       {/* Fixed bottom-centre, right where the level-up card row sits — it has
           to hide with the rest of the run HUD (mission banner, guardian timer

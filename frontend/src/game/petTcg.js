@@ -53,30 +53,40 @@ export const CARD_TEMPLATES = [
   { id: 't_piercingJet',  type: 'aquaSprite', kind: 'strike', name: 'Piercing Jet',  icon: 'beam',  cost: 2, power: 14 },
   { id: 't_riptideLash',  type: 'aquaSprite', kind: 'drain',  name: 'Riptide Lash',  icon: 'whip',  cost: 2, power: 11 },
   { id: 't_deluge',       type: 'aquaSprite', kind: 'overload', name: 'Deluge',      icon: 'bow',   cost: 4, power: 26 },
+  { id: 't_tsunamiBurst', type: 'aquaSprite', kind: 'overload', name: 'Tsunami Burst',icon: 'pWave',cost: 5, power: 36 },
+  { id: 't_vortexShield', type: 'aquaSprite', kind: 'guard',   name: 'Vortex Shield',icon: 'tornado',cost: 2, power: 17 },
 
   // shadowWisp — Defend
   { id: 't_umbralWard',   type: 'shadowWisp', kind: 'guard', name: 'Umbral Ward',   icon: 'shield', cost: 1, power: 9 },
   { id: 't_fadingStep',   type: 'shadowWisp', kind: 'guard', name: 'Fading Step',   icon: 'boot',   cost: 2, power: 16 },
   { id: 't_nightCloak',   type: 'shadowWisp', kind: 'heal',  name: 'Night Cloak',   icon: 'orb',    cost: 2, power: 12 },
   { id: 't_hex',          type: 'shadowWisp', kind: 'rally', name: 'Hex',           icon: 'rune',   cost: 1, power: 0.30 },
+  { id: 't_voidSingularity',type: 'shadowWisp',kind: 'overload',name: 'Void Singularity',icon: 'ui_void',cost: 5, power: 34 },
+  { id: 't_bloodPact',    type: 'shadowWisp', kind: 'drain', name: 'Blood Pact',    icon: 'pVamp',  cost: 3, power: 22 },
 
   // emberFairy — Crit
   { id: 't_sparkBite',    type: 'emberFairy', kind: 'strike', name: 'Spark Bite',   icon: 'flame',  cost: 1, power: 9 },
   { id: 't_cinderSlash',  type: 'emberFairy', kind: 'strike', name: 'Cinder Slash', icon: 'blade',  cost: 2, power: 15 },
   { id: 't_emberDrain',   type: 'emberFairy', kind: 'drain',  name: 'Ember Drain',  icon: 'flame',  cost: 2, power: 12 },
   { id: 't_inferno',      type: 'emberFairy', kind: 'overload', name: 'Inferno',    icon: 'meteor', cost: 4, power: 28 },
+  { id: 't_solarFlare',   type: 'emberFairy', kind: 'strike', name: 'Solar Flare',  icon: 'pExplode',cost: 3, power: 22 },
+  { id: 't_pyroclasm',    type: 'emberFairy', kind: 'overload',name: 'Pyroclasm',   icon: 'meteor', cost: 5, power: 38 },
 
   // stormHawk — Super
   { id: 't_staticPeck',   type: 'stormHawk', kind: 'strike', name: 'Static Peck',  icon: 'bolt',   cost: 1, power: 8 },
   { id: 't_cataclysm',    type: 'stormHawk', kind: 'overload', name: 'Cataclysm',  icon: 'meteor', cost: 4, power: 30 },
   { id: 't_windup',       type: 'stormHawk', kind: 'rally',   name: 'Wind-Up',     icon: 'drone',  cost: 1, power: 0.40 },
   { id: 't_stormWall',    type: 'stormHawk', kind: 'guard',   name: 'Storm Wall',  icon: 'shield', cost: 2, power: 13 },
+  { id: 't_thunderStrike',type: 'stormHawk', kind: 'strike',  name: 'Thunder Strike',icon: 'bolt',  cost: 3, power: 21 },
+  { id: 't_chainLightning',type:'stormHawk', kind: 'drain',   name: 'Chain Spark',  icon: 'bolt',   cost: 3, power: 18 },
 
   // lifeSprite — Heal
   { id: 't_mend',         type: 'lifeSprite', kind: 'heal', name: 'Mend',          icon: 'heart',  cost: 1, power: 11 },
   { id: 't_verdantBloom', type: 'lifeSprite', kind: 'heal', name: 'Verdant Bloom', icon: 'star',   cost: 2, power: 19 },
   { id: 't_regrowth',     type: 'lifeSprite', kind: 'rally', name: 'Regrowth',     icon: 'orb',    cost: 1, power: 0.30 },
   { id: 't_thornGuard',   type: 'lifeSprite', kind: 'guard', name: 'Thorn Guard',  icon: 'shield', cost: 2, power: 14 },
+  { id: 't_sanctuary',    type: 'lifeSprite', kind: 'guard', name: 'Sanctuary',     icon: 'pHoly',  cost: 3, power: 24 },
+  { id: 't_astralBlessing',type:'lifeSprite', kind: 'heal',  name: 'Astral Blessing',icon: 'ui_star',cost: 4, power: 32 },
 ];
 export const CARD_TEMPLATE_INDEX = CARD_TEMPLATES.reduce((m, t) => { m[t.id] = t; return m; }, {});
 

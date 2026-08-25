@@ -1,11 +1,32 @@
-// Waterdrop Survivor — Canvas 2D engine with pooling, twin-stick combat, juicy effects.
-import { WEAPONS, ENEMIES, STAT_CARDS, RARITY, rollRarity, waveAt, nextBossEvent, WEAPON_EVO_MAP, metaCost } from './data';
+import { WEAPONS, ENEMIES, STAT_CARDS, RARITY, rollRarity, waveAt, nextBossEvent, WEAPON_EVO_MAP } from './data';
 import { ACTIVE_SKILLS, KILL_FX, ENEMY_KILL_FX, ADVANCED_CARDS, ELEMENTS, getWeaponForkChoices, WEAPON_SET_BONUSES, WEAPON_UPGRADE_NAMES } from './data_ext2';
 import { applyAttachments } from './attachments';
 import { Audio } from './audio';
 import { PixiRenderer } from './pixiRenderer';
 
 const TAU = Math.PI * 2;
+// ── Which engine field holds each active skill's "still running" timer ──
+// Timmy's control spec (memory 0m): while an ability is ACTIVE the joystick
+// shows TIME REMAINING; while it is not, it shows the COOLDOWN. The UI can
+// only do that if the engine reports the live timer, so `snapshot()` looks
+// the field up here.
+//
+// The DURATIONS are deliberately NOT restated in this map — only the field
+// NAME is. `tryActiveSkill` reads the timer back out immediately after
+// `castSkill` set it, so the maximum comes from the one place that decides
+// it. Writing `overdrive: 6` here would be a second copy of a number that
+// already lives in castSkill (and overdrive's is skill-tree-driven, so it is
+// not even constant) — exactly the two-parallel-definitions bug that keeps
+// biting this codebase.
+const SKILL_ACTIVE_FIELD = {
+  overdrive: '_overdriveT',
+  mend:      '_mendT',
+  bulwark:   '_bulwarkT',
+  bloodrush: '_bloodrushT',
+  prospect:  '_prospectT',
+  timewarp:  '_timewarpT',
+  beacon:    '_beaconT',
+};
 // Timmy: blood is always blood-red, full stop — every enemy used to bleed
 // its own identity color (a green slime spraying green "blood"), which read
 // as colored paint rather than a wound. Chunks/gibs stay the enemy's own
@@ -32,41 +53,55 @@ const VARIANTS = {
 };
 const VARIANT_IDS = Object.keys(VARIANTS);
 
-// Camera scale is 1:1 — one world unit is one CSS pixel, on every device.
+// ⚠ CAMERA SCALE IS *NOT* 1:1 ON EVERY DEVICE. Read this before touching any
+// code that mixes `game.W/H` with a world coordinate.
 //
-// This was briefly derived from screen size, on the reasoning that a 393px
-// phone showing 393 world units makes everything ~3.5x larger relative to the
-// screen than a 1400px desktop does. That reasoning is sound in the abstract
-// and wrong in practice: at the resulting zoom (1.78 on a phone) the player
-// and enemies read as distant specks, and the game stopped being legible.
-// The reference the design is tuned against is 1:1, so 1:1 it is.
+// The comment that used to sit here said "Camera scale is 1:1 — one world unit
+// is one CSS pixel, on every device", describing an experiment that had been
+// reverted. It was left in place after the experiment was REINSTATED, so for a
+// long time this file's own header flatly contradicted the function directly
+// below it. That is the most plausible reason five separate draw/spawn sites
+// were (re)written treating CSS pixels as world units — they were following
+// the comment, not the code. Fixed 2026-08-17 along with those five sites.
 //
-// Kept as a function rather than inlining `1` because the two things that
-// actually needed fixing during that experiment are still fixed and still
-// depend on a single agreed zoom: viewSpan() below (spawn rings were being
-// measured in screen pixels but used as world distances) and the off-screen
-// boss arrow (was reading world deltas as screen coordinates). Both are real
-// bugs at any zoom above 1 — which the Vision upgrade still produces.
+// The truth:
+//   * `deviceZoomFor` clamps at `Math.max(1, …)`, so a phone (393x852) gets
+//     EXACTLY 1.0 and screen px really do equal world px there.
+//   * Any larger screen gets more: a 1440x860 desktop gets 1.654, showing
+//     2381x1422 world units.
+//   * Therefore a bug that confuses the two units is INVISIBLE on the phone
+//     and only ever shows up on desktop. Test both. Always.
+//
+// To convert: `worldExtent = game.W * zoom`, `screenPos = (world - cam) / zoom`.
+// Anything under `zoomRoot` in the renderer is in world units, including the
+// deep-space backdrop, which is easy to mistake for a screen-space layer.
 function deviceZoomFor(W, H) {
-  // How much WORLD a screen of this size should show.
-  //
-  // This returned a flat 1, which meant the visible world span was simply the
-  // window size: ~390 world px on a phone, ~1920 on a desktop. A desktop
-  // player was looking at five times as much world, so the hero was a speck,
-  // enemies crossed the screen slowly, and the whole game felt sluggish
-  // compared to the phone — the same content at a fifth of the apparent size.
-  //
-  // Targeting a world SPAN instead makes the two feel alike. The clamp at 1 is
-  // deliberate and load-bearing: a phone is already showing less than the
-  // target, so it never zooms out, and the phone framing that was checked
-  // against the reference screenshot is untouched. Only larger screens move.
   if (!W || !H) return 1;
-  const TARGET_W = 760;   // world px across, on any screen big enough
-  const TARGET_H = 520;   // and down — guards a wide, short window
-  const z = Math.min(W / TARGET_W, H / TARGET_H);
-  // Upper bound so an ultrawide or a 4K panel does not zoom in so far that the
-  // player cannot see what is walking at them.
-  return Math.max(1, Math.min(2.4, z));
+
+  // The camera maps world to screen as `screenPos = (world - cam) / zoom`, so
+  // the visible world extent is `screenPx * zoom`. A CONSTANT framing on every
+  // device therefore needs `zoom = CONSTANT / diag`.
+  //
+  // THIS WAS INVERTED. It read `return diag / TARGET_DIAG`, which makes the
+  // visible world `diag^2 / 938` - it grows QUADRATICALLY with the screen. The
+  // phone saw 938 world units; 1080p saw 5174, so everything was 7.45x smaller
+  // there than the art was tuned for. That is Timmy's report, exactly:
+  // "spelet ar for utzoomat", and it got worse the bigger the display.
+  // `viewport-units.test.mjs` guarded that TARGET_DIAG existed but never which
+  // side of the division it sat on, which is how this shipped - the guard now
+  // checks the direction too.
+  //
+  // Measured before the fix (visible world diagonal):
+  //   iPhone 16  939      1280x720  2299      1440x860  2999      1080p  5174
+  // After: 695 on every one of them.
+  const PHONE_DIAG = 938;      // hypot(393, 852) - iPhone 16, the reference
+  // Timmy 2026-08-23: "zooma in ingame 25%". Bigger number = closer in,
+  // because it DIVIDES the target diagonal: less world on screen means the
+  // character and the enemies occupy more of it.
+  // 1.25 was too close - Timmy after playing it: "de vart for nara nu".
+  const ZOOM_IN = 1.10;
+  const TARGET_DIAG = PHONE_DIAG / ZOOM_IN;
+  return TARGET_DIAG / Math.hypot(W, H);
 }
 
 // Human-readable names for the run-stat keys, used by the level-up cards'
@@ -119,7 +154,6 @@ function hexToRgb01Local(hex) {
   const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16) || 0xffffff;
   return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
 }
-const len = (x, y) => Math.hypot(x, y);
 
 // Uniform spatial hash over enemies, rebuilt once per frame.
 //
@@ -222,6 +256,11 @@ export class Game {
     this.W = 0; this.H = 0; this.dpr = Math.min(window.devicePixelRatio || 1, 2);
     this.input = { x: 0, y: 0, mx: 0, my: 0, shooting: false, keys: {}, pause: false };
     this.cam = { x: 0, y: 0, shake: 0, slowmo: 0 };
+    // The active finisher sequence, and the gap before another may start.
+    // See tryFinisher / updateFinisher.
+    this.fin = null; this._finCD = 0;
+    // The active flourish (360 spin / air slam / leap shot) and its gap.
+    this.flr = null; this._flrCD = 0;
     this.world = { w: 6400, h: 6400 };
     this.time = 0; // game seconds
     this.dt = 0;
@@ -333,6 +372,8 @@ export class Game {
         berserk: this.meta.berserk ? 1 : 0,
         dash: this.meta.dash ? 1 : 0,
         dashCDMult: 1.0 - (this.meta.dashcd || 0),
+        // Phase Dash (poe_mob7): extra i-frames per dash, read in tryDash.
+        dashInvuln: (this.meta.dashInvuln || 0),
         blink: this.meta.blink ? 1 : 0,
         shield: this.meta.shield ? 1 : 0,
         swipeAttack: !!this.meta.swipeAttack,
@@ -351,6 +392,22 @@ export class Game {
         forksUnlocked: !!this.meta.forksUnlocked,
         undertowDash: !!this.meta.undertowDash,
         riptideMastery: !!this.meta.riptideMastery,
+        // ── H2O capstone cluster (poe_tree.js POE_H2O_NODES) ───────────
+        // The hidden five, revealed only once every node in the tree is
+        // maxed. They were tree-side only until now: buyable, lit, and
+        // read by nothing at all. Each is consumed below — grep the stat
+        // name to find where.
+        // Overdrive's duration, set by the Skill Tree node that unlocks
+        // the ability (poe_bld6 Adrenal Surge, stat 'adrenalSurge').
+        overdriveDur: (this.meta.adrenalSurge || 0),
+        secondWind: this.meta.secondWind ? 1 : 0,
+        secondWindUsed: 0,          // fires once per run
+        autoProjectile: (this.meta.autoProjectile || 0),
+        deluge: this.meta.deluge ? 1 : 0,
+        delugeKills: 0,             // counts toward the next wave
+        undyingTide: this.meta.undyingTide ? 1 : 0,
+        undyingStacks: 0,           // +1 per 30s survived, uncapped
+        dualGuns: this.meta.dualGuns ? 1 : 0,
         // Advanced card flags
         flags: this.meta.flags || {},
       },
@@ -404,6 +461,10 @@ export class Game {
     this.activeSkills = (opts.activeSkills || []).slice(0, this.meta.skillSlots || 2);
     this.skillCD = {};
     for (const k of this.activeSkills) this.skillCD[k] = 0;
+    // Duration the last cast of each skill started with, captured in
+    // tryActiveSkill from whatever castSkill actually set. Only used to draw
+    // the joystick's "time remaining" ring as a 0..1 fraction.
+    this.skillActiveMax = {};
 
     // Stage / challenge config
     this.stage = opts.stage || null;
@@ -531,6 +592,42 @@ export class Game {
   // and would have become the normal case on every phone.
   viewSpan() {
     return Math.max(this.W, this.H) * this.viewZoom();
+  }
+
+  /**
+   * Distance from the player to the edge of the visible area ALONG `ang`,
+   * in world units.
+   *
+   * `viewSpan()` is the long edge, and using it as "the size of the view" is
+   * wrong on any non-square screen: on a landscape desktop the long edge is
+   * the WIDTH, so `viewSpan() * 0.42` came out at 1020 against a half-width of
+   * 1191 — the spawn ring the comment calls "just outside view" was actually
+   * INSIDE it, and enemies visibly materialised on screen. On a portrait phone
+   * the long edge is the height, so the same expression happened to land
+   * outside and the bug never showed on the device it was tuned on.
+   */
+  viewEdgeDist(ang) {
+    const zoom = this.viewZoom();
+    const halfW = (this.W / 2) * zoom, halfH = (this.H / 2) * zoom;
+    const ca = Math.abs(Math.cos(ang)), sa = Math.abs(Math.sin(ang));
+    const byW = ca > 1e-4 ? halfW / ca : Infinity;
+    const byH = sa > 1e-4 ? halfH / sa : Infinity;
+    return Math.min(byW, byH);
+  }
+
+  /**
+   * Apparent-motion parity between devices. Screen px = world px / zoom, so a
+   * world speed multiplied by this renders at the SAME apparent speed on every
+   * screen — which is what stops a desktop from feeling sluggish just because
+   * it is showing more world.
+   *
+   * Deliberately `_deviceZoom` and NOT `viewZoom()`: the Vision upgrade
+   * (`_visionZoom`) is a card the player chose in order to see further and get
+   * more reaction time. Compensating that away would delete the upgrade.
+   * Only the part of the zoom the DEVICE imposed gets corrected for.
+   */
+  devicePace() {
+    return this._deviceZoom || 1;
   }
 
   destroy() {
@@ -743,12 +840,20 @@ export class Game {
       swipeAttackCD: this.player.swipeAttackCD || 0,
       swipeAttackMaxCD: 1.1,
       shieldReady: this.run.stats.shield > 0 && this.player.shieldCharge > 0,
-      activeSkills: this.activeSkills.map(id => ({
-        id, icon: ACTIVE_SKILLS[id] ? ACTIVE_SKILLS[id].icon : '?',
-        name: ACTIVE_SKILLS[id] ? ACTIVE_SKILLS[id].name : id,
-        cd: this.skillCD[id] || 0,
-        maxCd: ACTIVE_SKILLS[id] ? ACTIVE_SKILLS[id].cd : 1,
-      })),
+      activeSkills: this.activeSkills.map(id => {
+        const f = SKILL_ACTIVE_FIELD[id];
+        return {
+          id, icon: ACTIVE_SKILLS[id] ? ACTIVE_SKILLS[id].icon : '?',
+          name: ACTIVE_SKILLS[id] ? ACTIVE_SKILLS[id].name : id,
+          cd: this.skillCD[id] || 0,
+          maxCd: ACTIVE_SKILLS[id] ? ACTIVE_SKILLS[id].cd : 1,
+          // Is the buff currently RUNNING, and for how much longer? The
+          // joystick shows this instead of the cooldown while it is > 0.
+          ability: !!(ACTIVE_SKILLS[id] && ACTIVE_SKILLS[id].ability),
+          activeT:   f ? (this[f] || 0) : 0,
+          activeMax: this.skillActiveMax[id] || 0,
+        };
+      }),
       noHit: this.run.noHit,
       targetDuration: this.targetDuration,
       killGoal: this.killGoal,
@@ -766,6 +871,11 @@ export class Game {
       maxCombo: this.run.maxCombo,
       score: this.run.score || 0,
       multiplier: this.run.multiplier || 1,
+      // 0..1, climbing as the chain runs out. The HUD shakes the multiplier
+      // harder the closer this gets to 1, then `multDrop` plays the fall.
+      comboDanger: this.run.comboCount > 0
+        ? Math.max(0, 1 - Math.min(1, (this.run.comboTimer || 0) / 1.8)) : 0,
+      multDrop: Math.max(0, this._multDropT || 0),
       maxMultiplier: this.run.maxMultiplier || 1,
     };
   }
@@ -798,17 +908,52 @@ export class Game {
   // ====== UPDATE ======
   update(dt) {
     this.run.time += dt;
+    // ---- THE PINBALL RULE --------------------------------------------
+    // Timmy, 2026-08-23: "den moste nollas ... utan att bli traffad eller
+    // vanta for lange, de ar riktigt Pinball system me allt de innebar."
+    //
+    // Player damage happens at four scattered sites (contact, projectiles,
+    // hazards, the Hollow Queen), so this watches the HP VALUE instead of
+    // patching each one. Every source breaks the chain, including any added
+    // later that would otherwise forget.
+    const cf = (this.run.stats && this.run.stats.flags) || {};
+    if (this._lastHp === undefined) this._lastHp = this.player.hp;
+    if (this.player.hp < this._lastHp - 0.001 && this.run.comboCount > 0) {
+      // Cold Blood halves it instead of wiping it.
+      const kept = cf.comboSalvage ? Math.floor(this.run.comboCount * cf.comboSalvage) : 0;
+      this._breakCombo(kept, 'HIT');
+    }
+    this._lastHp = this.player.hp;
+    // Warm Start: one-shot, the first frame the run actually has its flags.
+    if (cf.comboStart && !this._comboWarmed) {
+      this._comboWarmed = true;
+      this.run.comboCount = Math.max(this.run.comboCount, cf.comboStart);
+      this.run.comboTimer = 1.8;
+    }
     // Combo decay
     if (this.run.comboTimer > 0) {
-      this.run.comboTimer -= dt;
+      // Momentum slows the bleed; Held Breath stops it entirely while you are
+      // standing still, which turns "stop and breathe" into a real choice
+      // rather than something the chain punishes.
+      const still = cf.comboHold && Math.hypot(this.player.vx || 0, this.player.vy || 0) < 12;
+      if (!still) this.run.comboTimer -= dt * (cf.comboDecay || 1);
       if (this.run.comboTimer <= 0) {
-        this.run.comboTimer = 0; this.run.comboCount = 0;
-        // Pinball-style multiplier drop: losing the combo resets it to 1x —
-        // the risk/reward tension of climbing it back up is the whole point.
-        if (this.run.multiplier > 1) {
-          this.run.multiplier = 1;
-          this.spawnDamageNumber(this.player.x, this.player.y - 70, 'MULTIPLIER LOST', '#ff5566', 14);
+        // ORDER MATTERS HERE. Everything that READS the chain must run before
+        // anything that clears it — an earlier version called _breakCombo at
+        // the top of this block, which zeroed the count and silently made Cash
+        // Out, UNBROKEN and Cold Blood all see a chain of 0.
+        // Cash Out pays for a chain you actually built before it lapses.
+        if (cf.comboBank && this.run.comboCount >= cf.comboBank) {
+          const paid = Math.floor(this.run.comboCount * 4 * (this.run.stats.goldMult || 1));
+          this.run.gold += paid;
+          this.spawnDamageNumber(this.player.x, this.player.y - 84, '+' + paid + ' GOLD', '#ffd166', 15);
+          Audio.gold(paid);
         }
+        // UNBROKEN holds a floor once the chain has ever been high enough;
+        // Cold Blood salvages a share of whatever it was.
+        const peaked = cf.comboFloor && (this.run.maxCombo || 0) >= cf.comboFloor;
+        const salvage = cf.comboSalvage ? Math.floor(this.run.comboCount * cf.comboSalvage) : 0;
+        this._breakCombo(Math.max(peaked ? 25 : 0, salvage), 'TIMEOUT');
       }
     }
     this.time += dt;
@@ -837,6 +982,12 @@ export class Game {
     this.updateProjs(dt);
     this.updateEProjs(dt);
     this.updateParts(dt);
+    // After updateParts, so the corpse actor's own ballistics run on the
+    // same frame the pool advanced it.
+    this.updateFinisher(dt);
+    // After the finisher, so an execution always wins the frame if both
+    // somehow armed — maybeFlourish already refuses while `this.fin` is set.
+    this.updateFlourish(dt);
     this.updateGems(dt);
     this.updateDmgNums(dt);
     // Before spawnWave, since it reads the value this sets.
@@ -1022,6 +1173,91 @@ export class Game {
       this.spawnRing(p.x, p.y, 60, '#ffd166', 0.4);
     }
     if (p._lifelineUsed && this.run.time >= p._lifelineUsed) p._lifelineUsed = 0;
+
+    // ── Ability timers ────────────────────────────────────────────────
+    // All four tick here so there is ONE place that owns ability
+    // durations. Each effect is read where it belongs (Mend heals here,
+    // Bulwark in the damage path, Blood Rush in dealDamage, Prospect in
+    // the pickup/gold path) rather than every ability reaching into
+    // unrelated systems from inside castSkill.
+    if (this._mendT > 0) {
+      this._mendT -= dt;
+      // 3% of max HP per second, frame-rate independent.
+      p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.03 * dt);
+      if (this._mendT <= 0) this._mendT = 0;
+    }
+    if (this._bulwarkT > 0) {
+      this._bulwarkT -= dt;
+      if (this._bulwarkT <= 0) { this._bulwarkT = 0; this.spawnRing(p.x, p.y, 54, '#6a7a8a', 0.3); }
+    }
+    if (this._bloodrushT > 0) {
+      this._bloodrushT -= dt;
+      if (this._bloodrushT <= 0) this._bloodrushT = 0;
+    }
+    if (this._prospectT > 0) {
+      this._prospectT -= dt;
+      if (this._prospectT <= 0) this._prospectT = 0;
+    }
+
+    // Overdrive burn-out. Counted down here alongside the other run
+    // timers; the ring marks the moment it ends so the drop in fire rate
+    // is never a mystery.
+    if (this._overdriveT > 0) {
+      this._overdriveT -= dt;
+      if (this._overdriveT <= 0) {
+        this._overdriveT = 0;
+        this.spawnRing(p.x, p.y, 54, '#6a5a3a', 0.35);
+      }
+    }
+
+    // ══ H2O CAPSTONE EFFECTS ═══════════════════════════════════════════
+    // The four ring passives from the hidden cluster. Modelled on Lifeline
+    // directly above: same "check a condition each frame, fire once, show
+    // something" shape, so they behave like the rest of the game rather
+    // than like bolted-on specials.
+
+    // SECOND WIND — once per run, dropping below 15% HP shields and heals.
+    // Threshold sits BELOW Lifeline's 20% on purpose: if both are owned
+    // Lifeline triggers first as the warning, and this is the real save.
+    if (s.secondWind && !s.secondWindUsed && p.hp > 0 && p.hp < p.maxHp * 0.15) {
+      s.secondWindUsed = 1;
+      p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.35);
+      p.iframes = Math.max(p.iframes, 2.2);
+      if (p.shieldCharge !== undefined) p.shieldCharge = 1;
+      this.spawnRing(p.x, p.y, 90, '#8fe8ff', 0.6);
+      this.spawnRing(p.x, p.y, 150, '#ffffff', 0.35);
+      // (No floating label: this engine has no floatText helper, and an
+      //  optional-chained call to a method that does not exist is exactly
+      //  the silent dead code this project keeps getting bitten by. The
+      //  two rings plus 2.2s of i-frames read clearly enough on their own.)
+    }
+
+    // UNDYING TIDE — +1% max HP and armour per 30s survived, uncapped.
+    // Applied as DELTAS when a stack lands rather than by recomputing the
+    // base each frame: max HP is raised by cards, gear and meta during a
+    // run, so recomputing from a base would silently discard all of that.
+    if (s.undyingTide) {
+      const want = Math.floor(this.run.time / 30);
+      if (want > s.undyingStacks) {
+        const gained = want - s.undyingStacks;
+        s.undyingStacks = want;
+        const hpAdd = p.maxHp * 0.01 * gained;
+        p.maxHp += hpAdd;
+        p.hp += hpAdd;                       // the new ceiling comes filled
+        s.armor = (s.armor || 0) * (1 + 0.01 * gained) + 0.01 * gained;
+        this.spawnRing(p.x, p.y, 46, '#8fe8ff', 0.3);
+      }
+    }
+
+    // DELUGE — every 20 kills, a screen-wide damage + knockback wave.
+    // Uses the same floor-division threshold pattern as the gravity card
+    // above so it cannot double-fire on a multi-kill frame.
+    if (s.deluge) {
+      if (Math.floor(this.run.kills / 20) > Math.floor((s.delugeKills || 0) / 20)) {
+        this._delugeWave();
+      }
+      s.delugeKills = this.run.kills;
+    }
     // Burn DoT
     this.enemies.forEach(e => {
       if (e._burn > 0) {
@@ -1272,14 +1508,20 @@ export class Game {
     // leaving the fastest ones a real threat at +7 rather than a formality.
     // Neither 134 nor 200 was ever a validated number; this one is chosen
     // against the actual enemy speed table.
-    const baseSpd = 172 * s.moveMult * agi;
+    // Overdrive (the Adrenal Surge ability) boosts move speed for its
+    // duration. Applied here rather than by mutating `moveMult`, because
+    // that field is the run's accumulated total — writing to it would make
+    // the buff permanent the moment anything else read it back.
+    const odMove = this._overdriveT > 0 ? 1.35 : 1;
+    const comboJuice = Math.min(1.25, 1 + (this.run.comboCount || 0) * 0.006);
+    const baseSpd = 172 * s.moveMult * agi * odMove * comboJuice;
     // Target velocity (normalized) + accel/decel smoothing for that nice "weight" feel
     const moving = !!(dx || dy);
     const targetX = moving ? (dx / l) : 0;
     const targetY = moving ? (dy / l) : 0;
-    // accelerate toward target dir — Agility attribute scales how snappy
-    // (vs sluggish) both accelerating into and out of a turn feels.
-    const accel = (moving ? 9.0 : 12.0) * agi;
+    // accelerate toward target dir — Agility attribute and combo scale how snappy
+    const comboAccel = 1 + Math.min(0.5, (this.run.comboCount || 0) * 0.015);
+    const accel = (moving ? 9.0 : 12.0) * agi * comboAccel;
     p.dirX += (targetX - p.dirX) * Math.min(1, accel * dt);
     p.dirY += (targetY - p.dirY) * Math.min(1, accel * dt);
     p.vx = p.dirX * baseSpd;
@@ -1380,7 +1622,14 @@ export class Game {
     p.orbitAngle += dt * 2.0;
   }
 
-  tryDash(dirX, dirY) {
+  /**
+   * @param {number} [power] 0..1 analog strength of the gesture that fired
+   *   this dash — how FAST and how FAR you flicked. Timmy's spec (memory 0m):
+   *   "både hastighet å längd på swipen ska spela in". Omitted (keyboard,
+   *   gamepad, any older caller) means a full-strength dash, so nothing that
+   *   already worked changes.
+   */
+  tryDash(dirX, dirY, power) {
     const p = this.player; const s = this.run.stats;
     if (!s.dash) return;
     if (p.dashCD > 0 || p.dashing > 0) return;
@@ -1405,13 +1654,23 @@ export class Game {
     }
     const l = Math.hypot(vx, vy) || 1;
     const agi = this.agilityMult();
-    const speed = 1100 * agi;
+    // Analog gesture strength. A lazy flick is a short hop, a hard one is a
+    // full-length blink; distance is speed × duration, so scaling BOTH gives
+    // the weakest dash ~0.37 of the strongest's distance while keeping even
+    // the weakest one fast enough to still read as a dash rather than a
+    // stumble. The COOLDOWN is deliberately not scaled — if a soft flick
+    // were cheaper, spamming tiny dashes would beat using it properly.
+    const pw = power === undefined ? 1 : Math.max(0, Math.min(1, power));
+    const speed = 1100 * agi * (0.72 + 0.56 * pw);
     p.dashVX = (vx / l) * speed;
     p.dashVY = (vy / l) * speed;
-    p.dashing = 0.16;
+    p.dashing = 0.13 + 0.07 * pw;
     p.dashCD = (2.4 * (s.dashCDMult || 1)) / agi;
     p.dashMaxCD = p.dashCD;   // snapshot reports this so the dial can draw the fill
-    p.iframes = s.undertowDash ? 0.33 : 0.22;
+    // Phase Dash (poe_mob7) extends the dash's invulnerability rather than
+    // replacing it, so it stacks with Undertow's own bump instead of one
+    // silently overwriting the other.
+    p.iframes = (s.undertowDash ? 0.33 : 0.22) + (s.dashInvuln || 0);
     this.cam.shake = Math.max(this.cam.shake, 2);
     for (let i = 0; i < 12; i++) this.spawnSpark(p.x, p.y, '#4dffd4');
     // Spike Plates: dashing leaves a trap where you launched from, so the card
@@ -1484,6 +1743,12 @@ export class Game {
     this.run.activeSkillUses++;
     Audio.active(id);
     this.castSkill(id);
+    // Read the duration back OUT of the field castSkill just wrote, rather
+    // than keeping a table of durations here that would drift the first time
+    // one is retuned. A skill with no entry in SKILL_ACTIVE_FIELD is instant
+    // (Lightning, Nova, Meteor…) and simply has no "remaining" to report.
+    const f = SKILL_ACTIVE_FIELD[id];
+    this.skillActiveMax[id] = f ? (this[f] || 0) : 0;
   }
 
   castSkill(id) {
@@ -1544,6 +1809,36 @@ export class Game {
       });
       this._lightningFlash = Math.max(this._lightningFlash || 0, 0.5);
       this.cam.shake = Math.max(this.cam.shake, 9 + strikes);
+    } else if (id === 'overdrive') {
+      // The Adrenal Surge ability. Duration comes from the skill-tree node
+      // that unlocked it (run.stats.overdriveDur), so the node's value is
+      // genuinely consumed rather than being a decorative flag — that is
+      // what stops it becoming another dead config entry.
+      this._overdriveT = this.run.stats.overdriveDur || 6;
+      // A reload in progress is cancelled outright: the whole point is
+      // "no reloading", and being stuck mid-reload as the buff starts
+      // would waste a third of it.
+      p.reloading = false; p.reloadT = 0;
+      this.spawnRing(p.x, p.y, 70, '#ffd166', 0.45);
+      this.spawnRing(p.x, p.y, 120, '#ff9900', 0.35);
+      this.cam.shake = Math.max(this.cam.shake, 6);
+    } else if (id === 'mend') {
+      // Instant chunk + a regen tail, rather than one big heal: the tail
+      // is what lets you press it BEFORE you are nearly dead, which is the
+      // difference between a skill and a panic button.
+      p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.35);
+      this._mendT = 6;
+      this.spawnRing(p.x, p.y, 80, '#5cff9d', 0.5);
+    } else if (id === 'bulwark') {
+      this._bulwarkT = 7;
+      this.spawnRing(p.x, p.y, 70, '#9fb4c8', 0.5);
+      this.spawnRing(p.x, p.y, 110, '#dce8f5', 0.35);
+    } else if (id === 'bloodrush') {
+      this._bloodrushT = 8;
+      this.spawnRing(p.x, p.y, 76, '#ff5c8a', 0.5);
+    } else if (id === 'prospect') {
+      this._prospectT = 10;
+      this.spawnRing(p.x, p.y, 90, '#ffd166', 0.5);
     } else if (id === 'aegis') {
       p.iframes = Math.max(p.iframes, 3);
       p._reflectTimer = 3;
@@ -1823,6 +2118,10 @@ export class Game {
     // uniformly, rather than having to touch each of the ten sites that read
     // fireRateMult.
     if (this._tempoStacks) s.fireRate = (s.fireRate || 0) * this.tempoMult();
+    // Blur (talent, combos step 8). Same reasoning as Tempo Engine above: one
+    // site, so it cannot be half-applied by whichever weapon someone forgets.
+    const bf = (rs.flags || {}).comboHaste;
+    if (bf) s.fireRate = (s.fireRate || 0) * (1 + Math.min(bf, (this.run.comboCount || 0) * (bf / 60)));
     // Rain quickens everything you fire. Applied here for the same reason
     // Tempo is: one place, every weapon.
     const wf = this.weatherFireRate();
@@ -1864,16 +2163,45 @@ export class Game {
     p.shootCD -= dt;
     const mag = (s.magazine || 12) + rs.magBonus;
     if (p.mag === undefined || p.mag > mag) p.mag = mag;
+    // Overdrive: no reloading. The magazine is topped straight back up
+    // rather than the empty check being skipped, so every other thing that
+    // reads `p.mag` — the HUD counter, Bulletstorm, weapon logic — still
+    // sees a coherent value instead of a negative one.
+    const overdrive = this._overdriveT > 0;
+    if (overdrive) p.mag = mag;
     if (p.mag <= 0) { this.startReload(s); return; }
     if (this.input.shooting && p.shootCD <= 0) {
-      const fr = s.fireRate * rs.fireRateMult;
+      const fr = s.fireRate * rs.fireRateMult * (overdrive ? 1.7 : 1);
       p.shootCD = 1 / fr;
       // Base aim imprecision (Aim attribute) stacks on top of the weapon's
       // own spread — even a "0 spread" precision weapon can clip a miss at
       // low Aim investment, per spec ("siktar rakt men missar ändå").
       const spread = (s.spread || 0) + 0.035 * this.aimSpreadMult();
       const ang = Math.atan2(p.aimY, p.aimX) + (Math.random() - 0.5) * spread;
-      this.fireProjectile(p.x + p.aimX * 14, p.y + p.aimY * 14, ang, s, true);
+
+      // ── DUAL GUNS (H2O core node) ──────────────────────────────────
+      // Timmy's spec: "dual manual wepons simuntanlesly ... en i var hand
+      // så de mosar satan när man skjuter perfekt", framed explicitly as
+      // the Endless/Hard power fantasy. It is the reward for maxing all 83
+      // nodes, so it is a straight doubling: the off-hand round costs NO
+      // extra ammo. Charging for it would halve your magazine and turn the
+      // capstone into a downgrade.
+      //
+      // Both barrels sit off the centre line (perpendicular to aim) so it
+      // reads as two hands rather than one gun firing twice. Each gets its
+      // own spread roll — perfectly parallel twin shots look like a bug.
+      if (rs.dualGuns) {
+        const px = -p.aimY, py = p.aimX;      // perpendicular to aim
+        for (const side of [-1, 1]) {
+          const hx = p.x + p.aimX * 12 + px * side * 11;
+          const hy = p.y + p.aimY * 12 + py * side * 11;
+          const a2 = Math.atan2(p.aimY, p.aimX) + (Math.random() - 0.5) * spread;
+          this.fireProjectile(hx, hy, a2, s, true);
+          this.spawnMuzzle(hx + p.aimX * 6, hy + p.aimY * 6, a2, s.color);
+        }
+      } else {
+        this.fireProjectile(p.x + p.aimX * 14, p.y + p.aimY * 14, ang, s, true);
+      }
       // Echo Chamber (Prospector unique): every 5th shot arrives twice, and
       // the echo costs no ammo. Slightly offset so the pair reads as two
       // rounds rather than one fat one.
@@ -1888,7 +2216,9 @@ export class Game {
       p.mag -= 1;
       this.cam.shake = Math.max(this.cam.shake, 1.4);
       Audio.shoot(s._wid, s._behaviour);
-      this.spawnMuzzle(p.x + p.aimX * 18, p.y + p.aimY * 18, ang, s.color);
+      // Dual Guns already flashed at both barrels above; a third flash on
+      // the centre line would give the pair a phantom middle gun.
+      if (!rs.dualGuns) this.spawnMuzzle(p.x + p.aimX * 18, p.y + p.aimY * 18, ang, s.color);
       if (p.mag <= 0) this.startReload(s);
     }
   }
@@ -1936,6 +2266,44 @@ export class Game {
     this.startReload(s);
   }
 
+  // ── DELUGE (H2O ring node) ────────────────────────────────────────
+  // Every 20 kills: a wave that damages and knocks back every enemy on
+  // screen. Screen-wide, unlike the level-up blast's 180px radius — this
+  // is a capstone, and it should feel like one.
+  //
+  // Two things copied deliberately from the level-up blast rather than
+  // reinvented: the enemy list is SNAPSHOTTED first (dealDamage can kill,
+  // which mutates the pool mid-iteration), and `_inCascade` is raised
+  // around the damage so a kill caused by the wave cannot recursively
+  // trigger more waves or double-award XP.
+  _delugeWave() {
+    const p = this.player;
+    const r = this.run;
+    const dmg = 90 * (r.stats.damageMult || 1);
+    const kb = 420;
+    const snapshot = [];
+    this.enemies.forEach(e => { snapshot.push(e); });
+    for (let i = 0; i < snapshot.length; i++) {
+      const e = snapshot[i];
+      if (!e || !e.alive) continue;
+      const dx = e.x - p.x, dy = e.y - p.y;
+      const d = Math.hypot(dx, dy) || 1;
+      e.kbX += (dx / d) * kb;
+      e.kbY += (dy / d) * kb;
+      const prevCascade = this._inCascade;
+      this._inCascade = true;
+      this.dealDamage(e, dmg, false, 0, p.x, p.y, true);
+      this._inCascade = prevCascade;
+    }
+    this.spawnRing(p.x, p.y, 140, '#8fe8ff', 0.5);
+    this.spawnRing(p.x, p.y, 320, '#bff0ff', 0.4);
+    this.spawnRing(p.x, p.y, 520, '#ffffff', 0.25);
+    // Camera shake is a field on `cam`, not a method — `this.shake?.()`
+    // would have been another silent no-op. `Math.max` so a wave landing
+    // during a bigger shake cannot reduce it.
+    this.cam.shake = Math.max(this.cam.shake || 0, 14);
+  }
+
   weaponAutoBolts(s, dt) {
     const p = this.player; const rs = this.run.stats;
     p.boltCD -= dt;
@@ -1945,7 +2313,12 @@ export class Game {
     const tgt = this.nearestEnemy(p.x, p.y, 700);
     if (!tgt) return;
     const native = s.projectiles || 1;
-    const projCount = native + rs.projBonus;
+    // `autoProjectile` is the H2O ring node "Overcharge": +1 projectile on
+    // AUTO weapons only. It is added here rather than to `projBonus`
+    // because projBonus applies to every weapon type, and the capstone's
+    // whole design is that the ring boosts autos while the H2O core's Dual
+    // Guns boosts manuals — one node for each playstyle.
+    const projCount = native + rs.projBonus + (rs.autoProjectile || 0);
     // Bonus projectiles hit softer than the weapon's own — see
     // bonusProjDamageScale. Applied by handing fireProjectile a scaled copy of
     // the stats rather than by touching `s`, which is a shared object.
@@ -2088,6 +2461,11 @@ export class Game {
   // HIT range — so the visual was as long as the reach in every direction at
   // once and read as a huge fan rather than a sword. It is scaled in per style
   // now; the hit box is untouched, so this is purely how it looks.
+  // Gravity for airborne body parts during a finisher, px/s^2. Higher than
+  // the particle gravity (260) on purpose: a body has to come down inside the
+  // sequence's runtime, and a floaty corpse reads as weightless.
+  static FIN_G = 1500;
+
   static KATANA_STYLES = [
     // name        span(rad) reach  life  thick  lead
     { span: 1.10, reach: 0.55, life: 0.17, th: 0.20, lead: 2.4 },  // level cut
@@ -2108,36 +2486,22 @@ export class Game {
   }
 
   // A killing cut. Five ways a body comes apart, rolled per kill, so cutting
-  // down a crowd never plays the same animation twice in a row. One clean
-  // bisect every time made the katana's best moment become wallpaper within a
-  // minute.
+  // down a crowd never plays the same animation twice in a row.
   //
   // Every variant respects `ang` -- the direction the blade actually travelled
-  // -- because the whole point is that the cut reads as YOUR cut. A random
-  // split angle would look like the body exploded, not like it was cut.
+  // -- because the whole point is that the cut reads as YOUR cut.
   spawnBisect(x, y, ang, color, size) {
     const S = size || 22;
-    const roll = Math.random();
-    // Weighted: the clean halves stay the signature, the rest are the spice.
-    const variant =
-      roll < 0.38 ? 'halves'      // straight through, two pieces
-      : roll < 0.60 ? 'quarters'  // a second cut across the first
-      : roll < 0.76 ? 'topoff'    // a shallow cut, small piece off one end
-      : roll < 0.90 ? 'fan'       // three wedges, fanned apart
-      : 'burst';                  // cut through and blown apart
-
-    // Emits one body piece. `off` slides its start along the cut, `frac` sizes
-    // it, `push` is how hard it leaves.
-    const piece = (pAng, side, frac, off, push, life) => {
+    const style = Math.floor(Math.random() * 5);
+    // Emits one body piece.
+    const piece = (pAng, side, frac, off, push, life, extraVy = 0) => {
       const h = this.parts.acquire();
       const px = Math.cos(pAng + Math.PI / 2) * side;
       const py = Math.sin(pAng + Math.PI / 2) * side;
-      // Offset along the cut line so pieces do not all start stacked on the
-      // same point -- that is what made a split read as one object twitching.
       h.x = x + Math.cos(pAng) * off;
       h.y = y + Math.sin(pAng) * off;
-      h.vx = px * push + Math.cos(pAng) * rand(-25, 25);
-      h.vy = py * push + Math.sin(pAng) * rand(-25, 25) - rand(10, 45);
+      h.vx = px * push + Math.cos(pAng) * rand(-20, 20);
+      h.vy = py * push + Math.sin(pAng) * rand(-20, 20) - rand(10, 40) + extraVy;
       h.life = life; h.max = life;
       h.color = color; h.size = S * frac;
       h.type = 'bisectHalf';
@@ -2145,52 +2509,50 @@ export class Game {
       return h;
     };
 
-    const cross = ang + Math.PI / 2 + rand(-0.3, 0.3);
-
-    if (variant === 'halves') {
-      piece(ang, -1, 0.5, 0, rand(40, 90), 1.85);
-      piece(ang, 1, 0.5, 0, rand(40, 90), 1.85);
-    } else if (variant === 'quarters') {
-      // The blade came back through. Four pieces, two cut lines.
-      for (const side of [-1, 1]) {
-        piece(ang, side, 0.36, -S * 0.22, rand(50, 100), 1.80);
-        piece(ang, side, 0.36, S * 0.22, rand(50, 100), 1.80);
+    if (style === 0) {
+      // Style 0: Clean 2-half bisect along blade angle + dual perpendicular arterial V-fountains
+      piece(ang, -1, 0.5, 0, rand(45, 85), 1.8);
+      piece(ang, 1, 0.5, 0, rand(45, 85), 1.8);
+      this._cutFlash(x, y, ang, S * 1.8);
+      this.spawnArterialCone(x, y, ang + Math.PI / 2, color, 1.1);
+      this.spawnArterialCone(x, y, ang - Math.PI / 2, color, 1.1);
+    } else if (style === 1) {
+      // Style 1: Asymmetrical diagonal carve (70/30) with spinning tumble & floor smear
+      piece(ang + 0.25, -1, 0.65, 4, rand(55, 100), 2.2, -30);
+      piece(ang - 0.25, 1, 0.35, -4, rand(25, 50), 1.6, 10);
+      this._cutFlash(x, y, ang, S * 2.0);
+      this.spawnArterialCone(x, y, ang + Math.PI / 2, color, 1.3);
+      this.pushBloodDecal({ x: x + Math.cos(ang) * 12, y: y + Math.sin(ang) * 12, r: S * 0.7, a: 0.65, bornAt: this.time, color: BLOOD_RED });
+    } else if (style === 2) {
+      // Style 2: Decapitation / Crest Uppercut (severed top launched high, geyser fountain upward)
+      piece(ang, -1, 0.4, -S * 0.2, rand(30, 60), 2.4, -rand(140, 220));
+      piece(ang, 1, 0.6, S * 0.2, rand(15, 35), 1.8, 20);
+      this._cutFlash(x, y, -Math.PI / 2, S * 1.6);
+      this.spawnArterialCone(x, y, -Math.PI / 2, color, 1.4);
+      for (let i = 0; i < 4; i++) {
+        this.pushBloodDecal({ x: x + rand(-18, 18), y: y + rand(10, 40), r: rand(1.5, 3.2), a: 0.55, bornAt: this.time, color: BLOOD_RED });
       }
-      this._cutFlash(x, y, cross, S * 1.3);
-    } else if (variant === 'topoff') {
-      // A shallow cut: one small piece leaves fast, the rest drops.
-      piece(ang, -1, 0.28, S * 0.3, rand(110, 190), 1.90);
-      piece(ang, 1, 0.62, -S * 0.1, rand(15, 40), 1.75);
-    } else if (variant === 'fan') {
-      // Three wedges opening away from the cut like a dealt hand.
-      piece(ang, -1, 0.34, -S * 0.18, rand(70, 120), 1.80);
-      piece(ang, 0.001, 0.34, 0, rand(20, 45), 1.85);
-      piece(ang, 1, 0.34, S * 0.18, rand(70, 120), 1.80);
+    } else if (style === 3) {
+      // Style 3: Cross Cleave / X-Slash Execution (dual cut flashes, 4 quarters burst, micro-slowmo)
+      piece(ang - 0.4, -1, 0.3, -4, rand(60, 95), 1.9);
+      piece(ang - 0.4, 1, 0.3, 4, rand(60, 95), 1.9);
+      piece(ang + 0.4, -1, 0.3, -4, rand(60, 95), 1.9);
+      piece(ang + 0.4, 1, 0.3, 4, rand(60, 95), 1.9);
+      this._cutFlash(x, y, ang - 0.45, S * 1.8);
+      this._cutFlash(x, y, ang + 0.45, S * 1.8);
+      this.spawnArterialCone(x, y, ang, color, 1.3);
+      this.spawnArterialCone(x, y, ang + Math.PI, color, 1.3);
+      this.cam.slowmo = Math.max(this.cam.slowmo, 0.08);
     } else {
-      // Cut through AND blown apart: halves plus a shower of chunks.
-      piece(ang, -1, 0.42, 0, rand(120, 200), 1.70);
-      piece(ang, 1, 0.42, 0, rand(120, 200), 1.70);
-      const n = this.fxCount(6);
-      for (let i = 0; i < n; i++) {
-        const c = this.parts.acquire();
-        c.x = x; c.y = y;
-        const a = Math.random() * TAU;
-        const sp = rand(90, 230);
-        c.vx = Math.cos(a) * sp; c.vy = Math.sin(a) * sp - rand(30, 90);
-        c.life = rand(0.35, 0.7); c.max = c.life;
-        c.color = color; c.size = rand(1.5, 3.4); c.type = 'chunk';
-      }
-      this.cam.shake = Math.max(this.cam.shake, 7);
+      // Style 4: Flank Parting (25% carved side flying off, main body collapsing with deep puddle)
+      piece(ang + Math.PI / 2, 1, 0.28, S * 0.3, rand(70, 120), 1.6);
+      piece(ang, -1, 0.72, 0, rand(20, 45), 2.0);
+      this._cutFlash(x, y, ang, S * 1.7);
+      this.spawnArterialCone(x, y, ang + Math.PI / 2, color, 1.25);
+      this.pushBloodDecal({ x, y, r: S * 0.8, a: 0.7, bornAt: this.time, color: BLOOD_RED });
     }
 
-    // The primary cut line always flashes along the blade's path.
-    this._cutFlash(x, y, ang, S * 1.6);
-    // Two arterial fans, one out of each side of the cut, thrown PERPENDICULAR
-    // to the blade — that is the direction a body actually opens. Full power:
-    // a clean bisect is the biggest blood moment in the game.
-    this.spawnArterialCone(x, y, ang + Math.PI / 2, color, 1.0);
-    this.spawnArterialCone(x, y, ang - Math.PI / 2, color, 1.0);
-    // Plus the existing droplet spatter along the blade, for texture.
+    // Droplet spatter along the blade axis
     for (const d of [0, Math.PI]) {
       this.spawnPunctureHit(x, y, color, Math.cos(ang + d), Math.sin(ang + d));
     }
@@ -2202,6 +2564,799 @@ export class Game {
     f.life = 0.22; f.max = 0.22;
     f.color = '#ffffff'; f.size = len;
     f.type = 'cutLine'; f._ang = ang;
+  }
+
+  // ============================================================
+  // FINISHERS — scripted executions, not death effects
+  // ============================================================
+  // Timmy, 2026-08-23. A finisher is a TIMED, MULTI-BEAT SEQUENCE. That is a
+  // different thing from `spawnBisect`'s one-frame kill styles, so it is built
+  // as its own system rather than bolted onto that one — the two would fight
+  // over the same body on the same frame.
+  //
+  // The property that makes this safe: by the time we get here the victim is
+  // already DEAD and out of the AI pool (see dealDamage's kill path). What
+  // plays out is a corpse ACTOR — a pooled particle the sequence mutates every
+  // frame — so a finisher can never stall the run loop or possess a live
+  // enemy, and the rest of the fight keeps running underneath on a slowed
+  // clock (`this.cam.slowmo`).
+  //
+  // Blood colour obeys the standing rule: liquid is always BLOOD_RED, solid
+  // chunks keep the enemy's own colour, and slime ooze stays green.
+
+  // Decides whether a killing blow becomes an execution, and starts it.
+  // Returns true if it took ownership of the body — dealDamage then skips its
+  // ordinary death effects, or the enemy would come apart TWICE: once now and
+  // once at the end of the sequence.
+  tryFinisher(e, t, bloodColor, fx) {
+    if (this.fin) return false;                 // one at a time, never a queue
+    if (t.boss) return false;                   // bosses run their own death
+    if ((this._finCD || 0) > 0 && !this._comboFinisherDue) return false;
+    const s = this.run.stats;
+    const f = s.flags || {};
+    const wid = s._wid || '';
+    // `_finForce` is the devtools override (see forceFinisher). It picks the
+    // sequence directly and skips the weapon and chance gates below.
+    let kind = this._finForce ? this._finForce
+      : /katana/i.test(wid) ? 'katana'
+      : /hydropistol/i.test(wid) ? 'hydro'
+      : null;
+    // The Hydro execution is a TALENT (Hydro Protocol, finishers step 3), not
+    // something the pistol does for free — otherwise the whole branch's third
+    // step would already be true on a fresh save.
+    if (kind === 'hydro' && !this._finForce && !f.finHydro) return false;
+    if (!kind) return false;
+
+    // Gated on the crit tiers, which is what the in-game brief asked for
+    // ("3 combo animations ... beroende på hur man träffar"). But super/mega
+    // crit are META upgrades a new player has zero levels in, so gating ONLY
+    // on those would mean nobody sees a finisher until hour ten. A modest flat
+    // chance on any killing blow carries it until the meta catches up.
+    // VAMPIRE'S DREAM's guaranteed execution, armed by killEnemy every 25th
+    // kill in a chain. "auto 100% successrate" — so it skips the chance roll
+    // AND the cooldown, and disarms itself whether or not it found a target.
+    const comboDue = this._comboFinisherDue;
+    this._comboFinisherDue = false;
+    const tier = s._lastCritTier || 0;
+    // Mercy Rule (step 14): anything already nearly dead is simply executed,
+    // no roll at all. Checked before the chance gate so it cannot be denied.
+    const nearlyDead = f.finExec && e.maxHp > 0 && (e.hp + 0.0001) <= e.maxHp * f.finExec;
+    // First Blood (step 1) drops the mega-crit requirement; Wet Work (step 2)
+    // raises the flat chance. Without either, a finisher stays the rare
+    // accident it is on a fresh save.
+    const flat = f.finChance || 0.13;
+    const gate = f.finAnyKill ? flat * 2.2 : flat;
+    if (!this._finForce && !comboDue && !nearlyDead && tier < 2 && Math.random() > gate) return false;
+
+    // Short Fuse (step 4) shortens the gap; Second Serving (step 11) sometimes
+    // refunds it entirely.
+    const cd = f.finCd || 2.4;
+    this._finCD = (f.finFree && Math.random() < f.finFree) ? 0 : cd;
+    if (kind === 'katana') this._startKatanaFinisher(e, t, bloodColor, fx);
+    else this._startHydroFinisher(e, t, bloodColor, fx);
+    this._onFinisherStarted(e, t, f);
+    return true;
+  }
+
+  // Everything the FINISHERS branch pays out the moment an execution begins.
+  // Kept in one place rather than sprinkled through the two sequences, so a
+  // new talent has exactly one obvious home and the two sequences cannot
+  // drift apart on what a finisher is worth.
+  _onFinisherStarted(e, t, f) {
+    const p = this.player;
+    // Arterial Feed (step 5).
+    if (f.finHeal) p.hp = Math.min(p.maxHp, p.hp + p.maxHp * f.finHeal);
+    // Slow Dance (step 9) — deepens the existing hitch rather than adding a
+    // second, competing time scale.
+    if (f.finSlow) this.cam.slowmo = Math.max(this.cam.slowmo, 0.3 * f.finSlow);
+    // Crowd Work (step 6): the execution is felt by everything standing near
+    // the victim. Snapshot first — dealDamage mutates the pool while we walk
+    // it, the same trap the level-up blast already documents.
+    if (f.finWave) {
+      const R = 130;
+      const near = [];
+      this.enemies.forEach((en) => {
+        if (!en.alive || en === e) return;
+        if (dist2(en.x, en.y, e.x, e.y) <= R * R) near.push(en);
+      });
+      let killed = 0;
+      for (const en of near) {
+        const before = en.alive;
+        this.dealDamage(en, en.maxHp * f.finWave, false, 90, e.x, e.y, true);
+        if (before && !en.alive) killed++;
+      }
+      this.spawnRing(e.x, e.y, R, '#b51d28', 0.4);
+      // APEX PREDATOR (step 15): a big enough execution pays for itself.
+      if (f.finApex && killed >= f.finApex) this._finCD = 0;
+    }
+    // Executioner's Toll (step 7) — a stacking damage window.
+    if (f.finRage) {
+      this._finRageN = Math.min(4, (this._finRageN || 0) + 1);
+      this._finRageT = 8;
+    }
+    // Overkill Bounty (step 8).
+    if (f.finGold) this._finGoldMult = f.finGold;
+  }
+
+  // Dev handle: fire a finisher on the nearest enemy, on demand.
+  //
+  // Exists because a finisher is gated on a killing blow AND a crit tier AND a
+  // cooldown, so verifying it visually otherwise means playing until the RNG
+  // cooperates — which on this project costs real money in agent time. From
+  // devtools: `__game.forceFinisher('katana')` or `__game.forceFinisher('hydro')`.
+  forceFinisher(kind = 'katana') {
+    const p = this.player;
+    let best = null, bestD = Infinity;
+    this.enemies.forEach((e) => {
+      if (!e.alive || e.t.boss) return;
+      const d = dist2(e.x, e.y, p.x, p.y);
+      if (d < bestD) { bestD = d; best = e; }
+    });
+    if (!best) return 'no enemy to execute';
+    // Kill it the ordinary way first so XP, gold, quest counters and the codex
+    // all still fire — a debug path that skips them would report false numbers.
+    this._finForce = kind;
+    this.dealDamage(best, best.hp + 9999, true, 0, p.x, p.y, true);
+    this._finForce = null;
+    return `${kind} finisher on ${best.t.id}`;
+  }
+
+  // The corpse actor. A pooled particle the sequence owns and mutates; the
+  // renderer draws whatever state it is in this frame.
+  _finBody(e, t, color, fx) {
+    const b = this.parts.acquire();
+    b.x = e.x; b.y = e.y; b.vx = 0; b.vy = 0;
+    b.life = 3.0; b.max = 3.0;
+    b.color = color; b.size = t.size || 22;
+    b.type = 'finBody';
+    b._z = 0; b._vz = 0;          // height above ground, and its velocity
+    b._rot = 0; b._spin = 0;      // body roll
+    b._sever = 0;                 // 0..1 how far the cut has opened
+    b._cutAng = 0;                // where the FIRST cut runs
+    b._topple = 0;                // 0..1 knocked flat (hydro)
+    b._eaten = 0;                 // 0..1 how much has been shot away (hydro)
+    b._ooze = (fx === 'ooze');    // slime keeps its own fluid colour
+    return b;
+  }
+
+  // ---- A. THE KATANA EXECUTION ------------------------------------------
+  // tsuki (thrust through) -> blade drip -> kiriage (rising cut) launch ->
+  // 60%-severed airborne spin -> a spin cut on the DESCENT that splits him
+  // somewhere new. Weight rule from kenjutsu: fast in, slow out.
+  _startKatanaFinisher(e, t, color, fx) {
+    const p = this.player;
+    const size = t.size || 22;
+    const ang = Math.atan2(e.y - p.y, e.x - p.x);
+    const body = this._finBody(e, t, color, fx);
+    // 2.5 enemy HEIGHTS, per his spec. Height is the diameter, so 5x size.
+    const apex = size * 5;
+    const launchV = Math.sqrt(2 * Game.FIN_G * apex);
+    // The first cut runs along a rising diagonal — kiriage. The second one is
+    // deliberately far off this line so it cannot land in the same place.
+    const cut1 = ang - 1.05;
+
+    this.fin = {
+      kind: 'katana', t: 0, beat: 0, dur: 1.55, body, ang, size, color,
+      sprayT: 0, split: false, zTarget: 0,
+      beats: [
+        // --- 1. THRUST. The blood leaves on the FAR side: an exit wound.
+        { at: 0.00, run: () => {
+          p._finOx = Math.cos(ang) * 30; p._finOy = Math.sin(ang) * 30;
+          const ex = body.x + Math.cos(ang) * size * 0.9;
+          const ey = body.y + Math.sin(ang) * size * 0.9;
+          this.spawnArterialCone(ex, ey, ang, BLOOD_RED, 1.35);
+          this._cutFlash(body.x, body.y, ang, size * 1.5);
+          this.cam.shake = Math.max(this.cam.shake, 9);
+          this.cam.slowmo = Math.max(this.cam.slowmo, 0.30);
+          Audio.kill(size, false);
+        } },
+        // --- 2. BLADE DRIP. It pumps rather than pours — two pulses.
+        { at: 0.17, run: () => this._spawnBladeDrip(p, ang, 5) },
+        { at: 0.31, run: () => this._spawnBladeDrip(p, ang, 4) },
+        // --- 3. THE UPPERCUT. Launch, and open him to 60%.
+        { at: 0.44, run: () => {
+          body._vz = launchV;
+          body._spin = rand(5.5, 8.0) * (Math.random() < 0.5 ? -1 : 1);
+          body._sever = 0.6;
+          body._cutAng = cut1;
+          body.vx = Math.cos(ang) * 34; body.vy = Math.sin(ang) * 34;
+          p._finOx = Math.cos(ang) * 14; p._finOy = Math.sin(ang) * 14 - 16;
+          this._cutFlash(body.x, body.y, cut1, size * 2.2);
+          this.spawnArterialCone(body.x, body.y, -Math.PI / 2, BLOOD_RED, 1.5);
+          this.cam.shake = Math.max(this.cam.shake, 13);
+          this.cam.slowmo = Math.max(this.cam.slowmo, 0.22);
+        } },
+        // --- 4. THE PLAYER LEAVES THE GROUND AND SPINS.
+        { at: 0.88, run: () => {
+          this.fin.zTarget = 34;
+          this._spawnSpinArc(p.x, p.y, size * 3.4, '#dff4ff');
+          Audio.shoot('katana', 'katana');
+        } },
+        // --- 5. THE SECOND CUT, on the way down, on a NEW line.
+        { at: 1.02, run: () => {
+          this.fin.split = true;
+          // Roughly perpendicular to the first cut, and offset along the body
+          // so it is visibly not the same wound reopened.
+          const cut2 = cut1 + 1.75 + rand(-0.2, 0.2);
+          const bx = body.x, by = body.y, bz = body._z;
+          this.parts.release(body);
+          this.fin.body = null;
+          // Already 60% through, so the halves are ASYMMETRIC and ragged —
+          // not the clean 50/50 a normal bisect produces.
+          this._spawnFinPiece(bx, by, bz, cut2, -1, 0.44, size, color, cut1);
+          this._spawnFinPiece(bx, by, bz, cut2, 1, 0.62, size, color, cut1);
+          this._cutFlash(bx, by - bz, cut2, size * 2.6);
+          this.spawnArterialCone(bx, by - bz * 0.5, cut2 + Math.PI / 2, BLOOD_RED, 1.5);
+          this.spawnArterialCone(bx, by - bz * 0.5, cut2 - Math.PI / 2, BLOOD_RED, 1.5);
+          this.cam.shake = Math.max(this.cam.shake, 17);
+          this.cam.slowmo = Math.max(this.cam.slowmo, 0.30);
+          Audio.kill(size * 1.4, false);
+        } },
+        // --- 6. He lands.
+        { at: 1.22, run: () => { this.fin.zTarget = 0; this.cam.shake = Math.max(this.cam.shake, 6); } },
+      ],
+    };
+  }
+
+  // ---- B. THE HYDRO GUN EXECUTION ---------------------------------------
+  // jump -> kick off him so he topples -> three downward-diagonal shots that
+  // take 18 / 21 / 26% of the body (65% total, his number) as projectile-sized
+  // chunks smeared into the ground -> land on the corpse.
+  _startHydroFinisher(e, t, color, fx) {
+    const p = this.player;
+    const size = t.size || 22;
+    const ang = Math.atan2(e.y - p.y, e.x - p.x);
+    const body = this._finBody(e, t, color, fx);
+    // The shots come from above and to one side, so every splash carries the
+    // same downward-diagonal direction — that is what makes it read as being
+    // shot INTO the ground rather than sprayed sideways.
+    const side = Math.random() < 0.5 ? -1 : 1;
+    const shotAng = Math.PI / 2 - side * 0.55;   // down, angled
+    const shot = (frac, kick) => () => {
+      body._eaten = Math.min(0.92, body._eaten + frac);
+      this._spawnHydroSplat(body, shotAng, frac, side);
+      this.cam.shake = Math.max(this.cam.shake, kick);
+      this.cam.slowmo = Math.max(this.cam.slowmo, 0.16);
+      Audio.shoot('hydropistol', 'manual');
+    };
+
+    this.fin = {
+      kind: 'hydro', t: 0, beat: 0, dur: 1.55, body, ang, size, color,
+      sprayT: 0, split: false, zTarget: 0, side, shotAng,
+      beats: [
+        // --- 1. JUMP.
+        { at: 0.00, run: () => { this.fin.zTarget = 12; this.cam.slowmo = Math.max(this.cam.slowmo, 0.22); } },
+        // --- 2. KICK OFF HIM. He goes over; the player is thrown up and back.
+        { at: 0.20, run: () => {
+          this.fin.zTarget = 62;
+          p._finOx = -Math.cos(ang) * 26 - side * 18;
+          p._finOy = -Math.sin(ang) * 26;
+          body._topple = 1;
+          body.vx = Math.cos(ang) * 60; body.vy = Math.sin(ang) * 60;
+          this.spawnHitBurst(body.x, body.y, color, 12);
+          this.cam.shake = Math.max(this.cam.shake, 10);
+          Audio.kill(size * 0.6, false);
+        } },
+        // --- 3/4/5. THREE SHOTS. Escalating, so it builds instead of repeats.
+        { at: 0.46, run: shot(0.18, 11) },
+        { at: 0.72, run: shot(0.21, 13) },
+        { at: 0.98, run: shot(0.26, 16) },
+        // --- 6. LAND ON HIM. The part he laughed about.
+        { at: 1.20, run: () => {
+          this.fin.zTarget = 0; p._finOx = 0; p._finOy = 0;
+          this._spawnHydroSplat(body, Math.PI / 2, 0.30, 0, true);
+          this.pushBloodDecal({ x: body.x, y: body.y, r: size * 1.15, a: 0.6, bornAt: this.time, color: body._ooze ? color : BLOOD_RED });
+          this.spawnRing(body.x, body.y, size * 2.1, BLOOD_RED, 0.35);
+          this.cam.shake = Math.max(this.cam.shake, 21);
+          this.cam.slowmo = Math.max(this.cam.slowmo, 0.26);
+          Audio.kill(size * 1.5, false);
+        } },
+      ],
+    };
+  }
+
+  // Blood running off the blade and dripping to the floor. Spawned at the
+  // blade tip, which sits ahead of the player along the aim.
+  _spawnBladeDrip(p, ang, n) {
+    const tipX = p.x + Math.cos(ang) * 34;
+    const tipY = p.y + Math.sin(ang) * 34;
+    for (let i = 0; i < n; i++) {
+      const d = this.parts.acquire();
+      d.x = tipX + rand(-7, 7); d.y = tipY + rand(-5, 5);
+      d.vx = rand(-14, 14); d.vy = rand(20, 70);
+      d.life = rand(0.45, 0.85); d.max = d.life;
+      d.color = BLOOD_RED; d.size = rand(1.6, 3.2);
+      d.type = 'bladeDrip';
+    }
+  }
+
+  // The 180/360 spin attack — a full sweeping ring rather than the katana's
+  // usual wedge, so the spin reads as a spin.
+  _spawnSpinArc(x, y, r, color) {
+    const a = this.parts.acquire();
+    a.x = x; a.y = y; a.vx = 0; a.vy = 0;
+    a.life = 0.30; a.max = 0.30;
+    a.color = color; a.size = r; a.type = 'spinArc';
+    a._dir = Math.random() < 0.5 ? -1 : 1;
+  }
+
+  // Two ragged, asymmetric pieces. `prevCut` is where the FIRST cut ran, so
+  // the renderer can show the old wound as well as the new one — the whole
+  // point of the beat is that he was already almost in half.
+  _spawnFinPiece(x, y, z, ang, side, frac, size, color, prevCut) {
+    const h = this.parts.acquire();
+    h.x = x + Math.cos(ang + Math.PI / 2) * side * 5;
+    h.y = y;
+    h.vx = Math.cos(ang + Math.PI / 2) * side * rand(120, 190) + rand(-25, 25);
+    h.vy = Math.sin(ang + Math.PI / 2) * side * rand(60, 110);
+    h.life = 2.1; h.max = 2.1;
+    h.color = color; h.size = size * frac;
+    h.type = 'finPiece';
+    h._z = z; h._vz = rand(60, 150);
+    h._ang = ang; h._side = side;
+    h._rot = 0; h._spin = rand(3, 7) * side;
+    h._prevCut = prevCut;
+    h._seed = Math.random() * 100;
+    return h;
+  }
+
+  // One shot tearing a percentage of the body away. The chunks are the size of
+  // the PROJECTILE, per his spec — that is what ties the damage to the weapon
+  // instead of looking like a generic gib burst.
+  _spawnHydroSplat(body, shotAng, frac, side, heavy = false) {
+    const projR = 6;                       // hydro pistol projectile radius
+    const n = Math.round((14 + frac * 40) * (heavy ? 1.6 : 1));
+    const cx = body.x, cy = body.y;
+    for (let i = 0; i < n; i++) {
+      const c = this.parts.acquire();
+      // Thrown along the shot direction, fanned — the ground takes it.
+      const a = shotAng + rand(-0.85, 0.85);
+      const sp = rand(90, 300) * (heavy ? 1.35 : 1);
+      c.x = cx + rand(-body.size * 0.5, body.size * 0.5);
+      c.y = cy + rand(-body.size * 0.35, body.size * 0.35);
+      c.vx = Math.cos(a) * sp; c.vy = Math.sin(a) * sp;
+      c.life = rand(0.35, 0.8); c.max = c.life;
+      // Solid pieces keep the body's colour; the liquid between them is blood.
+      const solid = i % 3 !== 0;
+      c.color = solid ? body.color : (body._ooze ? body.color : BLOOD_RED);
+      c.size = projR * rand(0.55, 1.15);
+      c.type = solid ? 'chunk' : 'blood';
+    }
+    // The angled smear where it hit the floor.
+    for (let k = 0; k < (heavy ? 5 : 3); k++) {
+      const sm = this.parts.acquire();
+      const a = shotAng + rand(-0.5, 0.5);
+      const reach = rand(14, 40) * (heavy ? 1.5 : 1);
+      sm.x = cx + Math.cos(a) * reach * 0.6 + side * rand(-8, 8);
+      sm.y = cy + Math.sin(a) * reach * 0.6;
+      sm.vx = 0; sm.vy = 0;
+      sm.life = rand(1.1, 1.8); sm.max = sm.life;
+      sm.color = body._ooze ? body.color : BLOOD_RED;
+      sm.size = rand(7, 15) * (heavy ? 1.4 : 1);
+      sm.type = 'groundSmear';
+      sm._ang = a;
+      sm._long = rand(1.7, 3.1);
+    }
+    this.pushBloodDecal({
+      x: cx + Math.cos(shotAng) * 12, y: cy + Math.sin(shotAng) * 12,
+      r: body.size * (0.35 + frac), a: 0.5, bornAt: this.time,
+      color: body._ooze ? body.color : BLOOD_RED,
+    });
+  }
+
+  // ============================================================
+  // THE COMBO CHAIN — pinball rules
+  // ============================================================
+  // One place that ends a chain, so every caller reports it the same way and
+  // the multiplier can never be left claiming a streak that is over.
+  _breakCombo(keep, why) {
+    const had = this.run.comboCount;
+    if (had <= 0) return;
+    this.run.comboCount = Math.max(0, keep);
+    this.run.comboTimer = keep > 0 ? 1.8 : 0;
+    // Without this the praise fires once per RUN instead of once per chain.
+    this._comboRankShown = 0;
+    if (keep === 0 && this.run.multiplier > 1) {
+      this.run.multiplier = 1;
+      // The HUD reads this to play the wobble-and-drop; see snapshot().
+      this._multDropT = 0.9;
+    }
+    if (had >= 8) {
+      this.spawnDamageNumber(
+        this.player.x, this.player.y - 70,
+        keep > 0 ? 'CHAIN HELD' : (why === 'HIT' ? 'CHAIN BROKEN' : 'CHAIN LOST'),
+        keep > 0 ? '#8fe6ff' : '#ff5566', 14);
+    }
+  }
+
+  // Anything stylish feeds the chain, not only kills. Timmy: "riktig combo
+  // alltsa snabba kills duckar dashe dogde finishers allt som ar snyggt a gar
+  // efter varan." A dodge that keeps the chain alive is the whole reason to
+  // dodge toward danger instead of away from it.
+  comboStyle(n, label) {
+    this.run.comboCount += n;
+    this.run.comboTimer = 1.8;
+    if (this.run.comboCount > this.run.maxCombo) this.run.maxCombo = this.run.comboCount;
+    if (label) this._comboRankText(label);
+  }
+
+  // The escalating praise. Small at first, louder and shakier the longer the
+  // chain holds — the font and the colour climb with it.
+  static COMBO_RANKS = [
+    { at: 5,   text: 'GOOD',      color: '#8fe6ff', size: 13 },
+    { at: 12,  text: 'NICE',      color: '#4dffd4', size: 15 },
+    { at: 22,  text: 'GREAT',     color: '#7ad96b', size: 17 },
+    { at: 35,  text: 'AMAZING',   color: '#ffd166', size: 20 },
+    { at: 55,  text: 'BRUTAL',    color: '#ff9933', size: 23 },
+    { at: 80,  text: 'MERCILESS', color: '#ff5566', size: 26 },
+    { at: 120, text: 'INHUMAN',   color: '#ff3146', size: 30 },
+    { at: 175, text: 'BIBLICAL',  color: '#b362ff', size: 34 },
+  ];
+
+  _comboRankText(forced) {
+    const c = this.run.comboCount;
+    let rank = null;
+    for (const r of Game.COMBO_RANKS) if (c >= r.at) rank = r;
+    // Only announce a rank the FIRST time it is reached in a chain, or the
+    // screen becomes a wall of praise and none of it lands.
+    if (rank && rank.at !== this._comboRankShown) {
+      this._comboRankShown = rank.at;
+      this.spawnDamageNumber(this.player.x, this.player.y - 96, rank.text, rank.color, rank.size);
+      this.cam.shake = Math.max(this.cam.shake, 2 + rank.size * 0.15);
+    } else if (forced) {
+      this.spawnDamageNumber(this.player.x, this.player.y - 88, forced, '#8fe6ff', 13);
+    }
+  }
+
+  // SIMULTANEOUS multi-kills only. Timmy was explicit: "om man tar dom
+  // samtidigt inte efter varandra". A 0.22s window is short enough that a
+  // steady stream of single kills never trips it, and long enough that one
+  // explosion or one sweep does.
+  //
+  // DOUBLE KILL IS DELIBERATELY ABSENT. It shipped for one playtest and Timmy's
+  // report was immediate: "double kill de star hela tiden". In a game that puts
+  // fifty enemies on screen, two dying together is the NORMAL case, so naming
+  // it made the praise meaningless and buried the rarer calls underneath it.
+  // Three is where it starts being worth saying.
+  static MULTI_KILL = [null, null, null, 'TRIPLE KILL', 'QUADRA KILL', 'PENTA KILL'];
+
+  // TRIPLE is still common enough to nag, so it is rate-limited on top of the
+  // window — his call, "1ggr per 10 sek inte mer". QUADRA and PENTA are rare by
+  // nature and are never throttled: "men hogre gar bra".
+  static TRIPLE_COOLDOWN = 10;
+
+  _registerKillForMultiKill() {
+    const now = this.time;
+    // `??`, NOT `||`. `this.time` starts at 0 and 0 is falsy, so `this._mkAt ||
+    // -99` treated "the last kill was at t=0" as "there was no last kill" — and
+    // every burst that began on the first frame of a run was miscounted, one
+    // kill at a time, so it could never reach three. Found by a test, never
+    // visible on screen: the label simply did not appear.
+    if (now - (this._mkAt ?? -99) > 0.22) { this._mkN = 0; this._mkShown = 0; }
+    this._mkAt = now;
+    this._mkN = (this._mkN || 0) + 1;
+    const n = Math.min(this._mkN, Game.MULTI_KILL.length - 1);
+    const label = Game.MULTI_KILL[n];
+    if (!label || n <= (this._mkShown || 0)) return;
+    if (n === 3) {
+      if (now - (this._tripleAt ?? -99) < Game.TRIPLE_COOLDOWN) return;
+      this._tripleAt = now;
+    }
+    this._mkShown = n;
+    this.spawnDamageNumber(this.player.x, this.player.y - 118, label, '#ffd166', 18 + n * 3);
+    this.cam.shake = Math.max(this.cam.shake, 5 + n * 2);
+  }
+
+  // ============================================================
+  // FLOURISHES — the signature moves a hot chain buys you
+  // ============================================================
+  // Timmy, 2026-08-23: "man ska till a me kunna gora en 360 snurr me antingen
+  // katana eller pistolen a ta var annan minst runt hela varvet a man ska kunna
+  // ta a hoppa upp over dom a skjuta nerat eller me katana hoppa a landa me
+  // svardet nerat rakt pa en fiende a sanna ska de handa nar man har en shysst
+  // multiplier combo."
+  //
+  // KEY WORDS: "ska de handa". These are not inputs. They fire on their own once
+  // the chain is hot, which is what makes a high multiplier feel like the game
+  // handing you something rather than a number going up.
+  //
+  // Same architecture as a finisher — a timed beat list — but a finisher owns a
+  // CORPSE and a flourish hits LIVE enemies, so it gets its own runner rather
+  // than overloading `this.fin` with a second meaning.
+
+  static FLOURISH_CD = 6.0;
+
+  // Two budgets, and the split is the whole point. Timmy, after seeing the
+  // first pass: "de ja mena va att ja ville ha mindre less andra partiklar sa
+  // de kunde ha MER pa blodet". So debris and sparks come down hard, and
+  // blood goes UP - the budget freed by one is spent on the other.
+  // Blood also gets SMALLER, not fewer: "mindre alltsa smaller inte less".
+  static PARTICLE_TRIM = 0.5;   // sparks, chunks, debris
+  static BLOOD_TRIM = 1.6;      // blood only
+
+  // Picked by what is actually around you, never at random: surrounded gets the
+  // spin, a lone target ahead gets the leap. The move then reads as a RESPONSE.
+  maybeFlourish() {
+    if (this.fin || this.flr) return;
+    if ((this._flrCD || 0) > 0) return;
+    if ((this.run.multiplier || 1) < 2) return;      // needs a real chain
+    if (Math.random() > 0.22) return;
+
+    const p = this.player;
+    const katana = /katana/i.test(this.run.stats._wid || '');
+
+    let near = 0, best = null, bestD = 1e9;
+    this.enemies.forEach((e) => {
+      if (!e.alive || e.t.boss) return;
+      const d = Math.hypot(e.x - p.x, e.y - p.y);
+      if (d < 150) near++;
+      if (d < bestD && d > 30) { bestD = d; best = e; }
+    });
+
+    if (near >= 4) this._startSpin360(katana);
+    else if (best && bestD < 240) {
+      if (katana) this._startDashThrough(best);
+      else this._startLeapShot(best);
+    }
+  }
+
+  // --- 360 SPIN. Every OTHER enemy around the full circle, his words. -------
+  _startSpin360(katana) {
+    const p = this.player;
+    this._flrCD = Game.FLOURISH_CD;
+    const R = 165;
+    // Ordered BY ANGLE, so "every other one" means every other one around you
+    // rather than every other one in an arbitrary pool order. That ordering is
+    // the entire move — unsorted, it is just a random AoE.
+    const ring = [];
+    this.enemies.forEach((e) => {
+      if (!e.alive || e.t.boss) return;
+      const d = Math.hypot(e.x - p.x, e.y - p.y);
+      if (d <= R) ring.push({ e, a: Math.atan2(e.y - p.y, e.x - p.x) });
+    });
+    ring.sort((x, y) => x.a - y.a);
+    const targets = ring.filter((_, i) => i % 2 === 0);
+
+    this._spawnSpinArc(p.x, p.y, R, katana ? '#dff4ff' : '#5fd6ff');
+    this.spawnDamageNumber(p.x, p.y - 108, '360', '#8fe6ff', 22);
+    this.cam.slowmo = Math.max(this.cam.slowmo, 0.22);
+    Audio.shoot(katana ? 'katana' : 'hydropistol', katana ? 'katana' : 'manual');
+
+    const dmgBase = (this.run.stats.damageMult || 1) * 90;
+    this.flr = {
+      kind: 'spin', t: 0, dur: 0.66, beat: 0,
+      // Spread across the sweep so they fall one after another as the blade
+      // comes round, not all on the same frame.
+      beats: targets.map((tg, i) => ({
+        at: 0.05 + i * (0.5 / Math.max(1, targets.length)),
+        run: () => {
+          if (!tg.e.alive) return;
+          const roll = this.rollDamage(dmgBase);
+          this.dealDamage(tg.e, roll.dmg, roll.crit, 140, p.x, p.y);
+          this._cutFlash(tg.e.x, tg.e.y, tg.a + Math.PI / 2, (tg.e.t.size || 22) * 1.7);
+          this.cam.shake = Math.max(this.cam.shake, 6);
+        },
+      })),
+    };
+  }
+
+  // --- KATANA DASH-THROUGH. Straight into him, and out the other side. ------
+  //
+  // This REPLACED an air slam (leap up, land blade-first). Timmy played it and
+  // the verdict was immediate: "nej hoppet ar inte bra alls.. gor mer att han
+  // typ dashar in i narmsta fiende a hugger han genom kroppen istallet."
+  //
+  // He is right, and the reason is the camera: this is a TOP-DOWN game, so
+  // height is almost invisible — a leap reads as the sprite getting slightly
+  // bigger and nothing else. Lateral travel reads perfectly from above. Any
+  // future flourish should move ACROSS the ground, not up off it.
+  _startDashThrough(target) {
+    const p = this.player;
+    this._flrCD = Game.FLOURISH_CD;
+    const ang = Math.atan2(target.y - p.y, target.x - p.x);
+    const ca = Math.cos(ang), sa = Math.sin(ang);
+    this.cam.slowmo = Math.max(this.cam.slowmo, 0.26);
+    this.spawnDamageNumber(p.x, p.y - 108, 'CUT THROUGH', '#dff4ff', 20);
+
+    this.flr = {
+      kind: 'dash', t: 0, dur: 0.62, beat: 0,
+      beats: [
+        // 1. Wind up: a short pull BACK. Committing forward without loading
+        //    first is what makes a lunge look weightless.
+        { at: 0.00, run: () => {
+          p._finOx = -ca * 16; p._finOy = -sa * 16;
+          Audio.shoot('katana', 'katana');
+        } },
+        // 2. The dash itself. A real velocity impulse rather than a teleport,
+        //    the same way weaponKatana's step-into-the-cut already works — so
+        //    he genuinely travels and can still be stopped by the world.
+        { at: 0.12, run: () => {
+          const reach = Math.hypot(target.x - p.x, target.y - p.y) + 70;
+          p.vx = (p.vx || 0) + ca * reach * 5.5;
+          p.vy = (p.vy || 0) + sa * reach * 5.5;
+          p._finOx = 0; p._finOy = 0;
+          this._spawnSpinArc(p.x, p.y, 60, '#dff4ff');
+        } },
+        // 3. Passing THROUGH the body. The cut runs along the direction of
+        //    travel, and the blood leaves on the far side — the same exit-wound
+        //    rule the thrust finisher uses, because that is what sells "through"
+        //    rather than "into".
+        { at: 0.22, run: () => {
+          const wasAlive = target.alive;
+          if (target.alive) {
+            const roll = this.rollDamage((this.run.stats.damageMult || 1) * 260);
+            this.dealDamage(target, roll.dmg, roll.crit, 90, p.x, p.y);
+          }
+          this._cutFlash(target.x, target.y, ang, (target.t.size || 22) * 2.6);
+          const ex = target.x + ca * (target.t.size || 22) * 0.9;
+          const ey = target.y + sa * (target.t.size || 22) * 0.9;
+          this.spawnArterialCone(ex, ey, ang, BLOOD_RED, 1.3);
+          if (wasAlive && !target.alive && !target.t.boss) {
+            this.spawnBisect(target.x, target.y, ang + Math.PI / 2, target.t.color, target.t.size);
+          }
+          this.cam.shake = Math.max(this.cam.shake, 16);
+          Audio.kill(target.t.size || 22, false);
+        } },
+        // 4. Anything else standing on the line gets opened too. A dash THROUGH
+        //    a crowd should not politely stop at the first body.
+        { at: 0.30, run: () => {
+          this.enemies.forEach((e) => {
+            if (!e.alive || e === target || e.t.boss) return;
+            // Perpendicular distance from the dash line, so this is a corridor
+            // rather than a circle — it only catches what he actually ran through.
+            const dx = e.x - p.x, dy = e.y - p.y;
+            const along = dx * ca + dy * sa;
+            if (along < -20 || along > 160) return;
+            const off = Math.abs(-dx * sa + dy * ca);
+            if (off > 34) return;
+            const r2 = this.rollDamage((this.run.stats.damageMult || 1) * 120);
+            this.dealDamage(e, r2.dmg, r2.crit, 70, p.x, p.y);
+            this._cutFlash(e.x, e.y, ang, (e.t.size || 22) * 2);
+          });
+        } },
+        // 5. Bleed off the momentum so he does not sail across the map.
+        { at: 0.40, run: () => { p.vx = (p.vx || 0) * 0.25; p.vy = (p.vy || 0) * 0.25; } },
+      ],
+    };
+  }
+
+  // --- LEAP SHOT. Over the top, three rounds straight down. -----------------
+  _startLeapShot(target) {
+    const p = this.player;
+    this._flrCD = Game.FLOURISH_CD;
+    this.cam.slowmo = Math.max(this.cam.slowmo, 0.24);
+    this.spawnDamageNumber(p.x, p.y - 108, 'VAULT', '#5fd6ff', 20);
+    const shot = () => {
+      if (!target.alive) return;
+      const roll = this.rollDamage((this.run.stats.damageMult || 1) * 110);
+      this.dealDamage(target, roll.dmg, roll.crit, 60, p.x, p.y - 80);
+      this.spawnHitBurst(target.x, target.y, '#5fd6ff', 8);
+      this.cam.shake = Math.max(this.cam.shake, 7);
+      Audio.shoot('hydropistol', 'manual');
+    };
+    this.flr = {
+      kind: 'leap', t: 0, dur: 0.9, beat: 0, zTarget: 0,
+      beats: [
+        { at: 0.00, run: () => { this.flr.zTarget = 96; } },
+        // Over the top of him, so the shots genuinely come from above.
+        { at: 0.26, run: () => {
+          p._finOx = (target.x - p.x) * 1.05;
+          p._finOy = (target.y - p.y) * 1.05;
+        } },
+        { at: 0.34, run: shot },
+        { at: 0.48, run: shot },
+        { at: 0.62, run: shot },
+        { at: 0.70, run: () => { this.flr.zTarget = 0; } },
+      ],
+    };
+  }
+
+  updateFlourish(dt) {
+    if (this._flrCD > 0) this._flrCD = Math.max(0, this._flrCD - dt);
+    const F = this.flr;
+    if (!F) return;
+    F.t += dt;
+    // `while`, not `if` — a long frame must never silently skip a beat and
+    // leave the player stranded in the air with no landing.
+    while (F.beat < F.beats.length && F.t >= F.beats[F.beat].at) {
+      const b = F.beats[F.beat];
+      F.beat++;
+      b.run();
+    }
+    const p = this.player;
+    // Height eases toward the beat's target, the same rule the finishers use:
+    // rising faster than falling is what gives a leap its snap.
+    if (F.zTarget !== undefined) {
+      const cur = p._finZ || 0;
+      const k = Math.min(1, dt * (F.zTarget > cur ? 14 : 8));
+      p._finZ = cur + (F.zTarget - cur) * k;
+    }
+    const ek = Math.min(1, dt * 6);
+    p._finOx = (p._finOx || 0) * (1 - ek);
+    p._finOy = (p._finOy || 0) * (1 - ek);
+    if (F.t >= F.dur) {
+      this.flr = null;
+      p._finZ = 0; p._finOx = 0; p._finOy = 0;
+    }
+  }
+
+  // Drives the active sequence. Called once per frame from update().
+  updateFinisher(dt) {
+    if (this._finCD > 0) this._finCD = Math.max(0, this._finCD - dt);
+    if (this._multDropT > 0) this._multDropT = Math.max(0, this._multDropT - dt);
+    // Executioner's Toll's window. Ticked here rather than in updatePlayer so
+    // the whole FINISHERS branch lives on one clock.
+    if (this._finRageT > 0) {
+      this._finRageT -= dt;
+      if (this._finRageT <= 0) { this._finRageT = 0; this._finRageN = 0; }
+    }
+    const F = this.fin;
+    if (!F) return;
+    F.t += dt;
+
+    // Fire every beat whose time has passed. A `while` rather than an `if`, so
+    // a long frame (tab refocus, a stall) cannot silently skip a beat and
+    // leave the body mid-sequence forever.
+    while (F.beat < F.beats.length && F.t >= F.beats[F.beat].at) {
+      const b = F.beats[F.beat];
+      F.beat++;
+      b.run();
+    }
+
+    const p = this.player;
+    const body = F.body;
+    if (body && body.alive) {
+      // Ballistics for the corpse.
+      body._vz -= Game.FIN_G * dt;
+      body._z = Math.max(0, body._z + body._vz * dt);
+      if (body._z <= 0 && body._vz < 0) { body._vz = 0; body._spin *= 0.3; }
+      // NOT `body.x += body.vx * dt` — the actor is a pooled particle, so
+      // updateParts already integrated its position this frame. Adding it
+      // again here would move it at double speed.
+      body.vx *= 0.94; body.vy *= 0.94;
+      body._rot += body._spin * dt;
+      // Airborne and cut open: he sprays the whole way up and the whole way
+      // down. This is the beat Timmy described as "de sprutar blod".
+      if (body._sever > 0 && body._z > 4) {
+        F.sprayT -= dt;
+        if (F.sprayT <= 0) {
+          F.sprayT = 0.045;
+          for (let i = 0; i < 3; i++) {
+            const d = this.parts.acquire();
+            const a = body._rot + rand(-1, 1) + Math.PI / 2;
+            d.x = body.x + rand(-6, 6);
+            d.y = body.y - body._z + rand(-6, 6);
+            d.vx = Math.cos(a) * rand(40, 150);
+            d.vy = Math.sin(a) * rand(40, 150) + 60;
+            d.life = rand(0.4, 0.8); d.max = d.life;
+            d.color = body._ooze ? body.color : BLOOD_RED;
+            d.size = rand(1.8, 3.6);
+            d.type = 'blood';
+          }
+        }
+      }
+    }
+
+    // Ease the player back to his real position rather than snapping — the
+    // offsets are visual only, so nothing here can desync the hitbox.
+    const k = Math.min(1, dt * 7);
+    p._finOx = (p._finOx || 0) * (1 - k);
+    p._finOy = (p._finOy || 0) * (1 - k);
+    // Height EASES TOWARD THE BEAT'S TARGET, it does not decay toward zero.
+    // Decaying was a real bug: the Hydro kick set 62px and exponential decay
+    // had him back at ~16px by the first shot, so he was firing from the floor
+    // instead of down out of the air. Rising is faster than falling, which is
+    // what gives the leap a snap and the descent some weight.
+    const zt = F.zTarget || 0;
+    const cur = p._finZ || 0;
+    const zk = Math.min(1, dt * (zt > cur ? 16 : 7));
+    p._finZ = cur + (zt - cur) * zk;
+
+    if (F.t >= F.dur) {
+      if (F.body && F.body.alive) this.parts.release(F.body);
+      this.fin = null;
+      p._finOx = 0; p._finOy = 0; p._finZ = 0;
+    }
   }
 
   spawnWhip(x, y, len, color, ang) {
@@ -2493,7 +3648,26 @@ export class Game {
       if (p._overchargeN % 6 === 0) dmg *= 2.0;
     }
     if (f.doubleHit && Math.random() < 0.20) dmg *= 2.0;
-    const c = (baseCrit || 0) + s.crit;
+    // Executioner's Toll (talent, finishers step 7): stacking damage for a few
+    // seconds after an execution. Applied here because rollDamage is the one
+    // funnel every source of player damage already passes through.
+    if (f.finRage && this._finRageN) dmg *= 1 + f.finRage * this._finRageN;
+    // Chain Reaction (talent, combos step 2): damage scales with the kill
+    // chain, capped so a long streak cannot run away with the whole balance.
+    if (f.comboDmg) dmg *= 1 + Math.min(0.60, (this.run.comboCount || 0) * f.comboDmg);
+    // Coward's Aim (talent, effects step 2), lifted from Skul's Cowardly
+    // Bowmaster's Bow: it pays you for NOT being in the middle of it.
+    if (f.fxCoward) {
+      const R = 200;
+      let close = false;
+      this.enemies.forEach((en) => { if (!close && en.alive && dist2(en.x, en.y, p.x, p.y) <= R * R) close = true; });
+      if (!close) dmg *= 1 + f.fxCoward;
+    }
+    // Killing Rhythm (talent, combos step 5): +1% crit per 5 combo. Added here
+    // because this is the one place a crit chance is ever decided.
+    const comboCritBonus = f.comboCrit
+      ? Math.floor((this.run.comboCount || 0) / 5) * f.comboCrit : 0;
+    const c = (baseCrit || 0) + s.crit + comboCritBonus;
     const isCrit = Math.random() < c;
     let critTier = 0;
     if (isCrit) {
@@ -2602,9 +3776,23 @@ export class Game {
   spawnEnemy(typeId) {
     const t = ENEMIES[typeId]; if (!t) return;
     const p = this.player;
-    // spawn ring just outside view
+    // ── Spawn ring: genuinely just outside the view, on every screen ──
+    // Was `viewSpan() * 0.42 + rand(20,60)`, which had two faults at once.
+    // It used the LONG edge regardless of direction, so on a landscape desktop
+    // it fell inside the frame (see viewEdgeDist). And because it scaled with
+    // the whole view, a desktop spawned enemies 1020-1060 away against a
+    // phone's 378-418 at identical enemy speeds — 2.6x longer before anything
+    // reaches you, which is most of Timmy's "snabbheten å kännslan försvinner
+    // på pc".
+    //
+    // Now: a PACE distance calibrated on the phone (the reference feel), and
+    // the per-axis view edge as a floor so nothing can ever pop into existence
+    // on screen. On a phone the pace distance wins in almost every direction,
+    // so the tuned feel is unchanged; on a desktop the floor wins, and the
+    // extra distance is paid back by devicePace() in the movement code below.
     const ang = Math.random() * TAU;
-    const dist = this.viewSpan() * 0.42 + rand(20, 60);
+    const paceDist = 358 + rand(20, 60);              // == the phone's old 378-418
+    const dist = Math.max(paceDist, this.viewEdgeDist(ang) + 30);
     const x = clamp(p.x + Math.cos(ang) * dist, 30, this.world.w - 30);
     const y = clamp(p.y + Math.sin(ang) * dist, 30, this.world.h - 30);
     const e = this.enemies.acquire();
@@ -2624,9 +3812,30 @@ export class Game {
     //           level (5.5% HP / 3.5% damage) because it compounds against
     //           the other two, and it is capped so a 40-minute endless run
     //           does not turn into a wall of unkillable statues.
-    const menace = Math.min(2.2, 1 + (this.run.level - 1) * 0.055);
+    // ── THE HP CURVE, retuned 2026-08-23 ────────────────────────────
+    // MEASURED with test/balance-sim.mjs BEFORE touching anything:
+    //   old  scale 1+t/190, menace cap 2.2  ->  enemy HP grows 11.3x over a
+    //        540s campaign, while the player's card curve grows 8.6x.
+    // Threat was outrunning power by ~30% - the exact inverse of the rule the
+    // whole fantasy rests on: power must grow FASTER than threat, or a
+    // roguelite stops feeling like one.
+    //
+    // The symptom Timmy reported: the katana stops being a TWO-HIT weapon. He
+    // named that as the feel he wants kept ("katana ska ta 2 slag som den
+    // gor.. minst"), and on the old curve it slipped to 3 hits by the end of
+    // the campaign even with a full card build.
+    //
+    //   new  scale 1+t/300, menace cap 1.60  ->  HP grows 7.5x vs 8.6x.
+    // The player now edges ahead and the katana holds 2 hits the whole way.
+    // Absolute difficulty at t=0 is UNCHANGED - both curves start at 1.0 - so
+    // the opening minutes and the pond_1 baseline mission are untouched. Only
+    // the slope moves.
+    //
+    // `menace` and `scale` feed maxHp and NOTHING else in this function;
+    // enemy damage has its own pair (menaceDmg / dmgMult) and is unaffected.
+    const menace = Math.min(1.60, 1 + (this.run.level - 1) * 0.055);
     const menaceDmg = Math.min(1.9, 1 + (this.run.level - 1) * 0.035);
-    const scale = 1 + this.run.time / 190;
+    const scale = 1 + this.run.time / 300;   // see the note on `menace` above
     e.dmgMult = (1 + this.run.time / 200) * (1 + this.bossesKilled * 1.6) * menaceDmg * D.dmgMult;
     if (SQUARE_ENEMY_TYPES.has(typeId)) e.dmgMult *= 2.5; // brute/charger/necron/steelbrute hit harder
     // Tier escalation (task: T1..T5+, one boss kill = one tier up, keeps
@@ -2972,7 +4181,14 @@ export class Game {
       const d = Math.hypot(dx, dy) || 1;
       const nx = dx / d, ny = dy / d;
       if (e._blightBuffT > 0) { e._blightBuffT -= dt; if (e._blightBuffT <= 0) e._blightSpeedBuff = 1; }
-      let spd = t.speed * slowMul * (e._slowT > 0 ? (e._slowMult || 1) : 1) * (e.speedMult || 1) * (e._blightSpeedBuff || 1) * this.weatherEnemySpeed();
+      // `devicePace()` is the device-zoom factor: a bigger screen shows more
+      // world, so an enemy crossing it at a fixed world speed appears to crawl
+      // and takes far longer to arrive. Multiplying here keeps its APPARENT
+      // speed the same on a phone and a desktop, which is the other half of
+      // the spawn-ring fix above — without it, pushing the ring out to the
+      // real view edge on desktop would have made the pacing worse, not
+      // better. It is 1.0 on the phone, so the reference feel is untouched.
+      let spd = t.speed * this.devicePace() * slowMul * (e._slowT > 0 ? (e._slowMult || 1) : 1) * (e.speedMult || 1) * (e._blightSpeedBuff || 1) * this.weatherEnemySpeed();
       if (t.ai === 'ranged') {
         if (d < (t.shootRange || 320) - 50) spd = -spd * 0.6;
         else if (d < (t.shootRange || 320) + 20) spd = 0;
@@ -3534,6 +4750,7 @@ export class Game {
           Audio.hit();
         } else {
           this.spawnDamageNumber(p.x, p.y - 10, 'DODGE', '#4dffd4');
+          this.comboStyle(1);
         }
       }
       e.hit = Math.max(0, e.hit - dt);
@@ -3686,6 +4903,7 @@ export class Game {
           this.spawnHitBurst(p.x, p.y, '#b51d28', 14);
         } else {
           this.spawnDamageNumber(p.x, p.y - 10, 'DODGE', '#4dffd4');
+          this.comboStyle(1);
         }
         this.eprojs.release(ep);
       }
@@ -3738,6 +4956,7 @@ export class Game {
               this.spawnHitBurst(pl.x, pl.y, '#1fb6ff', 20);
             } else {
               this.spawnDamageNumber(pl.x, pl.y - 10, 'DODGE', '#4dffd4');
+              this.comboStyle(1);
             }
           }
           this.spawnRing(p.x, p.y, p._radius, '#1fb6ff', 0.6);
@@ -3790,6 +5009,23 @@ export class Game {
         p.vy *= Math.pow(0.5, dt);
       }
       if (p.type === 'chunk') p.vy += 260 * dt; // dismembered flesh chunks fall
+      // Blood running off the blade falls faster than a gib — it is liquid,
+      // and a droplet that hangs reads as a floating dot.
+      if (p.type === 'bladeDrip') p.vy += 520 * dt;
+      if (p.type === 'finPiece') {
+        // Half a body still in the air after the second cut. `_z` is height
+        // above the ground, so it is drawn at y - _z while its x/y keep
+        // travelling normally underneath.
+        p._vz -= Game.FIN_G * dt;
+        p._z = Math.max(0, (p._z || 0) + p._vz * dt);
+        if (p._z <= 0 && p._vz < 0) {
+          // One dead bounce, then it stays down. A piece that keeps hopping
+          // looks like a ball, not like meat.
+          p._vz *= -0.22; p.vx *= 0.45; p.vy *= 0.45; p._spin *= 0.35;
+          this.pushBloodDecal({ x: p.x, y: p.y, r: p.size * 0.8, a: 0.55, bornAt: this.time, color: BLOOD_RED });
+        }
+        p._rot = (p._rot || 0) + (p._spin || 0) * dt;
+      }
       if (p.type === 'casing') {
         if (p._settled) {
           // Come to rest on the floor instead of drifting off-screen — the
@@ -3807,6 +5043,10 @@ export class Game {
       if (p.life <= 0) {
         if (p.type === 'blood') {
           this.pushBloodDecal({ x: p.x, y: p.y, r: 2 + Math.random() * 3, a: 0.45, bornAt: this.time });
+        } else if (p.type === 'finPiece') {
+          this.pushBloodDecal({ x: p.x, y: p.y, r: p.size * 1.1, a: 0.6, bornAt: this.time, color: BLOOD_RED });
+        } else if (p.type === 'bladeDrip') {
+          this.pushBloodDecal({ x: p.x, y: p.y, r: 1.4 + Math.random() * 1.8, a: 0.5, bornAt: this.time, color: BLOOD_RED });
         } else if (p.type === 'chunk') {
           this.pushBloodDecal({ x: p.x, y: p.y, r: p.size * 0.9, a: 0.5, bornAt: this.time });
         }
@@ -3817,8 +5057,16 @@ export class Game {
 
   updateGems(dt) {
     const p = this.player;
-    const pickupR = 18 * this.run.stats.pickupMult;
-    const magnetR = pickupR * 2.2;
+    // Prospect (ability) widens the vacuum while it runs. Applied here as
+    // a transient multiplier rather than by writing pickupMult, because
+    // that field is the run's accumulated total — writing to it would make
+    // the buff permanent the moment anything read it back.
+    const pickupR = 18 * this.run.stats.pickupMult * (this._prospectT > 0 ? 2 : 1);
+    // Greedy Streak: past its combo threshold the vacuum covers the screen, so
+    // a hot streak stops making you choose between looting and fighting.
+    const gf = this.run.stats.flags || {};
+    const streaking = gf.comboMagnet && (this.run.comboCount || 0) >= gf.comboMagnet;
+    const magnetR = streaking ? 2000 : pickupR * 2.2;
     this.gems.forEach(g => {
       if (!g.alive) return;
       const dx = p.x - g.x, dy = p.y - g.y;
@@ -3863,6 +5111,25 @@ export class Game {
   dealDamage(e, dmg, crit, kb, ox, oy, silent = false, wcolor = null) {
     if (!e.alive) return;
     const s = this.run.stats;
+    // Blood Rush (ability): heal a share of everything you deal, for its
+    // duration. Placed at the top of dealDamage so it covers EVERY source
+    // — projectiles, AoE, burn ticks, the Deluge wave — instead of only
+    // whichever call site happened to be patched. Capped per hit so a
+    // screen-clear cannot instantly refill the bar.
+    if (this._bloodrushT > 0 && dmg > 0) {
+      const p = this.player;
+      p.hp = Math.min(p.maxHp, p.hp + Math.min(dmg * 0.12, p.maxHp * 0.02));
+    }
+    // VAMPIRE'S DREAM (talent, combos step 4) — Timmy's own example, verbatim:
+    // "you take hp regen lifesteal from enemies if combo are over 15". Sits
+    // beside Blood Rush for the same reason it does: dealDamage is the one
+    // funnel every damage source passes through. Capped per hit so a crowd
+    // cannot instantly refill the bar.
+    const vf = (this.run.stats.flags || {}).comboVampire;
+    if (vf && dmg > 0 && (this.run.comboCount || 0) >= vf) {
+      const p = this.player;
+      p.hp = Math.min(p.maxHp, p.hp + Math.min(dmg * 0.08, p.maxHp * 0.015));
+    }
     if (e._decoy !== undefined) { e._decoy -= 0.5; if (e._decoy <= 0) this.killEnemy(e); return; }
     if (e._molting) { // Hollow Queen shield phase — no damage, just a block ping
       if (!silent) this.spawnDamageNumber(e.x, e.y - e.t.size * 0.6, 'BLOCKED', '#8a3fd4');
@@ -3931,14 +5198,15 @@ export class Game {
         const hit = new Set([e]);
         for (let j = 0; j < jumps; j++) {
           let next = null; let bestD = 190;
+          const currentPrev = prev;
           this.enemies.forEach((en) => {
             if (hit.has(en) || en === e) return;
-            const cd = Math.hypot(en.x - prev.x, en.y - prev.y);
+            const cd = Math.hypot(en.x - currentPrev.x, en.y - currentPrev.y);
             if (cd < bestD) { bestD = cd; next = en; }
           });
           if (!next) break;
-          this.spawnLightning(prev.x, prev.y, next.x, next.y, '#9fd8ff');
-          this.dealDamage(next, dmg * 0.45, false, 20, prev.x, prev.y, true);
+          this.spawnLightning(currentPrev.x, currentPrev.y, next.x, next.y, '#9fd8ff');
+          this.dealDamage(next, dmg * 0.45, false, 20, currentPrev.x, currentPrev.y, true);
           hit.add(next); prev = next;
         }
         e._arcingNow = false;
@@ -4081,7 +5349,20 @@ export class Game {
     // Direction the hit came from, so directional wounds (gash, sear) can be
     // oriented along the blow instead of at a random angle.
     const ang = Math.atan2(ly, lx);
-    e._marks.push({ lx, ly, r: rand(1.4, 2.6), kind, ang });
+    // `t` is when the wound opened, and `len` is how far the blade travelled.
+    // Both exist so the renderer can do what Timmy asked for: "de blir ett rott
+    // sar streck sa ska de stanka spraya blod a RINNA ur strecket ner". A
+    // runnel has to grow from somewhere, and it cannot grow without knowing how
+    // old the cut is.
+    //
+    // A blade cut runs LONG — it is a stroke across the body, not a point. A
+    // bullet hole stays a hole.
+    const bladed = kind === 'gash' || kind === 'sear';
+    e._marks.push({
+      lx, ly, r: rand(1.4, 2.6), kind, ang,
+      t: this.time,
+      len: bladed ? rand(1.7, 2.9) : 1,
+    });
     if (e._marks.length > 16) e._marks.shift();
   }
 
@@ -4091,8 +5372,26 @@ export class Game {
     if (e._decoy !== undefined) { this.enemies.release(e); return; }
     e.alive = false;
     this.run.kills += 1;
-    this.run.comboCount += 1;
+    const kf = s.flags || {};
+    // Two For One: past its threshold every kill counts twice, so a long chain
+    // accelerates instead of merely continuing.
+    this.run.comboCount += (kf.comboDouble && this.run.comboCount >= kf.comboDouble) ? 2 : 1;
     this.run.comboTimer = 1.8;
+    // Untouchable: the chain hands you a shield the first time it gets high.
+    if (kf.comboShield && this.run.comboCount >= kf.comboShield && this.player.shieldCharge === 0) {
+      this.player.shieldCharge = 1; this.player.shieldCD = 0;
+    }
+    // Detonator: every Nth kill IN the chain clears the room.
+    if (kf.comboBoom && this.run.comboCount > 0 && this.run.comboCount % kf.comboBoom === 0) {
+      this._delugeWave ? this._delugeWave() : this.spawnRing(this.player.x, this.player.y, 300, '#4dc4ff', 0.4);
+      this.cam.shake = Math.max(this.cam.shake, 14);
+    }
+    // VAMPIRE'S DREAM, second half: "if over 25 you get finishers every 25
+    // Combo trigger 1 finisher auto 100% successrate". Forced, so it ignores
+    // the chance roll and the cooldown exactly as he specified.
+    if (kf.comboVampire && this.run.comboCount >= 25 && this.run.comboCount % 25 === 0) {
+      this._comboFinisherDue = true;
+    }
 
     // Volatile: goes off on death, hurting enemies AND the player. The
     // player half is what makes it a positioning problem rather than a free
@@ -4133,6 +5432,14 @@ export class Game {
       if (this._microVortex.length < 12) this._microVortex.push({ x: e.x, y: e.y, t: 0.55 });
     }
     if (this.run.comboCount > this.run.maxCombo) this.run.maxCombo = this.run.comboCount;
+    // The escalating praise, and the SIMULTANEOUS multi-kill call. Both live
+    // here rather than in comboStyle() because a dodge is not a kill — only
+    // kills can make a DOUBLE KILL.
+    this._comboRankText();
+    this._registerKillForMultiKill();
+    // A hot chain buys a signature move. Checked on kill because that is
+    // the moment the chain actually changed.
+    this.maybeFlourish();
 
     // ---- Pinball-style score + multiplier ----
     // Multiplier is a step function of the current combo (every 8 kills in
@@ -4245,13 +5552,20 @@ export class Game {
     // blow came from. Scales with the body, so a big enemy opens up wider —
     // the same effect at a fixed size would look wrong on both a bat and a
     // brute. Bosses are excluded; they have their own death sequence.
-    if (!t.boss) {
+    // A finisher REPLACES the ordinary death effects. The body has to survive
+    // as an actor for the length of the sequence, so firing the arterial fan,
+    // the gib burst and the pool here as well would tear the enemy apart
+    // TWICE - once now, once when the execution ends.
+    const _finTook = this.tryFinisher(e, t, finalBlood, fx);
+    if (!t.boss && !_finTook) {
       const km = e._marks && e._marks.length ? e._marks[e._marks.length - 1] : null;
       const kAng = km && km.ang !== undefined ? km.ang : Math.random() * TAU;
       this.spawnArterialCone(e.x, e.y, kAng, finalBlood, Math.min(1, 0.4 + t.size / 60));
     }
-    this.spawnBrutalKill(e.x, e.y, finalBlood, t.size, fx);
-    Audio.kill(t.size, !!t.boss);
+    if (!_finTook) {
+      this.spawnBrutalKill(e.x, e.y, finalBlood, t.size, fx);
+      Audio.kill(t.size, !!t.boss);
+    }
     // Ground mark where the body fell — was a body-sized (0.85x) flat pool
     // that read as "the enemy went flat and is lying here", which the user
     // explicitly disliked ("de gillar ja inte") in favor of the body just
@@ -4259,7 +5573,7 @@ export class Game {
     // Kept much smaller (a modest splash, not a silhouette-sized stain), and
     // skipped entirely for FX types that shouldn't leave a blood pool at all
     // (crystal shatter / dust decay / metal spark burst).
-    if (fx !== 'crystallize' && fx !== 'decay' && fx !== 'sparkExplode') {
+    if (!_finTook && fx !== 'crystallize' && fx !== 'decay' && fx !== 'sparkExplode') {
       // Ooze is the one deliberate exception — slimes were never bleeding to
       // begin with, so their pool stays their own color; every other death
       // leaves an actual blood pool now.
@@ -4273,7 +5587,10 @@ export class Game {
     if (Math.random() < 0.6) {
       const g = this.gems.acquire();
       g.x = e.x + rand(-8, 8); g.y = e.y + rand(-8, 8); g.t = 0;
-      g.gold = Math.max(1, Math.floor(t.gold * s.goldMult * this.weatherGold()));
+      // Prospect (ability): doubled gold for its duration. Same reasoning
+      // as the pickup radius above — transient, never written into the
+      // run's accumulated goldMult.
+      g.gold = Math.max(1, Math.floor(t.gold * s.goldMult * this.weatherGold() * (this._prospectT > 0 ? 2 : 1)));
       g.xp = 0; g.heart = 0;
     }
     // Rare heart drop — heals 5 HP base (upgradeable via m_heal meta)
@@ -4396,6 +5713,80 @@ export class Game {
         pp.life = rand(0.7, 1.4); pp.max = pp.life; pp.color = i%3===0?'#ff7a1a':'#888'; pp.size = rand(1.2, 3); pp.type = 'spark';
       }
       this.spawnRing(x, y, size * 1.2, '#ff7a1a', 0.25);
+    } else if (fx === 'shotgunObliterate') {
+      // Upper torso blasted backwards in chunks + massive V-cone blood wall + floor crater
+      for (let i = 0; i < Math.round(38 * cnt); i++) {
+        const pp = this.parts.acquire();
+        pp.x = x + rand(-6, 6); pp.y = y + rand(-6, 6);
+        const a = Math.random() * TAU; const sp = rand(180, 520);
+        pp.vx = Math.cos(a) * sp; pp.vy = Math.sin(a) * sp - rand(40, 180);
+        pp.life = rand(0.5, 1.2); pp.max = pp.life; pp.color = BLOOD_RED;
+        pp.size = rand(1.8, 4.2); pp.type = 'blood'; pp._heavy = i % 3 === 0;
+      }
+      for (let i = 0; i < 6; i++) {
+        const pp = this.parts.acquire();
+        pp.x = x + rand(-4, 4); pp.y = y + rand(-4, 4);
+        const a = (i / 6) * TAU + rand(-0.2, 0.2);
+        pp.vx = Math.cos(a) * rand(240, 480); pp.vy = Math.sin(a) * rand(240, 480) - 160;
+        pp.life = rand(0.8, 1.4); pp.max = pp.life; pp.color = color;
+        pp.size = size * (0.16 + Math.random() * 0.16); pp.type = 'chunk';
+      }
+      this.spawnRing(x, y, size * 1.6, '#ffffff', 0.25);
+      this.pushBloodDecal({ x, y, r: size * 0.9, a: 0.75, bornAt: this.time, color: BLOOD_RED });
+    } else if (fx === 'pierceKinetic') {
+      // Rapid piercing rupture: fine exit mist + directional meat chunks
+      for (let i = 0; i < Math.round(28 * cnt); i++) {
+        const pp = this.parts.acquire();
+        pp.x = x + rand(-3, 3); pp.y = y + rand(-3, 3);
+        const a = Math.random() * TAU; const sp = rand(120, 360);
+        pp.vx = Math.cos(a) * sp; pp.vy = Math.sin(a) * sp - rand(20, 90);
+        pp.life = rand(0.3, 0.8); pp.max = pp.life; pp.color = BLOOD_RED;
+        pp.size = rand(1.2, 2.8); pp.type = 'blood'; pp._mist = i % 2 === 0;
+      }
+      for (let i = 0; i < 3; i++) {
+        const pp = this.parts.acquire();
+        pp.x = x; pp.y = y;
+        const a = (i / 3) * TAU;
+        pp.vx = Math.cos(a) * 260; pp.vy = Math.sin(a) * 260 - 120;
+        pp.life = 0.8; pp.max = 0.8; pp.color = color; pp.size = size * 0.18; pp.type = 'chunk';
+      }
+      this.spawnRing(x, y, size * 1.2, '#ffffff', 0.2);
+    } else if (fx === 'overchargeVaporize') {
+      // Lightning overcharge: body vaporized into blinding blue arcs & hot sparks
+      for (let i = 0; i < Math.round(32 * cnt); i++) {
+        const pp = this.parts.acquire();
+        const a = Math.random() * TAU; const sp = rand(180, 500);
+        pp.x = x; pp.y = y;
+        pp.vx = Math.cos(a) * sp; pp.vy = Math.sin(a) * sp;
+        pp.life = rand(0.2, 0.5); pp.max = pp.life;
+        pp.color = i % 2 === 0 ? '#bfe8ff' : '#4dc8ff'; pp.size = rand(1.4, 3.2); pp.type = 'spark';
+      }
+      this.spawnRing(x, y, size * 2.0, '#bfe8ff', 0.4);
+      this.spawnRing(x, y, size * 1.0, '#ffffff', 0.25);
+    } else if (fx === 'shatterFrost') {
+      // Frozen shatter: 24 crystalline shards and ice mist
+      for (let i = 0; i < Math.round(24 * cnt); i++) {
+        const pp = this.parts.acquire();
+        const a = Math.random() * TAU; const sp = rand(140, 420);
+        pp.x = x + rand(-4, 4); pp.y = y + rand(-4, 4);
+        pp.vx = Math.cos(a) * sp; pp.vy = Math.sin(a) * sp - rand(30, 110);
+        pp.life = rand(0.6, 1.1); pp.max = pp.life;
+        pp.color = i % 3 === 0 ? '#ffffff' : '#9fe8ff';
+        pp.size = rand(2.2, 4.8); pp.type = 'chunk';
+      }
+      this.spawnRing(x, y, size * 1.4, '#9fe8ff', 0.35);
+    } else if (fx === 'cremation') {
+      // Thermal incineration: smoldering ash, fire cinders and smoke plume
+      for (let i = 0; i < Math.round(24 * cnt); i++) {
+        const pp = this.parts.acquire();
+        pp.x = x + rand(-size * 0.4, size * 0.4); pp.y = y + rand(-size * 0.4, size * 0.4);
+        pp.vx = rand(-60, 60); pp.vy = -rand(90, 240);
+        pp.life = rand(0.8, 1.6); pp.max = pp.life;
+        pp.color = i % 3 === 0 ? '#ffffff' : i % 2 === 0 ? '#ff7a1a' : '#ff3146';
+        pp.size = rand(1.6, 3.6); pp.type = 'spark';
+      }
+      this.spawnRing(x, y, size * 1.3, '#ff7a1a', 0.35);
+      this.pushBloodDecal({ x, y, r: size * 0.7, a: 0.55, bornAt: this.time, color: '#2a1a12' });
     } else if (fx === 'bisect') {
       for (let i = 0; i < Math.round(30 * cnt); i++) {
         const pp = this.parts.acquire();
@@ -4687,7 +6078,11 @@ export class Game {
     // The tier's XP bonus is applied here rather than folded into the orb
     // values so it also covers every non-orb XP source (shrine rewards, dock
     // stations, boss bonuses) without each of them having to remember.
-    r.xp += Math.floor(amount * r.stats.xpMult * this.diff.xpMult);
+    // Scholar of Violence: XP scales with the chain, capped so a long streak
+    // cannot outrun the level curve entirely.
+    const xf = (r.stats.flags || {}).comboXp;
+    const comboXpMult = xf ? 1 + Math.min(xf, (r.comboCount || 0) * (xf / 100)) : 1;
+    r.xp += Math.floor(amount * r.stats.xpMult * this.diff.xpMult * comboXpMult);
     this._maybeLevelUp();
   }
 
@@ -4846,7 +6241,13 @@ export class Game {
   mitigate(raw) {
     const armor = Math.max(0, this.run.stats.armor || 0);
     const reduction = Math.min(0.70, armor / (armor + 26));
-    return Math.max(1, raw * (1 - reduction));
+    let out = Math.max(1, raw * (1 - reduction));
+    // Bulwark (ability) is applied AFTER armour and as its own multiplier,
+    // not by adding armour: the armour curve is capped at 70%, so feeding
+    // it in there would have made the ability do almost nothing for an
+    // already-armoured player — the exact build that would pick it.
+    if (this._bulwarkT > 0) out = Math.max(1, out * 0.30);
+    return out;
   }
 
   // Dodge is capped for the same reason — stacked far enough it was a
@@ -5110,9 +6511,22 @@ export class Game {
   // Scales a particle count against the budget. Never returns 0 for a
   // non-zero request — feedback thins out, it never disappears, or hits stop
   // reading as hits exactly when the screen is busiest.
+  // The global particle budget. `PARTICLE_TRIM` is a deliberate, single-number
+  // reduction on top of the quality scale — Timmy, 2026-08-23: "ta bort lite
+  // partiklar". Applied HERE rather than by editing thirty call sites, so the
+  // ratio between a small hit and a big one is preserved and there is exactly
+  // one number to tune if it goes too far.
   fxCount(n) {
     if (n <= 0) return 0;
-    return Math.max(1, Math.round(n * (this._fxScale ?? 1)));
+    return Math.max(1, Math.round(n * (this._fxScale ?? 1) * Game.PARTICLE_TRIM));
+  }
+
+  // Blood's own budget. Deliberately a separate function rather than a flag
+  // on fxCount, so a call site has to SAY it is spawning blood — which is
+  // also the only way the two budgets can be tuned against each other later.
+  fxBlood(n) {
+    if (n <= 0) return 0;
+    return Math.max(1, Math.round(n * (this._fxScale ?? 1) * Game.BLOOD_TRIM));
   }
 
   spawnHitBurst(x, y, color, count) {
@@ -5124,8 +6538,19 @@ export class Game {
       const sp = rand(120, 360);
       p.vx = Math.cos(a) * sp; p.vy = Math.sin(a) * sp;
       p.life = rand(0.3, 0.6); p.max = p.life;
-      p.color = color; p.size = rand(2, 5);
-      p.type = i % 3 === 0 ? 'spark' : 'blood';
+      // THE COLOURED-SPRAY FIX. Every particle here used to take the WEAPON's
+      // colour, including the ones typed 'blood' — so two thirds of every hit
+      // burst was coloured liquid, and Timmy's report was exactly that:
+      // "stanker sa mycket fargade partiklar som blir for mycket".
+      // Now only the spark carries the weapon colour; the liquid is blood.
+      // Same rule the gore system already follows everywhere else.
+      // One spark in six now, and the blood is FINE — a mist of small drops
+      // reads as liquid, where a few fat dots read as confetti. That is the
+      // whole difference between "spray" and "particles".
+      const isSpark = i % 6 === 0;
+      p.color = isSpark ? color : BLOOD_RED;
+      p.size = isSpark ? rand(1.4, 2.6) : rand(0.7, 1.9);
+      p.type = isSpark ? 'spark' : 'blood';
     }
   }
 
@@ -5177,27 +6602,56 @@ export class Game {
   // Passing sky object: a fiery meteor with a tail, or a slow UFO trailing a
   // colored light beam — both cross the sky above the play area and cast a
   // real (if faint) moving light onto the world below as they pass.
+  // ── DEVICE PARITY, and the bug this shape exists to kill ────────────
+  // Timmy: "meteorer och ufo och sånnt slutar animera mitt i bilden på pc för
+  // på luren har den gått ur bild och de syns inte." He diagnosed it exactly.
+  //
+  // The old version spawned at `viewSpan()*0.7`, which SCALES with the view,
+  // but gave a flat `speed` and a flat `life`, which do not. On a phone
+  // (deviceZoom is clamped to exactly 1, so screen px == world px) it spawned
+  // 676 away and travelled 768-1656, so it had always overshot the frame by
+  // the time it expired. On a 1440-wide desktop it spawned 1747 away and still
+  // travelled only 768-1656 — dying about 577 from the player, i.e. **inside
+  // the visible frame, every single time** — and `splice` removes it in one
+  // frame with no fade. That is the "stops animating mid-screen" report.
+  //
+  // Two changes fix it at any screen size, and neither is a magic constant:
+  //   1. SPEED SCALES WITH ZOOM. Screen px = world px / zoom, so a world speed
+  //      of `base * zoom` renders as the same APPARENT speed on every device.
+  //      This is the "make the pace viewport-independent" half.
+  //   2. LIFE IS DERIVED FROM THE GEOMETRY rather than guessed: long enough to
+  //      travel from the spawn ring, across the view, and out the far side.
+  //      Feed the phone's numbers in and it yields 1.65-2.47s — which is what
+  //      the old hand-tuned 1.6-2.3 already was, so the phone (the calibration
+  //      point Timmy judges by) does not change.
   spawnSkyEvent() {
     const p = this.player;
     const isUfo = Math.random() < 0.3;
     const ang = Math.random() * TAU;
-    const dist = this.viewSpan() * 0.7 + 80;
+    const span = this.viewSpan();
+    const dist = span * 0.7 + 80;
     const sx = p.x + Math.cos(ang) * dist, sy = p.y + Math.sin(ang) * dist;
     const dirAng = ang + Math.PI + rand(-0.35, 0.35);
-    const speed = isUfo ? rand(55, 85) : rand(480, 720);
+    const speed = (isUfo ? rand(55, 85) : rand(480, 720)) * this.viewZoom();
+    // Cross the whole view and leave. 0.6 of the span beyond the spawn ring
+    // clears the far edge at any aspect ratio the zoom clamp allows.
+    // UFOs get a margin because their "scanning" hover stalls them to 12%
+    // speed for ~0.6s at a time (see updateSkyEvents) — without it they run out
+    // of life just short of the edge, which is this same bug all over again.
+    const travel = (dist + span * 0.6) * (isUfo ? 1.18 : 1);
+    const life = travel / speed;
     this.skyEvents.push({
       type: isUfo ? 'ufo' : 'meteor',
       x: sx, y: sy,
       vx: Math.cos(dirAng) * speed, vy: Math.sin(dirAng) * speed,
-      life: isUfo ? rand(9, 13) : rand(1.6, 2.3),
-      maxLife: isUfo ? 0 : 0, // set below for meteors (need a fixed reference for the burn-up curve)
+      life,
+      maxLife: life,   // fixed reference for the meteor burn-up curve
       color: isUfo ? '#8fffc0' : (Math.random() < 0.5 ? '#ff7a1a' : '#ffdf80'),
       t: 0,
+      fade: 1,
       bob: rand(0, TAU),
       hoverT: isUfo ? rand(2, 4) : 0,
     });
-    const ev = this.skyEvents[this.skyEvents.length - 1];
-    ev.maxLife = ev.life;
   }
 
   updateSkyEvents(dt) {
@@ -5227,6 +6681,13 @@ export class Game {
         if (ev.frags) for (const f of ev.frags) { f.ox += f.dx * dt; f.oy += f.dy * dt; }
       }
       ev.life -= dt;
+      // Belt and braces on the parity fix above: even with the geometry-derived
+      // lifetime, a hover stall or an odd aspect ratio could still expire one
+      // while it is technically on screen. A hard `splice` is a one-frame
+      // disappearance — exactly what "slutar animera mitt i bilden" looks like —
+      // so the last stretch of life is always a fade instead of a pop.
+      const FADE = 0.7;
+      ev.fade = ev.life >= FADE ? 1 : Math.max(0, ev.life / FADE);
       if (ev.life <= 0) this.skyEvents.splice(i, 1);
     }
   }

@@ -1,5 +1,6 @@
 // Extended game data: skills, equipment, chests, quests, daily rewards, parts, avatars.
 import { WEAPONS } from './data';
+import { GEAR_SLOTS, generateGearItem } from './gear';
 
 // ---------- AVATARS ----------
 export const AVATARS = [
@@ -403,61 +404,6 @@ export function trackInfo(wid, weapon, track) {
 }
 
 // ---------- EQUIPMENT (chest drops) ----------
-export const EQUIP_SLOTS = ['head', 'chest', 'boots', 'trinket'];
-export const EQUIP_BASE = {
-  head:    { icon: 'gear_helmet', stats: ['crit', 'crit'] },
-  chest:   { icon: 'gear_chest', stats: ['maxhp', 'armor'] },
-  boots:   { icon: 'gear_boots', stats: ['mspd', 'dodge'] },
-  trinket: { icon: 'gear_amulet', stats: ['xp', 'gold', 'luck', 'pickup'] },
-};
-// rarity adds a stat slot and multiplies values
-export const EQUIP_RARITY = {
-  common:    { mult: 1.0, slots: 1, color: '#9a8fa6', cls: 'r-common' },
-  uncommon:  { mult: 1.5, slots: 2, color: '#4dff91', cls: 'r-uncommon' },
-  rare:      { mult: 2.0, slots: 3, color: '#4dc4ff', cls: 'r-rare' },
-  epic:      { mult: 2.7, slots: 4, color: '#b362ff', cls: 'r-epic' },
-  legendary: { mult: 3.6, slots: 5, color: '#ff7a1a', cls: 'r-legendary' },
-  mythical:  { mult: 5.5, slots: 6, color: '#ff3146', cls: 'r-mythical' },
-};
-const EQUIP_NAMES = {
-  head: ['Helm of Tides', 'Drowned Crown', 'Visor of Horus', 'Skull of A.I.D.A.', 'Cap of Echoes'],
-  chest: ['Plate of Nirvana', 'Robe of Ash', 'Vest of Voidsteel', 'Hauberk of Lake', 'Shroud of Annunaki'],
-  boots: ['Tideboots', 'Lightstep', 'Voidwalkers', 'Phasing Greaves', 'Boots of Drift'],
-  trinket: ['Eye Pendant', 'Coin of Drown', 'Sigil of Aida', 'Lake Heart', 'Wisp Ring'],
-};
-const STAT_NAMES = {
-  maxhp: 'Max HP', dmg: 'Damage %', atks: 'Atk Speed %', mspd: 'Move Speed %',
-  crit: 'Crit %', critd: 'Crit Dmg %', armor: 'Armor', regen: 'Regen',
-  pickup: 'Pickup %', xp: 'XP %', gold: 'Gold %', luck: 'Luck',
-  dodge: 'Dodge %', area: 'Area %', proj: 'Projectiles',
-};
-export function rollEquip(rarity, level = 1) {
-  const slotsAll = ['maxhp', 'dmg', 'atks', 'mspd', 'crit', 'critd', 'armor', 'pickup', 'xp', 'gold', 'luck', 'dodge', 'area'];
-  const slot = EQUIP_SLOTS[Math.floor(Math.random() * EQUIP_SLOTS.length)];
-  const r = EQUIP_RARITY[rarity];
-  const name = EQUIP_NAMES[slot][Math.floor(Math.random() * EQUIP_NAMES[slot].length)];
-  const baseStats = EQUIP_BASE[slot].stats;
-  const statsRolled = [];
-  const used = new Set();
-  for (let i = 0; i < r.slots; i++) {
-    const pool = i < baseStats.length ? [baseStats[i]] : slotsAll.filter(s => !used.has(s));
-    const stat = pool[Math.floor(Math.random() * pool.length)];
-    used.add(stat);
-    let val;
-    if (stat === 'maxhp') val = Math.floor((8 + Math.random() * 12) * r.mult * level);
-    else if (stat === 'armor') val = Math.floor((1 + Math.random() * 2) * r.mult);
-    else if (stat === 'regen') val = (0.1 + Math.random() * 0.2) * r.mult;
-    else val = (0.02 + Math.random() * 0.05) * r.mult; // percent
-    statsRolled.push({ stat, val, name: STAT_NAMES[stat] || stat });
-  }
-  return {
-    id: 'eq_' + Math.random().toString(36).slice(2, 9),
-    slot, name, rarity, level,
-    stats: statsRolled,
-    icon: EQUIP_BASE[slot].icon,
-  };
-}
-
 // ---------- CHESTS ----------
 export const CHESTS = [
   { id: 'wood',     name: 'Standard Chest',  icon: 'ui_chest',  cost: 50,   currency: 'gems', rolls: 1, rarityWeights: { common: 80, uncommon: 18, rare: 2 } },
@@ -469,6 +415,17 @@ export const CHESTS = [
   { id: 'parts',    name: 'Parts Chest',     icon: 'ui_part',  cost: 100,  currency: 'gems', rolls: 2, rarityWeights: { common: 60, uncommon: 30, rare: 10 }, partsOnly: true },
   { id: 'annunaki', name: 'Annunaki Cache',  icon: 'ui_void',  cost: 4500, rolls: 3, rarityWeights: { epic: 70, legendary: 30 } },
 ];
+// Chest tiers were rolled through their own tiny gear generator (rollEquip)
+// that stored loot in save.inventory/save.equipped — a completely separate
+// system from the one every other gear surface (GearPanel, Weaponsmith
+// sockets/runes, gear leveling) actually reads: save.gearInventory /
+// save.gearEquipped via game/gear.js. That meant chest loot was a dead end.
+// rollChest now generates real gear items through generateGearItem so a
+// chest drop lands in the same inventory GearPanel shows. Chest tier tables
+// use 'uncommon' for the second rarity rung; the real gear rarity ladder
+// calls that rung 'magic' (see GEAR_RARITIES in gear.js), so it's mapped
+// here at the roll boundary rather than renaming every CHESTS table.
+export const CHEST_RARITY_TO_GEAR_RARITY = { uncommon: 'magic' };
 export function rollChest(chest, luck = 0) {
   const drops = [];
   for (let i = 0; i < chest.rolls; i++) {
@@ -482,7 +439,9 @@ export function rollChest(chest, luck = 0) {
     let r = Math.random() * total;
     let chosen = Object.keys(w)[0];
     for (const k of Object.keys(w)) { r -= w[k]; if (r <= 0) { chosen = k; break; } }
-    drops.push(rollEquip(chosen, 1));
+    const rarity = CHEST_RARITY_TO_GEAR_RARITY[chosen] || chosen;
+    const slot = GEAR_SLOTS[Math.floor(Math.random() * GEAR_SLOTS.length)];
+    drops.push(generateGearItem(slot, rarity));
   }
   return drops;
 }
@@ -677,15 +636,8 @@ Object.assign(WEAPONS, EXTRA_WEAPONS);
 // because a wall of text at the very start is the fastest way to be skipped.
 //
 // `emote` drives the visual beat behind each line (see IntroDialogue).
-export const AIDA_INTRO = [
-  { who: '', text: 'Space is mostly nothing.', emote: 'void' },
-  { who: '', text: 'You are a very small amount of water in it.', emote: 'drop' },
-  { who: '', text: 'This is statistically the worst place you could be.', emote: 'drop' },
-  { who: '', text: 'Behind you: the Lake. Every drop you have ever known.', emote: 'lake' },
-  { who: '', text: 'It is on fire. Water can do that now, apparently.', emote: 'burn' },
-  { who: '', text: 'Nobody is coming. There is nobody left to come.', emote: 'void' },
-  { who: '', text: 'So.', emote: 'beat' },
-  { who: '', text: 'Evaporate quietly, or go and be a problem.', emote: 'choice' },
-  { who: 'THE DROP', text: 'Problem it is.', emote: 'resolve' },
-];
+// (AIDA_INTRO lived here. Deleted with the old typed-dialogue intro on
+// 2026-08-17 — Timmy: "ta bort introt helt som finns inget ska va fran det".
+// The film that replaced it is game/introCinema.js and carries no dialogue
+// data; its script is beats in code, not lines in a table.)
 

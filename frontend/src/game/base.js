@@ -12,40 +12,55 @@
 
 import { companionDefenceBonus } from './companions';
 
+// THE HULL is the first thing that exists, and it is deliberately different
+// from every other entry: max level 1, and its "effect" is that the station
+// becomes airtight enough to install anything else in. Gating IS its effect, so
+// it does not break this file's rule — it is not handing out a stat that
+// belongs to someone else's system, and it invents no field for the engine to
+// silently ignore.
+//
+// Buying it is also the first purchase in the game, so it is what opens the
+// Skill Tree / Talents / Meta batch through campNewlyUnlocked.
 export const BUILDINGS = {
+  hull: {
+    id: 'hull', name: 'The Hull', icon: 'ui_base', accent: '#9fb6c6', max: 1,
+    blurb: 'Holed in four places. Everything else waits on this.',
+    effect: () => 'Station sealed — modules can be installed',
+    costGold: 600, costParts: 0, growth: 1,
+  },
   hangar: {
     id: 'hangar', name: 'Hangar', icon: 'drone', accent: '#5fd6ff', max: 10,
-    blurb: 'Ships, and the people who patch them up.',
+    blurb: 'Outside the ring. Ships, and nobody left to patch them up.',
     effect: (l) => `+${l * 3}% Star Raid hull and damage`,
     costGold: 900, costParts: 12, growth: 1.42,
   },
   incubator: {
-    id: 'incubator', name: 'Incubator', icon: 'heart', accent: '#ff9a4d', max: 9,
-    blurb: 'Warm racks, humming quietly.',
+    id: 'incubator', name: 'Bio Lab', icon: 'heart', accent: '#ff9a4d', max: 9,
+    blurb: 'Warm racks, humming quietly. Something in one of them moved.',
     effect: (l) => `-${Math.round(l * 4)}% hatch time${l >= 3 ? `, +${Math.floor(l / 3)} slot${Math.floor(l / 3) > 1 ? 's' : ''}` : ''}`,
     costGold: 700, costParts: 8, growth: 1.40,
   },
   patrolPost: {
-    id: 'patrolPost', name: 'Patrol Post', icon: 'shield', accent: '#4dff91', max: 10,
-    blurb: 'Maps on the wall, boots by the door.',
+    id: 'patrolPost', name: 'Navigation', icon: 'shield', accent: '#4dff91', max: 10,
+    blurb: 'Charts, a dead screen, and every route plotted wrong.',
     effect: (l) => `+${l * 6}% patrol rewards${l >= 4 ? `, +${l >= 8 ? 2 : 1} mission slot${l >= 8 ? 's' : ''}` : ''}`,
     costGold: 800, costParts: 10, growth: 1.41,
   },
   well: {
-    id: 'well', name: 'The Well', icon: 'orb', accent: '#7cd6ff', max: 12,
-    blurb: 'It goes down further than anyone has measured.',
+    id: 'well', name: 'Reclamation', icon: 'orb', accent: '#7cd6ff', max: 12,
+    blurb: 'Recycles the water. Nobody asks how many times.',
     effect: (l) => `+${l * 10}% drop production`,
     costGold: 600, costParts: 6, growth: 1.38,
   },
   forge: {
-    id: 'forge', name: 'Forge', icon: 'bolt', accent: '#ffd166', max: 10,
+    id: 'forge', name: 'Fabrication', icon: 'bolt', accent: '#ffd166', max: 10,
     blurb: 'Hot, loud, and the only place a merge might hold.',
     effect: (l) => `+${l * 2}% merge success`,
     costGold: 1100, costParts: 16, growth: 1.45,
   },
   rampart: {
-    id: 'rampart', name: 'Rampart', icon: 'shield', accent: '#ff5f7a', max: 10,
-    blurb: 'Walls, a core, and four lanes something keeps walking down.',
+    id: 'rampart', name: 'Main Hall', icon: 'shield', accent: '#ff5f7a', max: 10,
+    blurb: 'The big room. A core, and four corridors something keeps walking down.',
     effect: (l) => `+${l * 12} core, +${l * 15} scrap${l >= 4 ? `, ${l >= 8 ? 2 : 1} free tower` : ''}`,
     costGold: 1000, costParts: 14, growth: 1.43,
   },
@@ -108,4 +123,30 @@ export function defenceStart(save) {
     scrap: 90 + l * 15 + bonus.scrap,
     freeTowers: l >= 8 ? 2 : l >= 4 ? 1 : 0,
   };
+}
+
+// ---- Repair, and what it gates ---------------------------------------------
+// Timmy's opening: you arrive at a derelict station, and the FIRST thing you can
+// touch is cleaning it up. It costs nothing — it has to be available whatever
+// happened in that first run, win or lose — and until it is done, nothing else
+// in the menu can be pressed.
+// GRANDFATHERING, and it is load-bearing. Any save made before the station
+// existed already has modules built. Gating those behind a repair the player
+// could never have performed would take away things they already own — the
+// same class of mistake as re-locking a camp on a difficulty switch.
+function hasLegacyModules(save) {
+  const b = (save && save.base) || {};
+  return Object.keys(BUILDINGS).some(id => id !== 'hull' && (b[id] || 0) > 0);
+}
+
+export function isStationRepaired(save) {
+  return !!(save && save.stationRepaired) || hasLegacyModules(save);
+}
+
+// After the repair, exactly ONE thing is buildable: the hull. Every other module
+// stays dark until the hull is sealed.
+export function isModuleAvailable(save, id) {
+  if (!isStationRepaired(save)) return false;
+  if (id === 'hull') return true;
+  return buildingLevel(save, 'hull') >= 1 || hasLegacyModules(save);
 }

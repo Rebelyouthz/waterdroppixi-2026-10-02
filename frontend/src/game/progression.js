@@ -26,9 +26,15 @@ import { DIFF_IDS, progressFor, difficultyDef } from './difficulty';
 import { campaignNodes } from './campaign';
 import { pushToast } from './toastBus';
 import { Audio } from './audio';
+import { settleMastery } from './masterMilestones';
+import { settleStarRaidMilestones } from './starRaidMilestones';
 
 // Turns a reward bag into the compact item list the camp-entry screen renders.
-const REWARD_ICONS = {
+// Exported so the claim-juice overlay (components/ClaimFx.jsx) renders a payout
+// with the SAME icon table the reward screen uses. A second copy of this map is
+// exactly the failure this project keeps hitting: the two drift, and one screen
+// starts showing a currency the other one silently drops.
+export const REWARD_ICONS = {
   gold: 'gold', sp: 'sp', gems: 'gems', slotCoins: 'slotCoins', talentPoints: 'cur_tp',
   petFood: 'petFood', gearParts: 'ui_part', flux: 'cur_shards', cores: 'ui_gem', gachaTokens: 'ui_ticket',
   // `rewardItems` filters on this table, so a payout with no entry is silently
@@ -45,7 +51,7 @@ const REWARD_ICONS = {
   xp: 'ui_star',
 };
 
-function rewardItems(rwd) {
+export function rewardItems(rwd) {
   if (!rwd) return [];
   return Object.entries(rwd)
     .filter(([k, v]) => REWARD_ICONS[k] && v)
@@ -173,6 +179,26 @@ export function settleProgression(save) {
       });
     }
     if (fresh.length) Audio.rewardFanfare?.();
+  }
+
+  // 4. Mastery Points.
+  {
+    const base = ns || save;
+    const settled = settleMastery(base);
+    if (settled !== base) {
+      if (!ns) ns = settled;
+      else Object.assign(ns, { mastery: settled.mastery });
+    }
+  }
+
+  // 5. Star Raid Milestones.
+  {
+    const base = ns || save;
+    const settledSR = settleStarRaidMilestones(base);
+    if (settledSR !== base) {
+      if (!ns) ns = settledSR;
+      else Object.assign(ns, { starRaid: settledSR.starRaid });
+    }
   }
 
   return ns || save;

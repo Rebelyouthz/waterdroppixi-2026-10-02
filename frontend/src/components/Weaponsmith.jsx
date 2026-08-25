@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { WEAPONS } from '../game/data';
 import { WEAPON_PARTS, weaponTracks, trackInfo } from '../game/data_ext';
 import { ELEMENTS, STARTER_WEAPONS, STAT_DISPLAY, setProgress, resolveStartWeapon } from '../game/data_ext2';
-import { RUNE_RARITY_COLORS, RUNE_RARITIES, getRuneMergeGroups, mergeRunes, rollRune } from '../game/runes';
+import { RUNE_RARITY_COLORS, RUNE_RARITIES, getRuneMergeGroups, mergeRunes } from '../game/runes';
 import { mergeChance, FLUX_PER_MERGE_MAX } from '../game/forge';
 import { Audio } from '../game/audio';
 import { pushToast } from '../game/toastBus';
@@ -90,10 +90,6 @@ export default function Weaponsmith({ save, setSave, onClose, initialSub }) {
       Audio.hit();
     }
     setTimeout(() => setForgeMsg(''), 2600);
-  };
-  // DEBUG: grant a random rune (real acquisition is Star Raid's Rune Run mode)
-  const debugGrantRune = () => {
-    setSave({ ...save, runeInventory: [...runeInv, rollRune()] });
   };
 
   // Timmy: "dopamin ska flöda vid upgradera" — this silently swapped a
@@ -211,10 +207,21 @@ export default function Weaponsmith({ save, setSave, onClose, initialSub }) {
     <div className="modal-overlay" data-testid="weaponsmith" onClick={(e) => { if (e.target.classList.contains('modal-overlay')) onClose(); }}>
       <div className="forge-panel forge-panel-scrollable">
         <div className="forge-scroll-hint" data-testid="forge-scroll-hint" aria-hidden="true">▾ scroll for more ▾</div>
-        <div className="forge-header">
-          <div className="forge-title"><GameIcon name="ui_smith" size={18} /> WEAPONSMITH</div>
-          <div className="forge-gold" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><GameIcon name="gold" size={14} /> {save.gold}</div>
-          <button onClick={onClose} style={{ padding: '6px 12px', fontSize: 12 }}>✕</button>
+        <div className="forge-header weaponsmith-header">
+          <div className="weaponsmith-title-stack">
+            <div className="weaponsmith-title-main" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <GameIcon name="ui_smith" size={24} tone="#ffd166" />
+              <span style={{ fontSize: 22, letterSpacing: '0.12em', color: '#ffecb3', fontFamily: 'Orizon, serif' }}>WEAPONSMITH</span>
+            </div>
+            <div className="weaponsmith-subtitle" style={{ fontSize: 10, letterSpacing: '0.18em', color: 'var(--ink-dim)' }}>
+              LEGENDARY ARMS &amp; ENCHANTMENTS
+            </div>
+          </div>
+          <div className="weaponsmith-stars" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#ffd166', fontWeight: 'bold' }}>
+            <GameIcon name="ui_star" size={15} tone="#ffd166" />
+            <span>{save.gold || 801} Stjärnor</span>
+          </div>
+          <button onClick={onClose} style={{ padding: '6px 12px', fontSize: 13 }}>✕</button>
         </div>
         {isRescued(save, 'finn') && (
           <div className="npc-host-line" style={{ '--nc': COMPANIONS.finn.color }}>
@@ -222,17 +229,16 @@ export default function Weaponsmith({ save, setSave, onClose, initialSub }) {
           </div>
         )}
 
-        <div className="gear-tabs" style={{ marginBottom: 12 }}>
-          {/* Three axes, and they must not sound like each other:
-              TUNING  — permanent per-weapon ladders bought with gold
-              PARTS   — found attachments socketed into the five slots
-              BLUEPRINTS — shards that craft whole new weapons
-              The old "PARTS INVENTORY" tab was a fourth system doing the same
-              job as attachments; it is gone, and its contents are migrated. */}
-          <button className={`gear-tab ${sub === 'parts' ? 'active' : ''}`} onClick={() => setSub('parts')} data-testid="smith-sub-parts"><GameIcon name="ui_cog" size={13} /> TUNING</button>
-          <button className={`gear-tab ${sub === 'runes' ? 'active' : ''}`} onClick={() => setSub('runes')} data-testid="smith-sub-runes"><GameIcon name="ui_cog" size={13} /> PARTS &amp; RUNES</button>
-          <button className={`gear-tab ${sub === 'blueprints' ? 'active' : ''}`} onClick={() => setSub('blueprints')} data-testid="smith-sub-blueprints"><GameIcon name="ui_scroll" size={13} /> BLUEPRINTS</button>
-          <button className={`gear-tab ${sub === 'synergy' ? 'active' : ''}`} onClick={() => setSub('synergy')} data-testid="smith-sub-synergy">✦ SYNERGY</button>
+        <div className="gear-tabs weaponsmith-tabs" style={{ marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button className={`gear-tab ${sub === 'parts' ? 'active' : ''}`} onClick={() => setSub('parts')} data-testid="smith-sub-parts"><GameIcon name="ui_cog" size={13} /> TUNING</button>
+            <button className={`gear-tab ${sub === 'runes' ? 'active' : ''}`} onClick={() => setSub('runes')} data-testid="smith-sub-runes"><GameIcon name="cur_key" size={13} /> PARTS &amp; RUNES</button>
+            <button className={`gear-tab ${sub === 'blueprints' ? 'active' : ''}`} onClick={() => setSub('blueprints')} data-testid="smith-sub-blueprints"><GameIcon name="ui_scroll" size={13} /> BLUEPRINTS</button>
+            <button className={`gear-tab ${sub === 'synergy' ? 'active' : ''}`} onClick={() => setSub('synergy')} data-testid="smith-sub-synergy">✦ SYNERGY</button>
+          </div>
+          <div className="weaponsmith-tab-hint" style={{ fontSize: 11, color: 'var(--ink-dim)', fontStyle: 'italic' }}>
+            &lsaquo; scroll for more &rsaquo;
+          </div>
         </div>
 
         {sub === 'synergy' && (
@@ -270,14 +276,28 @@ export default function Weaponsmith({ save, setSave, onClose, initialSub }) {
         {sub === 'parts' && (<>
           <div className="forge-weapons">
             {Object.keys(WEAPONS).map(id => (
-              <div key={id} className={`forge-wch ${wid === id ? 'sel' : ''}`} onClick={() => setWid(id)} data-testid={`forge-weapon-${id}`}>
-                {/* Drawn glyph in the weapon's own colour, so the picker
-                    reads as a rack of distinct weapons rather than a row of
-                    emoji that render differently on every device. */}
-                {ICONS[id]
-                  ? <GameIcon name={id} size={30} />
-                  : <div style={{ fontSize: 28 }}>{WEAPONS[id].icon}</div>}
-                <div style={{ fontSize: 11 }}>{WEAPONS[id].name}</div>
+              /* Every tile carries the weapon's OWN accent, read from the same
+                 ICONS registry the level-up card lights its art well with —
+                 ICONS[id] is [glyphName, accentHex]. Timmy: the smith must show
+                 "samma loggor som på level up korten". ONE source of truth for
+                 both, so a weapon can never be two different colours in two
+                 different menus.
+
+                 The old `: <div>{WEAPONS[id].icon}</div>` fallback is gone. That
+                 field is CONFIRMED dead (traced in POLISH-PASS) and rendering it
+                 printed a raw emoji/string onto the screen — the exact thing the
+                 no-emoji rule exists to stop. GameIcon carries its own fallback,
+                 so the guard was buying nothing. */
+              <div
+                key={id}
+                className={`forge-wch ${wid === id ? 'sel' : ''}`}
+                style={{ '--wch-accent': (ICONS[id] || [])[1] || '#8fb6d8' }}
+                onClick={() => setWid(id)}
+                data-testid={`forge-weapon-${id}`}
+              >
+                <span className="wch-well" aria-hidden />
+                <span className="wch-art"><GameIcon name={id} size={34} /></span>
+                <span className="wch-name">{WEAPONS[id].name}</span>
               </div>
             ))}
           </div>
@@ -534,7 +554,14 @@ export default function Weaponsmith({ save, setSave, onClose, initialSub }) {
           )}
 
           <div style={{ fontFamily: 'VT323', color: 'var(--accent-2)', fontSize: 13, letterSpacing: '0.15em', marginBottom: 6 }}>
-            RUNE INVENTORY ({runeInv.length}) <button onClick={debugGrantRune} style={{ marginLeft: 10, fontSize: 10, opacity: 0.5 }}>+ Grant Rune</button>
+            RUNE INVENTORY ({runeInv.length})
+            {/* Was a `+ Grant Rune` DEBUG button that handed out a free rune on
+                click - its own comment admitted it. It shipped to the player and
+                quietly devalued all FOUR real sources: Star Raid's Rune Run
+                (StarRaidScreen), the end-of-run drop (App.js), the Well
+                (ClickerScreen) and reward payouts (MetaFeatures). Replaced with
+                the thing the player actually needed: where to go and get one. */}
+            <span className="rune-source-hint">DROPS FROM STAR RAID / RUNS / THE WELL</span>
           </div>
           {runeInv.length === 0 ? (
             <div style={{ color: 'var(--ink-dim)', fontFamily: 'VT323', fontSize: 13, padding: 10 }}>No runes yet. Play Star Raid's Rune Run mode.</div>

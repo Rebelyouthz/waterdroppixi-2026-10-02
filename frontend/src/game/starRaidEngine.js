@@ -462,8 +462,9 @@ export class StarRaidGame {
   // Impact reads as "this weapon hit that hull": a few sparks in the shot's
   // own colour plus a couple of fragments in the target's colour.
   spawnImpact(x, y, shotColor, hullColor) {
-    for (let i = 0; i < 4; i++) this.spawnSpark(x, y, i === 0 ? '#ffffff' : shotColor);
-    if (Math.random() < 0.6) this.spawnDebris(x, y, hullColor || shotColor, 1);
+    const numSparks = 4 + (Math.random() * 4) | 0;
+    for (let i = 0; i < numSparks; i++) this.spawnSpark(x, y, i === 0 ? '#ffffff' : shotColor);
+    if (Math.random() < 0.8) this.spawnDebris(x, y, hullColor || shotColor, 1 + (Math.random() * 2) | 0);
   }
 
   updateEProjs(dt) {
@@ -567,22 +568,24 @@ export class StarRaidGame {
     this.orbs.push({ x: e.x + rand(-8, 8), y: e.y + rand(-8, 8), val: 1 + score, kind: 'xp' });
     // Ships break apart: a flash of sparks plus real hull fragments that
     // tumble away and fade, rather than a puff of dots.
-    for (let i = 0; i < (rammed ? 14 : 9); i++) this.spawnSpark(e.x, e.y, i % 3 === 0 ? '#ffffff' : e.color);
-    this.spawnDebris(e.x, e.y, e.color, Math.max(2, Math.round(e.r / 5)));
+    const numSparks = rammed ? 28 : 18;
+    for (let i = 0; i < numSparks; i++) this.spawnSpark(e.x, e.y, i % 3 === 0 ? '#ffffff' : e.color);
+    this.spawnDebris(e.x, e.y, e.color, Math.max(5, Math.round(e.r / 2)));
   }
 
   killBoss() {
     const b = this.boss;
     const bx = b ? b.x : this.W / 2, by = b ? b.y : 100;
     this.boss = null;
-    for (let i = 0; i < 40; i++) this.spawnSpark(bx + rand(-30, 30), by + rand(-30, 30), i % 3 === 0 ? '#ffffff' : '#ff9900');
-    this.spawnDebris(bx, by, '#7a3040', 14);
+    for (let i = 0; i < 90; i++) this.spawnSpark(bx + rand(-40, 40), by + rand(-40, 40), i % 4 === 0 ? '#ffffff' : '#ff5533');
+    this.spawnDebris(bx, by, '#3a1010', 25);
+    this.spawnDebris(bx, by, '#ffb066', 15);
     // Separate field from _shipExplodeRing — that one doubles as the "player
     // is dead, stop drawing the hull" flag, so reusing it here would make
     // your own ship vanish the instant you killed the boss.
     this._bossExplodeRing = { x: bx, y: by, t: 0 };
-    for (let i = 0; i < 8; i++) this.orbs.push({ x: bx + rand(-40, 40), y: by + rand(-20, 20), val: 8, kind: 'scrap' });
-    for (let i = 0; i < 6; i++) this.orbs.push({ x: bx + rand(-40, 40), y: by + rand(-20, 20), val: 6, kind: 'xp' });
+    for (let i = 0; i < 15; i++) this.orbs.push({ x: bx + rand(-60, 60), y: by + rand(-40, 40), val: 8, kind: 'scrap' });
+    for (let i = 0; i < 12; i++) this.orbs.push({ x: bx + rand(-60, 60), y: by + rand(-40, 40), val: 6, kind: 'xp' });
     this.over = true;
     this.cleared = true;
     if (this.callbacks && this.callbacks.onGameOver) this.callbacks.onGameOver(this.snapshot());

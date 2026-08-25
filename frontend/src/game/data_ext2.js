@@ -325,6 +325,30 @@ export const ACTIVE_SKILLS = {
   riptide:   { id: 'riptide',   name: 'Riptide Pulse',    icon: 'tidalWave', cd: 10, cost: 0, key: '3', desc: 'Piercing wave in front of you — damages + slows.' },
   beacon:    { id: 'beacon',    name: 'Stasis Beacon',    icon: 'ui_orb', cd: 20, cost: 0, key: '4', desc: 'Deploy a field that roots + damages foes for 5s.' },
   nova:      { id: 'nova',      name: 'Frost Nova',       icon: 'iceShards', cd: 14, cost: 0, key: '1', desc: 'Instant AoE around you — damages + slows.' },
+  // ── The first CHARACTER ABILITY. Timmy, 2026-08-17: "olika saker man
+  // kan aktivera när man vill om cooldown är nere som typ ger temporär
+  // karaktär buff fire rate å movment speed upp å no reload".
+  //
+  // Built as an ACTIVE_SKILL rather than as a separate "abilities" system,
+  // on purpose. This game already has actives with cooldowns, hotkeys 1-4,
+  // an equip screen and HUD slots — a parallel ability system would
+  // duplicate every one of those and then drift out of sync, which is this
+  // project's most expensive recurring bug. An ability IS an active skill.
+  //
+  // Unlocked from the Skill Tree (poe_bld6 "Adrenal Surge"), which also
+  // sets how long it lasts — see run.stats.overdriveDur.
+  overdrive: { id: 'overdrive', name: 'Overdrive', icon: 'fireRateMult', cd: 24, cost: 0, key: '2', desc: 'Surge: +70% fire rate, +35% move speed, and no reloading. Burns out after a few seconds.', ability: true },
+  // ── The rest of the ABILITY roster. Timmy named heal and armor
+  // directly; the other two exist so the set is a CHOICE rather than a
+  // ladder of the same idea — one buys survival, one buys damage, one
+  // buys space, one buys loot. Grind Survivors' lesson is that an active
+  // should be a build-defining power spike you spam the moment it is up,
+  // not a sprinkle, so every cooldown here is long and every effect is
+  // large enough to change what you do for its duration.
+  mend:      { id: 'mend',      name: 'Mend',       icon: 'heal',   cd: 40, cost: 0, key: '3', desc: 'Drink deep: heal 35% of max HP instantly, then regenerate for 6s.', ability: true },
+  bulwark:   { id: 'bulwark',   name: 'Bulwark',    icon: 'ui_shield', cd: 34, cost: 0, key: '4', desc: 'Harden: take 70% less damage and become immune to knockback for 7s.', ability: true },
+  bloodrush: { id: 'bloodrush', name: 'Blood Rush', icon: 'pVamp',  cd: 30, cost: 0, key: '3', desc: 'Every hit drains life for 8s — heal a share of all damage you deal.', ability: true },
+  prospect:  { id: 'prospect',  name: 'Prospect',   icon: 'ui_moneybag', cd: 45, cost: 0, key: '4', desc: 'Greed spike: doubled gold and pickup range for 10s.', ability: true },
 };
 export const ACTIVE_SKILL_KEYS = Object.keys(ACTIVE_SKILLS);
 // You can equip up to 4 active skills (out of pool). Unlock via card shop.
@@ -705,13 +729,15 @@ export const ELEMENTS = [
 
 // ---------- BRUTAL KILL ANIMATIONS by weapon behaviour ----------
 export const KILL_FX = {
-  projectile: 'gibs',       // pellets/bullets cause chunks
-  shotgun:    'gibs',       // big chunks
-  aoe:        'bisect',     // sliced clean
-  beam:       'voidImplode',// pulled into a point
-  orbit:      'ash',        // burnt to ash
-  meteor:     'gibs',
-  swipeAttack: 'bisect',    // cut clean in half
+  projectile:  'pierceKinetic',      // bullets punch through with kinetic exit mist & chunks
+  shotgun:     'shotgunObliterate',  // massive V-cone blast tearing torso backward into heavy meat & bone
+  aoe:         'bisect',             // 5 dynamic slicing executions with arterial fountains
+  beam:        'voidImplode',        // singular collapse into void shards & shockwave
+  orbit:       'cremation',          // incinerated into drifting cinders & charred marks
+  meteor:      'cremation',          // high-yield thermal crater detonation
+  swipeAttack: 'bisect',             // razor clean parting along blade angle
+  chain:       'overchargeVaporize', // electric overcharge vaporizing into high-voltage arcs
+  frost:       'shatterFrost',       // crystalline freezing & shattering into 24 glass shards
 };
 
 // Enemy-identity death FX — takes priority over KILL_FX (see engine.js

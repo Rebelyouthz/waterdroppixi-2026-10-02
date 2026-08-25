@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { RARITY, WEAPONS } from '../game/data';
 import GameIcon, { ICONS } from './GameIcon';
 import { Audio } from '../game/audio';
-import { CardRenderer, CARD } from '../game/cardRenderer';
+import { CardRenderer, CARD, PICK_SEQ_MS } from '../game/cardRenderer';
 
 // The level-up cards are drawn in PixiJS, not CSS.
 //
@@ -136,7 +136,13 @@ export default function LevelUpModal({ choices, onPick, playerLevel }) {
     // RARITY has no rank field; `mult` is the ordering it does have, and 3.6
     // is epic, the point where a card is worth a fanfare.
     if ((RARITY[c.rarity]?.mult || 0) >= 3.6) Audio.rewardFanfare?.();
-    pickTimer.current = setTimeout(() => onPick(c), 480);
+    // Hands off when the renderer's cleave has actually finished. This used to
+    // be a hardcoded 480ms, which was the whole length of the old "lift it 14px"
+    // acknowledgement; against the new zoom-hold-cleave it would have torn the
+    // modal away mid-flight. Reading the renderer's own constant means one
+    // duration lives in one place — the unlock banner already shipped the bug
+    // where two files each held half of a timing and drifted apart.
+    pickTimer.current = setTimeout(() => onPick(c), PICK_SEQ_MS);
   }, [choices, onPick, pickedIdx]);
 
   // Keep the latest handler reachable from the Pixi callback without tearing
@@ -155,7 +161,26 @@ export default function LevelUpModal({ choices, onPick, playerLevel }) {
     const r = new CardRenderer(canvas, { onPick: (i) => pickRef.current(i) });
     rendererRef.current = r;
     r.init(models.length, narrow ? 36 : CARD.GAP)
-      .then(() => { if (!cancelled) return r.setCards(models); })
+      .then(() => {
+        if (cancelled) return undefined;
+        // Publish the canvas's real aspect ratio so CSS can cap its WIDTH using
+        // the available HEIGHT — see `.lu-canvas` in overhaul.css.
+        //
+        // Capping width alone was not enough: the canvas is 880 logical units
+        // tall against ~944 wide, so even a 648px width cap still produced a
+        // ~604px-tall canvas, and with the title/level/hint chrome above it the
+        // modal ran off the bottom of a short window. You then see a cropped
+        // middle of the row, which reads as "still zoomed in" even though the
+        // width did come down. Timmy: "level upp koirten lika inzoomade".
+        //
+        // Read from the renderer rather than hard-coded, because the canvas
+        // width depends on how many cards this level-up offered (and on the
+        // narrow-viewport gap chosen above), so the ratio is not a constant.
+        if (r.width && r.height) {
+          canvas.style.setProperty('--lu-ar', String(r.width / r.height));
+        }
+        return r.setCards(models);
+      })
       .catch(() => { /* a lost WebGL context must not take the run down */ });
     return () => {
       cancelled = true;

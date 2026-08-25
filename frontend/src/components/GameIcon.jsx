@@ -1124,7 +1124,7 @@ const GLYPHS = {
     <ellipse cx="12.5" cy="14" rx="1.7" ry="2.2" fill={DARK} />
     <ellipse cx="19.5" cy="14" rx="1.7" ry="2.2" fill={DARK} />
   </>),
-  orb: (u) => (<>
+  magic_orb: (u) => (<>
     <circle cx="16" cy="17" r="10" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1.2" opacity="0.92" />
     <ellipse cx="12.5" cy="13" rx="3" ry="2" fill="#ffffff" opacity="0.5" />
     <rect x="10" y="27" width="12" height="3" rx="1.2" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1" />

@@ -945,6 +945,27 @@ export const ENEMIES = {
     id: 'blightWeaver', name: 'Blight Weaver', size: 26, hp: 620, dmg: 18, speed: 58, color: '#7ad96b',
     xp: 80, gold: 60, ai: 'chase',
   },
+  // ── Conspiracy & Deep State Infiltrators (+30% Expanded Roster) ──
+  illuminatiAgent: {
+    id: 'illuminatiAgent', name: 'Illuminati Enforcer', size: 22, hp: 280, dmg: 35, speed: 82, color: '#ffd166',
+    xp: 20, gold: 16, ai: 'ranged', shootRange: 280, shootCD: 1.1, projSpeed: 420,
+  },
+  annunakiReptile: {
+    id: 'annunakiReptile', name: 'Annunaki Myrmidon', size: 29, hp: 520, dmg: 48, speed: 64, color: '#39ff14',
+    xp: 32, gold: 24, ai: 'charge', armor: 6,
+  },
+  fluorideDrone: {
+    id: 'fluorideDrone', name: 'Fluoride Disperser', size: 19, hp: 140, dmg: 22, speed: 110, color: '#00e5ff',
+    xp: 14, gold: 10, ai: 'chase',
+  },
+  chemtrailViper: {
+    id: 'chemtrailViper', name: 'Chemtrail Viper', size: 24, hp: 310, dmg: 40, speed: 135, color: '#e056fd',
+    xp: 26, gold: 18, ai: 'chase',
+  },
+  deepStateInfiltrator: {
+    id: 'deepStateInfiltrator', name: 'Deep State Phantom', size: 21, hp: 210, dmg: 55, speed: 90, color: '#686de0',
+    xp: 22, gold: 15, ai: 'charge', noKnockback: true,
+  },
   // Bosses (HP doubled)
   bossOcular: {
     id: 'bossOcular', name: 'Eye of Horus', size: 90, hp: 2400, dmg: 26, speed: 165, color: '#ffd166',
@@ -1016,29 +1037,38 @@ export const STAT_CARDS = [
 // emoji — reuses existing weapon-stat/passive glyphs rather than drawing 22
 // new ones from scratch, since e.g. "Lightfoot" and the boot ICONS already
 // used for moveMult on level-up cards are the same idea twice.
+// META_RESHAPE 2026-08-23 - 1404 levels -> 166, measured, not guessed.
+// `max * amount` is held CONSTANT per track, so full-power balance does not
+// move at all; only the GRAIN changes. That is what lets this ship without a
+// combat retune. 9 of 23 tracks used to move a stat by an amount no player
+// could perceive in one purchase (m_dmg was +0.2%: a 100 hit became 100.2).
+// Genre anchor: Vampire Survivors ships 28 PowerUps at 3-5 tiers each.
+// Re-derive any figure with test/balance-sim.mjs - never quote from memory.
+// NOTE: store.js clamps save.meta on load and refunds the difference; a save
+// carrying level 80 in a now-10-level track would otherwise get 10x the power.
 export const META_UPGRADES = [
-  { id: 'm_projspd',  name: 'Swift Rounds',   icon: 'projSpeedMult', desc: '+0.15% projectile speed per level', stat: 'projspd',   amount: 0.0015, max: 80, baseCost: 13, curve: 1.033 },
-  { id: 'm_projrange',name: 'Long Barrel',    icon: 'projRangeMult', desc: '+0.12% projectile range per level', stat: 'projrange', amount: 0.0012, max: 80, baseCost: 15, curve: 1.034 },
-  { id: 'm_hp',     name: 'Hardened Core',     icon: 'maxHp', desc: '+1 max HP per level',            stat: 'maxHp',     amount: 1,      max: 100, baseCost: 8,   curve: 1.030 },
-  { id: 'm_dmg',    name: 'Sharpened Will',    icon: 'damageMult', desc: '+0.2% damage per level',          stat: 'dmg',       amount: 0.002,  max: 100, baseCost: 12,  curve: 1.035 },
-  { id: 'm_atks',   name: 'Resonant Pulse',    icon: 'fireRateMult', desc: '+0.2% attack speed per level',    stat: 'atks',      amount: 0.002,  max: 80,  baseCost: 14,  curve: 1.035 },
-  { id: 'm_spd',    name: 'Lightfoot',         icon: 'moveMult', desc: '+0.2% move speed per level',      stat: 'mspd',      amount: 0.002,  max: 80,  baseCost: 10,  curve: 1.030 },
-  { id: 'm_crit',   name: 'Eye of Fortune',    icon: 'crit', desc: '+0.1% crit chance per level',     stat: 'crit',      amount: 0.001,  max: 100, baseCost: 16,  curve: 1.038 },
-  { id: 'm_critd',  name: 'Vorpal Mind',       icon: 'critDmgMult', desc: '+0.5% crit damage per level',     stat: 'critd',     amount: 0.005,  max: 100, baseCost: 18,  curve: 1.040 },
-  { id: 'm_superCrit', name: 'Super Strike',   icon: 'starBurst', desc: '+0.5% Super Crit per level',      stat: 'superCrit', amount: 0.005,  max: 30,  baseCost: 25,  curve: 1.050 },
-  { id: 'm_megaCrit',  name: 'Mega Strike',    icon: 'doubleHit', desc: '+0.2% Mega Crit per level',       stat: 'megaCrit',  amount: 0.002,  max: 25,  baseCost: 40,  curve: 1.055 },
-  { id: 'm_armor',  name: 'Annunaki Plating',  icon: 'armor', desc: '+0.1 armor per level',            stat: 'armor',     amount: 0.1,    max: 80,  baseCost: 18,  curve: 1.038 },
-  { id: 'm_regen',  name: 'Flow of Nirvana',   icon: 'regen', desc: '+0.003 HP/s per level',           stat: 'regen',     amount: 0.003,  max: 80,  baseCost: 20,  curve: 1.040 },
-  { id: 'm_lvlBoomDmg', name: 'Shockwave Mastery', icon: 'areaMult', desc: '+10 explosion dmg per level',  stat: 'levelUpDmg',amount: 10,   max: 20,  baseCost: 280, curve: 1.06, unlock: 'poe_awk1' },
-  { id: 'm_lvlBoomKB',  name: 'Earthshaker',        icon: 'knockbackWave', desc: '+20 explosion knockback/lvl', stat: 'levelUpKB', amount: 20,   max: 20,  baseCost: 240, curve: 1.05, unlock: 'poe_awk2' },
-  { id: 'm_pickup', name: 'Tidal Pull',        icon: 'ironPull', desc: '+1% pickup range per level',      stat: 'pickup',    amount: 0.01,   max: 80,  baseCost: 12,  curve: 1.030 },
-  { id: 'm_xp',     name: 'Memory of Lake',    icon: 'ui_codex', desc: '+0.5% XP per level',              stat: 'xp',        amount: 0.005,  max: 80,  baseCost: 22,  curve: 1.040 },
-  { id: 'm_gold',   name: 'Goldsense',         icon: 'ui_moneybag', desc: '+0.5% gold per level',            stat: 'gold',      amount: 0.005,  max: 80,  baseCost: 18,  curve: 1.038 },
-  { id: 'm_luck',   name: 'Eldritch Luck',     icon: 'luck', desc: '+0.05 luck per level',            stat: 'luck',      amount: 0.05,   max: 60,  baseCost: 25,  curve: 1.045 },
-  { id: 'm_heal',   name: 'Vital Drops',       icon: 'heal', desc: '+0.5 HP from heart drops / lvl',  stat: 'heartHeal', amount: 0.5,    max: 40,  baseCost: 20,  curve: 1.040 },
-  { id: 'm_zoom',   name: 'Eagle Eye',         icon: 'vision', desc: '+0.5% view range per level',      stat: 'zoom',      amount: 0.005,  max: 35,  baseCost: 30,  curve: 1.048 },
+  { id: 'm_projspd',  name: 'Swift Rounds',   icon: 'projSpeedMult', desc: '+1.5% projectile speed per level', stat: 'projspd',   amount: 0.015, max: 8, baseCost: 130, curve: 1.3836 },
+  { id: 'm_projrange',name: 'Long Barrel',    icon: 'projRangeMult', desc: '+1.2% projectile range per level', stat: 'projrange', amount: 0.012, max: 8, baseCost: 150, curve: 1.397 },
+  { id: 'm_hp',     name: 'Hardened Core',     icon: 'maxHp', desc: '+10 max HP per level',            stat: 'maxHp',     amount: 10,      max: 10, baseCost: 80,   curve: 1.3439 },
+  { id: 'm_dmg',    name: 'Sharpened Will',    icon: 'damageMult', desc: '+2% damage per level',          stat: 'dmg',       amount: 0.02,  max: 10, baseCost: 120,  curve: 1.4106 },
+  { id: 'm_atks',   name: 'Resonant Pulse',    icon: 'fireRateMult', desc: '+1.6% attack speed per level',    stat: 'atks',      amount: 0.016,  max: 10,  baseCost: 112,  curve: 1.3168 },
+  { id: 'm_spd',    name: 'Lightfoot',         icon: 'moveMult', desc: '+2% move speed per level',      stat: 'mspd',      amount: 0.02,  max: 8,  baseCost: 100,  curve: 1.3439 },
+  { id: 'm_crit',   name: 'Eye of Fortune',    icon: 'crit', desc: '+1% crit chance per level',     stat: 'crit',      amount: 0.01,  max: 10, baseCost: 160,  curve: 1.452 },
+  { id: 'm_critd',  name: 'Vorpal Mind',       icon: 'critDmgMult', desc: '+5% crit damage per level',     stat: 'critd',     amount: 0.05,  max: 10, baseCost: 180,  curve: 1.4802 },
+  { id: 'm_superCrit', name: 'Super Strike',   icon: 'starBurst', desc: '+3% Super Crit per level',      stat: 'superCrit', amount: 0.03,  max: 5,  baseCost: 150,  curve: 1.3401 },
+  { id: 'm_megaCrit',  name: 'Mega Strike',    icon: 'doubleHit', desc: '+1% Mega Crit per level',       stat: 'megaCrit',  amount: 0.01,  max: 5,  baseCost: 200,  curve: 1.307 },
+  { id: 'm_armor',  name: 'Annunaki Plating',  icon: 'armor', desc: '+80% armor per level',            stat: 'armor',     amount: 0.8,    max: 10,  baseCost: 144,  curve: 1.3477 },
+  { id: 'm_regen',  name: 'Flow of Nirvana',   icon: 'regen', desc: '+3% HP/s per level',           stat: 'regen',     amount: 0.03,  max: 8,  baseCost: 200,  curve: 1.4802 },
+  { id: 'm_lvlBoomDmg', name: 'Shockwave Mastery', icon: 'areaMult', desc: '+40 explosion dmg per level',  stat: 'levelUpDmg',amount: 40,   max: 5,  baseCost: 1120, curve: 1.2625, unlock: 'poe_awk1' },
+  { id: 'm_lvlBoomKB',  name: 'Earthshaker',        icon: 'knockbackWave', desc: '+80 explosion knockback per level', stat: 'levelUpKB', amount: 80,   max: 5,  baseCost: 960, curve: 1.2155, unlock: 'poe_awk2' },
+  { id: 'm_pickup', name: 'Tidal Pull',        icon: 'ironPull', desc: '+10% pickup range per level',      stat: 'pickup',    amount: 0.1,   max: 8,  baseCost: 120,  curve: 1.3439 },
+  { id: 'm_xp',     name: 'Memory of Lake',    icon: 'ui_codex', desc: '+5% XP per level',              stat: 'xp',        amount: 0.05,  max: 8,  baseCost: 220,  curve: 1.4802 },
+  { id: 'm_gold',   name: 'Goldsense',         icon: 'ui_moneybag', desc: '+5% gold per level',            stat: 'gold',      amount: 0.05,  max: 8,  baseCost: 180,  curve: 1.452 },
+  { id: 'm_luck',   name: 'Eldritch Luck',     icon: 'luck', desc: '+37.5% luck per level',            stat: 'luck',      amount: 0.375,   max: 8,  baseCost: 188,  curve: 1.3911 },
+  { id: 'm_heal',   name: 'Vital Drops',       icon: 'heal', desc: '+4 HP from heart drops per level',  stat: 'heartHeal', amount: 4,    max: 5,  baseCost: 160,  curve: 1.3686 },
+  { id: 'm_zoom',   name: 'Eagle Eye',         icon: 'vision', desc: '+3.5% view range per level',      stat: 'zoom',      amount: 0.035,  max: 5,  baseCost: 210,  curve: 1.3884 },
   { id: 'm_revive', name: 'Phoenix Echo',      icon: 'lifeline', desc: 'Revive once per run (50% HP)',    stat: 'revive',    amount: 1,      max: 1,   baseCost: 800, curve: 1.0 },
-  { id: 'm_dodge',  name: 'Veil Walker',       icon: 'dodge', desc: '+0.1% dodge per level',           stat: 'dodge',     amount: 0.001,  max: 50,  baseCost: 35,  curve: 1.048 },
+  { id: 'm_dodge',  name: 'Veil Walker',       icon: 'dodge', desc: '+0.625% dodge per level',           stat: 'dodge',     amount: 0.00625,  max: 8,  baseCost: 219,  curve: 1.3405 },
   { id: 'm_start',  name: 'Survivor\'s Cache', icon: 'ui_chest', desc: 'Start runs with +1 random card',  stat: 'startBoon', amount: 1,      max: 3,   baseCost: 600, curve: 2.0 },
 ];
 

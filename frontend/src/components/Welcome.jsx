@@ -8,6 +8,14 @@ import { ClaimBadge } from './MetaFeatures';
 import { Audio } from '../game/audio';
 import QuestTracker from './QuestTracker';
 import BadgeSlots, { BadgePicker } from './BadgeSlots';
+import ClaimFx, { fireClaimFx } from './ClaimFx';
+import MasteryTrack from './MasteryTrack';
+// The SAME deep-space backdrop the camp uses (CampFrame.jsx). Timmy asked
+// for stars and nebulae behind this screen and for it to go darker; reusing
+// the existing layer rather than writing a second one is what keeps the two
+// screens on one theme - and building a parallel copy of an existing system
+// is this project's most expensive recurring mistake.
+import { CampCosmos } from './CampFrame';
 
 const openChest = (chestId) => {
   const chest = CHESTS.find(c => c.id === chestId);
@@ -51,7 +59,6 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
   const [step, setStep] = useState(save.profile.name ? 'home' : 'create');
   const [name, setName] = useState(save.profile.name || '');
   const [avatar, setAvatar] = useState(save.profile.avatar || 'drop');
-  const [claimedRewards, setClaimedRewards] = useState([]);
   const [showLb, setShowLb] = useState(false);
   const [badgesOpen, setBadgesOpen] = useState(false);
 
@@ -132,7 +139,7 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
     setStep('home');
   };
 
-  const claimDaily = () => {
+  const claimDaily = (anchor) => {
     if (!canClaim) return;
     const ns = {
       ...save,
@@ -140,7 +147,9 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
     };
     applyReward(ns, claimableReward, openChest);
     setSave(ns);
-    setClaimedRewards(prev => [...prev, claimableReward.label]);
+    // Show the payout. No `flyTo` here on purpose — Timmy: "inte på start
+    // skärmen dock". The chips rise and fade instead of homing on a counter.
+    fireClaimFx(anchor, claimableReward);
   };
 
   if (step === 'create') {
@@ -193,7 +202,7 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
   // so the pointer routinely came to rest on a slice that was not the one
   // awarded. Roll first, then drive the rotation to land that exact slice
   // under the pointer.
-  const doSpin = () => {
+  const doSpin = (anchor) => {
     if (!canSpin || spinning) return;
     const { index, slice } = rollSpinWheel();
     // Slice i is centred at (i + 0.5) * SLICE_DEG clockwise from the top, so
@@ -221,11 +230,19 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
       setSave(ns);
       setSpinResult(slice);
       setSpinning(false);
+      // The wheel is a claim like any other — same burst, so a spin payout and
+      // a daily payout speak the same language. Built from the slice because a
+      // slice is not a reward bag; jackpot pays two currencies at once.
+      const bag = slice.type === 'jackpot'
+        ? { gold: 1500, gems: 10 }
+        : { [slice.type]: slice.amount };
+      fireClaimFx(anchor, bag);
     }, 3400);
   };
 
   return (
-    <div className="app-shell" style={{ alignItems: 'flex-start' }}>
+    <div className="app-shell welcome-shell-space" style={{ alignItems: 'flex-start' }}>
+      <CampCosmos />
       <AccountWidget openLb={() => setShowLb(true)} />
       <div className="welcome" data-testid="welcome-home">
         <div className="welcome-header">
@@ -266,6 +283,11 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
           </div>
         </div>
 
+        {/* Master Milestone Reward Track — The new HERO section */}
+        <div className="welcome-hero-panel">
+          <MasteryTrack save={save} setSave={setSave} />
+        </div>
+
         {/* Guidance follows the player out of the camp. The home screen is
             exactly where "what was I doing?" gets asked, so the same two open
             steps are here, tapping through to the camp rather than nowhere. */}
@@ -273,26 +295,70 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
 
         <div className="welcome-grid">
           {/* Daily Reward */}
-          <div className="panel">
-            <div className="panel-title">DAILY REWARD</div>
+          <div className="panel panel-daily">
+            <div className="panel-title">
+              <span className="panel-title-mark" aria-hidden><GameIcon name="ui_calendar" size={15} /></span>
+              DAILY REWARD
+              <span className="panel-title-rule" aria-hidden />
+            </div>
+            {/* SEVEN days, one row. The table in data_ext.js holds 14 entries,
+                but `streakDay` and `claimableReward` above are both `% 7` — so
+                D8-D14 rendered as cells that could never become `current` and
+                could never be claimed. Half the track was decoration.
+                Timmy's reference for this screen ("här e mer färdig första
+                skärm") shows a single row of DAG 1-7, so seven is the intended
+                length and the 14-entry table is what drifted. Sliced here rather
+                than cut from the data, because no consumer of entries 8-14 has
+                been traced yet.
+                This also fixes the layout complaint: 14 cells forced a 4-column
+                grid on a phone, wrapping into four rows with a ragged two-cell
+                tail — the "ihoptryckt" he reported. */}
+            {/* Day 7 is the week's PAYOFF and is built as a taller hero cell
+                rather than a seventh identical tile — a reward track whose last
+                step looks exactly like its first gives the player no reason to
+                come back on day 6. Matches Timmy's reference, where DAG 7 sits
+                in its own lit frame with arrows pointing at it. */}
             <div className="daily-row">
-              {DAILY_REWARDS.map((r, i) => {
+              {DAILY_REWARDS.slice(0, 7).map((r, i) => {
                 const claimed = i + 1 < streakDay;
                 const current = i + 1 === streakDay && canClaim;
+                const finale = i === 6;
                 return (
-                  <div key={r.day} className={`daily-cell ${claimed ? 'claimed' : ''} ${current ? 'current' : ''}`}>
+                  <div
+                    key={r.day}
+                    className={`daily-cell${claimed ? ' claimed' : ''}${current ? ' current' : ''}${finale ? ' finale' : ''}`}
+                  >
+                    <span className="daily-cell-face" aria-hidden />
                     <div className="daily-day">D{r.day}</div>
-                    <div className="daily-icon"><GameIcon name={r.icon} size={26} /></div>
+                    <div className="daily-icon"><GameIcon name={r.icon} size={finale ? 32 : 26} /></div>
                     <div className="daily-label">{r.label}</div>
+                    {claimed && <span className="daily-tick" aria-hidden>✓</span>}
+                    {finale && <span className="daily-finale-arrow daily-finale-arrow-l" aria-hidden />}
+                    {finale && <span className="daily-finale-arrow daily-finale-arrow-r" aria-hidden />}
                   </div>
                 );
               })}
             </div>
+
+            {/* How far this week has run, ending at a lock that opens on day 7.
+                The row alone only ever says "today"; this says "how close". */}
+            <div className="daily-track" aria-hidden>
+              <div className="daily-track-bar">
+                <div
+                  className="daily-track-fill"
+                  style={{ width: Math.max(0, Math.min(100, ((streakDay - 1) / 6) * 100)) + '%' }}
+                />
+              </div>
+              <span className={`daily-track-lock${streakDay >= 7 ? ' open' : ''}`}>
+                <GameIcon name="ui_lock" size={13} />
+              </span>
+            </div>
+
             <button
-              onClick={claimDaily}
+              onClick={(e) => claimDaily(e.currentTarget)}
               disabled={!canClaim}
               data-testid="claim-daily"
-              style={{ marginTop: 12, width: '100%' }}
+              className="daily-claim-btn"
             >
               {canClaim ? `▸ CLAIM DAY ${streakDay}` : '✓ Already Claimed'}
             </button>
@@ -300,7 +366,11 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
 
           {/* Daily Quests */}
           <div className="panel">
-            <div className="panel-title">DAILY QUESTS</div>
+            <div className="panel-title">
+              <span className="panel-title-mark" aria-hidden><GameIcon name="ui_clock" size={15} /></span>
+              DAILY QUESTS
+              <span className="panel-title-rule" aria-hidden />
+            </div>
             <div className="quest-list">
               {quests.map(q => {
                 const prog = save.quests.completed[q.id] || 0;
@@ -325,7 +395,8 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
                       {q.reward.petFood && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><GameIcon name="petFood" size={12} /> {q.reward.petFood}</div>}
                       {done && !claimed && (
             <button
-              onClick={() => {
+              onClick={(e) => {
+                const anchor = e.currentTarget;
                 const ns = {
                   ...save,
                   quests: {
@@ -335,6 +406,7 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
                 };
                 applyReward(ns, q.reward, openChest);
                 setSave(ns);
+                fireClaimFx(anchor, q.reward);
               }}
               data-testid={`claim-${q.id}`}
               className="claim-burst"
@@ -353,7 +425,11 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
 
           {/* Weekly Quests */}
           <div className="panel">
-            <div className="panel-title">WEEKLY QUESTS</div>
+            <div className="panel-title">
+              <span className="panel-title-mark" aria-hidden><GameIcon name="ui_medal" size={15} /></span>
+              WEEKLY QUESTS
+              <span className="panel-title-rule" aria-hidden />
+            </div>
             <div className="quest-list">
               {wquests.map(q => {
                 const prog = save.weeklyQuests.completed[q.id] || 0;
@@ -378,10 +454,12 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
                       {q.reward.petFood && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><GameIcon name="petFood" size={12} /> {q.reward.petFood}</div>}
                       {done && !claimed && (
                         <button
-                          onClick={() => {
+                          onClick={(e) => {
+                            const anchor = e.currentTarget;
                             const ns = { ...save, weeklyQuests: { ...save.weeklyQuests, claimed: { ...save.weeklyQuests.claimed, [q.id]: true } } };
                             applyReward(ns, q.reward, openChest);
                             setSave(ns);
+                            fireClaimFx(anchor, q.reward);
                           }}
                           data-testid={`wclaim-${q.id}`}
                           className="claim-burst"
@@ -398,7 +476,11 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
 
           {/* Daily Lucky Spin Wheel */}
           <div className="panel">
-            <div className="panel-title">DAILY SPIN</div>
+            <div className="panel-title">
+              <span className="panel-title-mark" aria-hidden><GameIcon name="ui_token" size={15} /></span>
+              DAILY SPIN
+              <span className="panel-title-rule" aria-hidden />
+            </div>
             <div className="spin-stage" data-testid="spin-wheel">
               <div className="spin-pointer" aria-hidden />
               <div className="spin-wheel-rim">
@@ -446,7 +528,7 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
               </div>
             </div>
             <button
-              onClick={doSpin}
+              onClick={(e) => doSpin(e.currentTarget)}
               disabled={!canSpin || spinning}
               data-testid="spin-btn"
               className="claim-burst"
@@ -484,6 +566,9 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
         </div>
       )}
       {badgesOpen && <BadgePicker save={save} setSave={setSave} onClose={() => setBadgesOpen(false)} />}
+      {/* Mounted last so the burst layer sits above every panel and modal on
+          this screen. It renders null until something is actually claimed. */}
+      <ClaimFx />
     </div>
   );
 }

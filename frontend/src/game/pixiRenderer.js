@@ -6,37 +6,40 @@
 import { Application, Container, Graphics, Text, TextStyle, FillGradient, Sprite, Filter, Texture, defaultFilterVert, ColorMatrixFilter, ParticleContainer, Particle, Rectangle } from 'pixi.js';
 import { AdvancedBloomFilter } from 'pixi-filters';
 import { WEAPONS } from './data';
-import { heroHalfPoints, heroHalfWidthAt, HERO_COLORS } from './heroShape';
+import { heroHalfPoints, HERO_COLORS } from './heroShape';
 import { HeroAnim } from './heroAnim';
+// The hero's face, arms and held weapon live in heroDraw.js so the intro film
+// can draw the SAME character the run does — see that file's header. `rot`
+// and `rotPoly` moved with them; they are re-imported here so all 48 call
+// sites in this file are untouched.
+import { rot, rotPoly, drawHeldWeapon, drawArms, drawHeroFace } from './heroDraw';
 
 const TAU = Math.PI * 2;
 
-// ---- small geometry helpers (rotate local points around an object's own
-// heading, since a shared Graphics object has no per-shape transform) ----
-function rot(x, y, ang) {
-  const c = Math.cos(ang), s = Math.sin(ang);
-  return [x * c - y * s, y * c + x * s];
-}
+// Restored 2026-08-18: these two were collateral damage when `rot`/`rotPoly`
+// were moved out to heroDraw.js — they sat between them in the same block.
+// `hexToRgb01` is byte-identical to engine.js's `hexToRgb01Local`, which its
+// own comment describes as a copy of this one.
 function hexToRgb01(hex) {
-  const h = hex.replace('#', '');
-  const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16);
+  const h = (hex || '#ffffff').replace('#', '');
+  const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16) || 0xffffff;
   return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
 }
-function mixHex(hexA, hexB, t) {
-  const a = hexToRgb01(hexA), b = hexToRgb01(hexB);
-  const r = Math.round((a[0] + (b[0] - a[0]) * t) * 255);
-  const g = Math.round((a[1] + (b[1] - a[1]) * t) * 255);
-  const bl = Math.round((a[2] + (b[2] - a[2]) * t) * 255);
-  return `#${[r, g, bl].map(v => v.toString(16).padStart(2, '0')).join('')}`;
+
+// Blend hex colour `a` toward `b` by `t` (0..1), returning a hex string.
+// Every call site is a "push this toward white / toward the flash colour"
+// lighten, e.g. mixHex(litColor, '#ffffff', 0.25).
+function mixHex(a, b, t) {
+  const k = t < 0 ? 0 : t > 1 ? 1 : t;
+  const pa = (hex) => {
+    const h = (hex || '#000000').replace('#', '');
+    const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16) || 0;
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  };
+  const A = pa(a), B = pa(b);
+  return '#' + A.map((v, i) => Math.round(v + (B[i] - v) * k).toString(16).padStart(2, '0')).join('');
 }
-function rotPoly(cx, cy, ang, localPts) {
-  const out = [];
-  for (let i = 0; i < localPts.length; i += 2) {
-    const [rx, ry] = rot(localPts[i], localPts[i + 1], ang);
-    out.push(cx + rx, cy + ry);
-  }
-  return out;
-}
+
 function rotEllipsePoly(cx, cy, ang, rx, ry, segs = 14) {
   const out = [];
   for (let i = 0; i < segs; i++) {
@@ -85,6 +88,44 @@ const BOSS_ARROW_PIXELS = buildArrowPixelGrid();
 // weapon is a data entry rather than new drawing code. `muzzle` is how far
 // along +X the barrel ends, which the muzzle flash and hot-tip glow use.
 const WEAPON_MODELS = {
+  // THE KATANA. Timmy, 2026-08-19: "de ser konstigt ut när han håller både en
+  // katana å en gevär i handen samtidigt."
+  //
+  // He was seeing exactly that, and this is why: the katana had no entry here,
+  // so `WEAPON_MODELS[sw.wid] || WEAPON_MODELS._default` handed him the default
+  // GUN, while the blade itself only ever existed as a `katanaSlash` particle
+  // (see that branch near the bottom of this file). Two weapons on screen, one
+  // of them a fallback nobody meant to equip. Nothing threw — the fallback is
+  // there precisely so an unmodelled weapon still renders something.
+  //
+  // Giving it a real model is also the prerequisite for the blood work he asked
+  // for in the same breath: a blade that "droppar å rinner" and "blir mer å mer
+  // blodig" needs an actual blade object for it to accumulate on.
+  //
+  // `muzzle` is the blade TIP rather than a barrel, so the recoil glow at the
+  // call site reads as light catching the edge mid-swing. Costs nothing extra.
+  katana: {
+    accent: '#dce8f2', muzzle: 36,
+    parts: [
+      // Wrapped hilt (tsuka): dark cord over dark wood.
+      [-11, -1.7, 11, 3.4, '#17110c'],
+      [-9.5, -1.9, 2, 3.8, '#3b2f22'], [-6, -1.9, 2, 3.8, '#3b2f22'],
+      [-2.5, -1.9, 2, 3.8, '#3b2f22'],
+      // Pommel cap.
+      [-12.5, -2.2, 1.8, 4.4, '#6b5a2e'],
+      // Guard (tsuba) — the one wide element, and what makes the silhouette
+      // read as a sword rather than as a stick at a glance.
+      [0.6, -4.6, 2.6, 9.2, '#6b5a2e'],
+      [0.6, -4.6, 2.6, 2.0, '#a08a4a'],
+      // Blade: body, bright spine, and a hot edge along the bottom.
+      [3.4, -1.6, 29, 3.2, '#aebecd'],
+      [3.4, -1.6, 29, 1.1, '#eef6ff'],
+      [3.4, 0.9, 29, 0.7, '#f8fdff', 0.75],
+      // Tip, stepped down twice so it tapers inside a box-only model.
+      [32.2, -1.2, 3.0, 2.4, '#c6d6e4'],
+      [35.0, -0.8, 2.2, 1.6, '#eef6ff'],
+    ],
+  },
   hydropistol: {
     accent: '#6cb4ff', muzzle: 30, slide: [5, -5, 10, 2.8], slideColor: '#3a4658',
     parts: [
@@ -379,9 +420,30 @@ export class PixiRenderer {
     c.addEventListener('webglcontextrestored', this._onCtxRestored, false);
   }
 
-  _textStyle(size, color, strokeColor, strokeWidth) {
+  // Two fonts, chosen by what the text IS.
+  //
+  // Timmy, 2026-08-23: "polera ui a text ingame typ level up a tripple kill osv
+  // byt font pa de". But damage numbers and combat callouts want opposite
+  // things: a number needs even, unmistakable digits, and LEVEL UP / TRIPLE
+  // KILL / BRUTAL want to shout.
+  //
+  // So the split is by CONTENT, not by call site — anything containing a digit
+  // keeps the monospace face, everything else gets the display face. Doing it
+  // by call site would mean every future caller has to remember, and this
+  // project's whole bug history is things that had to be remembered.
+  //
+  // Dragon Knight is already loaded (index.css, as --font-epic) and already
+  // proven on menu headings. It never touches a number here, which matters:
+  // several faces in that folder have broken or missing digits.
+  _textStyle(size, color, strokeColor, strokeWidth, text) {
+    const numeric = text === undefined || /[0-9]/.test(String(text));
     return new TextStyle({
-      fontFamily: 'JetBrains Mono, monospace', fontSize: size, fontWeight: 'bold',
+      fontFamily: numeric
+        ? 'JetBrains Mono, monospace'
+        : '"Dragon Knight", "Brandal Legend", Cinzel, serif',
+      fontSize: numeric ? size : Math.round(size * 1.18),
+      fontWeight: 'bold',
+      letterSpacing: numeric ? 0 : 1.5,
       fill: color, stroke: strokeColor ? { color: strokeColor, width: strokeWidth || 3 } : undefined,
     });
   }
@@ -476,7 +538,7 @@ export class PixiRenderer {
     this.dockStationLight = new Sprite(this.lightTex);
     this.dockStationLight.anchor.set(0.5); this.dockStationLight.blendMode = 'add'; this.dockStationLight.visible = false;
     this.gLight.addChild(this.dockStationLight);
-    this.dockStationText = new Text({ text: 'DOCK', style: this._textStyle(9, '#4dffe0', '#06121e', 3) });
+    this.dockStationText = new Text({ text: 'DOCK', style: this._textStyle(9, '#4dffe0', '#06121e', 3, 'DOCK') });
     this.dockStationText.anchor.set(0.5); this.dockStationText.visible = false;
     this.world.addChild(this.dockStationText);
     // Tidal Shrine â€” same z-band as the Dock Station, own layer since both
@@ -485,7 +547,7 @@ export class PixiRenderer {
     this.shrineLight = new Sprite(this.lightTex);
     this.shrineLight.anchor.set(0.5); this.shrineLight.blendMode = 'add'; this.shrineLight.visible = false;
     this.gLight.addChild(this.shrineLight);
-    this.shrineText = new Text({ text: 'SHRINE', style: this._textStyle(9, '#1fb6ff', '#06121e', 3) });
+    this.shrineText = new Text({ text: 'SHRINE', style: this._textStyle(9, '#1fb6ff', '#06121e', 3, 'SHRINE') });
     this.shrineText.anchor.set(0.5); this.shrineText.visible = false;
     this.world.addChild(this.shrineText);
     this.gGems = new Graphics(); this.world.addChild(this.gGems);
@@ -502,7 +564,7 @@ export class PixiRenderer {
     this.gPet = new Graphics(); this.world.addChild(this.gPet);
     this.petLevelText = new Text({ text: '', style: this._textStyle(6, '#fff') });
     this.petLevelText.anchor.set(0.5); this.world.addChild(this.petLevelText);
-    this.reloadText = new Text({ text: 'RELOADING', style: this._textStyle(9, '#ffd166', '#000000', 2.5) });
+    this.reloadText = new Text({ text: 'RELOADING', style: this._textStyle(9, '#ffd166', '#000000', 2.5, 'RELOADING') });
     this.reloadText.anchor.set(0.5, 0.5); this.world.addChild(this.reloadText);
     this.gProjectiles = new Graphics(); this.world.addChild(this.gProjectiles);
     // Lit starter-weapon (hydropistol) projectile sprites, same z-band as
@@ -523,7 +585,7 @@ export class PixiRenderer {
     // Enemy tier tags ("T2", "T3"...) â€” tiny label under each tier>=2 enemy.
     this.tierTagContainer = new Container(); this.world.addChild(this.tierTagContainer);
     this._tierTagPool = [];
-    this.levelUpText = new Text({ text: 'LEVEL UP!', style: this._textStyle(24, '#9fd8ff', '#06121e', 5) });
+    this.levelUpText = new Text({ text: 'LEVEL UP!', style: this._textStyle(24, '#9fd8ff', '#06121e', 5, 'LEVEL UP!') });
     this.levelUpText.anchor.set(0.5); this.levelUpText.visible = false; this.world.addChild(this.levelUpText);
 
     // Screen-space overlays (outside the camera-translated world)
@@ -926,6 +988,12 @@ void main() {
   _drawSkyEvents(game) {
     const g = this.gSkyEvents; g.clear();
     for (const ev of game.skyEvents) {
+      // `fade` ramps to 0 over the last 0.7s of life (engine.updateSkyEvents).
+      // Every alpha below is multiplied by it, so a sky event can never blink
+      // out of existence in a single frame the way the old hard `splice` did.
+      // All events share one Graphics, so this cannot be a container alpha.
+      const fd = ev.fade === undefined ? 1 : ev.fade;
+      if (fd <= 0) continue;
       if (ev.type === 'meteor') {
         const spd = Math.hypot(ev.vx, ev.vy) || 1;
         const tx = -ev.vx / spd, ty = -ev.vy / spd;
@@ -935,33 +1003,36 @@ void main() {
         for (let i = 0; i < 9; i++) {
           const f = i / 9;
           g.circle(ev.x + tx * f * (46 + burnFrac * 26), ev.y + ty * f * (46 + burnFrac * 26), (5 + burnFrac * 2.5) * (1 - f))
-            .fill({ color: ev.color, alpha: (1 - f) * 0.78 * heat });
+            .fill({ color: ev.color, alpha: (1 - f) * 0.78 * heat * fd });
         }
-        glow(g, ev.x, ev.y, 15 + burnFrac * 10, ev.color, 1.5 * heat);
+        glow(g, ev.x, ev.y, 15 + burnFrac * 10, ev.color, 1.5 * heat * fd);
         // White-hot leading edge â€” brighter/whiter the harder it's burning.
-        g.circle(ev.x, ev.y, 5.5 + burnFrac * 2).fill(burnFrac > 0.4 ? '#ffffff' : '#fff8e0');
+        g.circle(ev.x, ev.y, 5.5 + burnFrac * 2)
+          .fill({ color: burnFrac > 0.4 ? '#ffffff' : '#fff8e0', alpha: fd });
         // Fragmentation â€” pieces drift apart and burn out independently.
         if (ev.frags) {
           for (const f of ev.frags) {
-            glow(g, ev.x + f.ox, ev.y + f.oy, 8, ev.color, 1.1);
-            g.circle(ev.x + f.ox, ev.y + f.oy, 3).fill('#fff2c8');
+            glow(g, ev.x + f.ox, ev.y + f.oy, 8, ev.color, 1.1 * fd);
+            g.circle(ev.x + f.ox, ev.y + f.oy, 3).fill({ color: '#fff2c8', alpha: fd });
           }
         }
       } else {
         // UFO â€” proper hull silhouette + 3 real blinking lamp lights
         // (not a single flat colored dot) plus a soft scan-beam underneath.
-        g.ellipse(ev.x, ev.y, 24, 8).fill('#33394a').stroke({ width: 1.5, color: '#5a6478' });
-        g.ellipse(ev.x, ev.y, 24, 8).fill({ color: '#6a7488', alpha: 0.25 });
-        g.ellipse(ev.x, ev.y - 5, 11, 7).fill('#4a5568');
-        g.ellipse(ev.x, ev.y - 6, 8, 4.5).fill({ color: '#bfe8ff', alpha: 0.55 });
+        g.ellipse(ev.x, ev.y, 24, 8).fill({ color: '#33394a', alpha: fd })
+          .stroke({ width: 1.5, color: '#5a6478', alpha: fd });
+        g.ellipse(ev.x, ev.y, 24, 8).fill({ color: '#6a7488', alpha: 0.25 * fd });
+        g.ellipse(ev.x, ev.y - 5, 11, 7).fill({ color: '#4a5568', alpha: fd });
+        g.ellipse(ev.x, ev.y - 6, 8, 4.5).fill({ color: '#bfe8ff', alpha: 0.55 * fd });
         for (let li = 0; li < 3; li++) {
           const lx = ev.x + (li - 1) * 13;
           const blink = 0.5 + 0.5 * Math.sin(ev.t * 5 + li * 2.1);
-          g.circle(lx, ev.y + 3, 2.2).fill({ color: ev.color, alpha: 0.5 + blink * 0.5 });
-          if (blink > 0.7) glow(g, lx, ev.y + 3, 6, ev.color, blink);
+          g.circle(lx, ev.y + 3, 2.2).fill({ color: ev.color, alpha: (0.5 + blink * 0.5) * fd });
+          if (blink > 0.7) glow(g, lx, ev.y + 3, 6, ev.color, blink * fd);
         }
-        glow(g, ev.x, ev.y + 5, 20, ev.color, 1.4);
-        g.poly([ev.x - 7, ev.y + 5, ev.x + 7, ev.y + 5, ev.x + 17, ev.y + 52, ev.x - 17, ev.y + 52]).fill({ color: ev.color, alpha: 0.13 });
+        glow(g, ev.x, ev.y + 5, 20, ev.color, 1.4 * fd);
+        g.poly([ev.x - 7, ev.y + 5, ev.x + 7, ev.y + 5, ev.x + 17, ev.y + 52, ev.x - 17, ev.y + 52])
+          .fill({ color: ev.color, alpha: 0.13 * fd });
       }
     }
   }
@@ -1206,7 +1277,17 @@ void main() {
   // occasional shooting stars. Cached like the ground layer â€” rebuilt only
   // when the (slow) parallax-camera has drifted past a padded buffer.
   _drawDeepSpace(game) {
-    const W = game.W, H = game.H;
+    // The whole deepSpace subtree is a child of `zoomRoot`, so it is scaled by
+    // 1/zoom along with the world — but everything in here (star fills, nebula
+    // centring, galaxy placement, the belt, the hero bodies) is authored
+    // against `game.W/H`, which are CSS pixels. At zoom 1 (phone) the two agree
+    // and the sky fills the screen. At 1.65 (desktop) the entire authored sky
+    // was squeezed into the top-left ~60% x 60%: the starfield stopped about
+    // 450px short of the right edge and the nebula centred at (435,260)
+    // instead of (720,430). Converting to world units here fixes the layer
+    // wholesale, because every consumer below reads W/H.
+    const zoom = game.viewZoom ? game.viewZoom() : 1;
+    const W = game.W * zoom, H = game.H * zoom;
     // Guard against a stray NaN/Infinity camera position (e.g. from some
     // other bug) ever reaching the parallax math below â€” worst case this
     // layer just freezes at its last good spot instead of feeding NaN into
@@ -1285,6 +1366,15 @@ void main() {
     // continuously and will genuinely leave frame on a long pan.
     this._drawStarLayers(W, H, cx, cy);
 
+    // Rebuild if the view size changed. Their layout is derived from W/H
+    // (bx: W*0.18, W*0.70, W*0.34 …), and those are world units now — so a
+    // resize, a rotate, or the Vision zoom card would otherwise leave the
+    // three bodies laid out for the size the window happened to be when the
+    // run started. Built ONCE per size, not once per lifetime.
+    if (this._heroBodiesW !== W || this._heroBodiesH !== H) {
+      this._heroBodiesDrawn = false;
+      this._heroBodiesW = W; this._heroBodiesH = H;
+    }
     if (!this._heroBodiesDrawn) {
       this._heroBodiesDrawn = true;
       this._buildHeroBodies(W, H);
@@ -1361,21 +1451,40 @@ void main() {
     }
     this.gDeepNear.position.set(-nx, -ny);
 
-    // Shooting stars: occasional bright streaks across the visible sky (screen-space)
+    // Shooting stars: occasional bright streaks across the visible sky.
+    //
+    // Same parity trap as the meteors, and it bit here twice over: the spawn
+    // `x` was capped to `game.W` CSS px (so on a desktop no streak could ever
+    // begin in the right 40% of the sky) and the flat speed x flat life gave
+    // ~1000-1444 units of travel, which is a full crossing on a phone but only
+    // about 60% of a 1440-wide screen. W/H are world units now, which fixes the
+    // spawn; speed scales with zoom so the APPARENT speed is identical on every
+    // device; and the duration is derived from the height it has to fall
+    // through rather than being a constant that happened to suit one screen.
     const dt = game.dt || 0.016;
     this._nextShootingStarAt -= dt;
     if (this._nextShootingStarAt <= 0) {
       this._nextShootingStarAt = 5 + Math.random() * 7;
-      this._shootingStars.push({ x: Math.random() * W, y: -40, ang: Math.PI * 0.28 + Math.random() * 0.18, life: 1.0, speed: 900 + Math.random() * 400 });
+      const ang = Math.PI * 0.28 + Math.random() * 0.18;
+      const speed = (900 + Math.random() * 400) * zoom;
+      // Fall through the whole view plus a margin, along the actual heading.
+      const dur = (H * 1.25) / Math.max(1, speed * Math.sin(ang));
+      this._shootingStars.push({
+        x: Math.random() * W, y: -40 * zoom, ang, speed,
+        life: dur, maxLife: dur,
+      });
     }
     const gs = this.gShootingStars; gs.clear(); gs.position.set(0, 0);
     for (let i = this._shootingStars.length - 1; i >= 0; i--) {
       const s = this._shootingStars[i];
-      s.life -= dt * 0.9;
+      s.life -= dt;
       s.x += Math.cos(s.ang) * s.speed * dt;
       s.y += Math.sin(s.ang) * s.speed * dt;
       if (s.life <= 0) { this._shootingStars.splice(i, 1); continue; }
-      const a = Math.min(1, s.life * 2.2);
+      // Fade over the last ~45% of the flight, as a fraction of its own
+      // duration — a fixed `life * 2.2` would mean something different for
+      // every duration now that durations vary.
+      const a = Math.min(1, (s.life / (s.maxLife || 1)) * 2.2);
       const tailX = s.x - Math.cos(s.ang) * 75, tailY = s.y - Math.sin(s.ang) * 75;
       gs.moveTo(tailX, tailY).lineTo(s.x, s.y).stroke({ width: 2, color: '#ffffff', alpha: a * 0.8 });
       gs.circle(s.x, s.y, 2.4).fill({ color: '#ffffff', alpha: a });
@@ -2129,14 +2238,27 @@ void main() {
   }
 
   _drawGround(game) {
-    const W = game.W, H = game.H, cx = game.cam.x, cy = game.cam.y;
+    // `gGround` lives inside `world`, which lives inside `zoomRoot` — so every
+    // number here is WORLD units, while `game.W/H` are CSS pixels. They are
+    // only equal at zoom 1, i.e. on a phone (deviceZoomFor clamps at
+    // Math.max(1, …)), which is why this was invisible on the device it was
+    // tuned on. On a 1440-wide desktop the wash and grid covered 1440+520 world
+    // px of a view 2381 wide, so the right ~29% and bottom ~21% of the screen
+    // had no ground and no grid at all and sat at the bare clear colour.
+    // THAT was the "dark band on the right" — not the canvas element, which
+    // does fill the window.
+    const zoom = game.viewZoom ? game.viewZoom() : 1;
+    const W = game.W * zoom, H = game.H * zoom;
+    const cx = game.cam.x, cy = game.cam.y;
     const t = game.run ? game.run.time : 0;
     // PERF: the starfield/nebula/grid are near-static frame to frame â€” redrawing
     // hundreds of hashed grid cells every single frame (60-200x/sec) was the
     // #1 cost under sustained combat. Cache the drawing and only rebuild when
     // the camera has actually moved past a padded buffer, or once per second
     // (so slow ambient effects like the nebula pulse / zone tint still update).
-    const pad = 260;
+    // Scaled with the view for the same reason W/H are: a fixed 260 is a much
+    // thinner safety margin on a screen showing 2.8x more world.
+    const pad = 260 * zoom;
     const cache = this._groundCache;
     const moved = !cache || Math.abs(cx - cache.cx) > pad * 0.55 || Math.abs(cy - cache.cy) > pad * 0.55;
     const stale = !cache || (t - cache.t) > 1.0;
@@ -2410,50 +2532,64 @@ void main() {
   _drawGems(game) {
     const g = this.gGems; g.clear();
     game.gems.forEach(gm => {
-      const wobble = Math.sin(gm.t * 6) * 2;
+      const wobble = Math.sin(gm.t * 6 + gm.x * 0.05) * 3;
+      const spin = Math.cos(gm.t * 4.8 + gm.x * 0.1);
+      const absSpin = Math.abs(spin);
       if (gm.xp > 0) {
-        const s = gm.xp <= 2 ? 3 : gm.xp <= 6 ? 5 : gm.xp <= 15 ? 7.5 : 11;
-        // XP orbs are cut crystal, not lamps. They used to burn a slot from
-        // the lit-sprite pool each and cast light onto nearby enemies, which
-        // washed enemy colours out whenever loot piled up. Same silhouette as
-        // before â€” now it just catches the light instead of making it: a dark
-        // facet down one side, a bright facet down the other, a hard specular
-        // chip, and a slow travelling glint across the face.
+        const s = gm.xp <= 2 ? 3.5 : gm.xp <= 6 ? 5.5 : gm.xp <= 15 ? 8 : 12;
         const cy = gm.y + wobble;
-        const hw = s * 0.68;
+        // 3D perspective spin: width scales with cosine of rotation
+        const hw = Math.max(1.2, s * 0.75 * (0.28 + 0.72 * absSpin));
+        const spinSign = spin >= 0 ? 1 : -1;
+        const litFacet = spin >= 0 ? '#8fe4ff' : '#5dbbfa';
+        const shadeFacet = spin >= 0 ? '#2659a8' : '#183c78';
+
+        // 3D diamond base
         g.poly([gm.x, cy - s, gm.x + hw, cy, gm.x, cy + s, gm.x - hw, cy]).fill('#3f7fd4');
-        // left/right facets split down the vertical axis
-        g.poly([gm.x, cy - s, gm.x, cy + s, gm.x - hw, cy]).fill({ color: '#2b5da8', alpha: 0.95 });
-        g.poly([gm.x, cy - s, gm.x + hw, cy, gm.x, cy + s]).fill({ color: '#7cc4ff', alpha: 0.95 });
-        // crisp specular chip on the upper-left edge
-        g.poly([gm.x, cy - s, gm.x - hw * 0.44, cy - s * 0.34, gm.x - hw * 0.16, cy - s * 0.16])
-          .fill({ color: '#ffffff', alpha: 0.9 });
-        // glint sweeps across the face on its own slow cycle
-        const gl = (Math.sin(gm.t * 2.1 + gm.x * 0.05) + 1) * 0.5;
-        if (gl > 0.72) {
-          const a = (gl - 0.72) / 0.28;
-          g.poly([gm.x - hw * 0.5, cy + s * 0.1, gm.x + hw * 0.2, cy - s * 0.55, gm.x + hw * 0.42, cy - s * 0.3, gm.x - hw * 0.28, cy + s * 0.34])
-            .fill({ color: '#ffffff', alpha: a * 0.55 });
+        // Left & right 3D faceted prism halves
+        g.poly([gm.x, cy - s, gm.x, cy + s, gm.x - hw * spinSign, cy]).fill({ color: shadeFacet, alpha: 0.96 });
+        g.poly([gm.x, cy - s, gm.x + hw * spinSign, cy, gm.x, cy + s]).fill({ color: litFacet, alpha: 0.96 });
+
+        // Specular glint on 3D facet edge
+        if (absSpin > 0.4) {
+          g.poly([gm.x, cy - s, gm.x - hw * spinSign * 0.4, cy - s * 0.35, gm.x, cy - s * 0.15])
+            .fill({ color: '#ffffff', alpha: 0.95 });
+        }
+        // Prismatic gleam sweep across the rotating face
+        const gl = (Math.sin(gm.t * 3.5 + gm.x * 0.08) + 1) * 0.5;
+        if (gl > 0.65) {
+          const ga = (gl - 0.65) / 0.35;
+          g.poly([gm.x - hw * 0.6, cy + s * 0.15, gm.x + hw * 0.3, cy - s * 0.5, gm.x + hw * 0.5, cy - s * 0.25, gm.x - hw * 0.3, cy + s * 0.4])
+            .fill({ color: '#ffffff', alpha: ga * 0.65 });
         }
         if (gm.xp > 15) {
-          // big orbs get a rim so they still read at a glance in a crowd
+          // Large crystal rim
           g.poly([gm.x, cy - s, gm.x + hw, cy, gm.x, cy + s, gm.x - hw, cy])
-            .stroke({ width: 1.4, color: '#dcf0ff', alpha: 0.8 });
+            .stroke({ width: 1.5, color: '#e8f8ff', alpha: 0.85 });
+          glow(g, gm.x, cy, s * 1.5, '#4dc8ff', 0.45);
         }
       } else if (gm.heart > 0) {
         const hs = 6 + Math.sin(gm.t * 8) * 1.2;
-        glow(g, gm.x, gm.y + wobble, hs, '#ff3146', 0.8);
+        glow(g, gm.x, gm.y + wobble, hs * 1.2, '#ff3146', 0.85);
         const cx = gm.x, cy = gm.y + wobble;
         g.moveTo(cx, cy + hs * 0.3)
           .bezierCurveTo(cx - hs * 1.1, cy - hs * 0.5, cx - hs * 1.4, cy + hs * 0.8, cx, cy + hs * 1.2)
           .bezierCurveTo(cx + hs * 1.4, cy + hs * 0.8, cx + hs * 1.1, cy - hs * 0.5, cx, cy + hs * 0.3)
           .fill('#ff3146');
+        g.circle(cx - hs * 0.35, cy - hs * 0.1, hs * 0.22).fill({ color: '#ffb0b8', alpha: 0.8 });
       } else {
-        const s = gm.gold <= 2 ? 3 : gm.gold <= 5 ? 4.5 : gm.gold <= 12 ? 6.5 : 9;
+        // Gold coin with 3D spinning aspect rotation
+        const s = gm.gold <= 2 ? 3.5 : gm.gold <= 5 ? 5 : gm.gold <= 12 ? 7 : 9.5;
         const gc = gm.gold >= 13 ? '#fff7a0' : '#ffd166';
-        if (gm.gold > 2) glow(g, gm.x, gm.y + wobble, s, gc, 0.6);
-        g.circle(gm.x, gm.y + wobble, s).fill(gc);
-        if (gm.gold >= 6) g.circle(gm.x - s * 0.25, gm.y - s * 0.25 + wobble, s * 0.3).fill({ color: '#ffffdc', alpha: 0.7 });
+        const coinSpin = Math.cos(gm.t * 5.2 + (gm.y || 0) * 0.1);
+        const gw = Math.max(1, s * (0.2 + 0.8 * Math.abs(coinSpin)));
+        if (gm.gold > 2) glow(g, gm.x, gm.y + wobble, s * 1.3, gc, 0.55);
+        // 3D coin face + embossed inner rim
+        g.ellipse(gm.x, gm.y + wobble, gw, s).fill(gc);
+        g.ellipse(gm.x, gm.y + wobble, gw * 0.72, s * 0.72).stroke({ width: 1, color: '#fff4b0', alpha: 0.75 });
+        if (gm.gold >= 6 && Math.abs(coinSpin) > 0.4) {
+          g.ellipse(gm.x - gw * 0.25, gm.y - s * 0.25 + wobble, gw * 0.28, s * 0.28).fill({ color: '#ffffff', alpha: 0.75 });
+        }
       }
     });
   }
@@ -2467,9 +2603,19 @@ void main() {
     // the hundreds (routine in a long endless run with the tier system).
     // Enemies far outside the camera can't be seen, so skip all of that
     // work for them entirely rather than computing an invisible result.
-    const cullPad = 160;
+    //
+    // `cam.x/y` is a WORLD coordinate but `game.W/H` is CSS pixels, and the two
+    // are only the same number when zoom is 1 — which, because deviceZoomFor()
+    // clamps at Math.max(1, …), is true on a phone and false on every desktop.
+    // Without the `* zoom` the cull box was 1440 world px wide on a screen
+    // showing 2381, so the right THIRD of a desktop screen drew no enemies at
+    // all and they popped in and out as they crossed an invisible line. Same
+    // class of bug as the boss arrow's missing division (see engine.js's
+    // updateBossArrow), and invisible on the phone for the same reason.
+    const zoom = game.viewZoom ? game.viewZoom() : 1;
+    const cullPad = 160 * zoom;
     const cx0 = game.cam.x - cullPad, cy0 = game.cam.y - cullPad;
-    const cx1 = game.cam.x + game.W + cullPad, cy1 = game.cam.y + game.H + cullPad;
+    const cx1 = game.cam.x + game.W * zoom + cullPad, cy1 = game.cam.y + game.H * zoom + cullPad;
     game.enemies.forEach(e => {
       if (e.x < cx0 || e.x > cx1 || e.y < cy0 || e.y > cy1) return;
       try {
@@ -2600,12 +2746,41 @@ void main() {
         const shape = this._enemyShapeFor(e, t, s);
         this._paintShape(g, shape, bodyColor, { width: 2, color: '#000000' });
 
-        // Progressive gore: reveal accumulated wound patches â€” torn, wet
+        // Expressive 3D tracking eyes on enemies
+        if (!t.boss && t.id !== 'slime') {
+          let edx = 0, edy = 1;
+          if (game.player) {
+            const ex = game.player.x - e.x, ey = game.player.y - e.y, el = Math.hypot(ex, ey) || 1;
+            edx = ex / el; edy = ey / el;
+          }
+          const eyeOff = s * 0.22;
+          const eyeR = Math.max(1.8, s * 0.12);
+          const eyeX = e.x + edx * s * 0.18;
+          const eyeY = e.y + edy * s * 0.18 - s * 0.05;
+          const perpX = -edy * eyeOff, perpY = edx * eyeOff;
+          const isAttacking = (e._windup > 0 || e._strikeT > 0);
+          const pupilColor = isAttacking ? '#ffffff' : '#ff2a3a';
+          const scleraColor = isAttacking ? '#ff7a1a' : '#2a0508';
+
+          // Left and right eye sockets
+          for (const side of [-1, 1]) {
+            const ex2 = eyeX + perpX * side;
+            const ey2 = eyeY + perpY * side;
+            // Sclera
+            g.circle(ex2, ey2, eyeR).fill({ color: scleraColor, alpha: 0.9 });
+            // Pupil tracking
+            g.circle(ex2 + edx * (eyeR * 0.35), ey2 + edy * (eyeR * 0.35), eyeR * 0.55).fill({ color: pupilColor, alpha: 0.95 });
+            // Specular glint
+            g.circle(ex2 - eyeR * 0.25, ey2 - eyeR * 0.25, eyeR * 0.25).fill({ color: '#ffffff', alpha: 0.85 });
+          }
+        }
+
+        // Progressive gore: reveal accumulated wound patches — torn, wet
         // flesh peeling away exactly where each 10%-HP hit landed.
         if (e._wounds && e._wounds.length) {
           for (const w of e._wounds) {
             const wx = e.x + w.lx, wy = e.y + w.ly;
-            // Softer/smaller than before â€” read as a wet wound patch, not a
+            // Softer/smaller than before — read as a wet wound patch, not a
             // punched-out hole (a smaller dark core + a softer wet halo).
             g.circle(wx, wy, w.size * 0.95).fill({ color: '#5a0710', alpha: 0.4 });
             g.circle(wx, wy, w.size * 0.62).fill({ color: '#2c0308', alpha: 0.6 });
@@ -2639,7 +2814,10 @@ void main() {
               // katana slash reads as a slash and not as a dot.
               const a = (m.ang || 0) + Math.PI / 2;
               const ca = Math.cos(a), sa = Math.sin(a);
-              const L = m.r * 3.4, w = m.r * 0.85;
+              // `len` carries how far the blade travelled, so a katana stroke is
+              // a STREAK across the body rather than a nick. Timmy: "katana ska
+              // slica a skara gora som skar sar streck over kroppen".
+              const L = m.r * 3.4 * (m.len || 1), w = m.r * 0.85;
               // dark cut cavity
               g.poly([
                 mx + ca * L, my + sa * L,
@@ -2655,6 +2833,34 @@ void main() {
               g.moveTo(mx + ca * L * 0.7 - sa * w * 0.8, my + sa * L * 0.7 + ca * w * 0.8)
                 .lineTo(mx - ca * L * 0.7 - sa * w * 0.8, my - sa * L * 0.7 + ca * w * 0.8)
                 .stroke({ width: 0.6, color: '#e06a72', alpha: 0.45 });
+
+              // THE RUNNEL. Blood leaves the cut and runs DOWN the body, and it
+              // keeps running — the wound is not finished when the hit is.
+              // Timmy: "sa ska de stanka spraya blod a rinna ur strecket ner".
+              //
+              // Grows with the wound's age rather than being drawn at full
+              // length instantly, because a trickle that appears complete reads
+              // as a painted stripe. Capped so an old cut stops growing instead
+              // of eventually striping the whole screen.
+              const age = Math.max(0, (game.time || 0) - (m.t || 0));
+              if (age > 0.06) {
+                const run = Math.min(1, age / 1.6);
+                // Down-screen, always: gravity does not care which way the
+                // blade went. Slight lean off the cut's own angle so several
+                // wounds do not draw parallel lines.
+                const lean = Math.sin(m.lx * 3.1) * 0.30;
+                const dx = Math.sin(lean), dy = Math.cos(lean);
+                // Start at the low lip of the cut, not its centre.
+                const sx = mx + ca * L * 0.25, sy = my + sa * L * 0.25 + w * 0.5;
+                const runLen = m.r * 9 * run;
+                g.moveTo(sx, sy)
+                  .lineTo(sx + dx * runLen, sy + dy * runLen)
+                  .stroke({ width: Math.max(0.6, m.r * 0.42), color: '#8f1420', alpha: 0.62 * (1 - run * 0.35) });
+                // The bead at the leading edge — a runnel has a head, and the
+                // head is what makes the eye read it as moving.
+                g.circle(sx + dx * runLen, sy + dy * runLen, m.r * 0.36)
+                  .fill({ color: '#a8121f', alpha: 0.7 * (1 - run * 0.4) });
+              }
             } else if (m.kind === 'sear') {
               // Beam: a cauterised streak along the beam's path. Glowing core
               // fading to charred edges -- no cavity, because it burned shut.
@@ -2989,81 +3195,7 @@ void main() {
   // boxes so a new weapon is a data entry rather than new drawing code, and
   // `kind` covers the few silhouettes a box list cannot express.
   // Returns the model's accent colour, which the muzzle glow uses.
-  _drawHeldWeapon(gf, model, gx, gy, ang, rl, p, game) {
-    const box = (lx, ly, lw, lh, color, alpha) => {
-      const shape = gf.poly(rotPoly(gx, gy, ang, [lx, ly, lx + lw, ly, lx + lw, ly + lh, lx, ly + lh]));
-      shape.fill(alpha != null ? { color, alpha } : color);
-    };
-    for (const [lx, ly, lw, lh, col, alpha] of model.parts) box(lx, ly, lw, lh, col, alpha);
-
-    if (model.kind === 'bow') {
-      // A bow is a curve and a string, not a box stack. The string draws back
-      // as the shot charges and snaps forward on release.
-      const draw = Math.max(0, Math.min(1, p.recoil * 2.6));
-      const limb = model.limb;
-      const tipA = rot(2, -limb, ang), tipB = rot(2, limb, ang);
-      const belly = rot(10, 0, ang);
-      gf.moveTo(gx + tipA[0], gy + tipA[1])
-        .quadraticCurveTo(gx + belly[0], gy + belly[1], gx + tipB[0], gy + tipB[1])
-        .stroke({ width: 2.6, color: model.accent });
-      const nock = rot(-2 - draw * 7, 0, ang);
-      gf.moveTo(gx + tipA[0], gy + tipA[1])
-        .lineTo(gx + nock[0], gy + nock[1])
-        .lineTo(gx + tipB[0], gy + tipB[1])
-        .stroke({ width: 1, color: '#e8e2d0', alpha: 0.85 });
-      if (draw > 0.05) {
-        const aTail = rot(-2 - draw * 7, 0, ang), aHead = rot(14, 0, ang);
-        gf.moveTo(gx + aTail[0], gy + aTail[1]).lineTo(gx + aHead[0], gy + aHead[1])
-          .stroke({ width: 1.6, color: '#cfd6de' });
-      }
-    }
-
-    // Attachments. Drawn from the same local-space box helper as the weapon
-    // itself, so a socketed part sits ON the gun rather than floating near
-    // it. If you cannot see it, it is a stat, not a part — see
-    // game/attachments.js.
-    const att = game._attachLooks;
-    if (att) {
-      const m = model.muzzle;
-      if (att.barrel) {
-        const c = att.barrel.color;
-        if (att.barrel.look === 'long')   { box(m - 2, -1.8, 12, 3.6, '#2a313d'); box(m + 9, -2.4, 2, 4.8, c); }
-        if (att.barrel.look === 'short')  { box(m - 8, -2.6, 4, 5.2, c); }
-        if (att.barrel.look === 'ported') { box(m - 9, -3.2, 8, 1.4, c); box(m - 9, 1.8, 8, 1.4, c); }
-      }
-      if (att.optic) {
-        const c = att.optic.color;
-        if (att.optic.look === 'dot')   { box(4, -8.4, 6, 3.2, '#11161e'); box(5.5, -9.6, 3, 1.6, c); }
-        if (att.optic.look === 'scope') { box(2, -9.6, 15, 4.4, '#11161e'); box(15, -9.2, 2, 3.6, c); box(3, -10.6, 3, 1.4, '#2a313d'); }
-        if (att.optic.look === 'wide')  { box(3, -8.0, 11, 2.6, '#11161e'); box(3, -8.8, 11, 1.0, c); }
-      }
-      if (att.magazine) {
-        const c = att.magazine.color;
-        if (att.magazine.look === 'drum')  { box(-5, 3, 10, 11, '#2a313d'); box(-3.5, 5, 7, 7, c); }
-        if (att.magazine.look === 'short') { box(-4, 3, 6, 6, c); }
-        if (att.magazine.look === 'belt')  { for (let i = 0; i < 5; i++) box(-6 - i * 3, 4 + i * 1.6, 2.4, 2.4, c); }
-      }
-      if (att.underbarrel) {
-        const c = att.underbarrel.color;
-        if (att.underbarrel.look === 'grip')    { box(11, 2.6, 3.4, 8, c); }
-        if (att.underbarrel.look === 'bipod')   { box(m - 10, 2.6, 1.6, 7, c); box(m - 4, 2.6, 1.6, 7, c); }
-        if (att.underbarrel.look === 'bayonet') { box(m - 2, -0.8, 13, 1.8, c); }
-      }
-      if (att.coating) {
-        // A wash tints the whole weapon rather than adding geometry.
-        for (const [lx, ly, lw, lh] of model.parts.map(p => p)) {
-          box(lx, ly, lw, lh, att.coating.color, 0.22);
-        }
-      }
-    }
-
-    // Slide travel from the reload pose lands on the model's own slide box.
-    if (rl.slide !== 0 && model.slide) {
-      const [sx, sy, sw, sh] = model.slide;
-      box(sx + rl.slide, sy, sw, sh, model.slideColor || '#3a4658');
-    }
-    return model.accent;
-  }
+  _drawHeldWeapon(gf, model, gx, gy, ang, rl, p, game) { return drawHeldWeapon(gf, model, gx, gy, ang, rl, p, game); }
 
   // Two short arms from the shoulders to the grip. The character is a
   // waterdrop, so they are stubby capsules rather than jointed limbs — enough
@@ -3073,34 +3205,7 @@ void main() {
   // The shoulders must hang off THAT, not off the raw player coordinate, or
   // the arms visibly detach from the body every time he takes a recoil kick.
   // Defaulted to p.x/p.y so any other caller keeps working unchanged.
-  _drawArms(gf, p, bodyAng, r, gx, gy, gunAng, hand, bodyX, bodyY) {
-    const armCol = '#2b7fa8', armDark = '#06121e';
-    const ox = bodyX === undefined ? p.x : bodyX;
-    const oy = bodyY === undefined ? p.y : bodyY;
-    const shoulder = (side) => {
-      const [sx, sy] = rot(side * r * 0.62, r * 0.05, bodyAng);
-      return [ox + sx, oy + sy];
-    };
-    // main hand always on the grip
-    const [gripX, gripY] = rot(0, 1, gunAng);
-    const mainHand = [gx + gripX, gy + gripY];
-    // support hand either on the fore-end or wherever the reload puts it
-    const supportLocal = hand || { x: 9, y: 1 };
-    const [shX, shY] = rot(supportLocal.x, supportLocal.y, gunAng);
-    const supportHand = [gx + shX, gy + shY];
-
-    const limb = (from, to) => {
-      gf.moveTo(from[0], from[1]).lineTo(to[0], to[1])
-        .stroke({ width: 5.4, color: armDark, cap: 'round' });
-      gf.moveTo(from[0], from[1]).lineTo(to[0], to[1])
-        .stroke({ width: 3.4, color: armCol, cap: 'round' });
-    };
-    limb(shoulder(1), mainHand);
-    limb(shoulder(-1), supportHand);
-    // knuckles
-    gf.circle(mainHand[0], mainHand[1], 2.4).fill(armCol).stroke({ width: 1, color: armDark });
-    gf.circle(supportHand[0], supportHand[1], 2.2).fill(armCol).stroke({ width: 1, color: armDark });
-  }
+  _drawArms(gf, p, bodyAng, r, gx, gy, gunAng, hand, bodyX, bodyY) { return drawArms(gf, p, bodyAng, r, gx, gy, gunAng, hand, bodyX, bodyY); }
 
   // ---- The face ------------------------------------------------------------
   // Drawn from the expression PARAMETERS the rig produces (brow angle, eye
@@ -3116,215 +3221,7 @@ void main() {
   //
   // Everything is drawn on `gf` (the front layer) so the face always sits on
   // top of the lit body sprite.
-  _drawHeroFace(gf, bx, by, r, bodyAng, sqx, sqy, A, p) {
-    // How much of the face is toward the camera. Only a steep upward aim
-    // hides it entirely — at a horizontal aim he is in profile, which is still
-    // fully readable and must not fade.
-    const faceVis = Math.max(0, Math.min(1, (A.faceY + 0.85) / 0.75));
-    if (faceVis <= 0.02) {
-      // Facing away: draw the back instead of nothing. A spine of surface
-      // tension down the middle plus the light rim reads unmistakably as
-      // "you are looking at his back".
-      const [sx0, sy0] = rot(0, -r * 0.55, bodyAng);
-      const [sx1, sy1] = rot(0, r * 0.55, bodyAng);
-      gf.moveTo(bx + sx0, by + sy0).lineTo(bx + sx1, by + sy1)
-        .stroke({ width: 2, color: '#bff0ff', alpha: 0.22 });
-      return;
-    }
-
-    const E = A.expr;
-    const a = bodyAng;
-    // Features ride toward the side he is facing, and sit slightly lower as he
-    // turns toward the camera — the same foreshortening a real head has.
-    //
-    // Sizing note, and it is the whole reason this reads at all: the body is
-    // only ~14 world px of radius, which is roughly 30 px on screen. The first
-    // pass used anatomically sensible proportions (eyes at r*0.155) and they
-    // came out barely two pixels across — invisible in play. Everything here
-    // is deliberately oversized and pushed into the UPPER third of the drop,
-    // both so it is legible at the real rendered size and so the arms, which
-    // radiate from the shoulders at r*0.62, cannot cross it.
-    const cx = A.faceX * r * 0.24;
-    const cy = -r * 0.34 + A.faceY * r * 0.08;
-    // Perspective squeeze on the axis he is turning around.
-    const persp = 1 - Math.abs(A.faceX) * 0.42;
-
-    const eyeDX = r * 0.33;
-    const eyeY = cy;
-
-    // Eyes ride a turning head, not a flat face.
-    //
-    // The old layout placed them at `cx + side * eyeDX * persp` and shrank
-    // whichever eye was on the far side of the turn. Two things were wrong with
-    // that, and together they are what Timmy reported as "ögonen glider ut,
-    // blir 2" when walking and aiming right:
-    //
-    //   1. `cx` pushed the whole face outward while `persp` only narrowed the
-    //      SPREAD, so the near eye MIGRATED off the body as he turned — from
-    //      0.010r outside the silhouette at rest to 0.112r outside at a full
-    //      profile, a fifth of the body's half-width hanging in open space.
-    //   2. The wrong eye vanished. Turning right, it kept the RIGHT eye at full
-    //      width out at the edge and shrank the LEFT one. A head that turns
-    //      right does the opposite: the right eye is the one that swings around
-    //      the edge and disappears. So instead of a profile you got a big eye
-    //      off the rim plus a shrunken one near the middle — two disconnected
-    //      blobs rather than one face.
-    //
-    // `faceX` and `faceY` are the normalised aim vector, so they ARE the sine
-    // and cosine of the head's turn: atan2 recovers the angle directly. Each
-    // eye sits at a fixed angle either side of "forward" on the head, and its
-    // position and foreshortening both fall out of where that angle has
-    // rotated to. The correct eye now hides itself, for the right reason.
-    // NOT clamped to the front hemisphere. `faceY` goes negative when he aims
-    // away from the camera, and the turn angle has to be allowed past 90° for
-    // that to mean anything — otherwise "walking up" reads as a hard profile
-    // and an eye stays on screen when he is facing away from you. Past 90°
-    // both eyes fall behind the head on their own, which is the whole point of
-    // modelling it this way instead of special-casing it.
-    const headTurn = Math.atan2(A.faceX, A.faceY);
-    // Head radius taken from the drop's OWN half-width at eye height, so an eye
-    // on its surface is on the body by construction rather than by luck.
-    const headR = Math.max(r * 0.35, heroHalfWidthAt(cy / r) * r);
-    const eyeAng = Math.asin(Math.min(0.95, eyeDX / headR));
-    const cosRest = Math.cos(eyeAng) || 1;
-
-    for (let side = -1; side <= 1; side += 2) {
-      const ang = headTurn + side * eyeAng;
-      const depth = Math.cos(ang);
-      // Rotated past the edge of the head: gone, not squeezed to a sliver.
-      if (depth <= 0.06) continue;
-      // Normalised so both eyes are full width when he faces the camera.
-      const wScale = Math.min(1.15, depth / cosRest);
-
-      const openAmt = Math.max(0.05, E.eyeOpen * (1 - A.blink));
-      let eyeRx = r * 0.235 * wScale;
-      const eyeRy = r * 0.270 * openAmt;
-
-      // Where the eye projects to, then held inside the silhouette. The clamp
-      // measures at the TOP of the eye because that is where the teardrop is
-      // narrowest across the eye's own height, and so where an overhang shows
-      // first. Same guard the brows already had — the eyes never got it.
-      let ex = headR * Math.sin(ang);
-      const bodyHalf = heroHalfWidthAt((eyeY - eyeRy) / r) * r;
-      if (bodyHalf > eyeRx) {
-        const limit = bodyHalf * 0.97 - eyeRx;
-        ex = Math.max(-limit, Math.min(limit, ex));
-      } else if (bodyHalf > 0) {
-        // Degenerate: the drop is narrower than the eye. Shrink to fit rather
-        // than drawing a wide eye on a narrow head.
-        eyeRx = bodyHalf * 0.9;
-        ex = 0;
-      }
-
-      const [px0, py0] = rot(ex, eyeY, a);
-      const wx = bx + px0, wy = by + py0;
-
-      // Sclera. Kept a cold near-white so it reads against the blue body.
-      gf.ellipse(wx, wy, eyeRx, eyeRy).fill({ color: '#f2fbff', alpha: 0.94 * faceVis });
-
-      // Pupil, offset by where he is looking.
-      const pupR = Math.min(eyeRx, eyeRy) * 0.58 * E.pupil;
-      if (pupR > 0.3 && A.blink < 0.7) {
-        const lookOffX = A.lookX * eyeRx * 0.55;
-        const lookOffY = A.lookY * eyeRy * 0.55;
-        const [ppx, ppy] = rot(ex + lookOffX, eyeY + lookOffY, a);
-        gf.circle(bx + ppx, by + ppy, pupR).fill({ color: '#07141f', alpha: faceVis });
-        // Catchlight — one tiny dot, and the single cheapest thing that makes
-        // eyes look alive rather than printed on.
-        const [gpx, gpy] = rot(ex + lookOffX - pupR * 0.34, eyeY + lookOffY - pupR * 0.4, a);
-        gf.circle(bx + gpx, by + gpy, Math.max(0.5, pupR * 0.30))
-          .fill({ color: '#ffffff', alpha: 0.9 * faceVis });
-      }
-
-      // Brow. One thick stroke whose inner end rises or falls — this carries
-      // more of the expression than the eye or the mouth does.
-      // Brow tilt. `innerY`/`outerY` are SIDE-INDEPENDENT heights — how high
-      // the nose-end of a brow sits versus its temple-end — and the mirroring
-      // is done once, below, when they are assigned to the two ends. An
-      // earlier version also multiplied by `side` here, which applied the
-      // mirror twice and left the character with one angry brow and one sad
-      // one: a permanent quizzical look no matter what he was feeling.
-      //
-      // Sign: negative browAng is angry, and angry means the nose-end drops.
-      // Screen Y grows downward, so "drops" is +Y — hence the minus.
-      // The brow sits 0.40r above the eye, and a raised brow (rage, surprise)
-      // pushes it another 0.34r. That put it at y = -1.14r in a hard profile --
-      // the very tip of the teardrop, where the body is 0.009r wide -- while
-      // the stroke still reached out to 0.70r. The result was a brow hanging
-      // in open space beside his head, which is what read as "the eye goes
-      // weird when aiming and running right".
-      //
-      // Two clamps, because either one alone leaves a case broken: cap how
-      // high the brow may travel, then pull its ENDS inside whatever the
-      // silhouette actually is at that height. Both are proportional, so the
-      // brow still animates -- it just cannot leave the body.
-      const BROW_CEIL = -r * 0.92;   // highest a brow may sit and still be on the body
-      const browRaw = eyeY - r * 0.40 + E.browY * r * 0.34;
-      const browBaseY = Math.max(browRaw, BROW_CEIL);
-      // The tilt has to be clamped as well as the base height. Clamping only
-      // the base still let a hard angry/surprised tilt lift the inner end past
-      // the tip of the drop, where the silhouette has no width at all and the
-      // horizontal clamp below had nothing to clamp against.
-      const innerY = Math.max(browBaseY - E.browAng * r * 0.36, BROW_CEIL);
-      const outerY = Math.max(browBaseY + E.browAng * r * 0.14, BROW_CEIL);
-      // 0.90 keeps the stroke's round cap off the outline rather than exactly
-      // on it. Guard the degenerate case where the clamp height still lands
-      // outside the body by falling back to the eye's own half-width.
-      const browHalfW = heroHalfWidthAt(Math.min(innerY, outerY) / r) * r;
-      const browLimit = (browHalfW > 0 ? browHalfW : eyeRx) * 0.90;
-      const bx0 = Math.max(-browLimit, Math.min(browLimit, ex - eyeRx * 1.15));
-      const bx1 = Math.max(-browLimit, Math.min(browLimit, ex + eyeRx * 1.15));
-      // side +1 is the right eye, whose nose-end is its LEFT (smaller x) end.
-      const [b0x, b0y] = rot(bx0, side > 0 ? innerY : outerY, a);
-      const [b1x, b1y] = rot(bx1, side > 0 ? outerY : innerY, a);
-      gf.moveTo(bx + b0x, by + b0y).lineTo(bx + b1x, by + b1y)
-        .stroke({ width: Math.max(1.6, r * 0.12), color: '#08202e', alpha: 0.88 * faceVis, cap: 'round' });
-    }
-
-    // Mouth. A quadratic arc sampled to points: `E.mouth` bends it from a deep
-    // frown to a grin, `E.mouthOpen` gives it height.
-    const mouthY = cy + r * 0.44;
-    const mouthW = r * 0.34 * persp;
-    const curve = E.mouth * r * 0.26;
-    const open = E.mouthOpen * r * 0.30;
-    const mpts = [];
-    for (let i = 0; i <= 8; i++) {
-      const t = i / 8, mt = 1 - t;
-      const lx = cx - mouthW + t * mouthW * 2;
-      const ly = mouthY + (mt * mt * 0 + 2 * mt * t * curve + t * t * 0);
-      const [wx2, wy2] = rot(lx, ly, a);
-      mpts.push(bx + wx2, by + wy2);
-    }
-    // Threshold on the NORMALISED parameter, not on the pixel result. `open`
-    // is scaled by r, so a pixel threshold meant the same expression drew an
-    // open mouth on a big character and a closed one on a small character —
-    // the calm face was open-mouthed in the preview harness and closed in the
-    // actual game.
-    if (E.mouthOpen > 0.12) {
-      // Open mouth: mirror the upper curve downward into a closed shape.
-      const lower = [];
-      for (let i = 8; i >= 0; i--) {
-        const t = i / 8, mt = 1 - t;
-        const lx = cx - mouthW + t * mouthW * 2;
-        const ly = mouthY + (2 * mt * t * curve) + Math.sin(t * Math.PI) * open;
-        const [wx2, wy2] = rot(lx, ly, a);
-        lower.push(bx + wx2, by + wy2);
-      }
-      gf.poly([...mpts, ...lower]).fill({ color: '#0a1b26', alpha: 0.85 * faceVis });
-    } else {
-      gf.poly(mpts, false).stroke({ width: Math.max(1.4, r * 0.105), color: '#08202e', alpha: 0.85 * faceVis, cap: 'round' });
-    }
-
-    // Rage vents steam. Cheap, and it is the one expression that should be
-    // obvious from across the screen without reading the face at all.
-    if (A.exprId === 'rage' && Math.random() < 0.5) {
-      for (let s = -1; s <= 1; s += 2) {
-        const [vx, vy] = rot(cx + s * r * 0.42, cy + r * 0.05, a);
-        gf.circle(bx + vx, by + vy, 1.2 + Math.random() * 1.6)
-          .fill({ color: '#ffb066', alpha: 0.35 });
-      }
-    }
-  }
+  _drawHeroFace(gf, bx, by, r, bodyAng, sqx, sqy, A, p) { return drawHeroFace(gf, bx, by, r, bodyAng, sqx, sqy, A, p); }
 
   // Turns the rig's skid-spray requests into real particles. Kept here rather
   // than in heroAnim so that module never has to know the pool exists.
@@ -3403,11 +3300,16 @@ void main() {
     //   kick  — the recoil punch, straight back along the aim
     //   shake — a short high-frequency rattle right after a shot
     const shake = A.shakeT > 0 ? A.shakeT * 7 : 0;
-    const bx = p.x
+    // Finisher offsets. VISUAL ONLY: they move the DRAWN body, never p.x/p.y,
+    // so a lunge or a leap can never desync the hitbox, the aim or a dodge.
+    // The shadow above is drawn from p.x/p.y and therefore stays on the ground
+    // while he is in the air — which is the only thing that sells the height.
+    const finOx = p._finOx || 0, finOy = p._finOy || 0, finZ = p._finZ || 0;
+    const bx = p.x + finOx
       + A.wobX * r * 0.55
       - (p.aimX || 0) * A.kick * 2.6
       + (shake ? (Math.random() - 0.5) * shake : 0);
-    const by = p.y
+    const by = p.y + finOy - finZ
       + A.wobY * r * 0.55
       - (p.aimY || 0) * A.kick * 2.6
       + (shake ? (Math.random() - 0.5) * shake : 0)
@@ -4305,6 +4207,181 @@ void main() {
           p.y + py2 * R * open * 0.55,
           R * 0.16 * (1 - t01 * 0.5),
         ).fill({ color: 0x7e0812, alpha: 0.85 * fade });
+      } else if (p.type === 'finBody') {
+        // THE CORPSE ACTOR of a finisher. One particle the engine's sequence
+        // mutates every frame (engine.js's updateFinisher); this only draws
+        // whatever state it is in. `_z` is height above the ground, so the body
+        // lifts while its shadow stays where the body actually is.
+        const z = p._z || 0;
+        const R = p.size;
+        const dy = p.y - z;
+        const rot = p._rot || 0;
+        const topple = p._topple || 0;
+        const eaten = p._eaten || 0;
+        const seed = p._seed || 0;
+        // Shadow shrinks and fades with height — the only cue that says "up".
+        const sh = 1 / (1 + z / 85);
+        g.ellipse(p.x, p.y + R * 0.34, R * 0.9 * sh, R * 0.3 * sh)
+          .fill({ color: 0x000000, alpha: 0.42 * sh });
+
+        // Toppled (the Hydro kick) squashes him flat; being shot away eats the
+        // radius AND chews the silhouette, so the outline itself goes ragged
+        // rather than the body merely getting smaller.
+        const bodyR = R * (1 - eaten * 0.5);
+        const sx = 1 + topple * 0.38, sy = 1 - topple * 0.42;
+        const N = 22;
+        const pts = [];
+        for (let k = 0; k < N; k++) {
+          const th = (k / N) * Math.PI * 2;
+          let rr = bodyR;
+          if (eaten > 0) {
+            const bite = (Math.sin(th * 3.1 + seed) * 0.5 + 0.5) * (Math.sin(th * 5.7 - seed) * 0.3 + 0.7);
+            rr *= 1 - eaten * 0.55 * bite;
+          }
+          pts.push(p.x + Math.cos(th + rot) * rr * sx, dy + Math.sin(th + rot) * rr * sy);
+        }
+        g.poly(pts).fill({ color: p.color, alpha: 0.96 });
+
+        // The cut. `_sever` is how far across the body the blade got — 0.6 for
+        // the katana's uppercut, i.e. "nearly nothing holding him together".
+        // Drawn as an OPEN wedge, not a line: a line is where two shapes meet,
+        // a wedge is a surface you are looking into.
+        if (p._sever > 0) {
+          const ca = Math.cos(p._cutAng + rot), sa = Math.sin(p._cutAng + rot);
+          const t0 = -1, t1 = -1 + 2 * p._sever;   // from one edge, `_sever` across
+          const gapMax = bodyR * 0.30 * p._sever;
+          const face = [];
+          for (let k = 0; k <= 9; k++) {
+            const f = k / 9;
+            const tt = t0 + (t1 - t0) * f;
+            const gp = Math.sin(f * Math.PI) * gapMax;
+            face.push(p.x + ca * bodyR * tt - sa * gp, dy + sa * bodyR * tt + ca * gp);
+          }
+          for (let k = 9; k >= 0; k--) {
+            const f = k / 9;
+            const tt = t0 + (t1 - t0) * f;
+            const gp = Math.sin(f * Math.PI) * gapMax;
+            face.push(p.x + ca * bodyR * tt + sa * gp, dy + sa * bodyR * tt - ca * gp);
+          }
+          g.poly(face).fill({ color: 0x3d0308, alpha: 0.95 });
+          g.moveTo(p.x + ca * bodyR * t0, dy + sa * bodyR * t0)
+            .lineTo(p.x + ca * bodyR * t1, dy + sa * bodyR * t1)
+            .stroke({ width: 2.4, color: 0xa8121f, alpha: 0.95 });
+        }
+      } else if (p.type === 'finPiece') {
+        // One of the two pieces after the SECOND cut. Deliberately NOT drawn
+        // like `bisectHalf`: this body was already 60% severed before it came
+        // apart, so the edge is ragged and the halves are asymmetric — and the
+        // OLD wound is still visible on the piece alongside the fresh one.
+        const t01 = 1 - p.life / p.max;
+        const z = p._z || 0;
+        const R = p.size;
+        const dy = p.y - z;
+        const a = p._ang + (p._rot || 0);
+        const ca = Math.cos(a), sa = Math.sin(a);
+        const px2 = -sa * p._side, py2 = ca * p._side;
+        const seed = p._seed || 0;
+        const sh = 1 / (1 + z / 85);
+        g.ellipse(p.x, p.y + R * 0.3, R * 0.8 * sh, R * 0.26 * sh)
+          .fill({ color: 0x000000, alpha: 0.34 * sh });
+
+        const fade = 1 - t01 * 0.55;
+        // The tear wanders in and out along the cut line — one shared function
+        // so the silhouette and the interior below agree on where it runs.
+        const jagAt = (f) => (Math.sin(f * 9.3 + seed) * 0.5 + Math.sin(f * 21.7 - seed) * 0.22) * R * 0.20;
+
+        // Round side is the body it came from; torn side is jagged.
+        const pts = [];
+        for (let k = 0; k <= 10; k++) {
+          const th = (k / 10) * Math.PI;
+          pts.push(
+            p.x + ca * Math.cos(th) * R + px2 * Math.sin(th) * R,
+            dy + sa * Math.cos(th) * R + py2 * Math.sin(th) * R,
+          );
+        }
+        for (let k = 10; k >= 0; k--) {
+          const f = k / 10;
+          const jag = jagAt(f);
+          pts.push(p.x + ca * R * (1 - 2 * f) + px2 * jag, dy + sa * R * (1 - 2 * f) + py2 * jag);
+        }
+        g.poly(pts).fill({ color: p.color, alpha: 0.92 * fade });
+
+        // The wet interior behind the tear.
+        const inner = [];
+        for (let k = 0; k <= 8; k++) {
+          const f = k / 8;
+          const jag = jagAt(f);
+          inner.push(p.x + ca * R * (1 - 2 * f) + px2 * jag, dy + sa * R * (1 - 2 * f) + py2 * jag);
+        }
+        for (let k = 8; k >= 0; k--) {
+          const f = k / 8;
+          const depth = Math.sin(f * Math.PI) * R * (0.20 + t01 * 0.35);
+          inner.push(p.x + ca * R * (1 - 2 * f) + px2 * depth, dy + sa * R * (1 - 2 * f) + py2 * depth);
+        }
+        g.poly(inner).fill({ color: 0x3d0308, alpha: 0.95 * fade });
+        g.moveTo(p.x - ca * R, dy - sa * R).lineTo(p.x + ca * R, dy + sa * R)
+          .stroke({ width: 2.2, color: 0xa8121f, alpha: 0.92 * fade });
+
+        // The FIRST cut, still on him. This is the detail that says the second
+        // blow did not land in the same place.
+        if (p._prevCut !== undefined) {
+          const pa = p._prevCut + (p._rot || 0);
+          const pca = Math.cos(pa), psa = Math.sin(pa);
+          g.moveTo(p.x - pca * R * 0.55, dy - psa * R * 0.55)
+            .lineTo(p.x + pca * R * 0.5, dy + psa * R * 0.5)
+            .stroke({ width: 3.0, color: 0x7e0812, alpha: 0.8 * fade });
+        }
+      } else if (p.type === 'bladeDrip') {
+        // A bead of blood running off the blade. Stretched along its own fall,
+        // so it reads as a droplet rather than a dot.
+        const t01 = 1 - p.life / p.max;
+        const sp = Math.hypot(p.vx, p.vy) || 1;
+        const ux = p.vx / sp, uy = p.vy / sp;
+        const len = p.size * (1 + Math.min(2.6, sp / 55));
+        g.moveTo(p.x - ux * len, p.y - uy * len)
+          .lineTo(p.x, p.y)
+          .stroke({ width: p.size * 1.5, color: p.color, alpha: 0.9 * (1 - t01 * 0.6), cap: 'round' });
+        g.circle(p.x, p.y, p.size * 0.85).fill({ color: p.color, alpha: 0.95 * (1 - t01 * 0.5) });
+      } else if (p.type === 'spinArc') {
+        // The 180/360 spin attack. A full sweeping ring with a bright leading
+        // head, so the eye reads a direction of travel instead of a halo.
+        const t01 = 1 - p.life / p.max;
+        const R = p.size * (0.55 + t01 * 0.55);
+        const head = t01 * Math.PI * 2 * 1.15 * p._dir;
+        const span = Math.PI * 1.5;
+        const steps = 18;
+        for (let k = 0; k < steps; k++) {
+          const f = k / steps;
+          const th = head - span * f * p._dir;
+          const th2 = head - span * ((k + 1) / steps) * p._dir;
+          const w = (1 - f) * p.size * 0.12 + 1;
+          g.moveTo(p.x + Math.cos(th) * R, p.y + Math.sin(th) * R * 0.62)
+            .lineTo(p.x + Math.cos(th2) * R, p.y + Math.sin(th2) * R * 0.62)
+            .stroke({ width: w, color: p.color, alpha: (1 - f) * 0.85 * (1 - t01 * 0.5), cap: 'round' });
+        }
+        g.circle(p.x + Math.cos(head) * R, p.y + Math.sin(head) * R * 0.62, p.size * 0.09)
+          .fill({ color: 0xffffff, alpha: 0.9 * (1 - t01) });
+      } else if (p.type === 'groundSmear') {
+        // Blood driven INTO the floor at an angle, because the shot came from
+        // above. Elongated along the shot direction — that angle is the whole
+        // reason it reads as "shot down into the ground" and not "sprayed".
+        const t01 = 1 - p.life / p.max;
+        const a = p._ang || 0;
+        const ca = Math.cos(a), sa = Math.sin(a);
+        const L = p.size * (p._long || 2.2) * (0.6 + t01 * 0.5);
+        const W = p.size * 0.55;
+        // Fat at the impact end, drawn out to a tail — a smear, not an oval.
+        const wAt = (f) => W * Math.sin(Math.PI * Math.pow(f, 0.65)) * (1 - f * 0.55);
+        const pts = [];
+        for (let k = 0; k <= 12; k++) {
+          const f = k / 12, w = wAt(f);
+          pts.push(p.x + ca * L * f - sa * w, p.y + sa * L * f * 0.55 + ca * w);
+        }
+        for (let k = 12; k >= 0; k--) {
+          const f = k / 12, w = wAt(f);
+          pts.push(p.x + ca * L * f + sa * w, p.y + sa * L * f * 0.55 - ca * w);
+        }
+        g.poly(pts).fill({ color: p.color, alpha: 0.55 * (1 - t01 * 0.8) });
       } else if (p.type === 'skyBolt') {
         // Lightning from above, in three beats: a telegraph ring warning where
         // it will land, the bolt itself dropping out of frame, then the burn.
@@ -4532,7 +4609,16 @@ void main() {
       txt.visible = true;
       txt.text = d.text;
       txt.style.fill = d.color;
-      txt.style.fontSize = d.size;
+      // The pool reuses one Text for a "247" and for "TRIPLE KILL", so the face
+      // has to be chosen HERE, per message, not once at creation. Anything with
+      // a digit stays monospace so the number is unmistakable; a pure callout
+      // gets the display face and a little extra size to shout with.
+      const numeric = /[0-9]/.test(String(d.text));
+      txt.style.fontFamily = numeric
+        ? 'JetBrains Mono, monospace'
+        : '"Dragon Knight", "Brandal Legend", Cinzel, serif';
+      txt.style.letterSpacing = numeric ? 0 : 1.5;
+      txt.style.fontSize = numeric ? d.size : Math.round(d.size * 1.18);
       txt.scale.set(pop);
       txt.alpha = Math.min(1, d.life * 2);
       txt.position.set(d.x, d.y);

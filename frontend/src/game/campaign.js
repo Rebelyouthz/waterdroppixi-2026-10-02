@@ -228,12 +228,46 @@ export function campNewlyUnlocked(beforeLevels, afterLevels) {
 // so a future tab that forgets to be added here fails open rather than
 // trapping the player behind an unwinnable gate.
 export function isCampTabLocked(tabId, save) {
-  if (tabId === 'base') return campUnlockStage(save) < 1;
+  // THE BASE opens after ONE run, won or lost.
+  //
+  // It used to require CLEARING pond_1, which was a hard progression stop.
+  // pond_1 is 250s with its guardian gated at 180s (Timmy's own "typ 3
+  // minuter") and it forces a baseline reset, so meta upgrades do not help
+  // there — a new player is very unlikely to clear it early. Meanwhile the base
+  // is the ONLY thing that unlocks the rest of the camp, so failing it locked
+  // the player out of Meta, Skill Tree and Talents indefinitely. Timmy, on a
+  // fresh save: "man kan inte komma in i base den ska va de enda typ man kommer
+  // in i för å bygga campet då låses 3 menyer upp".
+  //
+  // His intended shape: "de ska va 1 run … man ska ut å leta resurser inget mer
+  // första updraget å man ska ändå få lite guld så man även om man dör" — go out
+  // once, expect to die, come back with enough gold to raise the first building.
+  // So the gate is "you have been out there", not "you won".
+  // `runsCompleted` counts finished runs regardless of outcome, and clearing a
+  // pond node still satisfies it, which keeps every older save open.
+  if (tabId === 'base') return (save.runsCompleted || 0) < 1 && campUnlockStage(save) < 1;
   if (!CAMP_UNLOCK_BATCHES.some(b => b.tabs.includes(tabId))) return false;
   return !campTabsUnlockedAt(totalBuildingLevels(save)).has(tabId);
 }
+// The CAMPAIGN tab's own sub-tabs (STORY / MAPS / MISSIONS / CHALLENGES).
+//
+// Timmy, 2026-08-18: "de ska va bara 1 story misson på sidan... inget ska kunna
+// starta endless den ska vi låsa upp senare." A brand-new player should see one
+// thing to do, not a four-way choice between systems none of which are
+// explained yet — and MAPS is the door to free play, so hiding it is also what
+// closes off Endless until it is deliberately opened.
+//
+// Gated on the same building-level cascade everything else uses rather than a
+// new counter, so there is one progression clock in the camp and not two that
+// can disagree. Two levels = the player has been out twice and built twice.
+export function isCampSubTabLocked(subId, save) {
+  if (subId === 'campaign') return false;          // STORY is always the one door
+  return totalBuildingLevels(save) < 2;
+}
+
 export function campUnlockHint(tabId, save) {
-  if (tabId === 'base') return 'Clear "The Rain Pool" to unlock';
+  // Matches the gate above: one run out, win or lose.
+  if (tabId === 'base') return 'Head out once to unlock';
   const batch = CAMP_UNLOCK_BATCHES.find(b => b.tabs.includes(tabId));
   if (!batch) return null;
   return `Build at the base to unlock`;

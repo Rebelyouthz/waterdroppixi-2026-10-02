@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import {
   GEAR_SLOTS, GEAR_SLOT_ICONS, GEAR_SLOT_NAMES,
-  GEAR_RARITIES, GEAR_RARITY_COLORS, getMergeGroups, getPendingMergeGroups, mergeItems, generateGearItem,
+  GEAR_RARITIES, GEAR_RARITY_COLORS, getMergeGroups, getPendingMergeGroups, mergeItems,
   GEAR_MAX_LEVEL, gearLevelCost, gearStatValue, gearSocketCount,
   GEAR_SETS, GEAR_SET_IDS, itemSet, equippedSetCounts,
   PART_NAMES, WILDCARD_PART_RATE,
-  slotPartsOf, gearLevelPayment, GEAR_BASE_INDEX
+  slotPartsOf, gearLevelPayment, GEAR_BASE_INDEX,
+  GEAR_STAT_LABELS as STAT_LABELS, fmtGearVal as fmtVal,
 } from '../game/gear';
 import GameIcon from './GameIcon';
 import {
@@ -99,17 +100,7 @@ function HeroDoll({ cosmetics }) {
   );
 }
 
-const STAT_LABELS = {
-  maxHp:'Max HP', armor:'Armor', dmg:'ATK %', atks:'Atk Spd', mspd:'Move Spd',
-  dodge:'Dodge', pickup:'Pickup', crit:'Crit%', critd:'Crit DMG', xp:'XP Gain', gold:'Gold Find',
-  area:'Area', pierce:'Pierce', proj:'+Projectiles', regen:'HP Regen', headshot:'Headshot %',
-};
 const ART_RARITY_ORDER = ['common','magic','rare','epic','legendary','mythical'];
-
-function fmtVal(stat, val) {
-  const pct = ['dmg','atks','mspd','dodge','pickup','crit','critd','xp','gold','headshot','area'].includes(stat);
-  return pct ? `+${(val * 100).toFixed(1)}%` : `+${val}`;
-}
 
 // Same formatting but sign-aware — artifacts can roll negative (drawback) stats.
 function fmtSigned(stat, val) {
@@ -118,9 +109,8 @@ function fmtSigned(stat, val) {
   return pct ? `${sign}${(val * 100).toFixed(1)}%` : `${sign}${val}`;
 }
 
-export default function GearPanel({ save, setSave }) {
+export default function GearPanel({ save, setSave, onFight, onBack }) {
   const [selected, setSelected] = useState(null);
-  const [mergeSlot, setMergeSlot] = useState(null);
   const [tab, setTab] = useState('equip'); // 'equip' | 'inventory' | 'merge' | 'artifacts'
   const [toast, setToast] = useState('');
   const [selectedArt, setSelectedArt] = useState(null);
@@ -278,13 +268,6 @@ export default function GearPanel({ save, setSave }) {
   };
 
   // DEBUG: grant a random item
-  const debugGrant = () => {
-    const slots = GEAR_SLOTS;
-    const rarities = GEAR_RARITIES;
-    const item = generateGearItem(slots[Math.floor(Math.random()*slots.length)], rarities[Math.floor(Math.random()*rarities.length)]);
-    setSave({ ...save, gearInventory: [...inv, item] });
-    showToast(`Got: ${item.name}`);
-  };
 
   const mergeGroups = getMergeGroups(inv);
   const pendingGroups = getPendingMergeGroups(inv);
@@ -309,12 +292,6 @@ export default function GearPanel({ save, setSave }) {
     setSelectedArt(null);
     Audio.click();
   };
-  // DEBUG: grant a random artifact directly (bypasses tokens, for testing)
-  const debugGrantArtifact = () => {
-    const item = rollArtifact(save.attrs?.luck || 0);
-    setSave({ ...save, artifactInventory: [...artInv, item] });
-    showToast(`Found: ${item.name}`);
-  };
 
   // Real acquisition path: spend a Gacha Token (earned by clearing Star
   // Raid's final stage) to pull one artifact.
@@ -335,11 +312,25 @@ export default function GearPanel({ save, setSave }) {
         {[['equip','PAPERDOLL'],['inventory','INVENTORY'],['merge','FORGE'],['artifacts','ARTIFACTS']].map(([k,l])=>(
           <button key={k} className={`gear-tab ${tab===k?'active':''}`} onClick={() => setTab(k)}>{l}</button>
         ))}
+        {/* Both `+ Grant Item` and `+ Grant Artifact` DEBUG buttons lived here
+            and shipped to players. Their own comment said so: "bypasses tokens,
+            for testing". Timmy, 2026-08-23: "trycker man pa knappen sa kommer
+            de en artifact varje gang.. ska val inte ens va en knapp de ska ju
+            vara sa man kor gacha eller star atlas".
+
+            He is right, and there are THREE real sources the button was
+            quietly making pointless:
+              - Eye of Horus  -> a guaranteed artifact          (App.js)
+              - campaign victory -> a bigger pull + 2 tokens    (App.js)
+              - the Gacha Machine -> costs a Gacha Token, earned
+                from Void Titan and Star Raid s final stage
+            Replaced with the thing an empty shelf actually needs: where to go
+            and get one. Same fix as the Weaponsmith s `+ Grant Rune`. */}
         {tab !== 'artifacts' && inv.length === 0 && (
-          <button className="gear-tab" onClick={debugGrant} style={{marginLeft:'auto',opacity:0.5,fontSize:11}}>+ Grant Item</button>
+          <span className="loot-source-hint">DROPS FROM RUNS &middot; CHESTS &middot; BOSSES</span>
         )}
-        {tab === 'artifacts' && (
-          <button className="gear-tab" onClick={debugGrantArtifact} style={{marginLeft:'auto',opacity:0.5,fontSize:11}}>+ Grant Artifact</button>
+        {tab === 'artifacts' && artInv.length === 0 && (
+          <span className="loot-source-hint">EYE OF HORUS &middot; CAMPAIGN VICTORY &middot; GACHA</span>
         )}
       </div>
 
@@ -493,20 +484,22 @@ export default function GearPanel({ save, setSave }) {
           )}
           </div>
 
-          {/* Stats summary */}
+          {/* Stats summary matching Reference Image 1 */}
           <div className="gear-stats-summary">
             <div className="gear-stats-title">EQUIPPED BONUSES</div>
-            {GEAR_SLOTS.map(slot => {
-              const item = inv.find(x => x.id === eq[slot]);
-              if (!item) return null;
-              return (
-                <div key={slot} className="gear-stat-row" style={{ color: GEAR_RARITY_COLORS[item.rarity] }}>
-                  <span><GameIcon name={GEAR_SLOT_ICONS[slot]} size={16} /></span>
-                  <span>{item.name}</span>
-                  <span>{fmtVal(item.stat, gearStatValue(item))} {STAT_LABELS[item.stat]}</span>
-                </div>
-              );
-            })}
+            <div className="gear-stats-grid-2col">
+              {GEAR_SLOTS.map(slot => {
+                const item = inv.find(x => x.id === eq[slot]);
+                if (!item) return null;
+                return (
+                  <div key={slot} className="gear-stat-row" style={{ color: GEAR_RARITY_COLORS[item.rarity] }}>
+                    <span className="gear-stat-icon"><GameIcon name={GEAR_SLOT_ICONS[slot]} size={16} /></span>
+                    <span className="gear-stat-name">{item.name}</span>
+                    <span className="gear-stat-val">+{fmtVal(item.stat, gearStatValue(item))} {STAT_LABELS[item.stat]}</span>
+                  </div>
+                );
+              })}
+            </div>
             {Object.keys(eq).length === 0 && (
               <div style={{ color:'#4a3a6e', fontSize:11, marginTop:8 }}>No items equipped. Find gear during runs!</div>
             )}
@@ -903,6 +896,14 @@ export default function GearPanel({ save, setSave }) {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Bottom Action Bar matching Reference Image 1 */}
+      {tab === 'equip' && (
+        <div className="gear-bottom-actions">
+          <button className="gear-action-btn back" onClick={onBack || (() => {})}>BACK</button>
+          <button className="gear-action-btn fight" onClick={onFight || (() => {})}>FIGHT</button>
         </div>
       )}
     </div>

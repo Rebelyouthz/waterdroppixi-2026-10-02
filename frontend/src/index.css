@@ -1,11 +1,103 @@
-/* Waterdrop Survivor — gritty Dead Cells / Halls of Torment inspired theme */
+/* Waterdrop Survivor
+   ─────────────────────────────────────────────────────────────────────
+   GENRE, corrected by Timmy 2026-08-17 — this header used to say "Dead
+   Cells inspired", which was misleading enough to steer design decisions
+   the wrong way. What it actually is:
+
+     Survivor · roguelite · bullet-hell · RPG
+     Closest references: VAMPIRE SURVIVORS and HALLS OF TORMENT.
+
+   TWO PROGRESSION LOOPS, and they are not the same thing. Do not conflate
+   them when balancing or building UI:
+
+     1. INSIDE a run — TEMPORARY. XP, level-ups, level-up cards, weapon
+        evolutions, in-run builds. ALL OF IT RESETS the moment the run
+        ends: death, completion, or quit. This is the roguelike part, and
+        the only thing the Dead Cells comparison ever referred to.
+
+     2. BETWEEN runs — PERMANENT, and THE POINT OF THE GAME. What you
+        carry out of a run is resources, and you spend them in camp:
+        meta upgrades, skill tree, talents, gear, abilities. These are
+        kept forever and are what let you START the next run or map
+        stronger than you started the last one.
+
+   Loop 2 is not a slow background layer. A run is how you EARN permanent
+   power; the permanent power is why the next run reaches further. Both
+   loops must feel good, but only loop 2 is progress the player keeps.
+
+   The "minigames" are NOT minigames. Each is meant to be as large as the
+   main mode, just a different genre — its own levels, rarity, weapons and
+   equipment, and roguelite progression of its own. Variation, not filler.
+   ───────────────────────────────────────────────────────────────────── */
+/* ══ LOCAL FONT FAMILIES ════════════════════════════════════════════
+   Timmy dropped ~50 font files into the project; they live in
+   `public/fonts/`. VT323 / Cinzel / JetBrains Mono still come from Google
+   Fonts via the <link> in public/index.html — these are the local ones.
+
+   TWO RULES, and they exist so a font swap later is one line and not a hunt
+   through twenty files:
+     1. Declare each family here ONCE, with font-display: swap.
+     2. Screens reference a --font-* CUSTOM PROPERTY, never the family name
+        inline. Renaming or replacing a family then touches only this block.
+   ══════════════════════════════════════════════════════════════════ */
+/* Fonts referenced from CSS must live under src/, not public/. A root-relative
+   `url('/fonts/…')` is resolved by css-loader as a module request and fails the
+   build outright ("Can't resolve '/fonts/…' in 'src'"). Importing from src also
+   gets the file hashed and cache-busted, which the public/ copy would not.
+   `public/fonts/` still holds all ~50 originals plus the throwaway
+   fontspec.html specimen page; copy a family in here as it gets wired up. */
+@font-face {
+  font-family: 'Velodrome Stencil';
+  src: url('./fonts/VelodromeFuturisticTechStencil-Yq6wL.ttf') format('truetype');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Dragon Knight';
+  src: url('./fonts/DragonKnight-xRDg0.otf') format('opentype');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Brandal Legend';
+  src: url('./fonts/BrandalLegendDemo-ovDWo.ttf') format('truetype');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Keygen';
+  src: url('./fonts/Keygen-BLAj3.otf') format('opentype');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Quwen King';
+  src: url('./fonts/QuwenKingRegular-2OPEK.ttf') format('truetype');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Pixel Coleco';
+  src: url('./fonts/PixelColeco-4vJW.ttf') format('truetype');
+  font-weight: 400;
+  font-display: swap;
+}
+
 :root {
+  /* Machined hardware: engraved plate marks, instrument housings. */
+  --font-hardware: 'Velodrome Stencil', 'VT323', monospace;
+  --font-epic: 'Dragon Knight', 'Cinzel', serif;
+  --font-legend: 'Brandal Legend', 'Cinzel', serif;
+  --font-tech: 'Keygen', 'Velodrome Stencil', monospace;
+  --font-card: 'Quwen King', 'Cinzel', serif;
+  --font-pixel: 'Pixel Coleco', 'VT323', monospace;
+
   --bg-0: #07060c;
   --bg-1: #100a1a;
   --bg-2: #1a1226;
   --ink: #e8e0d2;
   --ink-dim: #9a8fa6;
-  --accent: #ff7a1a;        /* dead cells orange */
+  --accent: #ff7a1a;        /* ember orange — the primary UI accent */
   --accent-2: #ffd166;      /* gold */
   --blood: #b51d28;
   --water: #4dc4ff;
@@ -256,8 +348,8 @@ canvas#game, canvas.starraid-canvas {
 .hud-stat .val { color: var(--accent-2); }
 
 .weapon-strip {
-  position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%);
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  position: absolute; top: 90px; left: 16px; transform: none;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
   pointer-events: none; z-index: 3;
 }
 .weapon-strip > .weapon-chip-row {
@@ -265,7 +357,7 @@ canvas#game, canvas.starraid-canvas {
 }
 /* Passive icons strip — small row under weapons */
 .passive-strip {
-  display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; max-width: 320px;
+  display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-start; max-width: 320px;
 }
 .passive-chip {
   width: 28px; height: 28px;
@@ -543,12 +635,73 @@ canvas#game, canvas.starraid-canvas {
    exactly this kind of "dopamine" beat: big, dead center, one menu's icon
    blown up and swung in at a time, so each unlock gets its own moment
    instead of a wall of text. */
+/* ── UNLOCKED reveal ────────────────────────────────────────────────
+   This fires the handful of times a save opens a whole new part of the
+   game, so it should read as an EVENT, not a toast. Every part is
+   STAGGERED — rays, rings, logo, word, name — because the previous
+   version scaled the lot in together and landed as one flat pop.
+   Held longer too (1800ms → 2600ms): there are five things to read now
+   and the old timing cut the name off mid-arrival. */
 .camp-unlock-banner {
   position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
   text-align: center; z-index: 2400; pointer-events: none;
   display: flex; flex-direction: column; align-items: center; gap: 6px;
   animation: campUnlockIn 550ms cubic-bezier(.2,.9,.3,1.4) both,
-             campUnlockOut 400ms ease-in 1800ms both;
+             campUnlockOut 450ms ease-in 2600ms both;
+}
+/* Sits behind everything, centred on the logo. Zero-size box so it can
+   never push the flex column around. */
+.cub-burst {
+  position: absolute; top: 96px; left: 50%; width: 0; height: 0;
+  pointer-events: none;
+}
+.cub-rays {
+  position: absolute; left: -190px; top: -190px; width: 380px; height: 380px;
+  /* Hard-stop conic wedges, not a blurred gradient — at this size a soft
+     one just reads as a dim smudge instead of light. */
+  background: conic-gradient(from 0deg,
+    rgba(77,255,212,0.30) 0deg 7deg, transparent 7deg 30deg,
+    rgba(77,255,212,0.22) 30deg 36deg, transparent 36deg 60deg,
+    rgba(255,209,102,0.26) 60deg 67deg, transparent 67deg 90deg,
+    rgba(77,255,212,0.30) 90deg 97deg, transparent 97deg 120deg,
+    rgba(255,209,102,0.20) 120deg 126deg, transparent 126deg 150deg,
+    rgba(77,255,212,0.26) 150deg 157deg, transparent 157deg 180deg,
+    rgba(77,255,212,0.30) 180deg 187deg, transparent 187deg 210deg,
+    rgba(255,209,102,0.22) 210deg 216deg, transparent 216deg 240deg,
+    rgba(77,255,212,0.26) 240deg 247deg, transparent 247deg 270deg,
+    rgba(255,209,102,0.30) 270deg 277deg, transparent 277deg 300deg,
+    rgba(77,255,212,0.22) 300deg 306deg, transparent 306deg 330deg,
+    rgba(77,255,212,0.26) 330deg 337deg, transparent 337deg 360deg);
+  /* Fade the rays toward their tips so they do not end in a hard disc. */
+  -webkit-mask: radial-gradient(circle, #000 12%, rgba(0,0,0,0.55) 46%, transparent 72%);
+  mask: radial-gradient(circle, #000 12%, rgba(0,0,0,0.55) 46%, transparent 72%);
+  animation: cubRays 4.5s linear infinite, cubFadeIn 700ms ease-out both;
+}
+@keyframes cubRays { to { transform: rotate(360deg); } }
+@keyframes cubFadeIn { from { opacity: 0; } to { opacity: 1; } }
+.cub-ring {
+  position: absolute; left: -60px; top: -60px; width: 120px; height: 120px;
+  border-radius: 50%; border: 3px solid #4dffd4;
+  animation: cubRing 1100ms cubic-bezier(.15,.75,.3,1) 120ms both;
+}
+.cub-ring2 { border-color: #ffd166; animation-delay: 380ms; }
+@keyframes cubRing {
+  0%   { transform: scale(0.25); opacity: 0.95; border-width: 5px; }
+  100% { transform: scale(3.4);  opacity: 0;    border-width: 0.5px; }
+}
+.cub-sub {
+  font-family: 'VT323', monospace; font-size: clamp(11px, 1.7vw, 15px);
+  letter-spacing: 0.3em; color: #7fe8d4;
+  text-shadow: 0 0 10px rgba(77,255,212,0.55), 0 2px 0 #000;
+  animation: cubSub 500ms ease-out 1000ms both;
+}
+@keyframes cubSub {
+  from { opacity: 0; transform: translateY(8px); letter-spacing: 0.1em; }
+  to   { opacity: 0.9; transform: translateY(0); letter-spacing: 0.3em; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cub-rays, .cub-ring { animation: none; opacity: 0.35; }
+  .cub-sub { animation: none; opacity: 0.9; }
 }
 .cub-tag {
   font-family: 'VT323', monospace; font-size: clamp(16px, 2.6vw, 22px);
@@ -1234,7 +1387,28 @@ canvas#game, canvas.starraid-canvas {
   .upgrade-card .name { font-size: 12px; }
   .upgrade-card .desc { font-size: 14px; min-height: 30px; }
   .welcome-grid { grid-template-columns: minmax(0, 1fr); }
-  .daily-row { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  /* ONE ROW OF SEVEN, on the phone too — that is what the reference shows.
+     This used to drop to 4 columns, which with the old 14 cells wrapped into
+     four rows ending in a ragged two-cell tail: the "ihoptryckt" Timmy
+     reported. Seven cells across 393px would be ~45px each and unreadable, so
+     the row scrolls horizontally instead of crushing, and each cell keeps a
+     legible floor. The current day is scrolled into view by the browser
+     because it is the only focusable-looking thing... it is not, so if that
+     ever matters, scroll it in explicitly. */
+  .daily-row {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+  }
+  .daily-cell {
+    flex: 0 0 auto;
+    min-width: 72px;
+    scroll-snap-align: center;
+  }
   .profile-card { padding: 12px; flex-wrap: wrap; }
   .profile-curr { flex-direction: row; gap: 10px; font-size: 16px; }
   .hud-bottom { flex-direction: column; gap: 8px; align-items: stretch; }
@@ -2706,16 +2880,38 @@ canvas#game, canvas.starraid-canvas {
 
 .joy-ticks { transition: opacity 0.2s; opacity: calc(0.45 + var(--joy-charge) * 0.55); }
 
-/* Engraved H2O mark in the well — readable, not a ghost. */
+/* ── H2O: a mark STAMPED INTO the metal, not printed on it ──────────
+   Timmy: "h2O ska va en annan font å va i mörkare text". It used to be
+   VT323 in the accent colour with an outward glow, which read as a lit
+   decal sitting on the surface. An engraving is DARK — it is a shadow in
+   a groove — so the fill is now near-black and the only light on it is
+   the thin highlight on the groove's lower lip.
+
+   Font: Velodrome Futuristic Tech Stencil. A stencil is literally how
+   this kind of mark gets applied to machined hardware, and its cut
+   letterforms match the dial's chamfers and notches. First family wired
+   up from Timmy's font drop — see --font-hardware above. */
 .joy-mark {
-  font-family: 'VT323', monospace;
-  font-size: 34px;
-  letter-spacing: 0.08em;
-  font-weight: 700;
-  opacity: calc(0.30 + var(--joy-charge) * 0.32);
-  filter: drop-shadow(0 0 calc(1px + var(--joy-charge) * 4px) var(--joy-accent));
+  font-family: var(--font-hardware);
+  font-size: 30px;
+  letter-spacing: 0.1em;
+  font-weight: 400;
+  fill: #03070d;
+  opacity: calc(0.72 + var(--joy-charge) * 0.16);
+  /* An engraving on dark metal is read by its LIGHT, not its fill — the cut
+     itself is a shadow. So the legibility all comes from the hairline of
+     reflected light along the groove's lower lip, offset DOWN because the
+     dial lights from above. Two stacked shadows: a tight bright one for the
+     edge and a softer one so it survives being seen through the translucent
+     knob cap that sits over the middle of the mark.
+     (First attempt used a single 16%-alpha hairline and the mark vanished
+     completely — dark fill on a dark well, under a knob. Darker is right;
+     invisible is not.) */
+  filter:
+    drop-shadow(0 1px 0 rgba(203, 233, 255, 0.42))
+    drop-shadow(0 2px 3px rgba(150, 205, 255, 0.20));
 }
-.joy-mark-sub { font-size: 23px; }
+.joy-mark-sub { font-size: 21px; }
 
 /* Knobs — water-bead caps. JS places them at their dial's centre and the
    transform offsets them by the stick vector. */
@@ -2733,6 +2929,39 @@ canvas#game, canvas.starraid-canvas {
     inset 0 4px 8px rgba(255,255,255,0.18);
   will-change: transform;
   opacity: 0.62;
+  overflow: hidden;   /* clips .knob-fill to the bead */
+}
+/* Cooldown light rising through the bead. Timmy's spec: "a light effect
+   fills the stick from the bottom upward as the cooldown recovers", so the
+   stick reports state even while a thumb covers the instrument above it.
+   Clipped by the knob's own border-radius (hence overflow: hidden there).
+
+   Drawn as a DARK MASK over the part that has NOT refilled yet, not as a
+   bright wash over the part that has. The first attempt did it the other way
+   round and the result was backwards on screen: an empty stick showed its
+   bare, fully-saturated gradient while a full one was veiled in white, so
+   "no charge" read BRIGHTER than "ready". Draining has to darken. */
+.static-knob .knob-fill {
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: calc((1 - var(--knob-fill, 0)) * 100%);
+  /* The lit meniscus is the LAST STOP OF THE GRADIENT, not a border. A
+     border-bottom on a zero-height box still paints — at a full charge the
+     mask collapses to nothing and the waterline would have drawn as a stray
+     bright line across the TOP of the bead. A gradient stop inside a
+     zero-height box paints no pixels at all, so the surface simply ceases to
+     exist once the stick is full, with no special-case rule needed.
+     (The first fix for that was `[style*="--knob-fill: 1"]` on this element —
+     dead on arrival, because the variable is set on the PARENT.) */
+  background: linear-gradient(180deg,
+    rgba(2,6,12,0.84) 0%,
+    rgba(2,6,12,0.76) 58%,
+    rgba(2,6,12,0.60) calc(100% - 2px),
+    rgba(255,255,255,0.78) calc(100% - 2px),
+    rgba(255,255,255,0.78) 100%);
+  /* Inset so the glow cannot escape a collapsed box either. */
+  box-shadow: inset 0 -7px 9px -5px rgba(255,255,255,0.5);
+  transition: height 0.14s linear;
 }
 .static-knob .knob-gloss {
   position: absolute;
@@ -2764,19 +2993,71 @@ canvas#game, canvas.starraid-canvas {
   transition: left 0.16s ease-out, top 0.16s ease-out;
 }
 
-/* ── Active-skill pods, seated INTO each bezel ─────────────────────
-   Not floating buttons and not up in the HUD — they sit on the dial's
-   rim at 12 o'clock, chamfered to match the bezel facets. Ring centre
-   is at bottom:133, bezel radius 62 → pod centre bottom:195, and the
-   pod is 44px so bottom:173 / inset 68px. */
-/* ── Active-skill console ──────────────────────────────────────────
-   A screen set into a moulded surround at the top of the dial — the way a
-   gauge sits in a dashboard binnacle, or a headrest display. Deliberately
-   NOT a round button: a circle stuck on top of a ring reads as bolted on,
-   a rectangle recessed into the bezel reads as built for it. */
-.joy-pod {
+/* ══ THE INTRO FILM ═════════════════════════════════════════════════
+   Shell only. Every pixel of the film itself is drawn in PixiJS by
+   `game/introCinema.js` — deliberately, because the intro this replaced put
+   its whole look in ~344 lines of CSS keyed to empty <span>s, which meant none
+   of it could be timed, driven from JS, or reused.
+   ══════════════════════════════════════════════════════════════════ */
+.cine-root {
+  position: fixed; inset: 0;
+  z-index: 60;
+  background: #05070c;
+  overflow: hidden;
+}
+.cine-canvas {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  display: block;
+  /* NOT `image-rendering: pixelated` — the game canvas wants that for its
+     half-res card art, but this is a film and its curves should stay smooth. */
+}
+/* Covers the gap between mount and the first painted frame, so the film opens
+   on black rather than on a flash of whatever was behind it. */
+.cine-boot { position: absolute; inset: 0; background: #05070c; }
+.cine-skip {
+  position: absolute;
+  right: max(14px, env(safe-area-inset-right));
+  bottom: max(14px, env(safe-area-inset-bottom));
+  z-index: 2;
+  padding: 9px 16px;
+  font-family: 'VT323', monospace;
+  font-size: 15px;
+  letter-spacing: 0.22em;
+  color: rgba(255, 255, 255, 0.5);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: color 0.18s, border-color 0.18s, background 0.18s;
+}
+.cine-skip:hover { color: #fff; border-color: rgba(255,255,255,0.42); background: rgba(0,0,0,0.55); }
+
+/* ══ THE INSTRUMENTS, SEATED IN THEIR SOCKETS ═══════════════════════
+   Timmy: "joystickarna [ska] faktiskt [va] byggda från grunden för å hålla
+   just dom ikonerna inte lägga dom utanpå bygg in dom i ramen".
+
+   So almost nothing about the housing lives here — the socket's HOUSING,
+   HOLE and FRAME are drawn inside the dial's own SVG (`JoyDial` in
+   MobileControls.jsx), because that is the only way the instrument is part
+   of the frame rather than a box floating over it. What is left in CSS is
+   only what sits INSIDE the hole: the logo, its cooldown ring, and the
+   glass over the recess.
+
+   Both are roughly half the size of the first attempt ("typ 50% mindre"),
+   which is why the cooldown reads as light on the logo rather than digits:
+   "cooldown som visar me ljus eller mätare där på loggan". There is no room
+   for a needle at this scale and no need for one.
+
+     LEFT  = the one ACTIVE SKILL, in the crescent bay
+     RIGHT = the one ABILITY, in the rectangular window
+
+   Sizes come from inline styles (socketBox()), never from here — a width in
+   CSS would be a second definition of a number the SVG hole already owns,
+   and the two would drift apart.
+   ══════════════════════════════════════════════════════════════════ */
+.joy-inst {
   position: fixed;
-  width: 62px; height: 46px;
   z-index: 9002;
   padding: 0;
   border: 0;
@@ -2784,96 +3065,80 @@ canvas#game, canvas.starraid-canvas {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   touch-action: none;
-  --pod-accent: #4dffd4;
-  filter: saturate(0.4) brightness(0.7);
-  transition: filter 0.18s ease, transform 0.09s ease, left 0.16s ease-out, top 0.16s ease-out;
+  display: grid;
+  grid-auto-flow: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: var(--pod-accent);
+  filter: saturate(0.45) brightness(0.72);
+  transition: filter 0.2s ease, transform 0.09s ease,
+              left 0.16s ease-out, top 0.16s ease-out;
 }
-.joy-pod-left  { --pod-accent: #4dffd4; }
-.joy-pod-right { --pod-accent: #ff9632; }
-.joy-pod.ready { filter: none; }
-.joy-pod:active { transform: translateY(1px) scale(0.97); }
+.joy-inst-left  { --pod-accent: #4dffd4; }
+.joy-inst-right { --pod-accent: #ff9632; }
+.joy-inst.ready, .joy-inst.running { filter: none; }
+/* Running is the loudest state in the HUD on purpose — the buff is burning
+   down and the clock should be felt. */
+.joy-inst.running { --pod-accent: #ffd166; }
+.joy-inst:active { transform: translateY(1px) scale(0.96); }
 
-/* Surround: wider at the top, tapering into the bezel at the bottom, so it
-   grows out of the dial rather than sitting on it. */
-.joy-pod-housing {
-  position: absolute;
-  left: -6px; right: -6px; top: -4px; bottom: -8px;
-  clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 30%, 88% 100%, 12% 100%, 0 30%);
-  background:
-    linear-gradient(180deg, rgba(46,72,98,0.98) 0%, rgba(18,30,46,0.98) 45%, rgba(8,14,24,0.92) 100%);
-  border-top: 1px solid rgba(255,255,255,0.16);
-  box-shadow: 0 5px 14px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.10);
+/* The logo, wearing its cooldown as a ring of light around it. This ring IS
+   the meter — a conic gradient swept from 12 o'clock, masked down to a
+   hairline annulus so the glyph inside stays readable at ~20px. */
+.joy-inst-logo {
+  position: relative;
+  display: grid; place-items: center;
+  width: 1.9em; height: 1.9em;
+  font-size: 11px;              /* the em box the ring is sized from */
 }
-.joy-pod-screw {
-  position: absolute; top: 5px;
-  width: 3px; height: 3px; border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #8c9bab, #2b3644);
-  box-shadow: 0 1px 1px rgba(0,0,0,0.8);
-}
-.joy-pod-screw-l { left: 6px; }
-.joy-pod-screw-r { right: 6px; }
-
-/* The screen itself — inset, dark, faintly curved, with a scanline sheen. */
-.joy-pod-screen {
-  position: absolute;
-  left: 6px; right: 6px; top: 5px; bottom: 11px;
-  display: flex; align-items: center; justify-content: center;
-  border-radius: 5px / 7px;
-  overflow: hidden;
-  background:
-    radial-gradient(ellipse at 50% 18%, rgba(120,190,230,0.14) 0%, rgba(4,10,18,0.98) 72%);
-  box-shadow:
-    inset 0 0 0 1px rgba(0,0,0,0.85),
-    inset 0 2px 7px rgba(0,0,0,0.9),
-    inset 0 -1px 0 rgba(255,255,255,0.06);
-}
-.joy-pod.ready .joy-pod-screen {
-  box-shadow:
-    inset 0 0 0 1px rgba(0,0,0,0.85),
-    inset 0 2px 7px rgba(0,0,0,0.9),
-    inset 0 0 16px color-mix(in srgb, var(--pod-accent) 30%, transparent),
-    0 0 14px color-mix(in srgb, var(--pod-accent) 35%, transparent);
-}
-/* Travelling sheen across the glass — reads as a screen rather than a hole. */
-.joy-pod-scan {
+.joy-inst-ring {
   position: absolute; inset: 0;
-  background: linear-gradient(115deg, transparent 38%, rgba(255,255,255,0.14) 48%, transparent 58%);
-  transform: translateX(-100%);
+  border-radius: 50%;
+  background: conic-gradient(from -90deg,
+    var(--pod-accent) calc(var(--chg, 0) * 360deg),
+    rgba(255, 255, 255, 0.09) 0);
+  /* Hollow it out: only the outer band of the disc survives as a ring. */
+  -webkit-mask: radial-gradient(closest-side, transparent 68%, #000 70%);
+          mask: radial-gradient(closest-side, transparent 68%, #000 70%);
+  transition: background 0.12s linear;
 }
-.joy-pod.ready .joy-pod-scan { animation: podScan 3.4s ease-in-out infinite; }
-@keyframes podScan {
-  0%, 72% { transform: translateX(-100%); }
-  100%    { transform: translateX(100%); }
+.joy-inst.ready .joy-inst-ring {
+  filter: drop-shadow(0 0 4px var(--pod-accent));
+  animation: instBreathe 2.3s ease-in-out infinite;
 }
-
-/* Charge bar along the console's bottom lip. */
-.joy-pod-bar {
-  position: absolute;
-  left: 8px; right: 8px; bottom: 3px; height: 3px;
-  background: rgba(0,0,0,0.7);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.07);
-  overflow: hidden;
+@keyframes instBreathe {
+  0%, 100% { opacity: 0.82; }
+  50%      { opacity: 1; }
 }
-.joy-pod-bar i {
-  display: block; height: 100%;
-  background: var(--pod-accent);
-  box-shadow: 0 0 7px var(--pod-accent);
-  transition: width 0.12s linear;
+.joy-inst-icon {
+  position: relative; z-index: 2; line-height: 0;
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--pod-accent) 55%, transparent));
 }
-.joy-pod-icon {
-  font-size: 19px; line-height: 1; position: relative; z-index: 2;
-  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--pod-accent) 60%, transparent));
-}
-.joy-pod-cd {
-  position: absolute;
-  bottom: 1px; left: 0; right: 0;
-  text-align: center;
+.joy-inst-read {
   font-family: 'VT323', monospace;
-  font-size: 12px;
-  color: color-mix(in srgb, var(--pod-accent) 75%, #ffffff);
-  text-shadow: 0 0 5px #000;
-  z-index: 2;
+  font-size: 12px; line-height: 1;
+  min-width: 1.6em; text-align: center;
+  color: color-mix(in srgb, var(--pod-accent) 72%, #ffffff);
+  text-shadow: 0 0 4px #000, 0 0 7px color-mix(in srgb, var(--pod-accent) 45%, transparent);
 }
+.joy-inst-read.hot { color: #fff3cf; }
+/* Glass over the recess, lit from the upper left like every other surface on
+   the pad. `inset: -1px` so the highlight reaches the hole's own edge. */
+.joy-inst-glass {
+  position: absolute; inset: -1px;
+  background: linear-gradient(150deg,
+    rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.04) 30%,
+    rgba(255,255,255,0) 52%);
+  pointer-events: none;
+}
+.joy-inst-left  .joy-inst-glass { border-radius: 40% / 60%; }
+.joy-inst-right .joy-inst-glass { border-radius: 3px; }
+
+/* A dash you have not unlocked: drain the colour out of the whole plate so
+   "locked" can never be mistaken for "recharging". The padlock that replaces
+   the dash chevrons is drawn in the SVG. */
+.joy-dial.dash-locked { filter: saturate(0.25) brightness(0.72); }
 
 /* ============================================================
    STAR RAID — in-run HUD + level-up cards
@@ -4006,11 +4271,35 @@ canvas#game, canvas.starraid-canvas {
   letter-spacing: 0.1em; pointer-events: none;
 }
 
+/* "Fit whole tree" — the way back to the overview. Load-bearing on phone,
+   where the tree now opens zoomed in to a usable touch target instead of
+   fitting the whole 360° wheel into 390px of width. Sized to the 44px
+   minimum touch target and pushed clear of the iOS home indicator. */
+.poe-fit-btn {
+  position: absolute; bottom: calc(10px + env(safe-area-inset-bottom)); right: 12px;
+  display: flex; align-items: center; gap: 6px;
+  min-height: 44px; padding: 0 14px;
+  background: linear-gradient(#231a3e, #150e28);
+  border: 1px solid #4a3a6e; border-radius: 8px;
+  box-shadow: 0 2px 0 #000, inset 0 1px 0 rgba(255,255,255,0.07);
+  color: #b9a8e8; font-family: 'VT323'; font-size: 15px; letter-spacing: 0.12em;
+  cursor: pointer; touch-action: manipulation;
+}
+.poe-fit-btn:active { transform: translateY(1px); box-shadow: 0 1px 0 #000; }
+@media (hover: hover) {
+  .poe-fit-btn:hover { border-color: #7a5fd0; color: #e0d4ff; }
+}
+
 /* Preview Panel */
 .poe-preview {
   width: 0; overflow: hidden; transition: width 0.28s ease;
-  background: linear-gradient(180deg, #08041a 0%, #050010 100%);
-  border-left: 1px solid #1a0a30;
+  /* Darker, warmer than the old flat purple UI panel — reads closer to a
+     carved stone/parchment tablet, matching the bronze frame ring the
+     tree itself now has. Content/copy is untouched, this is border +
+     background only. */
+  background: linear-gradient(180deg, #0c0810 0%, #060309 100%);
+  border-left: 2px solid #6a4a20;
+  box-shadow: inset 6px 0 18px -12px #000000, -3px 0 14px rgba(0,0,0,0.5);
   display: flex; flex-direction: column; padding: 0; flex-shrink: 0;
   /* Override the canvas/overlay's touch-action:none so this panel's own
      vertical scroll still works on touch (touch-action is intersected
@@ -4018,34 +4307,145 @@ canvas#game, canvas.starraid-canvas {
   touch-action: pan-y;
 }
 .poe-preview.open {
-  width: 280px; padding: 20px 16px; overflow-y: auto;
+  width: 316px; padding: 20px 16px; overflow-y: auto;
 }
-/* On small/mobile screens a fixed 280px sidebar was squeezing the whole
-   tree canvas into a sliver ("way too big"). Float it as an overlay
-   instead so the canvas keeps its full size and the panel just sits on
-   top when a node is selected. */
+
+/* ── The inspect panel as a CARD, not a full-height sliver ──────────
+   Timmy, 2026-08-17: "info köp gör den bättre inte en halv skärm sådär
+   utan mer som ett kort ... få till ram på ... info korten".
+
+   It used to be a flush column running the whole height of the screen
+   with a single border-left, which read as a docked sidebar — a piece of
+   chrome — rather than as the object you just picked up. Now it floats:
+   inset from every edge, only as tall as its own content, vertically
+   centred, with the same bronze frame language as the wheel. `height:
+   fit-content` + `align-self: center` is what stops it stretching; the
+   parent is a flex row, so without those it fills the cross axis. */
+@media (min-width: 721px) {
+  .poe-preview.open {
+    align-self: center;
+    height: fit-content;
+    max-height: calc(100% - 40px);
+    margin: 20px 20px 20px 0;
+    border-radius: 14px;
+    border: none;
+    padding: 22px 18px;
+    background:
+      /* inner glow of the branch colour, so the card is keyed to the node */
+      radial-gradient(120% 80% at 50% 0%,
+        color-mix(in srgb, var(--bc, #b362ff) 14%, transparent) 0%, transparent 62%),
+      linear-gradient(180deg, #17102a 0%, #0a0614 55%, #070310 100%);
+    box-shadow:
+      /* the bronze frame, built from rings rather than a border so the
+         bevel can be two-tone like the wheel's own band */
+      0 0 0 2px #0a0603,
+      0 0 0 8px #6a4a20,
+      0 0 0 9px #b58a44,
+      0 0 0 12px #2a1c0c,
+      0 18px 40px rgba(0,0,0,0.65),
+      inset 0 1px 0 rgba(255,255,255,0.07);
+  }
+}
+/* Mobile: a bottom sheet, not a side sliver. The previous fix floated the
+   panel as a right-side overlay instead of squeezing the canvas, but at
+   ~78vw wide × full height it still buried most of the tree behind it
+   every time a node was inspected — "barely gives a good feeling". A
+   sheet anchored to the bottom, capped at 62vh, leaves the whole tree
+   visible above it and reads as the standard mobile inspect-panel
+   pattern instead of a squeezed-down desktop sidebar. Animated via
+   `transform` (not width/height) since the sheet's content height varies
+   node to node and only a fixed-to-fixed value transitions smoothly. */
 @media (max-width: 720px) {
   .poe-body { position: relative; }
   .poe-preview {
-    position: absolute; top: 0; right: 0; bottom: 0; z-index: 5;
-    max-width: 78vw; border-left: 1px solid #2a1a4e;
+    position: absolute; left: 0; right: 0; bottom: 0; top: auto; z-index: 5;
+    width: auto; max-width: none;
+    max-height: 62vh; overflow-y: auto;
+    padding: 18px 16px calc(18px + env(safe-area-inset-bottom, 0px));
+    border-left: none; border-top: 2px solid #6a4a20;
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -14px 34px rgba(0,0,0,0.65);
+    transform: translateY(100%);
+    transition: transform 0.3s cubic-bezier(0.2,0.9,0.3,1);
   }
   .poe-preview.open {
-    width: 78vw; max-width: 300px;
-    box-shadow: -10px 0 30px rgba(0,0,0,0.65);
+    width: auto; max-width: none;
+    transform: translateY(0);
   }
 }
+/* Branch line: a bronze-ruled header with the branch's own colour as the
+   rule, so the panel is colour-keyed to whatever you selected. */
 .poe-prev-branch {
-  font-family: 'VT323'; font-size: 12px; letter-spacing: 0.3em;
-  margin-bottom: 6px;
+  font-family: 'VT323'; font-size: 13px; letter-spacing: 0.3em;
+  margin-bottom: 12px; padding-bottom: 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--bc, #b362ff) 30%, transparent);
 }
-.poe-prev-icon {
-  font-size: 52px; text-align: center; margin: 8px 0;
-  filter: drop-shadow(0 0 8px currentColor);
+
+/* The node, as the same glass orb the wheel draws. `.poe-prev-orb-icon` is
+   overlaid rather than drawn inside the SVG because GameIcon renders its
+   own top-level <svg>, and centring one inside another by hand is fiddlier
+   than one absolutely-positioned flex box. */
+/* Width/height come from the JSX (sized off the halo radius so the gradient
+   is never clipped into a hard square by the viewBox). */
+.poe-prev-orb {
+  position: relative; margin: 2px auto 10px; flex-shrink: 0;
 }
+.poe-prev-orb-icon {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+}
+/* A slow bob, so the inspected node reads as live rather than as a
+   screenshot of itself. Transform only.
+   `--oscale` folds the responsive size into the same transform the bob
+   uses — the two cannot be separate rules, because the later transform
+   would simply replace the earlier one. The static declaration below
+   keeps the scale correct when reduced-motion kills the animation. */
+.poe-prev-orb { --oscale: 1; transform: scale(var(--oscale)); }
+@media (prefers-reduced-motion: no-preference) {
+  .poe-prev-orb { animation: poePrevOrb 4.2s ease-in-out infinite; }
+  @keyframes poePrevOrb {
+    0%, 100% { transform: translateY(0)    scale(var(--oscale)); }
+    50%      { transform: translateY(-4px) scale(calc(var(--oscale) * 1.03)); }
+  }
+}
+/* On the phone the sheet is capped at 62vh, and at full size the orb
+   pushed BUY to the very bottom edge with BACK below the fold — the one
+   control that must never need scrolling. Shrinking the orb and pulling
+   the surrounding margin in reclaims about 60px, which is exactly the
+   BACK button. */
+@media (max-width: 720px) {
+  .poe-prev-orb { --oscale: 0.66; margin: -22px auto -26px; }
+}
+
+/* The gain, on its own line, in green — the "colored stats" ask. Reads the
+   node's real stat/val, so it is correct even when the description prose
+   never spells the number out. */
+.poe-prev-stat {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  background: linear-gradient(180deg, rgba(20,32,20,0.55), rgba(6,12,8,0.55));
+  border: 1px solid rgba(92,255,157,0.22);
+  border-left: 3px solid #5cff9d;
+  border-radius: 3px;
+}
+.poe-prev-stat-label {
+  font-family: 'VT323'; font-size: 13px; letter-spacing: 0.16em; color: #8fb8a0;
+}
+.poe-prev-stat-val {
+  font-family: 'VT323'; font-size: 19px; color: #5cff9d;
+  text-shadow: 0 0 10px rgba(92,255,157,0.45);
+  white-space: nowrap;
+}
+/* Cinzel, not VT323 — matches the level-up cards' name treatment
+   (.card-name) so the node name reads as a premium title rather than one
+   more line in the same pixel-readout font every label on this screen
+   already uses. */
 .poe-prev-name {
-  font-family: 'VT323'; font-size: 22px; color: #e0d0ff;
-  letter-spacing: 0.1em; text-align: center; margin-bottom: 4px;
+  font-family: 'Cinzel', serif; font-weight: 800; font-size: 21px; color: #e0d0ff;
+  letter-spacing: 0.04em; text-align: center; margin-bottom: 4px;
+  text-shadow: 0 0 14px rgba(179,98,255,0.35);
 }
 .poe-prev-type {
   font-family: 'VT323'; font-size: 11px; letter-spacing: 0.3em;
@@ -4056,25 +4456,47 @@ canvas#game, canvas.starraid-canvas {
   border-left: 2px solid #2a1a4e; padding-left: 10px;
   margin-bottom: 14px;
 }
+/* Levels as a segmented bar rather than loose pips. Pips stopped scaling
+   once nodes could hold three levels — the row wrapped on a phone and the
+   count stopped being readable at a glance. Segments always fill the
+   available width, so 1/3 and 3/3 are the same shape. */
 .poe-prev-level {
-  display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-bottom: 8px;
+  display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
 }
-.poe-lvl-pip {
-  width: 14px; height: 14px; border-radius: 50%;
-  background: #1a0a2e; border: 1px solid #3a2a5e;
-  transition: all 0.2s;
+.poe-lvl-bar {
+  display: flex; gap: 3px; flex: 1; height: 14px;
+  padding: 2px; background: #0a0616;
+  border: 1px solid #4a3570; border-radius: 3px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.7);
 }
-.poe-lvl-pip.on {
-  background: var(--pc, #b362ff);
-  border-color: var(--pc, #b362ff);
-  box-shadow: 0 0 6px var(--pc, #b362ff);
+/* Empty segments carry a faint tint of the branch colour rather than being
+   near-black: at 0/3 the whole bar was invisible against the panel, so it
+   read as "no bar" instead of "no levels yet". */
+.poe-lvl-seg {
+  flex: 1; border-radius: 1px;
+  background: color-mix(in srgb, var(--pc, #b362ff) 13%, #140a22);
+  transition: background 0.25s, box-shadow 0.25s;
+}
+.poe-lvl-seg.on {
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--pc, #b362ff) 60%, #fff),
+    var(--pc, #b362ff));
+  box-shadow: 0 0 7px var(--pc, #b362ff);
 }
 .poe-lvl-text {
-  font-family: 'VT323'; font-size: 12px; color: #6a5a8e; margin-left: 4px;
+  font-family: 'VT323'; font-size: 14px; color: #8a7aae; white-space: nowrap;
 }
+/* Cost as a struck chip, not a loose line — it is a price, and prices read
+   better boxed. */
 .poe-prev-cost {
-  font-family: 'VT323'; font-size: 13px; color: #4dffd4; margin-bottom: 12px;
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: 'VT323'; font-size: 14px; color: #4dffd4;
+  margin-bottom: 14px; padding: 5px 10px;
+  background: linear-gradient(180deg, #0d1c22, #061014);
+  border: 1px solid #1d4a4a; border-radius: 3px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
 }
+.poe-prev-cost strong { color: #b8fff0; font-weight: 400; font-size: 17px; }
 .poe-prev-locked {
   background: #1a0a2e; border: 1px solid #3a1a5e;
   color: #8a5aae; font-size: 11px; padding: 8px 10px;
@@ -4086,31 +4508,80 @@ canvas#game, canvas.starraid-canvas {
   letter-spacing: 0.3em; text-align: center; margin-bottom: 12px;
   text-shadow: 0 0 12px #ffd70088;
 }
+/* BUY — the most important control on the screen, so it is the only thing
+   in the panel that moves on its own. Colour-keyed to the selected branch
+   (--bc) so it belongs to the node you are buying rather than being a
+   generic purple button, with a sheen that sweeps across it while it is
+   affordable. 46px tall to clear the 44px touch-target minimum. */
 .poe-buy-btn {
-  width: 100%; padding: 10px; font-family: 'VT323'; font-size: 16px;
-  letter-spacing: 0.15em; cursor: pointer; margin-bottom: 8px;
-  border: none; transition: all 0.2s;
+  position: relative; overflow: hidden;
+  width: 100%; min-height: 46px; padding: 10px 12px;
+  font-family: 'VT323'; font-size: 18px; letter-spacing: 0.16em;
+  cursor: pointer; margin-bottom: 8px; border: none; border-radius: 4px;
+  transition: transform 0.12s, box-shadow 0.2s, background 0.2s;
+  touch-action: manipulation;
 }
 .poe-buy-btn.can {
-  background: linear-gradient(135deg, #1a0840 0%, #2a1060 100%);
-  border: 1px solid #b362ff; color: #e0c0ff;
-  box-shadow: 0 0 12px #b362ff33;
+  background:
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--bc, #b362ff) 26%, #120a26) 0%,
+      color-mix(in srgb, var(--bc, #b362ff) 10%, #08040f) 100%);
+  border: 1px solid var(--bc, #b362ff);
+  color: #fff;
+  text-shadow: 0 0 10px var(--bc, #b362ff);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--bc, #b362ff) 28%, transparent),
+              inset 0 1px 0 rgba(255,255,255,0.14),
+              0 3px 0 rgba(0,0,0,0.6);
 }
-.poe-buy-btn.can:hover {
-  background: linear-gradient(135deg, #2a1060 0%, #4a20a0 100%);
-  box-shadow: 0 0 20px #b362ff66;
-  transform: scale(1.02);
+/* The sheen. A skewed highlight sweeping left to right on a long, mostly
+   idle cycle — present enough to pull the eye, slow enough not to nag. */
+.poe-buy-btn.can::after {
+  content: ''; position: absolute; top: -60%; bottom: -60%; width: 40px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.30), transparent);
+  transform: skewX(-18deg);
+  animation: poeBuySheen 3.4s ease-in-out infinite;
+}
+@keyframes poeBuySheen {
+  0%, 62%  { left: -60px; }
+  92%, 100% { left: 108%; }
+}
+@media (hover: hover) {
+  .poe-buy-btn.can:hover {
+    background:
+      linear-gradient(180deg,
+        color-mix(in srgb, var(--bc, #b362ff) 42%, #150c2c) 0%,
+        color-mix(in srgb, var(--bc, #b362ff) 18%, #0b0614) 100%);
+    box-shadow: 0 0 26px color-mix(in srgb, var(--bc, #b362ff) 55%, transparent),
+                inset 0 1px 0 rgba(255,255,255,0.2),
+                0 3px 0 rgba(0,0,0,0.6);
+  }
+}
+/* Press: the button physically goes down onto its own shadow. */
+.poe-buy-btn.can:active {
+  transform: translateY(3px);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--bc, #b362ff) 45%, transparent),
+              inset 0 2px 5px rgba(0,0,0,0.55);
 }
 .poe-buy-btn.cant {
-  background: #0e0820; border: 1px solid #2a1a4e; color: #4a3a6e;
-  cursor: not-allowed;
+  background: #0b0618; border: 1px solid #241738; color: #4a3a6e;
+  cursor: not-allowed; box-shadow: inset 0 2px 5px rgba(0,0,0,0.5);
 }
+@media (prefers-reduced-motion: reduce) {
+  .poe-buy-btn.can::after { animation: none; display: none; }
+}
+
 .poe-desel-btn {
-  width: 100%; background: none; border: 1px solid #2a1a4e;
-  color: #4a3a6e; font-family: 'VT323'; font-size: 13px;
-  padding: 6px; cursor: pointer; letter-spacing: 0.1em;
+  width: 100%; min-height: 40px; background: none;
+  border: 1px solid #2a1a4e; border-radius: 4px;
+  color: #6a5a8e; font-family: 'VT323'; font-size: 14px;
+  padding: 6px; cursor: pointer; letter-spacing: 0.12em;
+  transition: color 0.18s, border-color 0.18s;
+  touch-action: manipulation;
 }
-.poe-desel-btn:hover { color: #6a5a9e; border-color: #4a3a7e; }
+@media (hover: hover) {
+  .poe-desel-btn:hover { color: #b0a0d8; border-color: #4a3a7e; }
+}
+.poe-desel-btn:active { transform: translateY(1px); }
 .poe-prev-empty {
   display: flex; flex-direction: column; align-items: center;
   padding: 20px 0; min-height: 100%;

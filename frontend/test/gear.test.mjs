@@ -298,5 +298,49 @@ check('gearRunesFor understands both save shapes', () => {
   return null;
 });
 
+
+// ---------------------------------------------------------------------------
+// EVERY rarity must be constructible, and the ceiling must stay unfindable
+// ---------------------------------------------------------------------------
+// Added 2026-08-24 after a live crash. `mythicplus` was declared in
+// GEAR_RARITIES, given the largest multiplier in GEAR_RARITY_MULT (14x), and
+// documented as the forge-only ceiling - but it was missing from NAME_PREFIX,
+// so generateGearItem(slot, mythicplus) THREW on
+// prefixes[Math.floor(rand() * prefixes.length)] every single time. The best
+// item in the game could never be created, and nothing noticed because no test
+// had ever asked for the top rarity.
+//
+// Two invariants, and they pull against each other on purpose:
+//   1. every rarity in the ladder can be BUILT   (or the forge is broken)
+//   2. mythicplus can never be FOUND             (or the ladder loses its top)
+check('every rarity in GEAR_RARITIES can actually be generated', () => {
+  for (const slot of GEAR_SLOTS) {
+    for (const rarity of GEAR_RARITIES) {
+      try {
+        const it = generateGearItem(slot, rarity);
+        if (!it || !it.name) return 'generateGearItem(' + slot + ',' + rarity + ') returned nothing usable';
+      } catch (e) {
+        return 'generateGearItem(' + slot + ',' + rarity + ') THREW: ' + e.message
+             + '. A rarity listed in GEAR_RARITIES that cannot be constructed is '
+             + 'a crash waiting for the player who finally earns it.';
+      }
+    }
+  }
+  return null;
+});
+
+check('mythicplus is forge-only and never drops', () => {
+  for (let i = 0; i < 40000; i++) {
+    const r = rollGearDrop(900, i % 10 === 0);
+    const rarity = r && (r.rarity || r);
+    if (rarity === 'mythicplus') {
+      return 'rollGearDrop produced a mythicplus. It is the one tier that is '
+           + 'earned rather than found - forged from maxed mythicals - and '
+           + 'putting it on the drop table removes the ladder top.';
+    }
+  }
+  return null;
+});
+
 console.log(`\ngear.test.mjs: ${pass} passed, ${fails.length} failed`);
 if (fails.length) { for (const f of fails) console.error(`  FAIL ${f}`); process.exit(1); }

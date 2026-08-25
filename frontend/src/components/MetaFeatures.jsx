@@ -74,7 +74,6 @@ const PATROL_DEFS = [
     desc: '4h — Raid the void. The best of everything, and Flux if you are lucky.',
   },
 ];
-const MAX_PATROL = 3;
 
 function fmtTimeLeft(startMs, durMs) {
   const rem = Math.max(0, startMs + durMs - Date.now());
@@ -104,19 +103,6 @@ export function PatrolPanel({ save, setSave }) {
   const hasPet  = (save.pets || []).some(p => p.active);
   const petMult = (hasPet ? 1.2 : 1) * patrolRewardMult(save);
 
-  // Auto-complete missions whose time has elapsed
-  const checkComplete = () => {
-    let changed = false;
-    const updated = missions.map(m => {
-      if (m.status === 'active' && now - m.startMs >= m.durationMs) {
-        changed = true;
-        return { ...m, status: 'complete' };
-      }
-      return m;
-    });
-    if (changed) setSave({ ...save, patrol: { missions: updated } });
-    return updated;
-  };
   const liveMissions = missions.map(m =>
     (m.status === 'active' && now - m.startMs >= m.durationMs) ? { ...m, status: 'complete' } : m
   );

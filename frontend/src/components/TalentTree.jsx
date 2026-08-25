@@ -1,164 +1,237 @@
-import React, { useState } from 'react';
-import { TALENT_NODES } from '../game/data_ext2';
+import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import {
+  TALENTS, TALENT_BRANCHES, talentsFor, isTalentAvailable, talentPointsSpent,
+} from '../game/talents';
 import { Audio } from '../game/audio';
 import GameIcon from './GameIcon';
 
-// Talent nodes shipped with emoji, and repeating ones at that — the heart
-// appeared on five different nodes and the crossed swords on four, so the
-// tree read as the same handful of pictures over and over.
+// =============================================
+// TALENTS — the three-branch ladder
+// =============================================
+// Timmy, 2026-08-23: "de ska brancha sig i 3st ... de ska börja me 1 finisher
+// längst ner vänd på den så de börjar neråt ... finishers i mitten större så
+// linjer emellan som en hö gaffel ... de branchar upp live när man trycker å
+// animera de lixom lite så de kommer ut linjer som glowar å ut åt sidorna
+// vinklar upp 90c å åker upp å så blåser den upp små ikoner"
 //
-// Almost every node is a tier of an existing concept (Vitality is max HP,
-// Power is damage, Looter is gold), and those concepts ALREADY have drawn
-// icons. So this maps rather than draws: no new art, and the tree
-// automatically matches the level-up cards that use the same glyphs.
+// THE LAYOUT, and why it is this shape:
 //
-// Keyed on the node's NAME because that is what carries the concept —
-// `tn01`..`tn30` say nothing, and the tier numeral is stripped so
-// "Vitality I" through "Vitality V" all resolve to the same family.
-const TALENT_ART = {
-  Vitality:   ['maxHp',       '#ff5a5a'],
-  Power:      ['damageMult',  '#ff5a5a'],
-  Agility:    ['moveMult',    '#4dffd4'],
-  Looter:     ['gold',        '#ffd166'],
-  Endurance:  ['armor',       '#8fb8ff'],
-  Scholar:    ['xpMult',      '#b362ff'],
-  // The milestone nodes between tiers — deliberately different in kind, so
-  // they get something that is not a stat glyph.
-  Foundation: ['pRail',       '#c8ccd4'],
-  Momentum:   ['pRush',       '#4dffd4'],
-  Awakening:  ['pBurn',       '#ff8c2b'],
-  Mastery:    ['pStarBurst',  '#ffd166'],
-  // Found by checking every family against this table rather than trusting the
-  // list I wrote from memory — these three were falling through to the star.
-  Cruelty:       ['pSharp',      '#ff3146'],
-  Thunderstrike: ['pLightning',  '#fff44d'],
-  Transcendence: ['pAura',       '#b362ff'],
-};
-const talentFamily = (node) => String(node.name || '').replace(/\s+[IVX]+$/, '').trim();
-export const talentGlyph = (node) => (TALENT_ART[talentFamily(node)] || ['pStarBurst'])[0];
-export const talentTone  = (node) => (TALENT_ART[talentFamily(node)] || [null, '#9a8fa6'])[1];
+//   step 15   [combo]      (FINISHER)      [effect]     <- top, the keystones
+//      ...       |         /        \         |
+//   step 2    [combo] ---- (FINISHER) ---- [effect]
+//   step 1    [combo] ---- (FINISHER) ---- [effect]     <- bottom, where you start
+//
+// The FINISHER column is the spine: bigger tiles, dead centre, one per step.
+// Each one throws a bracket out sideways and then straight up — the "hay fork"
+// he described — and a small tile sits on each prong. So one step is three
+// talents and reads as one decision, and the whole thing climbs upward from the
+// single finisher you begin with.
+//
+// Scrolls to the BOTTOM on open, because that is where a new player's only
+// available purchase is. Opening at the top of a 15-step ladder would show
+// fifteen locked keystones and nothing to do.
+//
+// Class names are all `tt3-`. Deliberate: `.talent-node`, `.talent-line` and
+// friends already exist in index.css AND overhaul.css from the old grid, and
+// this project's measured worst bug is two CSS blocks fighting over one
+// selector. A new prefix cannot collide with any of them.
+
+const ROW_H = 108;          // vertical pitch between steps
+const SPINE_W = 96;         // finisher tile
+const PRONG_W = 62;         // side tile
+const SIDE_GAP = 118;       // centre -> side tile distance
 
 export default function TalentTree({ save, setSave, onClose }) {
-  const [popNode, setPopNode] = useState(null);
-  const talent = save.talent || {};
+  const owned = save.talent || {};
   const tp = save.talentPoints || 0;
+  const [flash, setFlash] = useState(null);     // id that just lit up
+  const [detail, setDetail] = useState(null);
+  const scrollRef = useRef(null);
 
-  const getLevel = (id) => talent[id] || 0;
+  const steps = talentsFor('finishers').length;
 
-  const canBuy = (node, idx) => {
-    const lvl = getLevel(node.id);
-    if (lvl >= node.maxLvl) return false;
-    if (tp < node.costPerLvl) return false;
-    if (idx === 0) return true;
-    return getLevel(TALENT_NODES[idx - 1].id) >= 1;
-  };
+  // Open at the bottom — the ladder is climbed upward.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, []);
 
-  const buy = (node, idx) => {
-    if (!canBuy(node, idx)) return;
-    const curLvl = getLevel(node.id);
-    const tb = { ...(save.talentBonuses || {}) };
-    if (node.stat === 'all') {
-      ['maxHp', 'dmg', 'mspd', 'gold', 'xp', 'crit'].forEach(s => {
-        tb[s] = (tb[s] || 0) + node.val;
-      });
-    } else {
-      tb[node.stat] = (tb[node.stat] || 0) + node.val;
-    }
+  const isOwned = (t) => !!owned[t.id];
+  const canBuy = (t) =>
+    !t.pending && !isOwned(t) && isTalentAvailable(save, t) && tp >= t.cost;
+
+  const buy = (t) => {
+    if (!canBuy(t)) return;
     setSave({
       ...save,
-      talentPoints: tp - node.costPerLvl,
-      talent: { ...talent, [node.id]: curLvl + 1 },
-      talentBonuses: tb,
+      talentPoints: tp - t.cost,
+      talent: { ...owned, [t.id]: true },
     });
-    Audio.click();
-    setPopNode(node.id);
-    setTimeout(() => setPopNode(null), 600);
+    if (Audio.unlockReveal) Audio.unlockReveal(); else Audio.claimPing();
+    // Drives the branch-out animation: the wires grow, then the tile pops.
+    setFlash(t.id);
+    setTimeout(() => setFlash(null), 900);
   };
 
-  const totalLevels = Object.values(talent).reduce((a, b) => a + (b || 0), 0);
-  const maxPossible = TALENT_NODES.reduce((a, n) => a + n.maxLvl, 0);
+  const spent = talentPointsSpent(save);
+  const ownedCount = TALENTS.filter(isOwned).length;
 
-  const fmt = (node, lvl) => {
-    if (lvl === 0) return node.stat === 'all' ? '+all/lvl' : '';
-    if (node.stat === 'all') return `+all ×${lvl}`;
-    if (['maxHp', 'armor'].includes(node.stat)) return `+${(node.val * lvl).toFixed(1)}`;
-    return `+${(node.val * lvl * 100).toFixed(1)}%`;
+  // One row = one step across all three branches.
+  const rows = [];
+  for (let s = steps; s >= 1; s--) {
+    rows.push({
+      step: s,
+      finisher: talentsFor('finishers').find(t => t.step === s),
+      combo: talentsFor('combos').find(t => t.step === s),
+      effect: talentsFor('effects').find(t => t.step === s),
+    });
+  }
+
+  const branchOf = (id) => TALENT_BRANCHES.find(b => b.id === id);
+
+  const Tile = ({ t, big }) => {
+    if (!t) return null;
+    const has = isOwned(t);
+    const avail = !t.pending && !has && isTalentAvailable(save, t);
+    const afford = avail && tp >= t.cost;
+    const b = branchOf(t.branch);
+    const cls = [
+      'tt3-tile',
+      big ? 'tt3-spine' : 'tt3-prong',
+      has ? 'is-owned' : '',
+      avail ? 'is-avail' : '',
+      afford ? 'is-afford' : '',
+      t.pending ? 'is-pending' : '',
+      !has && !avail ? 'is-locked' : '',
+      t.keystone ? 'is-keystone' : '',
+      flash === t.id ? 'is-flash' : '',
+    ].filter(Boolean).join(' ');
+    return (
+      <button
+        className={cls}
+        style={{ '--tt-c': b.color, width: big ? SPINE_W : PRONG_W, height: big ? SPINE_W : PRONG_W }}
+        data-testid={`talent-${t.id}`}
+        onClick={() => (afford ? buy(t) : setDetail(t))}
+        onContextMenu={(e) => { e.preventDefault(); setDetail(t); }}
+        title={t.name}
+      >
+        <span className="tt3-halo" aria-hidden />
+        <span className="tt3-face">
+          <GameIcon name={t.icon} size={big ? 34 : 24} tone={b.color} />
+        </span>
+        {t.keystone && <span className="tt3-crown" aria-hidden />}
+        {has && <span className="tt3-check" aria-hidden>✓</span>}
+        {t.pending && <span className="tt3-soon">SOON</span>}
+        {!has && !t.pending && avail && (
+          <span className={`tt3-cost${afford ? ' ok' : ''}`}>{t.cost}</span>
+        )}
+        {!has && !avail && !t.pending && (
+          <span className="tt3-lockicon" aria-hidden><GameIcon name="ui_lock" size={12} /></span>
+        )}
+      </button>
+    );
   };
 
-  return (
-    <div className="modal-overlay" data-testid="talent-tree" onClick={(e) => {
-      if (e.target.classList.contains('modal-overlay')) onClose();
-    }}>
-      <div className="forge-panel talent-panel" style={{ maxWidth: 700, maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
-        <div className="forge-header">
-          <div className="forge-title"><GameIcon name="ui_leaf" size={18} /> TALENT TREE</div>
-          <div style={{ fontFamily: 'VT323', color: 'var(--ink-dim)', fontSize: 14, marginRight: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
-            {totalLevels}/{maxPossible} · <GameIcon name="ui_leaf" size={13} /> <span style={{ color: '#4dff91' }}>{tp} TP</span>
-          </div>
-          <button onClick={onClose} style={{ padding: '6px 12px', fontSize: 12 }}>✕</button>
+  return createPortal(
+    <div className="modal-overlay tt3-overlay" data-testid="talent-tree"
+      onClick={(e) => { if (e.target.classList.contains('modal-overlay')) onClose(); }}>
+      <div className="tt3-panel">
+
+        <div className="tt3-head">
+          <div className="tt3-title"><GameIcon name="ui_leaf" size={18} /> TALENTS</div>
+          <div className="tt3-count">{ownedCount}/{TALENTS.length}</div>
+          <div className="tt3-tp"><GameIcon name="cur_tp" size={15} /> {tp}</div>
+          <button className="tt3-close" onClick={onClose} aria-label="Close">✕</button>
         </div>
 
-        <div style={{ padding: '6px 12px', background: '#060410', borderBottom: '1px solid #1a0a2e', fontSize: 12, color: 'var(--ink-dim)', letterSpacing: '0.1em', display: 'flex', alignItems: 'center', gap: 4 }}>
-          Each node has 10 levels. Earn <GameIcon name="ui_leaf" size={12} /> TP by completing runs (+5 per run).
+        {/* Branch legend — three columns, matching the ladder underneath. */}
+        <div className="tt3-legend">
+          {['combos', 'finishers', 'effects'].map(id => {
+            const b = branchOf(id);
+            const list = talentsFor(id);
+            const got = list.filter(isOwned).length;
+            return (
+              <div key={id} className={`tt3-leg${id === 'finishers' ? ' mid' : ''}`} style={{ '--tt-c': b.color }}>
+                <GameIcon name={b.icon} size={14} tone={b.color} />
+                <span className="tt3-leg-name">{b.name}</span>
+                <span className="tt3-leg-n">{got}/{list.length}</span>
+              </div>
+            );
+          })}
         </div>
 
-        <div style={{ overflowY: 'auto', flex: 1, padding: '12px 6px' }}>
-          <div className="talent-grid">
-            {TALENT_NODES.map((node, idx) => {
-              const lvl = getLevel(node.id);
-              const maxed = lvl >= node.maxLvl;
-              const available = canBuy(node, idx);
-              const locked = !maxed && !available;
-              const prevHasLvl = idx === 0 || getLevel(TALENT_NODES[idx - 1].id) >= 1;
-              const pct = (lvl / node.maxLvl) * 100;
-
+        <div className="tt3-scroll" ref={scrollRef}>
+          <div className="tt3-ladder" style={{ height: rows.length * ROW_H + 60 }}>
+            {rows.map((r, i) => {
+              const finOwned = !!(r.finisher && isOwned(r.finisher));
+              // A spine segment is lit once the step BELOW is owned, because
+              // that is what opened this one.
+              const below = rows[i + 1];
+              const spineLit = below ? isOwned(below.finisher) : true;
+              const growing = flash === r.finisher?.id;
               return (
-                <div
-                  key={node.id}
-                  className={[
-                    'talent-node',
-                    maxed ? 'bought' : '',
-                    available ? 'available' : '',
-                    locked ? 'locked' : '',
-                    node.milestone ? 'milestone' : '',
-                    popNode === node.id ? 'card-pop' : '',
-                  ].filter(Boolean).join(' ')}
-                  onClick={() => buy(node, idx)}
-                  data-testid={`talent-${node.id}`}
-                >
-                  {idx > 0 && (
-                    <div className={`talent-line ${prevHasLvl ? 'lit' : ''}`} />
-                  )}
-                  <div className="talent-icon"><GameIcon name={talentGlyph(node)} tone={talentTone(node)} size={24} /></div>
-                  <div className="talent-name">{node.name}</div>
-
-                  {/* Level progress bar */}
-                  <div style={{ display:'flex', alignItems:'center', gap:4, margin:'3px 0' }}>
-                    <div style={{ flex:1, height:4, background:'#1a0a2e', borderRadius:2, overflow:'hidden' }}>
-                      <div style={{ width:`${pct}%`, height:'100%', background: maxed ? '#ffd700' : '#4dff91', transition:'width 0.3s' }} />
-                    </div>
-                    <span style={{ fontFamily:'VT323', fontSize:12, color: maxed ? '#ffd700' : 'var(--ink-dim)', minWidth:28 }}>
-                      {lvl}/{node.maxLvl}
-                    </span>
-                  </div>
-
-                  <div className="talent-stat" style={{ fontSize:11, color: lvl > 0 ? '#4dffd4' : 'var(--ink-dim)' }}>
-                    {fmt(node, lvl) || `+${node.val}${['maxHp','armor'].includes(node.stat) ? '' : '%'}/lvl`}
-                  </div>
-
-                  {!maxed && available && (
-                    <div className="talent-cost" style={{ color: tp >= node.costPerLvl ? '#4dff91' : '#ff4444', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
-                      <GameIcon name="ui_leaf" size={12} /> {node.costPerLvl} TP
-                    </div>
-                  )}
-                  {maxed && <div className="talent-done" style={{ color:'#ffd700', fontSize:11 }}>MAX ★</div>}
-                  {locked && <div className="talent-locked"><GameIcon name="ui_lock" size={14} /></div>}
+                <div className="tt3-row" key={r.step} style={{ top: i * ROW_H }}>
+                  {/* The hay fork: a bracket out to each side, then straight up. */}
+                  <svg className="tt3-wires" viewBox={`0 0 ${SIDE_GAP * 2 + PRONG_W * 2} ${ROW_H}`}
+                    preserveAspectRatio="none" aria-hidden>
+                    <path className={`tt3-wire${finOwned ? ' lit' : ''}${growing ? ' grow' : ''}`}
+                      d={`M ${SIDE_GAP + PRONG_W} ${ROW_H / 2} H ${PRONG_W + 14} V ${ROW_H / 2 - 26}`} />
+                    <path className={`tt3-wire${finOwned ? ' lit' : ''}${growing ? ' grow' : ''}`}
+                      d={`M ${SIDE_GAP + PRONG_W} ${ROW_H / 2} H ${SIDE_GAP * 2 + PRONG_W - 14} V ${ROW_H / 2 - 26}`} />
+                    <path className={`tt3-spinewire${spineLit ? ' lit' : ''}`}
+                      d={`M ${SIDE_GAP + PRONG_W} ${ROW_H} V 0`} />
+                  </svg>
+                  <div className="tt3-slot left"><Tile t={r.combo} /></div>
+                  <div className="tt3-slot mid"><Tile t={r.finisher} big /></div>
+                  <div className="tt3-slot right"><Tile t={r.effect} /></div>
+                  <span className="tt3-step">{r.step}</span>
                 </div>
               );
             })}
           </div>
         </div>
+
+        <div className="tt3-foot">
+          {spent} spent · earn talent points by clearing maps
+        </div>
       </div>
-    </div>
+
+      {detail && (
+        <div className="tt3-sheet-wrap" onClick={() => setDetail(null)}>
+          <div className="tt3-sheet" style={{ '--tt-c': branchOf(detail.branch).color }}
+            onClick={(e) => e.stopPropagation()} data-testid="talent-detail">
+            <div className="tt3-sheet-branch">
+              {branchOf(detail.branch).name} · STEP {detail.step}
+            </div>
+            <div className="tt3-sheet-head">
+              <span className="tt3-sheet-icon">
+                <GameIcon name={detail.icon} size={30} tone={branchOf(detail.branch).color} />
+              </span>
+              <h3>{detail.name}</h3>
+            </div>
+            <p className="tt3-sheet-desc">{detail.desc}</p>
+            {detail.pending ? (
+              <div className="tt3-sheet-pending">
+                Designed, not wired yet. It will not be sold until it works.
+              </div>
+            ) : isOwned(detail) ? (
+              <div className="tt3-sheet-owned">✓ ACTIVE</div>
+            ) : !isTalentAvailable(save, detail) ? (
+              <div className="tt3-sheet-locked">
+                <GameIcon name="ui_lock" size={13} /> Take step {detail.step - 1} first
+              </div>
+            ) : (
+              <button className="tt3-sheet-buy" disabled={tp < detail.cost}
+                onClick={() => { buy(detail); setDetail(null); }}>
+                <GameIcon name="cur_tp" size={14} /> {detail.cost} — LEARN
+              </button>
+            )}
+            <button className="tt3-sheet-back" onClick={() => setDetail(null)}>◂ BACK</button>
+          </div>
+        </div>
+      )}
+    </div>,
+    document.body,
   );
 }

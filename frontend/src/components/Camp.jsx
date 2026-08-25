@@ -13,7 +13,7 @@ import TalentTree from './TalentTree';
 import CampaignPanel from './CampaignPanel';
 import PetPanel from './PetPanel';
 import ProspectorScreen from './ProspectorScreen';
-import { nextCampaignNode, isCampTabLocked, campUnlockHint, campUnlockStage } from '../game/campaign';
+import { nextCampaignNode, isCampTabLocked, campUnlockHint, campUnlockStage, isCampSubTabLocked } from '../game/campaign';
 import { currentStep } from '../game/path';
 import ClickerScreen from './ClickerScreen';
 import BasePanel from './BasePanel';
@@ -24,12 +24,13 @@ import ExplorationScreen from './ExplorationScreen';
 import { pendingMilestones } from '../game/clicker';
 import GearPanel from './GearPanel';
 import { BattlePassPanel, CodexPanel, PatrolPanel, ClaimBadge } from './MetaFeatures';
-import { ACHIEVEMENTS, resolveStartWeapon, CAMPAIGN_QUESTS, achMetric } from '../game/data_ext2';
+import { ACHIEVEMENTS, CAMPAIGN_QUESTS, achMetric } from '../game/data_ext2';
 import { MissionsPanel, ChallengesPanel, AchievementsPanel, CardShopModal, ActiveLoadoutPanel, SettingsPanel, MapsPanel } from './CampPanels';
 import { Audio } from '../game/audio';
 import BadgeSlots, { BadgePicker } from './BadgeSlots';
 import QuestTracker from './QuestTracker';
 import GameIcon from './GameIcon';
+import CampFrame, { CampCosmos } from './CampFrame';
 
 // Display name + icon for every tab the unlock cascade can reveal — read by
 // both the tab bar (locked tabs are hidden, not dimmed, per Timmy: "bara base
@@ -195,7 +196,12 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
     const [next, ...rest] = unlockQueue;
     setUnlockQueue(rest);
     setUnlockShown(next);
-    Audio.claimPing();
+    // Was claimPing() — the same short blip a daily reward uses. Opening a
+    // whole new part of the game deserves its own sound, and reusing the
+    // reward blip made it feel like collecting a coin. `unlockReveal`'s
+    // swell is timed so the bright arrival lands with the logo, not with
+    // the first frame of the banner.
+    Audio.unlockReveal?.();
   }, [unlockQueue, unlockShown]);
   // Clear the currently-shown one after its dwell. Kept as its OWN effect,
   // keyed only on `unlockShown` — folding this into the pop effect above
@@ -204,12 +210,37 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
   // so the banner got stuck on the first unlock forever.
   useEffect(() => {
     if (!unlockShown) return;
-    const t = setTimeout(() => setUnlockShown(null), 2200);
+    // MUST stay in step with `.camp-unlock-banner`'s campUnlockOut in
+    // index.css: it now starts fading at 2600ms and takes 450ms, so
+    // unmounting at the old 2200ms cut the banner off before its own exit
+    // animation began — it just vanished. If that CSS timing changes,
+    // change this with it.
+    const t = setTimeout(() => setUnlockShown(null), 3050);
     return () => clearTimeout(t);
   }, [unlockShown]);
 
   const [toast, setToast] = useState('');
   const [tab, setTab] = useState('campaign');
+  // ── INITIAL FOCUS ──────────────────────────────────────────────────────────
+  // The camp had no focus handling of any kind: nothing focused on open, no
+  // focus order, no visible ring. On a controller that is not "a bit awkward",
+  // it is a screen you cannot enter at all — which matters, because Steam is
+  // on the plan (see the gore/platform doctrine memory).
+  //
+  // `preventScroll` is load-bearing. Focusing an element normally scrolls it
+  // into view, and on the phone the tab rail is a horizontally scrolling strip
+  // — so without it, opening the camp would jerk the rail sideways on every
+  // mount for no reason the player could understand.
+  const firstTabRef = useRef(null);
+  useEffect(() => {
+    const el = firstTabRef.current;
+    if (!el) return;
+    // Only claim focus if nothing meaningful already has it. A modal opened by
+    // a deep-link (or the level-up overlay) must not have focus stolen back.
+    const a = document.activeElement;
+    if (a && a !== document.body && el !== a) return;
+    el.focus({ preventScroll: true });
+  }, []);
   const [shopOpen, setShopOpen] = useState(false);
   const [skillOpen, setSkillOpen] = useState(false);
   const [forgeOpen, setForgeOpen] = useState(false);
@@ -511,7 +542,11 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
   const campaignQuestNew = CAMPAIGN_QUESTS.some(q => q.check(save) && !_cq[q.id]);
 
   return (
-    <div className="app-shell">
+    <div className="app-shell camp-shell-space">
+      {/* The sky the station is parked in. Sits BEHIND the panel, which is what
+          turns the camp's border into a frame — a border touching the viewport
+          edge is just a border. Decoration only, never focusable. */}
+      <CampCosmos />
       <div className={`camp ${campShake ? 'camp-shake' : ''}`} data-testid="camp-screen">
         {/* Portalled to <body> — NOT rendered inside .camp.
             The burst is position:fixed and placed from getBoundingClientRect(),
@@ -569,25 +604,66 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
         )}
         {unlockShown && createPortal(
           <div className="camp-unlock-banner" key={unlockShown} data-testid="camp-unlock-banner">
+            {/* Rotating light rays + two shockwave rings behind the logo.
+                The old banner scaled everything in at once, which read as
+                a single pop; staggering the parts (rays → rings → logo →
+                word → name) is what turns it into an EVENT. Purely
+                decorative, so aria-hidden and never blocking the pointer. */}
+            <div className="cub-burst" aria-hidden>
+              <span className="cub-rays" />
+              <span className="cub-ring" />
+              <span className="cub-ring cub-ring2" />
+            </div>
             <div className="cub-tag">UNLOCKED</div>
             <div className="cub-icon"><GameIcon name={CAMP_TAB_META[unlockShown]?.icon || 'ui_lock'} size={110} /></div>
             <div className="cub-name">{CAMP_TAB_META[unlockShown]?.label || unlockShown}</div>
+            <div className="cub-sub">NEW MENU AVAILABLE</div>
           </div>,
           document.body
         )}
         <div className="camp-sidebar">
-          <div className="camp-profile-bar camp-profile-bar-framed" ref={profileBarRef}>
-            <div className="camp-profile-id" onClick={() => setProfileOpen(true)} data-testid="camp-profile-open">
-              <span className="camp-avatar-frame" style={{
-                '--frame-css': PROFILE_FRAMES.find(f => f.id === save.profile.frame)?.css || 'none',
-                boxShadow: PROFILE_FRAMES.find(f => f.id === save.profile.frame)?.glow || 'none',
-              }}><span className="camp-avatar-icon"><GameIcon name={avatar.icon} size={22} /></span></span>
-              <div>
-                <div style={{
-                  fontSize: 14, fontWeight: 800,
+          <div className="camp-profile-bar camp-profile-bar-framed cp-plaque" ref={profileBarRef}>
+            {/* ── THE HOLO PORT ────────────────────────────────────────────
+                Timmy's reference puts a big lit orb on a pedestal where the
+                camp had a 44px ring with a 22px icon in it. That size gap is
+                the whole difference between "a profile row" and "a profile".
+
+                Built as the six-layer glass stack from `waterdrop-svg-materials`
+                — halo, body, inner volume, bezel, icon, specular — because a
+                single radial gradient always reads flat. The two details that
+                actually sell it: the body gradient's LAST stop goes back UP in
+                brightness (rim bounce, the one cue that says glass rather than
+                paint), and there are TWO speculars of different sizes, big and
+                soft upper-left, small and sharp lower-right.
+
+                It is a <button>, not a clickable <div>: it is the way into the
+                profile sheet, and this menu is going on Steam eventually, where
+                a div is unreachable without a mouse. */}
+            <div className="cp-top">
+              <button
+                className="cp-port"
+                onClick={() => { Audio.click(); setProfileOpen(true); }}
+                data-testid="camp-profile-open"
+                aria-label="Open profile"
+                style={{
+                  '--frame-css': PROFILE_FRAMES.find(f => f.id === save.profile.frame)?.css || 'none',
+                  '--frame-glow': PROFILE_FRAMES.find(f => f.id === save.profile.frame)?.glow || 'none',
+                }}>
+                <span className="cp-port-halo" aria-hidden />
+                <span className="cp-port-bezel" aria-hidden />
+                <span className="cp-port-glass" aria-hidden />
+                <span className="cp-port-vol" aria-hidden />
+                <span className="cp-port-icon"><GameIcon name={avatar.icon} size={38} /></span>
+                <span className="cp-port-spec" aria-hidden />
+                <span className="cp-port-pin" aria-hidden />
+                <span className="cp-port-scan" aria-hidden />
+              </button>
+              <span className="cp-plinth" aria-hidden />
+              <div className="cp-id">
+                <div className="cp-name" style={{
                   color: (() => { const nc = NAME_COLORS.find(c => c.id === save.profile.nameColor); return nc && nc.color !== 'rainbow' ? nc.color : 'var(--ink)'; })(),
                 }}>{save.profile.name || 'Wanderer'}</div>
-                <div style={{ fontSize: 11, color: 'var(--rune)', letterSpacing: '0.15em' }}>{RANK_TITLES[getRank(save.profile.level)]} · Lv {save.profile.level}</div>
+                <div className="cp-rank">{RANK_TITLES[getRank(save.profile.level)]} · Lv {save.profile.level}</div>
                 {/* Progress against the REAL threshold, not a hardcoded 200.
                     accountXpToNext() is 60 * 1.18^level — 70 XP at level 1,
                     not 200 — so this bar was showing 60/200 (30%) when the
@@ -599,25 +675,49 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
                   const need = accountXpToNext(save.profile?.level || 1);
                   const have = Math.min(save.profile?.xp || 0, need);
                   return (
-                    <div className="camp-rank-bar" data-testid="camp-rank-progress">
-                      <div className="camp-rank-fill" style={{ width: `${(have / need) * 100}%` }} />
-                      <span className="camp-rank-bar-label">{have}/{need}</span>
+                    // The medallion cannot live INSIDE .camp-rank-bar: that bar
+                    // carries a chamfer clip-path, and a clip-path clips its
+                    // children, so anything riding the fill edge would be sliced
+                    // off at the track. The wrapper exists purely to give it an
+                    // unclipped positioning context. --xp-pct is where the fill
+                    // currently ends, so the medallion marks real progress rather
+                    // than sitting decoratively at the centre.
+                    <div className="cp-xp-wrap" style={{ '--xp-pct': `${(have / need) * 100}%` }}>
+                      <div className="camp-rank-bar" data-testid="camp-rank-progress">
+                        <div className="camp-rank-fill" style={{ width: `${(have / need) * 100}%` }} />
+                        <span className="camp-rank-bar-label">{have}/{need}</span>
+                      </div>
+                      <span className="cp-xp-medal" aria-hidden>XP</span>
                     </div>
                   );
                 })()}
-                {/* Badges live INSIDE the identity stack, directly under the
-                    level bar and left-aligned with the name. As a separate
-                    sibling row they were a small centred cluster floating in
-                    the middle of the plaque with nothing to align to — which
-                    is what read as "weird". Here they are visibly part of the
-                    same block as the avatar, name and rank: one profile card,
-                    not three stranded rows. */}
-                <BadgeSlots save={save} onOpen={(e) => { e?.stopPropagation?.(); Audio.click(); setBadgeOpen(true); }} />
               </div>
             </div>
-            {/* All currencies on ONE row — the row scrolls sideways rather
-                than wrapping, so the banner keeps a fixed height. */}
-            <div className="camp-currency-row">
+            {/* ── BADGE SHELF ──────────────────────────────────────────────
+                Out of the identity stack and onto its own full-width shelf.
+                Squeezed in beside the name they were 22px trinkets; given the
+                whole plaque width they become a trophy rail, which is what
+                they are for.
+
+                FIVE slots, and that number is not a layout choice — it is
+                `MAX_EQUIPPED_BADGES` in game/badges.js, which already reads 5.
+                Timmy on the reference: "de ska va 5 eller 3 badges inte 10 som
+                på bilden". The picture shows ten; the code was already right.
+                Recounted from source rather than trusted: 24 badges exist, 5
+                can be worn. */}
+            <div className="cp-shelf">
+              <span className="cp-shelf-lbl">BADGES</span>
+              <BadgeSlots save={save} size={24}
+                onOpen={(e) => { e?.stopPropagation?.(); Audio.click(); setBadgeOpen(true); }} />
+            </div>
+            {/* Currencies in a GRID, not a scrolling strip.
+                Seven chips at `flex: 1 1 0` in a 240px rail gave each one ~30px
+                — which is how "2:", "1", "1" happened: the value was clipped and
+                the row scrolled sideways to hide it. A grid gives every chip the
+                same generous cell, wraps predictably, and nothing is ever
+                off-screen. The reference does exactly this: two tidy rows, not
+                one crushed one. */}
+            <div className="camp-currency-row cp-cur">
               {/* Drawn icons, not emoji. The row used to be ★ 💎 🎰 🌿 ◆ 🎫 🔑
                   — seven unrelated art styles that render differently on every
                   phone, and 💎/🔷 and 🎰/🎫 read as the same thing at this
@@ -721,7 +821,33 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
                 <span className="camp-story-go">▸</span>
               </button>
             )}
-            <button className={`camp-tab ${tab==='campaign'?'active':''}`} onClick={() => setTab('campaign')} data-testid="tab-campaign" style={{position:'relative'}}><GameIcon name="ui_scroll" size={15} /> CAMPAIGN {(pathReady || campaignQuestNew) && <ClaimBadge/>}</button>
+              {/* MOVED OUT OF .camp-main, 2026-08-23. The reference puts the
+                  campaign's own sections in the LEFT RAIL, directly under
+                  CONTINUE STORY - not as a strip floating above the panel
+                  content. That strip was also where the "giant violet STORY
+                  banner" came from: one unlocked tab in a `flex: 1 1 auto`
+                  row grows to fill the whole width. As rail rows they are
+                  always the rail's width, so the bug cannot come back. */}
+              {tab === 'campaign' && (
+                <div className="gear-tabs camp-subnav">
+                  <button className={`gear-tab ${campaignSub === 'campaign' ? 'active' : ''}`} onClick={() => setCampaignSub('campaign')} data-testid="tab-campaign-story" style={{ position: 'relative' }}><GameIcon name="ui_scroll" size={14} /> STORY {campaignQuestNew && <ClaimBadge />}</button>
+                  {/* MAPS, MISSIONS and CHALLENGES stay OUT of the bar until the
+                      camp has been built up twice — not dimmed, absent, the same
+                      rule the main tab rail follows. A new player gets exactly one
+                      door. MAPS is also the way into free play, so hiding it is
+                      what keeps Endless shut until we open it deliberately. */}
+                  {!isCampSubTabLocked('maps', save) && (
+                    <button className={`gear-tab ${campaignSub === 'maps' ? 'active' : ''}`} onClick={() => setCampaignSub('maps')} data-testid="tab-maps"><GameIcon name="ui_map" size={14} /> MAPS</button>
+                  )}
+                  {!isCampSubTabLocked('missions', save) && (
+                    <button className={`gear-tab ${campaignSub === 'missions' ? 'active' : ''}`} onClick={() => setCampaignSub('missions')} data-testid="tab-missions" style={{ position: 'relative' }}><GameIcon name="ui_scroll" size={14} /> MISSIONS {pathReady && <ClaimBadge />}</button>
+                  )}
+                  {!isCampSubTabLocked('challenges', save) && (
+                    <button className={`gear-tab ${campaignSub === 'challenges' ? 'active' : ''}`} onClick={() => setCampaignSub('challenges')} data-testid="tab-challenges"><GameIcon name="ui_trophy" size={14} /> CHALLENGES</button>
+                  )}
+                </div>
+              )}
+            <button ref={firstTabRef} className={`camp-tab ${tab==='campaign'?'active':''}`} onClick={() => setTab('campaign')} data-testid="tab-campaign" style={{position:'relative'}}><GameIcon name="ui_scroll" size={15} /> CAMPAIGN {(pathReady || campaignQuestNew) && <ClaimBadge/>}</button>
             <button className={`camp-tab ${tab === 'stats' ? 'active' : ''}`} onClick={() => setTab('stats')} data-testid="tab-stats"><GameIcon name="ui_chart" size={15} /> STATS</button>
             {/* THE BASE is the one tab that's always PRESENT — dimmed until
                 pond_1 clears, per Timmy: "bara base ska finnas där ... även
@@ -787,12 +913,10 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
         </div>
 
         <div className="camp-main">
-          {/* The guided chain lives in the scrolling main column, not in the
-              sidebar. The sidebar is a fixed-height band on phones and putting
-              anything else in it pushed the tab strip out of view entirely —
-              and a stub of a tracker that only shows half a row is worse than
-              none. Here it gets full width on every screen size. */}
-          <QuestTracker save={save} onGo={pathGo} />
+          {/* Active Story Quests Section (Reference Image 2) */}
+          <div className="camp-top-grid full-width">
+            <QuestTracker save={save} onGo={pathGo} />
+          </div>
           {tab === 'cards' && (
             <>
               <div className="camp-header">
@@ -854,22 +978,16 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
 
           {tab === 'campaign' && (
             <>
-              <div className="gear-tabs" style={{ marginBottom: 12 }}>
-                <button className={`gear-tab ${campaignSub === 'campaign' ? 'active' : ''}`} onClick={() => setCampaignSub('campaign')} data-testid="tab-campaign-story" style={{ position: 'relative' }}><GameIcon name="ui_scroll" size={14} /> STORY {campaignQuestNew && <ClaimBadge />}</button>
-                <button className={`gear-tab ${campaignSub === 'maps' ? 'active' : ''}`} onClick={() => setCampaignSub('maps')} data-testid="tab-maps"><GameIcon name="ui_map" size={14} /> MAPS</button>
-                <button className={`gear-tab ${campaignSub === 'missions' ? 'active' : ''}`} onClick={() => setCampaignSub('missions')} data-testid="tab-missions" style={{ position: 'relative' }}><GameIcon name="ui_scroll" size={14} /> MISSIONS {pathReady && <ClaimBadge />}</button>
-                <button className={`gear-tab ${campaignSub === 'challenges' ? 'active' : ''}`} onClick={() => setCampaignSub('challenges')} data-testid="tab-challenges"><GameIcon name="ui_trophy" size={14} /> CHALLENGES</button>
-              </div>
               {campaignSub === 'campaign' && <CampaignPanel save={save} setSave={setSave} />}
-              {campaignSub === 'maps' && <MapsPanel save={save} setSave={setSave} onStart={(cfg) => onMission(cfg)} />}
+              {campaignSub === 'maps' && !isCampSubTabLocked('maps', save) && <MapsPanel save={save} setSave={setSave} onStart={(cfg) => onMission(cfg)} />}
               {/* THE PATH lives under MISSIONS, not STORY. It is a chain of
                   claimable objectives with rewards — the same kind of thing
                   MissionsPanel lists — so having it sit on the STORY tab
                   meant the player had claims in two unrelated places and no
                   reason to expect it. STORY is now just the node map. */}
-              {campaignSub === 'missions' && <PathPanel save={save} setSave={setSave} onGo={pathGo} />}
-              {campaignSub === 'missions' && <MissionsPanel save={save} setSave={setSave} onStart={onMission} />}
-              {campaignSub === 'challenges' && <ChallengesPanel save={save} setSave={setSave} onStart={(c) => onMission({ ...c, isChallenge: true })} />}
+              {campaignSub === 'missions' && !isCampSubTabLocked('missions', save) && <PathPanel save={save} setSave={setSave} onGo={pathGo} />}
+              {campaignSub === 'missions' && !isCampSubTabLocked('missions', save) && <MissionsPanel save={save} setSave={setSave} onStart={onMission} />}
+              {campaignSub === 'challenges' && !isCampSubTabLocked('challenges', save) && <ChallengesPanel save={save} setSave={setSave} onStart={(c) => onMission({ ...c, isChallenge: true })} />}
             </>
           )}
 
@@ -898,8 +1016,8 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
 
           {tab === 'gear' && (
             <>
-              <div className="camp-header"><h1>Equipment</h1><div className="camp-header-sub">Find gear in runs · Forge 3 of same into higher rarity</div></div>
-              <GearPanel save={save} setSave={setSave} />
+              <div className="camp-header"><h1>EQUIPMENT</h1><div className="camp-header-sub">FUSE DUPLICATE ITEMS INTO HIGHER RARITY</div></div>
+              <GearPanel save={save} setSave={setSave} onFight={onStart} onBack={onBack} />
             </>
           )}
 
@@ -986,7 +1104,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
 
               <div className="stats-sec-h">Arsenal &amp; Collection</div>
               <div className="stats-grid">
-                <Stat label="Equipment" val={(save.inventory || []).length} />
+                <Stat label="Equipment" val={(save.gearInventory || []).length} />
                 <Stat label="Parts" val={(save.parts || []).length} />
                 <Stat label="Legendary Parts" val={save.legendaryPartsFound || 0} />
                 <Stat label="Weapons Crafted" val={Object.keys(save.craftedWeapons || {}).length} />
@@ -999,26 +1117,26 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
           )}
 
           <div className="camp-actions">
-            <button onClick={onBack} data-testid="camp-back">◂ Back</button>
-            {/* What you are about to walk in carrying, shown at the moment you
-                commit. Without this the selection is only visible three taps
-                deep in the smith: a player who picks the katana for the story
-                quest and forgets would find every later run mysteriously
-                gunless and blame the game. Tapping it goes straight back to
-                the shelf that sets it. */}
+            <button onClick={onBack} data-testid="camp-back">◂ BACK</button>
             <button
-              className="camp-carry-chip"
-              data-testid="camp-carry"
-              onClick={() => pathGo('smithBlueprints')}
-              title="Change your start weapon"
+              className="camp-weapon-btn"
+              onClick={() => { Audio.click(); setForgeOpen(true); }}
+              data-testid="camp-start-weapon"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '10px 16px', background: 'linear-gradient(180deg, #182230, #0c121a)', borderColor: '#4d88ff' }}
             >
-              <span className="ccc-icon"><GameIcon name={resolveStartWeapon(save)} size={20} /></span>
-              <span className="ccc-name">{(WEAPONS[resolveStartWeapon(save)] || {}).name || 'Hydro Pistol'}</span>
+              <GameIcon name={save.startWeapon || 'hydropistol'} size={15} />
+              <span>{((WEAPONS[save.startWeapon || 'hydropistol'] || {}).name || 'HYDRO PISTOL').toUpperCase()}</span>
             </button>
             <button onClick={onStart} data-testid="camp-fight"
               style={{ borderColor: '#ff7a1a', boxShadow: 'var(--pixel-edge), 0 6px 0 #000, 0 0 28px #ff7a1a66' }}>▸ FIGHT</button>
           </div>
         </div>
+        {/* LAST in the DOM on purpose. The vines have to paint OVER the panel
+            edge to look like they are growing across it, and `.camp-sidebar` /
+            `.camp-main` are both z-index:1 flex items — so painting order, not
+            z-index, is what puts this on top reliably. The whole subtree is
+            pointer-events:none, so sitting over the content costs nothing. */}
+        <CampFrame />
       </div>
       {toast && <div className="toast">{toast}</div>}
       {shopOpen && <CardShopModal save={save} setSave={setSave} onClose={() => setShopOpen(false)} />}
@@ -1038,14 +1156,20 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
       {defenceOpen && <BaseDefenceScreen save={save} setSave={setSave} onClose={() => setDefenceOpen(false)} />}
       {profileOpen && <ProfilePanel save={save} setSave={setSave} onClose={() => setProfileOpen(false)} onBadges={() => { setProfileOpen(false); setBadgeOpen(true); }} />}
       {badgeOpen && <BadgePicker save={save} setSave={setSave} onClose={() => setBadgeOpen(false)} />}
-      {/* Held back until the base's first unlock batch (Meta/Skilltree/
-          Talents) has actually revealed — Timmy: showing this the instant
-          you walk into camp buries "you got talent points + skill points"
-          under a screen you can't act on yet. Once 'cards' (the first batch)
-          is open and no reveal banner is mid-flight, it shows normally —
-          for every level-up past the bootstrap window this is always true,
-          so ordinary play is unaffected. */}
-      {save.pendingLevelUp && !isCampTabLocked('cards', save) && !unlockShown && unlockQueue.length === 0 && (
+      {/* Waits only for a reveal banner to finish, never for a TAB.
+          It used to also require `!isCampTabLocked('cards', save)` — the idea
+          being that showing this the instant you walk into camp buries "you got
+          talent points + skill points" under a screen you cannot act on yet.
+          The cost turned out to be far worse than the benefit: 'cards' needs a
+          building bought, the base needed a pond clear, and `pendingLevelUp` is
+          a single slot — so a new player levelled, had the payout deferred,
+          levelled again, and the first bundle was silently deleted. They never
+          received that gold, SP or talent point at all. Timmy, on a fresh save:
+          "då får ja inte skillpoint å allt man ska få i level up".
+          `addAccountXp` accumulates rather than overwrites now (store.js), so
+          nothing is lost either way, and with the base open after one run there
+          IS something to act on by the time this can fire. */}
+      {save.pendingLevelUp && !unlockShown && unlockQueue.length === 0 && (
         <LevelUpOverlay save={save} onCollect={() => {
           const r = save.pendingLevelUp;
           const char = save.character || DEFAULT_SAVE.character;
@@ -1350,12 +1474,14 @@ function LevelUpOverlay({ save, onCollect }) {
           </div>
         )}
 
-        {/* Label follows state: while things are still landing this is a skip,
-            not a collect, and saying so is the difference between "I chose to
-            hurry it" and "did that button just eat my rewards?" */}
-        <button className="lu-collect" onClick={skipOrCollect} data-testid="levelup-collect">
-          {doneAll ? 'COLLECT ▸' : 'SKIP ▸'}
-        </button>
+        <div className="lu-actions" style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+          <button className="base-btn" onClick={onCollect} style={{ flex: '1 1 0', padding: '12px 14px', fontSize: 13 }} data-testid="levelup-back">
+            BACK TO BASE
+          </button>
+          <button className="lu-collect" onClick={skipOrCollect} style={{ flex: '1.2 1 0', margin: 0 }} data-testid="levelup-collect">
+            {doneAll ? 'CLAIM & CONTINUE ▸' : 'SKIP ▸'}
+          </button>
+        </div>
       </div>
       </div>
     </div>

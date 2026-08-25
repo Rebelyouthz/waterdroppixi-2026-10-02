@@ -162,5 +162,42 @@ console.log('\n=== shop card unlocks ===');
     permanent.map((c) => c.id).join(', '));
 }
 
+
+// ---- THE CANVAS HAS NO OVERFLOW ----------------------------------------
+// Timmy has reported this class of bug since the move to Pixi: "de klipper av
+// kanterna ... du vet inte om de nar de hander". A Pixi canvas draws nothing
+// past width/height, with no error and nothing in the console, so a padding
+// trim made to enlarge the cards silently amputates the frame around them.
+//
+// That happened on 2026-08-23: CARD.TOP/BOTTOM_PAD were cut 208/112 -> 112/40,
+// which put the stage plate's bottom edge 6px past the canvas and its cast
+// shadow ~56px past. This is the guard.
+{
+  const { CARD, PLATE_CLEARANCE } = await import('../src/game/cardRenderer.js');
+
+  // Mirrors CardRenderer's own layout arithmetic. If that moves, this has to
+  // move with it - which is the point: two places that disagree LOUDLY beat one
+  // that fails silently.
+  const MARGIN = 46;
+  const canvasH = CARD.H + CARD.TOP + CARD.BOTTOM_PAD;
+  const above = Math.max(14, (CARD.TOP - 74) - MARGIN);
+  const below = canvasH - (CARD.TOP + CARD.H + MARGIN);
+
+  ok('stage plate has clearance ABOVE it inside the canvas',
+     above >= PLATE_CLEARANCE,
+     'only ' + above + 'px above the plate, needs ' + PLATE_CLEARANCE + ' - the frame is cut off');
+  ok('stage plate has clearance BELOW it inside the canvas',
+     below >= PLATE_CLEARANCE,
+     'only ' + below + 'px below the plate, needs ' + PLATE_CLEARANCE + ' - the frame is cut off');
+
+  const art = readFileSync(new URL('../src/game/cardArt.js', import.meta.url), 'utf8');
+  const bw = art.match(/const BW = (\d+);/);
+  ok('PLATE_CLEARANCE still covers the plate band overhang',
+     !!bw && Number(bw[1]) / 2 <= PLATE_CLEARANCE,
+     bw ? 'the band alone hangs ' + (Number(bw[1]) / 2) + 'px past the plate, clearance is ' + PLATE_CLEARANCE
+        : 'BW is gone from cardArt.js');
+}
+
+
 console.log(`\n${pass} checks passed${fail ? `, ${fail} FAILED` : ''}.\n`);
 process.exit(fail ? 1 : 0);

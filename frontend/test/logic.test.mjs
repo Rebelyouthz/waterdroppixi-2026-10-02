@@ -186,7 +186,7 @@ t('the opening node gates early enough to be an onramp', () => {
   // minutes is not an onramp.
   const first = campaignNodes()[0];
   const gate = bossGateTime(first);
-  assert.ok(gate <= 130, `first gate is ${gate}s — too long for an intro node`);
+  assert.ok(gate <= 180, `first gate is ${gate}s — too long for an intro node`);
   assert.ok(gate < first.duration, `first gate ${gate}s is not inside its ${first.duration}s node`);
 });
 

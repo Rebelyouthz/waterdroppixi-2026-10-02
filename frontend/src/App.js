@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import MainMenu from './components/MainMenu';
 import Welcome from './components/Welcome';
-import IntroDialogue from './components/IntroDialogue';
+import IntroCinema from './components/IntroCinema';
 import Camp from './components/Camp';
 import GameScreen from './components/GameScreen';
 import StarRaidScreen from './components/StarRaidScreen';
@@ -12,7 +12,7 @@ import { loadSave, saveLocal, syncSave, postRunResult, DEFAULT_SAVE, getPlayerId
 import { settleProgression } from './game/progression';
 import { markNodeCleared, lootMult } from './game/difficulty';
 import RewardScreen from './components/RewardScreen';
-import { rollMissionRewards, MISSION_DEFS, CHALLENGES, ACHIEVEMENTS, CHAR_RARITY_COLORS } from './game/data_ext2';
+import { rollMissionRewards, MISSION_DEFS, CHALLENGES } from './game/data_ext2';
 import { AuthProvider, StripeReturnHandler, AuthCallback, useAuth } from './auth';
 import { Audio } from './game/audio';
 import { rollArtifact } from './game/artifacts';
@@ -437,18 +437,6 @@ function AppInner() {
     setView('welcome');
   };
 
-  // Tutorial: first time fight → start tutorial mission
-  const TUTORIAL_MISSION = {
-    isTutorial: true,
-    id: 'tutorial',
-    name: 'Tutorial',
-    duration: 240, // 4 minutes
-    tutorialMode: true,
-    startMeta: { maxHp: 25, dmg: 0.3, mspd: 0.25, crit: 0.05 },
-    startWeapons: ['hydropistol', 'runebolts'],
-    startCards: ['power_i', 'vital_i', 'swift_i'],
-  };
-
   // Gate function: try to start gameplay. Show paywall if not entitled.
   const tryStartGame = (proceed, missionOverride) => {
     if (paid) { proceed(missionOverride); return; }
@@ -476,7 +464,13 @@ function AppInner() {
       // only ever fires once; TUTORIAL_MISSION itself is left intact rather
       // than deleted, since nothing else that reads `save.tutorialDone`
       // should have to change.
-      setSave({ ...save, tutorialDone: true });
+      //
+      // FUNCTIONAL UPDATE, and it is load-bearing. This also runs from the
+      // intro film's `onDone`, immediately after a `setSave` that sets
+      // `introSeen`. Written as `{ ...save, ... }` BOTH calls spread the same
+      // pre-render snapshot, so this one silently discarded `introSeen` — the
+      // film then replayed on every boot and there was no way past it.
+      setSave(s => ({ ...s, tutorialDone: true }));
       setView('camp');
     } else {
       startNormalGame();
@@ -499,9 +493,40 @@ function AppInner() {
     </>);
   }
   if (view === 'intro') {
-    return (<IntroDialogue
-      rarColor={CHAR_RARITY_COLORS[save.character?.rarity] || CHAR_RARITY_COLORS.common}
-      onDone={() => { setSave({ ...save, introSeen: true }); startTutorialIfNeeded(); }}
+    // The origin film. Replaced the old typed-dialogue intro outright — Timmy:
+    // "ta bort introt helt som finns inget ska va från det". The `onDone`
+    // contract is unchanged, so the view machine below is untouched.
+    //
+    // It takes no `rarColor`: the old intro tinted its SVG drop by the player's
+    // character rarity, but this film is the ORIGIN story — he is a lake that
+    // has only just been mutated, and has no rarity yet.
+    //
+    // ONE functional setSave, not two object spreads. Both flags have to land
+    // in the same commit: the previous version called `setSave({...save,
+    // introSeen:true})` and then `startTutorialIfNeeded()`, whose own
+    // `setSave({...save, tutorialDone:true})` re-spread the SAME snapshot and
+    // threw `introSeen` away. The film replayed forever.
+    //
+    // The film always hands off to the CAMP, never to a run. Routing through
+    // `startTutorialIfNeeded` meant a save that already had `tutorialDone`
+    // (any returning player) got dropped straight into combat the moment the
+    // credits stopped, with no menu in between.
+    return (<IntroCinema
+      onDone={() => {
+        setSave(s => ({ ...s, introSeen: true, tutorialDone: true }));
+        // STRAIGHT INTO THE FIRST RUN — Timmy: 'sen ska den rakt in i första run
+        // ingame inte in i meny'. The film ends on the first enemy arriving at
+        // the camp station, so cutting to a menu would drop the thread the whole
+        // scene just set up. The menus come AFTER that run instead: death
+        // screen -> welcome (daily + wheel) -> camp.
+        //
+        // Routed through tryStartGame like every other run start, so the
+        // entitlement gate still applies rather than the film being a way
+        // around it.
+        const node = nextCampaignNode(save);
+        const m = node ? nodeToMission(node) : null;
+        tryStartGame(() => onMission(m), m);
+      }}
     />);
   }
   if (view === 'menu') {

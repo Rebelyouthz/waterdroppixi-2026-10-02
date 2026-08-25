@@ -116,10 +116,21 @@ check('every save key the engine seeds from meta actually exists somewhere', () 
   // gear appliers) cannot be found by name, so they are matched against the
   // data that drives those appliers instead of being reported as dead.
   const artifactSrc = read('game/artifacts.js');
+  // Same reasoning as artifacts, for the skill tree: buildMetaEffects walks
+  // POE_INDEX and does `result[pn.stat] = amt`, so a node's stat gets written
+  // without its name ever appearing in GameScreen.jsx. poe_tree.js is that
+  // applier's data table, so it counts as a writer — exactly like the affix
+  // table above. This does NOT weaken the guard: a `this.meta.X` with no
+  // node, no affix and no mention in GameScreen still fails, which is the
+  // m_projspd class this check exists to catch. Deliberately matched as
+  // `stat: 'X'` rather than a bare word, so a stat name that merely appears
+  // in a node's prose description cannot wave itself through.
+  const treeSrc = read('game/poe_tree.js');
   const dead = unique.filter((k) => {
     // An artifact affix writes `result[stat]` dynamically, so the key never
     // appears by name in GameScreen — matching the affix table instead.
     if (new RegExp(`\\b${k}\\b`).test(artifactSrc)) return false;
+    if (new RegExp(`stat:\\s*'${k}'`).test(treeSrc)) return false;
     return !new RegExp(`\\b${k}\\b`).test(gs);
   });
   return dead.length
@@ -317,7 +328,11 @@ check('the currency row and reward payouts use drawn icons, not emoji', () => {
   const EMOJI = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}]/u;
   const bad = [];
 
-  const row = /<div className="camp-currency-row">([\s\S]*?)<\/div>\s*\n\s*<button/.exec(camp);
+  // Class LIST, not an exact class name. The row gained a second class
+  // (`cp-cur`) when it became a grid, and this guard went red on a cosmetic
+  // change that had nothing to do with what it protects. A guard must follow
+  // the code, not the spelling of one attribute.
+  const row = /<div className="camp-currency-row[^"]*">([\s\S]*?)<\/div>\s*\n\s*<button/.exec(camp);
   if (!row) return 'could not find the currency row';
   for (const line of row[1].split('\n')) {
     if (EMOJI.test(line)) bad.push(`banner: ${line.trim().slice(0, 60)}`);
@@ -410,6 +425,22 @@ check('no panel hand-rolls its own drawing of the character', () => {
       const nums = [...d.matchAll(/-?\d+(?:\.\d+)?/g)].map((n) => Math.abs(+n[0]));
       const span = Math.max(...nums, 0);
       if (span < 30) continue;
+      // ...and CLOSED. The rule this guard states in its own words is "a `d=`
+      // that sweeps out and back to a single point" — a teardrop is a filled
+      // silhouette, so it always closes, explicitly with Z or implicitly by
+      // ending where it began. An open stroke that wanders off and stops is a
+      // line, not a body.
+      //
+      // Added because CampFrame.jsx's vines are exactly that: long cubic
+      // strokes with fill="none", eleven of which tripped this on sight.
+      // Exempting the file by name was the cheap fix and would have blinded the
+      // guard there forever; tightening what "a body" MEANS keeps it watching
+      // every file, that one included.
+      const sx = +m[1], sy = +m[2];
+      const pts = [...body.matchAll(/(-?[\d.]+)[ ,]+(-?[\d.]+)/g)];
+      const last = pts[pts.length - 1];
+      const closesBack = !!last && Math.hypot(+last[1] - sx, +last[2] - sy) <= 10;
+      if (!/[Zz]\s*$/.test(body.trim()) && !closesBack) continue;
       if (/A\s*[\d.]+\s+[\d.]+/.test(body) || (body.match(/C/g) || []).length >= 1) {
         offenders.push(`${f}: ${d.slice(0, 46)}…`);
       }

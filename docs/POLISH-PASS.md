@@ -2388,3 +2388,114 @@ spec in the `waterdrop-skilltree-talents-abilities` memory rather than
 starting blind. Do not begin this without bringing back concept options
 for the two open questions (background/layout treatment, Abilities
 acquisition mechanic) first.
+
+
+---
+
+## 2026-08-23 — The camp rebuilt on the Welcome screen's theme
+
+Timmy's brief, after rejecting three earlier passes: *"Snalla skit i den dar
+sidan nu a gor om den helt utefter valkomst skarmens tema"*, then *"ok kor pa ba
+forsta skarmen e ratt bra folj de temat baras men lite morkare farger"*.
+
+**The finding that mattered more than any colour choice.** `overhaul.css` had
+grown into FOUR designs stacked on top of each other. Measured, not estimated:
+1292 top-level selectors, **164 defined two or more times, 84 of them more than
+800 lines apart**. Later blocks only redeclare SOME properties, and earlier ones
+carrying `!important` keep winning theirs — so what shipped was a hybrid nobody
+designed. That is the mechanism behind "inget ar ens nara". Full record and the
+re-runnable audit script are in the `waterdrop-css-duplicate-blocks` memory.
+
+Consolidated this session, each from N definitions down to one:
+
+| element | was | now |
+|---|---|---|
+| `.camp-tab` + states | 28 rules / 198 lines / 4 generations | 1 block |
+| `.camp-currency-chip` | 7 | 1 |
+| `.camp-main` | 3 | 1 |
+| `.camp-shell-space .camp` background | 2 | 1 |
+| `.cp-plaque` | 2 | 1 |
+| `.cp-shelf .badge-slot` | 3 (+2 `.filled`) | 1 |
+| `.forge-wch` (Weaponsmith tile) | 3, across two files | 1 |
+| `.cc-deep` / `.cc-neb-a` / `.cc-neb-b` | 2 each | 1 each |
+
+**Ghosts found while consolidating.** Generation 1's `.camp-tab::before` was a
+second, top-edge filament; generation 3 replaced only `::after` and left it
+behind, so every active tab had been wearing a stray glowing bar along its top
+edge. Similarly `.camp-tab.active` was being repainted as a violet slab with
+orange edge bars by a group rule 300 lines later — a look that appears nowhere
+in the reference.
+
+**Real bugs fixed, not just paint:**
+- **The Weaponsmith rack was 23px tall holding 414px of tiles.** Measured live.
+  `.forge-weapons` is a flex child with `overflow-y: auto`, which resolves
+  `min-height: auto` to zero. All 45 weapons were crushed into a strip. Fixed
+  with `flex: 0 0 auto`.
+- **`+ Grant Rune` was a DEBUG button shipped to players.** Its own comment said
+  so. It devalued all four real rune sources (Star Raid's Rune Run, the
+  end-of-run drop, the Well, reward payouts). Removed; the row now tells the
+  player where runes actually come from.
+- **The "giant violet STORY banner"** was never designed. `.gear-tab { flex: 1
+  1 auto }` meeting a row with ONE unlocked tab (MAPS/MISSIONS/CHALLENGES are
+  gated early) expands it to the full panel width. It looked correct on a fully
+  unlocked save, which is why it survived.
+- **Brass corners on the plaque were fully specified and invisible.** Line 8975
+  kills `.cp-plaque::before/::after` with `display: none`; a later rule wins
+  only for properties it declares, and `display` was not one of them.
+
+**Built:**
+- The Welcome screen's material applied to the camp one shade darker: panel
+  fill, teal outer ring, and the brass corner brackets (`--wl-brass #c9a463`,
+  14x2px arms at `inset: 5px`) that make a panel belong to this game.
+- **One sky, shared.** `CampCosmos` (deep, two counter-rotating nebulae, dust,
+  stars, 16 twinklers) now backs the Welcome screen too, instead of a second
+  copy. Ground dropped to near-black so the stars carry the screen.
+- **Campaign sub-nav moved into the left rail** under CONTINUE STORY, as rows
+  with a milled icon recess and a light filament — cyan dormant, violet live.
+  This also makes the banner bug structurally impossible.
+- **The XP medallion** rides the fill edge (`--xp-pct`), so it is a readout
+  rather than an ornament. It lives in a wrapper because the bar's chamfer
+  `clip-path` clips its own children.
+- **Weaponsmith tiles** now read each weapon's own accent from `ICONS[id][1]` —
+  the same pair the level-up card lights its art well with, so the two screens
+  cannot drift apart.
+
+**Reverted on request:** a change draining locked badges by hue instead of to
+flat grey. Timmy: *"andra for fan inte farg pa badges... va ju ratt pa dom"*.
+`BadgeIcon.jsx` is byte-identical to its pre-change state (verified by hash).
+The camp's badge SOCKETS were the actual mismatch and now use the Welcome
+screen's, brass underline included.
+
+All 12 suites green. **Note: `CLAUDE.md` lists `stag` and `eye-measure` as test
+files — neither exists** (`ERR_MODULE_NOT_FOUND`). There are twelve, not
+fourteen. `logic.test.mjs`'s campaign-pacing assertion no longer fails; it
+reports 36 checks passed.
+
+**Not verified: the phone viewport.** `resize_window` reports success but the
+window does not change and captures stay at desktop size. Stated rather than
+assumed.
+
+### Same session, second round — the quest board region
+
+- **The double-chevron divider had never been visible.** It was authored months
+  ago on `.camp-main .quest-tracker::after`, but that element carries a chamfer
+  `clip-path`, and **a clip-path clips the element's own pseudo-elements**. A
+  chevron hanging 25px below the board was sliced off at the board's edge every
+  time. Moved to `.camp-top-grid`, the unclipped wrapper, and given the
+  reference's violet strip behind it. This is the third instance of the same
+  trap this session (the XP medallion, the brass corners, this) — worth
+  remembering as a class: *if a pseudo-element is fully specified and simply
+  absent, check the parent for `clip-path`, `overflow`, or a `display: none`
+  that a later rule failed to override.*
+- **`CAMPAIGN` was set in a brush script.** `--font-epic` is 'Dragon Knight',
+  and `.camp-header h1` was in the same rule as the Weaponsmith's modal title.
+  Every other heading in the game — the Welcome screen's DAILY REWARD / DAILY
+  QUESTS / WEEKLY QUESTS, and CAMPAIGN in Timmy's own reference — is a Roman
+  serif. Removed from that rule and given `.welcome .panel-title`'s treatment:
+  Cinzel 800, warm ink, and a brass rule fading right in place of the dashed
+  white underline that belonged to no other screen.
+- **A specificity tie decided a layout bug.** `.camp-top-grid.full-width` sets
+  `margin-bottom: 16px` at (0,2,0); `.camp-main .camp-top-grid` is also (0,2,0)
+  and earlier, so it lost — which is why the divider kept landing across the
+  heading regardless of the value set. Matched `.full-width` to reach (0,3,0)
+  rather than editing their rule.
