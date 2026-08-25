@@ -2,6 +2,11 @@ import React, { useState } from 'react';
 import { CHAR_RARITIES, CHAR_RARITY_COLORS, CHAR_RARITY_NAMES, CHAR_SLOTS_BY_RARITY, CHAR_LEVEL_COST, CHAR_EVOLVE_COST, CHAR_MAX_LEVELS, charLevelStat, characterSlots } from '../game/data_ext2';
 import { Audio } from '../game/audio';
 import HeroFigure from './HeroFigure';
+
+/* Which portrait the Character screen shows: the 16-frame idle sprite, or the
+ * hand-built SVG drop. One word, so switching back costs nothing and neither
+ * version has to be deleted to try the other. */
+const PORTRAIT = 'sprite';   // 'sprite' | 'hardcoded'
 import GameIcon from './GameIcon';
 
 export default function CharacterPanel({ save, setSave, onClose }) {
@@ -87,11 +92,26 @@ export default function CharacterPanel({ save, setSave, onClose }) {
             you evolve, which is the whole point of the screen. */}
         <div className="char-portrait" style={{ '--rar': rarColor }}>
           <span className="char-portrait-grid" aria-hidden="true" />
-          <HeroFigure
-            className="char-portrait-drop"
-            rarColor={rarColor}
-            bandColor={bandColor}
-          />
+          {/* ── THE IDLE, AS A TEST ──────────────────────────────────
+              Timmy asked to see the 16-frame idle sheet running here instead
+              of the hand-drawn drop, to judge which one the character should
+              become. Both are kept: flip PORTRAIT below and nothing is lost.
+
+              The sprite is a TEST, not shipped art. This project's rule is
+              zero image assets — everything hand-built — and the strip in
+              public/sprites/ is here only so the two can be compared side by
+              side. If the hardcoded version wins, the file goes.
+
+              No canvas, no Pixi, no JS ticker: one strip and a CSS steps(16).
+              That is the sharpest and cheapest way to run 16 frames in a DOM
+              menu, and it cannot be clipped by anything. */}
+          {PORTRAIT === 'sprite'
+            ? <span className="char-portrait-sprite" aria-hidden="true" />
+            : <HeroFigure
+                className="char-portrait-drop"
+                rarColor={rarColor}
+                bandColor={bandColor}
+              />}
           {/* Holo pedestal the drop stands on. */}
           <span className="char-portrait-pad" aria-hidden="true" />
           <div className="char-portrait-name">

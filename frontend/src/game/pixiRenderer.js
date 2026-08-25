@@ -2678,32 +2678,60 @@ void main() {
         const shape = this._enemyShapeFor(e, t, s);
         this._paintShape(g, shape, bodyColor, { width: 2, color: '#000000' });
 
-        // Expressive 3D tracking eyes on enemies
+        // Expressive 3D tracking eyes on enemies with live biological state animations
         if (!t.boss && t.id !== 'slime') {
           let edx = 0, edy = 1;
           if (game.player) {
             const ex = game.player.x - e.x, ey = game.player.y - e.y, el = Math.hypot(ex, ey) || 1;
             edx = ex / el; edy = ey / el;
           }
-          const eyeOff = s * 0.22;
-          const eyeR = Math.max(1.8, s * 0.12);
-          const eyeX = e.x + edx * s * 0.18;
-          const eyeY = e.y + edy * s * 0.18 - s * 0.05;
-          const perpX = -edy * eyeOff, perpY = edx * eyeOff;
+          const isHurt = (e.hp / Math.max(1, e.maxHp)) < 0.38;
+          const isHit = e.hit > 0;
           const isAttacking = (e._windup > 0 || e._strikeT > 0);
-          const pupilColor = isAttacking ? '#ffffff' : '#ff2a3a';
-          const scleraColor = isAttacking ? '#ff7a1a' : '#2a0508';
+          const isBlinking = !isHit && !isAttacking && (Math.sin(game.time * 2.6 + e.x * 0.15 + (e.y || 0) * 0.08) > 0.965);
+
+          const eyeOff = s * 0.23;
+          const eyeR = Math.max(2.0, s * (isHit ? 0.15 : isAttacking ? 0.14 : 0.125));
+          const eyeX = e.x + edx * s * 0.20 + (isHit ? (Math.random() * 2.4 - 1.2) : 0);
+          const eyeY = e.y + edy * s * 0.20 - s * 0.05 + (isHit ? (Math.random() * 2.4 - 1.2) : 0);
+          const perpX = -edy * eyeOff, perpY = edx * eyeOff;
+
+          const pupilColor = isHit ? '#ffffff' : isAttacking ? '#ffe680' : isHurt ? '#ff1a2a' : '#ff3b4b';
+          const scleraColor = isHit ? '#ff3b4b' : isAttacking ? '#ff5a1a' : isHurt ? '#40080e' : '#1e0508';
 
           // Left and right eye sockets
           for (const side of [-1, 1]) {
             const ex2 = eyeX + perpX * side;
             const ey2 = eyeY + perpY * side;
-            // Sclera
-            g.circle(ex2, ey2, eyeR).fill({ color: scleraColor, alpha: 0.9 });
-            // Pupil tracking
-            g.circle(ex2 + edx * (eyeR * 0.35), ey2 + edy * (eyeR * 0.35), eyeR * 0.55).fill({ color: pupilColor, alpha: 0.95 });
-            // Specular glint
-            g.circle(ex2 - eyeR * 0.25, ey2 - eyeR * 0.25, eyeR * 0.25).fill({ color: '#ffffff', alpha: 0.85 });
+
+            if (isBlinking) {
+              // Eyelid blink slit
+              g.moveTo(ex2 - eyeR * 1.1, ey2).lineTo(ex2 + eyeR * 1.1, ey2)
+                .stroke({ width: 1.4, color: scleraColor, alpha: 0.95 });
+            } else {
+              // Sclera socket with depth
+              g.circle(ex2, ey2, eyeR).fill({ color: scleraColor, alpha: 0.95 });
+              if (isHurt) {
+                // Bloodshot socket rim
+                g.circle(ex2, ey2, eyeR * 1.15).stroke({ width: 0.9, color: '#8a0a14', alpha: 0.75 });
+              }
+
+              // Dynamic pupil tracking with focus & dilation
+              const pSize = isHit ? eyeR * 0.75 : isAttacking ? eyeR * 0.65 : isHurt ? eyeR * 0.45 : eyeR * 0.55;
+              const px = ex2 + edx * (eyeR * 0.38);
+              const py = ey2 + edy * (eyeR * 0.38);
+
+              if (isAttacking) {
+                // Predatory vertical slit pupil
+                g.ellipse(px, py, pSize * 0.35, pSize).fill({ color: pupilColor, alpha: 1.0 });
+                g.circle(px, py, pSize * 1.3).fill({ color: '#ffaa33', alpha: 0.3 });
+              } else {
+                g.circle(px, py, pSize).fill({ color: pupilColor, alpha: 0.95 });
+              }
+
+              // Specular glint
+              g.circle(ex2 - eyeR * 0.28, ey2 - eyeR * 0.28, Math.max(0.6, eyeR * 0.24)).fill({ color: '#ffffff', alpha: 0.9 });
+            }
           }
         }
 
@@ -3975,6 +4003,9 @@ void main() {
         g.moveTo(outer[0], outer[1]);
         for (let s2 = 1; s2 <= SEG; s2++) g.lineTo(outer[s2 * 2], outer[s2 * 2 + 1]);
         g.stroke({ width: 1.2, color: 0xff6a78, alpha: 0.45 * alpha });
+        if (alpha > 0.1) {
+          this._emitLight(p.x + ca2 * reach * 0.5, p.y + sa2 * reach * 0.5, reach * 1.3, '#ff1a2a', 0.28 * alpha);
+        }
       } else if (p.type === 'skinFlake') {
         // A torn-off piece of hide, not a dot. Drawn as a small irregular
         // quad that tumbles as it flies and darkens on its trailing face, so a
@@ -4055,6 +4086,10 @@ void main() {
         g.moveTo(p.x + Math.cos(lead) * R * 0.35, p.y + Math.sin(lead) * R * 0.35)
           .lineTo(p.x + Math.cos(lead) * R, p.y + Math.sin(lead) * R)
           .stroke({ width: p._lead != null ? p._lead : 2.4, color: 0xffffff, alpha: 0.9 * fade });
+        // Dynamic blade light emission
+        if (fade > 0.1) {
+          this._emitLight(p.x + Math.cos(lead) * R * 0.7, p.y + Math.sin(lead) * R * 0.7, R * 1.5, p.color || '#dff4ff', 0.45 * fade);
+        }
       } else if (p.type === 'cutLine') {
         // The instant of the cut: a white line straight through where the body
         // was, blooming and vanishing.
@@ -4065,6 +4100,9 @@ void main() {
           .stroke({ width: 5 * (1 - t01), color: 0xffffff, alpha: 0.85 * (1 - t01) });
         g.moveTo(p.x - ca * L, p.y - sa * L).lineTo(p.x + ca * L, p.y + sa * L)
           .stroke({ width: 1.4, color: 0xdff4ff, alpha: 1 - t01 });
+        if (t01 < 0.85) {
+          this._emitLight(p.x, p.y, L * 1.8, '#ffffff', 0.65 * (1 - t01));
+        }
       } else if (p.type === 'bisectHalf') {
         // Half a body, sliding away from the cut and toppling as it goes. Drawn
         // as a half-disc clipped along the cut line, so the flat face reads as

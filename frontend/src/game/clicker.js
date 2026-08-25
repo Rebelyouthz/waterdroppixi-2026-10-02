@@ -24,15 +24,95 @@ export const CLICKER_BUILDINGS = [
   { id: 'monolith',  name: 'Cosmic Monolith Core',icon: 'ui_void',   base: 140000000, growth: 1.23, rate: 480000,   cycle: 640.0, desc: 'Pumps eldritch H2O from the space between dimensions.' },
 ];
 
+export const CLICKER_MAPS = [
+  {
+    id: 'gobekli',
+    name: 'Göbekli Tepe Sanctuary',
+    era: '10,000 BC',
+    theme: 'municipal',
+    desc: 'The ancient stone circle where the first drop was worshipped.',
+    accent: 0xe0a050,
+  },
+  {
+    id: 'stonehenge',
+    name: 'Stonehenge Solstice & Crop Circles',
+    era: '3,000 BC',
+    theme: 'haarp',
+    desc: 'Trilithon sunbeam alignment amidst glowing mysterious wheat patterns.',
+    accent: 0x4dffd4,
+  },
+  {
+    id: 'pyramid',
+    name: 'The Great Seal Pyramid',
+    era: '1776 AD',
+    theme: 'pyramid',
+    desc: 'Stepped masonry with the floating radiant Eye of Providence.',
+    accent: 0xffd166,
+  },
+  {
+    id: 'dumbtower',
+    name: 'DUMB TOWER & Golden Escalator',
+    era: 'Modern Era',
+    theme: 'deepstate',
+    desc: 'Ultra-luxurious gold skyscraper drilling through bunker level 5.',
+    accent: 0xffaa00,
+  },
+  {
+    id: 'armold_mansion',
+    name: "Armold's Belgian Blue Mansion",
+    era: 'Classified',
+    theme: 'fluoride',
+    desc: 'Heavy iron weights, mini-horse stable, and heavy miniguns.',
+    accent: 0x39ff14,
+  },
+  {
+    id: 'bohemian',
+    name: 'Bohemian Grove (Blood Moon)',
+    era: 'The Deep Night',
+    theme: 'cosmic',
+    desc: '40-foot stone owl statue in dark redwoods under a blood moon.',
+    accent: 0xff3366,
+  },
+];
+
+export const CLICKER_RESEARCH_TREE = [
+  { id: 'tech_condenser', buildingId: 'condenser', name: 'Aluminium Alchemy', cost: 5, mult: 3.0, desc: '×3 Tin-Foil Condenser production.' },
+  { id: 'tech_siphon', buildingId: 'net', name: 'Cloud Seeding Protocol', cost: 15, mult: 3.0, desc: '×3 Chemtrail Siphon production.' },
+  { id: 'tech_fluoride', buildingId: 'fluoride', name: 'Kinetic Tap Fury', cost: 40, mult: 4.0, desc: '×4 Fluoride Scrubber production.' },
+  { id: 'tech_haarp', buildingId: 'trap', name: 'Ionospheric Resonance', cost: 100, mult: 5.0, desc: '×5 HAARP Cloud Trap production.' },
+  { id: 'tech_dumb', buildingId: 'aquifer', name: 'Golden Escalator Drill', cost: 250, mult: 5.0, desc: '×5 Deep State Borehole production.' },
+  { id: 'tech_coil', buildingId: 'coil', name: 'Subliminal Hypnosis 432Hz', cost: 600, mult: 6.0, desc: '×6 Subliminal Coil production.' },
+  { id: 'tech_pyramid', buildingId: 'engine', name: 'Sacred Capstone Beam', cost: 1500, mult: 8.0, desc: '×8 Pyramid Dynamo production.' },
+  { id: 'tech_reptilian', buildingId: 'bureau', name: 'Classified Reptilian Docket', cost: 4000, mult: 10.0, desc: '×10 Reptilian Bureau production.' },
+  { id: 'tech_annunaki', buildingId: 'annunaki', name: 'Stargate Deep Pipeline', cost: 12000, mult: 15.0, desc: '×15 Annunaki Wellspring production.' },
+  { id: 'tech_monolith', buildingId: 'monolith', name: 'Eldritch Void Straw', cost: 50000, mult: 25.0, desc: '×25 Cosmic Monolith Core production.' },
+  { id: 'tech_armold_rush', name: 'Belgian Blue Hyper-Pump', cost: 30, desc: 'Armold spawns 50% more often and gives ×3 Frenzy.' },
+  { id: 'tech_ship_scrapper', name: 'Star-Atlas Salvager', cost: 80, desc: 'Chests and bosses drop Star-Atlas Ship Scraps.' },
+  { id: 'tech_blood_frenzy', name: 'Blood Moon Cultist', cost: 200, desc: 'Blood Moon yields ×5 drops and guaranteed rare loot.' },
+];
+
+export function getBuildingTechMult(clicker, buildingId) {
+  const tech = clicker?.tech || {};
+  const node = CLICKER_RESEARCH_TREE.find(t => t.buildingId === buildingId);
+  return (node && tech[node.id]) ? node.mult : 1.0;
+}
+
+export const STAR_ATLAS_SHIP_COMPONENTS = [
+  { id: 'hull', name: 'Titanium-Alloy Hull', req: 15, icon: 'shield', desc: '+10% Gold from all sources.' },
+  { id: 'engine', name: 'Hyper-Drive Thruster', req: 40, icon: 'meteor', desc: '+15% Flux generation.' },
+  { id: 'core', name: 'Quantum Water Core', req: 80, icon: 'orb', desc: '×2 Clicker Passive Drops.' },
+  { id: 'bridge', name: 'Star-Atlas Holo-Deck', req: 160, icon: 'ui_eye', desc: '+5 Max Gems & +1 SP.' },
+];
+
 export const CLICKER_MANAGERS = [
   {
     id: 'arnold',
     buildingId: 'condenser',
-    name: 'The Austrian Governator',
-    title: 'Adrenochrome & Belgian Blue Enforcer',
+    name: 'Armold Svartnmeger',
+    title: 'Swedish-Austrian Terminator & Belgian Blue Enforcer',
     cost: 500,
     icon: 'pVamp',
-    bio: 'Pumped to maximum vascularity on Belgian Blue bovine anabolics. Gallops into the boardroom on his real-life dachshund-sized miniature pony with twin heavy assault cannons.',
+    bio: '100% Swedish parody. Pumped to maximum vascularity on Belgian Blue bovine anabolics. Gallops into battle on his real-life dachshund-sized miniature pony with twin rotary cannons.',
     speedMult: 2.0,
   },
   {
@@ -48,48 +128,48 @@ export const CLICKER_MANAGERS = [
   {
     id: 'royal_reptilian',
     buildingId: 'fluoride',
-    name: 'Shape-Shifting Royal Matriarch',
-    title: 'Her Majesty of the Scaly Commonwealth',
+    name: 'Queen Liz-Reptilia',
+    title: 'Sovereign of the Scaly Commonwealth',
     cost: 12000,
     icon: 'trident',
-    bio: 'Drinks classified Earl Grey with vertical reptilian slit pupils. Hides a 4-foot tail beneath royal ermine robes.',
+    bio: 'Drinks classified Earl Grey with vertical reptilian slit pupils. Hides a 4-meter tail beneath royal ermine robes.',
     speedMult: 1.0,
   },
   {
     id: 'skull_president',
     buildingId: 'trap',
-    name: 'Skull & Bones Grandmaster',
-    title: 'Occult Commander-in-Chief',
+    name: 'Grandmaster Skully',
+    title: 'Skull & Bones Grandmaster',
     cost: 60000,
     icon: 'orb',
     bio: 'Executes esoteric handshakes with lightning antennas. Speaks fluent thunderstorm Morse code.',
     speedMult: 1.0,
   },
   {
-    id: 'deepstate_director',
+    id: 'president_dumb',
     buildingId: 'aquifer',
-    name: 'Bunker Level 5 Director',
-    title: 'Subterranean Bureaucracy Overlord',
+    name: 'President Dumb',
+    title: 'CEO of DUMB TOWER & The Golden Escalator',
     cost: 350000,
     icon: 'beam',
-    bio: 'Has lived 3,000 meters below ground since 1974. Subsists entirely on heavy water and redacted transcripts.',
+    bio: 'Sporting the longest red tie in the hemisphere and a gravity-defying golden combover. Drills luxury gold boreholes right through bunker level 5.',
     speedMult: 1.0,
   },
   {
     id: 'tech_transhumanist',
     buildingId: 'coil',
-    name: 'Silicon Valley Transhumanist',
-    title: 'Neural Wetware Visionary',
+    name: 'Elongated Muskrat',
+    title: 'X-Oligarch & Cyber-Plumber',
     cost: 2000000,
     icon: 'bolt',
-    bio: 'Replaced his nervous system with fiber-optic water pipes to optimize quarterly liquidity.',
+    bio: 'Replaced his nervous system with fiber-optic water pipes to optimize quarterly liquidity on Mars.',
     speedMult: 1.0,
   },
   {
     id: 'hollywood_cabal',
     buildingId: 'engine',
-    name: 'Red-Carpet Glamour High Priestess',
-    title: 'A-List Sacred Geometrician',
+    name: 'Lady GaGaggle',
+    title: 'Red-Carpet High Priestess',
     cost: 15000000,
     icon: 'meteor',
     bio: 'Chants pyramid alignment incantations between award show acceptance speeches.',
@@ -98,7 +178,7 @@ export const CLICKER_MANAGERS = [
   {
     id: 'lizard_senator',
     buildingId: 'bureau',
-    name: 'Senate Majority Reptilian',
+    name: 'Senator Cold-Blood',
     title: 'Sub-Committee on Humidity Control',
     cost: 100000000,
     icon: 'ui_eye',
@@ -108,7 +188,7 @@ export const CLICKER_MANAGERS = [
   {
     id: 'annunaki_envoy',
     buildingId: 'annunaki',
-    name: 'Annunaki Fleet Commander',
+    name: 'Annunaki Gold-Hoarder',
     title: 'Sumerian Orbital Well Custodian',
     cost: 800000000,
     icon: 'trident',
@@ -118,7 +198,7 @@ export const CLICKER_MANAGERS = [
   {
     id: 'monolith_overseer',
     buildingId: 'monolith',
-    name: 'The Eldritch Entity',
+    name: 'The Cosmic Void Squid',
     title: 'Voice of the Void Pipeline',
     cost: 6000000000,
     icon: 'ui_void',
@@ -138,6 +218,7 @@ export function isBuildingAutomated(clicker, buildingId) {
 export const CLICK_UPGRADE = { base: 40, growth: 1.28, per: 1 };
 
 export function buildingCost(def, owned) {
+
   return Math.ceil(def.base * Math.pow(def.growth, owned));
 }
 
@@ -197,7 +278,10 @@ export function doPrestige(clicker) {
 export function dropsPerSec(clicker) {
   const owned = clicker?.buildings || {};
   let rate = 0;
-  for (const def of CLICKER_BUILDINGS) rate += (owned[def.id] || 0) * def.rate;
+  for (const def of CLICKER_BUILDINGS) {
+    const techMult = getBuildingTechMult(clicker, def.id);
+    rate += (owned[def.id] || 0) * def.rate * techMult;
+  }
   return rate * prestigeMult(clicker);
 }
 

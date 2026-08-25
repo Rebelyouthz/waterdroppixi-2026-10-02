@@ -2467,16 +2467,22 @@ export class Game {
   static FIN_G = 1500;
 
   static KATANA_STYLES = [
-    // name        span(rad) reach  life  thick  lead
-    { span: 1.10, reach: 0.55, life: 0.17, th: 0.20, lead: 2.4 },  // level cut
-    { span: 0.70, reach: 0.46, life: 0.12, th: 0.14, lead: 2.0 },  // short flick
-    { span: 1.52, reach: 0.6, life: 0.22, th: 0.27, lead: 3.0 },  // heavy sweep
-    { span: 0.34, reach: 0.66, life: 0.14, th: 0.10, lead: 3.4 },  // thrust
+    // name                     span(rad) reach  life  thick  lead
+    { span: 1.15, reach: 0.58, life: 0.16, th: 0.22, lead: 2.6 },  // 0: Level Horizontal Cut (Kesagiri)
+    { span: 0.72, reach: 0.48, life: 0.11, th: 0.16, lead: 2.1 },  // 1: Short Snap Flick (Hayagake)
+    { span: 1.60, reach: 0.64, life: 0.22, th: 0.28, lead: 3.2 },  // 2: Heavy Sweeping Cleave (Kasa-Barai)
+    { span: 0.36, reach: 0.72, life: 0.13, th: 0.12, lead: 3.6 },  // 3: Piercing Thrust (Tsuki)
+    { span: 1.25, reach: 0.60, life: 0.18, th: 0.24, lead: 2.8 },  // 4: Rising Diagonal Uppercut (Kiriage)
+    { span: 0.95, reach: 0.65, life: 0.15, th: 0.26, lead: 3.0 },  // 5: Descending Helm Splitter (Kabuto-Wari)
+    { span: Math.PI, reach: 0.66, life: 0.24, th: 0.30, lead: 3.4 }, // 6: 180° Cyclone Arc (Senpu-Giri)
+    { span: Math.PI * 1.85, reach: 0.70, life: 0.28, th: 0.32, lead: 3.8 }, // 7: 360° Full Moon Dance (Engetsu-Zan)
+    { span: 1.05, reach: 0.52, life: 0.14, th: 0.18, lead: 2.4 },  // 8: Reverse Back-Slice (Gyaku-Giri)
+    { span: 1.40, reach: 0.62, life: 0.20, th: 0.25, lead: 3.0 },  // 9: Dual Shadow Helix (Jumonji-Giri)
   ];
 
   spawnKatanaSlash(x, y, reach, color, ang, dir) {
     const p = this.parts.acquire();
-    const idx = (this._katanaStyle = ((this._katanaStyle || 0) + 1) % 4);
+    const idx = (this._katanaStyle = ((this._katanaStyle || 0) + 1) % Game.KATANA_STYLES.length);
     const st = Game.KATANA_STYLES[idx];
     p.x = x; p.y = y; p.vx = 0; p.vy = 0;
     p.life = st.life; p.max = st.life;
@@ -2485,71 +2491,120 @@ export class Game {
     p._span = st.span; p._th = st.th; p._lead = st.lead;
   }
 
-  // A killing cut. Five ways a body comes apart, rolled per kill, so cutting
-  // down a crowd never plays the same animation twice in a row.
+  // A killing cut. Ten distinct gruesome ways a body comes apart, rolled per kill,
+  // so cutting down a horde is a dynamic feast of varied anatomical slices.
   //
   // Every variant respects `ang` -- the direction the blade actually travelled
   // -- because the whole point is that the cut reads as YOUR cut.
   spawnBisect(x, y, ang, color, size) {
     const S = size || 22;
-    const style = Math.floor(Math.random() * 5);
+    const style = Math.floor(Math.random() * 10);
     // Emits one body piece.
-    const piece = (pAng, side, frac, off, push, life, extraVy = 0) => {
+    const piece = (pAng, side, frac, off, push, life, extraVy = 0, rotSpd = 0) => {
       const h = this.parts.acquire();
       const px = Math.cos(pAng + Math.PI / 2) * side;
       const py = Math.sin(pAng + Math.PI / 2) * side;
       h.x = x + Math.cos(pAng) * off;
       h.y = y + Math.sin(pAng) * off;
-      h.vx = px * push + Math.cos(pAng) * rand(-20, 20);
-      h.vy = py * push + Math.sin(pAng) * rand(-20, 20) - rand(10, 40) + extraVy;
+      h.vx = px * push + Math.cos(pAng) * rand(-25, 25);
+      h.vy = py * push + Math.sin(pAng) * rand(-25, 25) - rand(10, 50) + extraVy;
       h.life = life; h.max = life;
       h.color = color; h.size = S * frac;
       h.type = 'bisectHalf';
       h._ang = pAng; h._side = side;
+      h._spin = rotSpd || rand(1.2, 3.5) * (Math.random() < 0.5 ? -1 : 1);
       return h;
     };
 
     if (style === 0) {
-      // Style 0: Clean 2-half bisect along blade angle + dual perpendicular arterial V-fountains
-      piece(ang, -1, 0.5, 0, rand(45, 85), 1.8);
-      piece(ang, 1, 0.5, 0, rand(45, 85), 1.8);
-      this._cutFlash(x, y, ang, S * 1.8);
-      this.spawnArterialCone(x, y, ang + Math.PI / 2, color, 1.1);
-      this.spawnArterialCone(x, y, ang - Math.PI / 2, color, 1.1);
+      // Style 0: Clean 50/50 bisect along blade angle + dual perpendicular arterial V-fountains
+      piece(ang, -1, 0.5, 0, rand(50, 90), 1.9);
+      piece(ang, 1, 0.5, 0, rand(50, 90), 1.9);
+      this._cutFlash(x, y, ang, S * 1.9);
+      this.spawnArterialCone(x, y, ang + Math.PI / 2, color, 1.2);
+      this.spawnArterialCone(x, y, ang - Math.PI / 2, color, 1.2);
+      this.pushBloodDecal({ x, y, r: S * 0.7, a: 0.65, bornAt: this.time, color: BLOOD_RED });
     } else if (style === 1) {
       // Style 1: Asymmetrical diagonal carve (70/30) with spinning tumble & floor smear
-      piece(ang + 0.25, -1, 0.65, 4, rand(55, 100), 2.2, -30);
-      piece(ang - 0.25, 1, 0.35, -4, rand(25, 50), 1.6, 10);
-      this._cutFlash(x, y, ang, S * 2.0);
-      this.spawnArterialCone(x, y, ang + Math.PI / 2, color, 1.3);
-      this.pushBloodDecal({ x: x + Math.cos(ang) * 12, y: y + Math.sin(ang) * 12, r: S * 0.7, a: 0.65, bornAt: this.time, color: BLOOD_RED });
+      piece(ang + 0.25, -1, 0.68, 4, rand(60, 110), 2.3, -30, 4.2);
+      piece(ang - 0.25, 1, 0.32, -4, rand(30, 60), 1.7, 10, -2.5);
+      this._cutFlash(x, y, ang, S * 2.1);
+      this.spawnArterialCone(x, y, ang + Math.PI / 2, color, 1.35);
+      this.pushBloodDecal({ x: x + Math.cos(ang) * 14, y: y + Math.sin(ang) * 14, r: S * 0.75, a: 0.7, bornAt: this.time, color: BLOOD_RED });
     } else if (style === 2) {
-      // Style 2: Decapitation / Crest Uppercut (severed top launched high, geyser fountain upward)
-      piece(ang, -1, 0.4, -S * 0.2, rand(30, 60), 2.4, -rand(140, 220));
-      piece(ang, 1, 0.6, S * 0.2, rand(15, 35), 1.8, 20);
-      this._cutFlash(x, y, -Math.PI / 2, S * 1.6);
-      this.spawnArterialCone(x, y, -Math.PI / 2, color, 1.4);
+      // Style 2: Decapitation / Crest Uppercut (severed head launched high, upward geyser fountain)
+      piece(ang, -1, 0.38, -S * 0.25, rand(35, 70), 2.6, -rand(160, 240), 6.0);
+      piece(ang, 1, 0.62, S * 0.25, rand(15, 40), 1.9, 20, 1.2);
+      this._cutFlash(x, y, -Math.PI / 2, S * 1.7);
+      this.spawnArterialCone(x, y, -Math.PI / 2, color, 1.5);
       for (let i = 0; i < 4; i++) {
-        this.pushBloodDecal({ x: x + rand(-18, 18), y: y + rand(10, 40), r: rand(1.5, 3.2), a: 0.55, bornAt: this.time, color: BLOOD_RED });
+        this.pushBloodDecal({ x: x + rand(-20, 20), y: y + rand(10, 45), r: rand(1.6, 3.4), a: 0.6, bornAt: this.time, color: BLOOD_RED });
       }
     } else if (style === 3) {
       // Style 3: Cross Cleave / X-Slash Execution (dual cut flashes, 4 quarters burst, micro-slowmo)
-      piece(ang - 0.4, -1, 0.3, -4, rand(60, 95), 1.9);
-      piece(ang - 0.4, 1, 0.3, 4, rand(60, 95), 1.9);
-      piece(ang + 0.4, -1, 0.3, -4, rand(60, 95), 1.9);
-      piece(ang + 0.4, 1, 0.3, 4, rand(60, 95), 1.9);
-      this._cutFlash(x, y, ang - 0.45, S * 1.8);
-      this._cutFlash(x, y, ang + 0.45, S * 1.8);
-      this.spawnArterialCone(x, y, ang, color, 1.3);
-      this.spawnArterialCone(x, y, ang + Math.PI, color, 1.3);
+      piece(ang - 0.4, -1, 0.28, -4, rand(65, 105), 2.0, 0, 3.5);
+      piece(ang - 0.4, 1, 0.28, 4, rand(65, 105), 2.0, 0, -3.5);
+      piece(ang + 0.4, -1, 0.28, -4, rand(65, 105), 2.0, 0, 3.5);
+      piece(ang + 0.4, 1, 0.28, 4, rand(65, 105), 2.0, 0, -3.5);
+      this._cutFlash(x, y, ang - 0.45, S * 1.9);
+      this._cutFlash(x, y, ang + 0.45, S * 1.9);
+      this.spawnArterialCone(x, y, ang, color, 1.4);
+      this.spawnArterialCone(x, y, ang + Math.PI, color, 1.4);
       this.cam.slowmo = Math.max(this.cam.slowmo, 0.08);
+      this.pushBloodDecal({ x, y, r: S * 0.95, a: 0.8, bornAt: this.time, color: BLOOD_RED });
+    } else if (style === 4) {
+      // Style 4: Flank Parting (25% carved lateral side flying off, main body collapsing with deep puddle)
+      piece(ang + Math.PI / 2, 1, 0.26, S * 0.35, rand(75, 130), 1.7, -20, 5.0);
+      piece(ang, -1, 0.74, 0, rand(20, 50), 2.1, 0, 0.8);
+      this._cutFlash(x, y, ang, S * 1.8);
+      this.spawnArterialCone(x, y, ang + Math.PI / 2, color, 1.3);
+      this.pushBloodDecal({ x, y, r: S * 0.85, a: 0.75, bornAt: this.time, color: BLOOD_RED });
+    } else if (style === 5) {
+      // Style 5: 1/3 Upper Torso Sever (high diagonal slice with flying crown & cascading twin spray)
+      piece(ang + 0.3, -1, 0.33, -S * 0.2, rand(50, 95), 2.2, -rand(80, 140), 4.5);
+      piece(ang - 0.1, 1, 0.67, S * 0.15, rand(25, 55), 2.0, 15, -1.5);
+      this._cutFlash(x, y, ang + 0.3, S * 2.0);
+      this.spawnArterialCone(x, y, ang + Math.PI * 0.4, color, 1.3);
+      this.spawnArterialCone(x, y, ang - Math.PI * 0.4, color, 1.2);
+      this.pushBloodDecal({ x, y, r: S * 0.7, a: 0.6, bornAt: this.time, color: BLOOD_RED });
+    } else if (style === 6) {
+      // Style 6: 1/4 Shoulder-to-Hip Cleave (heavy diagonal split sliding apart on ground with skid marks)
+      piece(ang - 0.5, -1, 0.25, -S * 0.25, rand(80, 140), 2.1, -10, 3.8);
+      piece(ang + 0.2, 1, 0.75, S * 0.1, rand(20, 45), 2.3, 0, 0.9);
+      this._cutFlash(x, y, ang - 0.5, S * 2.2);
+      this.spawnArterialCone(x, y, ang + Math.PI / 2, color, 1.35);
+      // Skid blood streak along the floor
+      for (let k = -2; k <= 2; k++) {
+        this.pushBloodDecal({ x: x + Math.cos(ang) * k * 8, y: y + Math.sin(ang) * k * 8, r: S * 0.35, a: 0.6, bornAt: this.time, color: BLOOD_RED });
+      }
+    } else if (style === 7) {
+      // Style 7: 1/8 Crown Chip / Scalp Chop (precision scalp cut with fast spinning cap piece)
+      piece(ang, -1, 0.14, -S * 0.4, rand(60, 120), 2.4, -rand(120, 190), 8.0);
+      piece(ang, 1, 0.86, S * 0.05, rand(10, 30), 2.0, 0, 0.5);
+      this._cutFlash(x, y, ang, S * 1.6);
+      this.spawnArterialCone(x, y, -Math.PI / 2, color, 1.2);
+      this.pushBloodDecal({ x, y, r: S * 0.5, a: 0.55, bornAt: this.time, color: BLOOD_RED });
+    } else if (style === 8) {
+      // Style 8: Sashimi 5-Piece Gore Eruption (multi-cleave burst into 5 flying chunks with blood mist)
+      for (let i = 0; i < 5; i++) {
+        const pAng = ang + (i - 2) * 0.4;
+        piece(pAng, i % 2 === 0 ? 1 : -1, 0.22, rand(-6, 6), rand(70, 130), 2.0, rand(-60, 60), rand(3, 7));
+      }
+      this._cutFlash(x, y, ang - 0.3, S * 2.0);
+      this._cutFlash(x, y, ang + 0.3, S * 2.0);
+      this.spawnArterialCone(x, y, ang, color, 1.6);
+      this.pushBloodDecal({ x, y, r: S * 1.1, a: 0.85, bornAt: this.time, color: BLOOD_RED });
+      this.cam.slowmo = Math.max(this.cam.slowmo, 0.10);
     } else {
-      // Style 4: Flank Parting (25% carved side flying off, main body collapsing with deep puddle)
-      piece(ang + Math.PI / 2, 1, 0.28, S * 0.3, rand(70, 120), 1.6);
-      piece(ang, -1, 0.72, 0, rand(20, 45), 2.0);
-      this._cutFlash(x, y, ang, S * 1.7);
-      this.spawnArterialCone(x, y, ang + Math.PI / 2, color, 1.25);
-      this.pushBloodDecal({ x, y, r: S * 0.8, a: 0.7, bornAt: this.time, color: BLOOD_RED });
+      // Style 9: Earth-Splitter Vertical Cleave (downward vertical axe cleave with ground furrow & arterial shockwave)
+      piece(Math.PI / 2, -1, 0.5, 0, rand(70, 110), 2.1, 0, 1.5);
+      piece(Math.PI / 2, 1, 0.5, 0, rand(70, 110), 2.1, 0, -1.5);
+      this._cutFlash(x, y, Math.PI / 2, S * 2.4);
+      this.spawnArterialCone(x, y, Math.PI / 2, color, 1.5);
+      this.spawnArterialCone(x, y, -Math.PI / 2, color, 1.5);
+      this.spawnRing(x, y, S * 1.8, BLOOD_RED, 0.4);
+      this.pushBloodDecal({ x, y, r: S * 1.0, a: 0.8, bornAt: this.time, color: BLOOD_RED });
+      this.cam.shake = Math.max(this.cam.shake, 6);
     }
 
     // Droplet spatter along the blade axis
@@ -5557,13 +5612,15 @@ export class Game {
     // the gib burst and the pool here as well would tear the enemy apart
     // TWICE - once now, once when the execution ends.
     const _finTook = this.tryFinisher(e, t, finalBlood, fx);
+    const km = e._marks && e._marks.length ? e._marks[e._marks.length - 1] : null;
+    const kAng = km && km.ang !== undefined ? km.ang : Math.random() * TAU;
     if (!t.boss && !_finTook) {
-      const km = e._marks && e._marks.length ? e._marks[e._marks.length - 1] : null;
-      const kAng = km && km.ang !== undefined ? km.ang : Math.random() * TAU;
       this.spawnArterialCone(e.x, e.y, kAng, finalBlood, Math.min(1, 0.4 + t.size / 60));
     }
+    const _isKatanaKill = /katana/i.test(s._wid || '') || s._lastHitWeapon === 'katana';
+    const effectiveFx = _isKatanaKill && !t.boss ? 'bisect' : fx;
     if (!_finTook) {
-      this.spawnBrutalKill(e.x, e.y, finalBlood, t.size, fx);
+      this.spawnBrutalKill(e.x, e.y, finalBlood, t.size, effectiveFx, kAng);
       Audio.kill(t.size, !!t.boss);
     }
     // Ground mark where the body fell — was a body-sized (0.85x) flat pool
@@ -5639,7 +5696,7 @@ export class Game {
     this.enemies.release(e);
   }
 
-  spawnBrutalKill(x, y, color, size, fx) {
+  spawnBrutalKill(x, y, color, size, fx, kAng) {
     const qualHi = this._qualityHigh !== false;
     // Kills spend against the same budget as everything else but with a much
     // higher floor than routine hits — the death burst is the payoff moment,
@@ -5788,19 +5845,16 @@ export class Game {
       this.spawnRing(x, y, size * 1.3, '#ff7a1a', 0.35);
       this.pushBloodDecal({ x, y, r: size * 0.7, a: 0.55, bornAt: this.time, color: '#2a1a12' });
     } else if (fx === 'bisect') {
-      for (let i = 0; i < Math.round(30 * cnt); i++) {
+      const sliceAng = kAng !== undefined ? kAng : Math.random() * TAU;
+      this.spawnBisect(x, y, sliceAng, color, size);
+      for (let i = 0; i < Math.round(18 * cnt); i++) {
         const pp = this.parts.acquire();
-        pp.x = x + rand(-4,4); pp.y = y + rand(-4,4);
-        const a = Math.random() * TAU; const sp = rand(160, 440);
-        pp.vx = Math.cos(a)*sp; pp.vy = Math.sin(a)*sp - rand(30, 120);
-        pp.life = rand(0.5,1.0); pp.max = pp.life; pp.color = BLOOD_RED; pp.size = rand(1.6,3.4); pp.type = 'blood';
-      }
-      for (let i = 0; i < 3; i++) {
-        const pp = this.parts.acquire();
-        pp.x = x; pp.y = y;
-        const a = (i / 3) * TAU - 0.4;
-        pp.vx = Math.cos(a) * 300; pp.vy = Math.sin(a) * 300 - 180;
-        pp.life = 0.9; pp.max = 0.9; pp.color = color; pp.size = size * 0.22; pp.type = 'chunk';
+        pp.x = x + rand(-4, 4); pp.y = y + rand(-4, 4);
+        const a = sliceAng + rand(-0.7, 0.7) + (i % 2 === 0 ? Math.PI / 2 : -Math.PI / 2);
+        const sp = rand(160, 440);
+        pp.vx = Math.cos(a) * sp; pp.vy = Math.sin(a) * sp - rand(20, 100);
+        pp.life = rand(0.4, 0.9); pp.max = pp.life; pp.color = BLOOD_RED;
+        pp.size = rand(1.4, 3.2); pp.type = 'blood'; pp._mist = i % 3 === 0;
       }
     } else {
       // Enhanced standard death: blood spray + body chunks + spark ring
