@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Audio } from '../game/audio';
-import { REWARD_TIERS } from '../game/campaign';
+import { REWARD_TIERS, runDebrief } from '../game/campaign';
+import { isStationRepaired } from '../game/base';
 import GameIcon from './GameIcon';
 
 const fmt = (t) => {
@@ -25,6 +26,7 @@ const ITEM_META = {
   gems:         { icon: 'cur_gems', name: 'Gems',          tone: 'gem' },
   sp:           { icon: 'cur_sp',   name: 'Skill Points',  tone: 'rune' },
   talentPoints: { icon: 'cur_tp',   name: 'Talent Points', tone: 'green' },
+  comboPoints:  { icon: 'cur_cp',   name: 'Combo Points',  tone: 'gold' },
   gearParts:    { icon: 'ui_cog',   name: 'Gear Parts',    tone: 'steel' },
   petFood:      { icon: 'petFood',  name: 'Pet Food',      tone: 'warm' },
   slotCoins:    { icon: 'cur_slot', name: 'Slot Coins',    tone: 'gold' },
@@ -37,7 +39,7 @@ const ITEM_META = {
 };
 // Display order: the currencies you spend most often first, the rare drops
 // last so they are the ones still landing when the confetti peaks.
-const ORDER = ['gold', 'xp', 'sp', 'talentPoints', 'gearParts', 'gems',
+const ORDER = ['gold', 'xp', 'sp', 'talentPoints', 'comboPoints', 'gearParts', 'gems',
   'slotCoins', 'petFood', 'gachaTokens', 'gear', 'rune', 'artifact', 'egg'];
 
 // A number that rolls up to its value. Counting is most of why a reward reads
@@ -57,7 +59,7 @@ function CountTo({ value, delay }) {
     const id = setTimeout(() => { raf.current = requestAnimationFrame(tick); }, delay);
     return () => { clearTimeout(id); cancelAnimationFrame(raf.current); };
   }, [value, delay]);
-  return <>{n.toLocaleString('sv-SE')}</>;
+  return <>{n.toLocaleString('en-US')}</>;
 }
 
 export default function GameOver({ result, extras, save, payout, onCamp, onRetry, onMenu }) {
@@ -124,12 +126,18 @@ export default function GameOver({ result, extras, save, payout, onCamp, onRetry
     ...(result.gearParts > 0 ? [{ icon: 'ui_cog', label: 'Gear Parts', val: '+' + result.gearParts }] : []),
   ];
 
+  const firstHome = !!(save?.pendingStationWalk) && !isStationRepaired(save);
+  const orbitHome = firstHome || (payout && payout.node && payout.node.id === 'orbit_find');
+  const debrief = save ? runDebrief(save) : null;
+  const campLabel = debrief?.campLabel || (orbitHome ? 'WALK THE HALL' : 'Camp');
+  const lockRetry = orbitHome || !!debrief?.lockRetry;
+
   const badges = [];
   if (ex.isBestTime)   badges.push({ icon: 'ui_clock',    label: 'NEW BEST TIME' });
   if (ex.isBestKills)  badges.push({ icon: 'ui_bolt',     label: 'NEW LEVEL RECORD' });
   if (ex.isBestScore)  badges.push({ icon: 'ui_medal',    label: 'NEW BEST SCORE' });
   if (ex.noHit)        badges.push({ icon: 'ui_gem',      label: 'FLAWLESS RUN' });
-  if (result.victory || result.aidaKilled) badges.push({ icon: 'ui_trophy', label: 'A.I.D.A. SLAIN' });
+  if ((result.victory || result.aidaKilled) && !orbitHome) badges.push({ icon: 'ui_trophy', label: 'A.I.D.A. SLAIN' });
   if (result.endless)  badges.push({ icon: 'ui_infinity', label: 'ENDLESS SURVIVOR' });
   if (ex.challengeBonus) badges.push({ icon: 'ui_loadout', label: 'CHALLENGE CLEARED' });
 
@@ -137,6 +145,15 @@ export default function GameOver({ result, extras, save, payout, onCamp, onRetry
   // The tiers mirror campaign.js's rewardTier so the wording and the payout
   // can never disagree about how far "far enough" was.
   const nextStep = (() => {
+    if (debrief) {
+      return { head: debrief.head, body: debrief.body };
+    }
+    if (orbitHome) {
+      return {
+        head: '▸ WALK THE HALL',
+        body: 'The chip in your gut wants the socket in the middle of the room. Insert A.I.D.A. Then patch the hull. Then you go back out only when you cannot pay.',
+      };
+    }
     if (result.victory || result.aidaKilled) {
       return { head: '✓ NODE CLEARED', body: 'Three chests banked. The next node expects the gear these paid for — spend before you go.' };
     }
@@ -201,17 +218,40 @@ export default function GameOver({ result, extras, save, payout, onCamp, onRetry
           </div>
         )}
 
-        <div className="go-title">{result.endless ? '∞ ENDLESS MODE' : (result.victory || result.aidaKilled ? 'A.I.D.A. SLAIN' : 'YOU FELL')}</div>
+        <div className="go-title">{orbitHome ? 'YOU FOUND THE WRECK' : result.endless ? '∞ ENDLESS MODE' : (result.victory || result.aidaKilled ? 'A.I.D.A. SLAIN' : 'YOU FELL')}</div>
         <div className="go-sub">
-          {result.endless ? 'Aida is gone. The void remains. How long can you last?' : (result.victory || result.aidaKilled ? 'The lake awakens. The collective remembers your name.' : 'The lake mourns. Return stronger.')}
+          {orbitHome ? 'A ring in the dark. Nobody home. The chip wants the socket.' : result.endless ? 'Aida is gone. The void remains. How long can you last?' : (result.victory || result.aidaKilled ? 'The lake awakens. The collective remembers your name.' : 'The lake mourns. Return stronger.')}
         </div>
 
         <div className="go-stats-grid">
           <div className="go-stat"><span>TIME</span><b>{fmt(result.time)}</b></div>
           <div className="go-stat"><span>LEVEL</span><b>{result.level}</b></div>
-          <div className="go-stat"><span>KILLS</span><b>{result.kills}</b></div>
+          <div className="go-stat"><span>KILLS</span><b>{(result.kills || 0).toLocaleString('en-US')}</b></div>
           <div className="go-stat"><span>WAVE</span><b>{Math.max(1, Math.ceil((result.time||0)/30))}</b></div>
-          <div className="go-stat"><span>SCORE</span><b>{(result.score || 0).toLocaleString()}</b></div>
+          <div className="go-stat"><span>SCORE</span><b>{(result.score || 0).toLocaleString('en-US')}</b></div>
+        </div>
+
+        <div className="go-share" data-testid="go-share" aria-hidden="true">
+          {(() => {
+            const kills = Math.max(0, result.kills || 0);
+            const time = Math.max(1, result.time || 1);
+            const kpm = kills / (time / 60);
+            const kMax = Math.max(40, kills);
+            const tMax = Math.max(90, time);
+            const kH = Math.max(8, (kills / kMax) * 46);
+            const tH = Math.max(8, (time / tMax) * 46);
+            return (
+              <svg viewBox="0 0 220 64" width="220" height="64">
+                <text x="8" y="12" fill="#8aa0b4" fontSize="8" fontFamily="VT323, monospace">KILLS / TIME</text>
+                <rect x="18" y={56 - kH} width="28" height={kH} fill="#4dffd4" opacity="0.85" />
+                <rect x="58" y={56 - tH} width="28" height={tH} fill="#ff7a1a" opacity="0.85" />
+                <text x="18" y="63" fill="#4dffd4" fontSize="8" fontFamily="VT323, monospace">K</text>
+                <text x="58" y="63" fill="#ff7a1a" fontSize="8" fontFamily="VT323, monospace">T</text>
+                <text x="110" y="28" fill="#e8f4ff" fontSize="14" fontFamily="VT323, monospace">{kpm.toFixed(1)} KPM</text>
+                <text x="110" y="46" fill="#8aa0b4" fontSize="10" fontFamily="VT323, monospace">{kills.toLocaleString('en-US')} in {fmt(time)}</text>
+              </svg>
+            );
+          })()}
         </div>
 
         {save && (
@@ -287,9 +327,9 @@ export default function GameOver({ result, extras, save, payout, onCamp, onRetry
         )}
 
         <div className="go-actions">
-          <button onClick={onMenu} data-testid="go-menu" className="go-btn go-btn-ghost">↩ Menu</button>
-          <button onClick={onCamp} data-testid="go-camp" className="go-btn go-btn-camp"><GameIcon name="ui_base" size={16} /> Camp</button>
-          <button onClick={onRetry} data-testid="go-retry" className="go-btn go-btn-retry">↻ RETRY</button>
+          {!lockRetry && <button onClick={() => { Audio.click('back'); onMenu(); }} data-testid="go-menu" className="go-btn go-btn-ghost">↩ Menu</button>}
+          <button onClick={() => { Audio.click('confirm'); onCamp(); }} data-testid="go-camp" className="go-btn go-btn-camp"><GameIcon name="ui_base" size={16} /> {campLabel}</button>
+          {!lockRetry && <button onClick={() => { Audio.click('buy'); onRetry(); }} data-testid="go-retry" className="go-btn go-btn-retry">↻ RETRY</button>}
         </div>
       </div>
     </div>

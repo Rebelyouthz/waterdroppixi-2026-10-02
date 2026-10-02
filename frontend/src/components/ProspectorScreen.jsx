@@ -7,6 +7,7 @@ import { rollCard } from '../game/petTcg';
 import { Audio } from '../game/audio';
 import { pushToast } from '../game/toastBus';
 import GameIcon from './GameIcon';
+import { fireClaimFx } from './ClaimFx';
 
 // Astro Prospector. A dive is entirely client-side state — only banking
 // writes to the save, which is also what makes "lose it all" mean something.
@@ -112,7 +113,7 @@ export default function ProspectorScreen({ save, setSave, onClose }) {
     setDive(next);
   };
 
-  const bank = () => {
+  const bank = (e) => {
     if (!dive) return;
     const ns = {
       ...save,
@@ -120,6 +121,7 @@ export default function ProspectorScreen({ save, setSave, onClose }) {
       flux: (save.flux || 0) + dive.flux,
       prospectBlueprints: (save.prospectBlueprints || 0) + dive.blueprints,
       tcgCardInventory: [...(save.tcgCardInventory || []), ...dive.tcgCards],
+      prospectorDives: (save.prospectorDives || 0) + 1,
     };
     setSave(ns);
     const bits = [
@@ -129,6 +131,9 @@ export default function ProspectorScreen({ save, setSave, onClose }) {
       dive.tcgCards.length && `Cards ${dive.tcgCards.length}`,
     ].filter(Boolean).join('  ·  ');
     pushToast({ tone: 'gem', icon: 'orb', title: `Dive banked — depth ${dive.depth}`, text: bits });
+    if (e && e.currentTarget) {
+      fireClaimFx(e.currentTarget, { cores: dive.cores, flux: dive.flux });
+    }
     setDive(null);
     Audio.levelUp(); Audio.claimPing();
   };

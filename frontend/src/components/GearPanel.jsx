@@ -1,14 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useId } from 'react';
 import {
   GEAR_SLOTS, GEAR_SLOT_ICONS, GEAR_SLOT_NAMES,
   GEAR_RARITIES, GEAR_RARITY_COLORS, getMergeGroups, getPendingMergeGroups, mergeItems,
   GEAR_MAX_LEVEL, gearLevelCost, gearStatValue, gearSocketCount,
   GEAR_SETS, GEAR_SET_IDS, itemSet, equippedSetCounts,
-  PART_NAMES, WILDCARD_PART_RATE,
-  slotPartsOf, gearLevelPayment, GEAR_BASE_INDEX,
+  PART_NAMES, PART_ICONS, WILDCARD_PART_RATE,
+  slotPartsOf, GEAR_BASE_INDEX,
   GEAR_STAT_LABELS as STAT_LABELS, fmtGearVal as fmtVal,
+  gearCanLevel, applyGearLevel, applyEquipGear, applyUnequipGear,
+  applySalvageGear, salvageYield, sortGearInventory, compareToWorn, gearScore,
 } from '../game/gear';
 import GameIcon from './GameIcon';
+import { fireClaimFx, CAMP_CLAIM_FLY } from './ClaimFx';
 import {
   ARTIFACT_SLOT_COUNT, ARTIFACT_RARITY_COLORS, rollArtifact
 } from '../game/artifacts';
@@ -23,6 +26,7 @@ import { COMPANIONS, isRescued } from '../game/companions';
 // as SVG instead of into a canvas. R is in viewBox units.
 function HeroDoll({ cosmetics }) {
   const R = 34;
+  const uid = useId().replace(/:/g, '');
   const [shx, shy] = HERO_RIG.shoulder;
   const [hrx, hry] = HERO_RIG.handRest;
   const hb = HERO_RIG.headband;
@@ -31,7 +35,7 @@ function HeroDoll({ cosmetics }) {
   return (
     <svg className="gear-doll-char" viewBox="-60 -60 120 130" aria-hidden>
       <defs>
-        <radialGradient id="dollBody" cx="38%" cy="26%" r="70%">
+        <radialGradient id={`dollBody-${uid}`} cx="38%" cy="26%" r="70%">
           <stop offset="0%" stopColor="#d6f7ff" />
           <stop offset="42%" stopColor={HERO_COLORS.body} />
           <stop offset="100%" stopColor={HERO_COLORS.bodyDeep} />
@@ -50,7 +54,7 @@ function HeroDoll({ cosmetics }) {
       </g>
 
       {/* body */}
-      <path d={heroBodyPath(R)} fill="url(#dollBody)" stroke={HERO_COLORS.outline} strokeWidth="3" />
+      <path d={heroBodyPath(R)} fill={`url(#dollBody-${uid})`} stroke={HERO_COLORS.outline} strokeWidth="3" />
 
       {/* wet-surface highlights, mirroring the in-game gloss droplets */}
       <ellipse cx={-R * 0.35} cy={-R * 0.5} rx="4.2" ry="6.6" fill="#fff" opacity="0.85" />
@@ -109,6 +113,29 @@ function fmtSigned(stat, val) {
   return pct ? `${sign}${(val * 100).toFixed(1)}%` : `${sign}${val}`;
 }
 
+function GearGlyph({ item, slot, size = 26, tone }) {
+  const name = (item && GEAR_BASE_INDEX[item.base] && GEAR_BASE_INDEX[item.base].icon)
+    || GEAR_SLOT_ICONS[slot || (item && item.slot)];
+  return <GameIcon name={name} tone={tone} size={size} />;
+}
+
+function GearCompareLines({ candidate, worn }) {
+  if (!candidate) return null;
+  const other = worn && worn.id !== candidate.id ? worn : null;
+  const cmp = compareToWorn(candidate, other);
+  if (!cmp.lines.length) return null;
+  return (
+    <div className="gear-cmp-list">
+      {cmp.wornName && <div className="gear-cmp-vs">vs {cmp.wornName}</div>}
+      {cmp.lines.map((l, i) => (
+        <div key={i} className={`gear-cmp ${l.kind === 'gain' ? 'gear-cmp-gain' : l.kind === 'loss' ? 'gear-cmp-loss' : ''}`}>
+          {fmtSigned(l.stat, l.delta)} {STAT_LABELS[l.stat] || l.stat}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function GearPanel({ save, setSave, onFight, onBack }) {
   const [selected, setSelected] = useState(null);
   const [tab, setTab] = useState('equip'); // 'equip' | 'inventory' | 'merge' | 'artifacts'
@@ -119,46 +146,53 @@ export default function GearPanel({ save, setSave, onFight, onBack }) {
   const [popoverArtSlot, setPopoverArtSlot] = useState(null); // artifact slot index
   const [gachaReveal, setGachaReveal] = useState(null);
   const [fluxSpend, setFluxSpend] = useState(0);   // catalysts to burn on the next merge
+  const toastT = useRef(null);
+  useEffect(() => () => { if (toastT.current) clearTimeout(toastT.current); }, []);
 
   const inv = save.gearInventory || [];
   const eq  = save.gearEquipped  || {};
   const artInv = save.artifactInventory || [];
   const artEq  = save.artifactEquipped  || {};
   const runeInv = save.runeInventory || [];
-  const gearRunes = save.gearRunes || {};
   // Runes are keyed by ITEM id, not by slot, so they travel with the piece they
   // were set into instead of staying behind when you swap gear.
   const socketGearRune = (item, runeId, socketIdx) => {
     if (!item) return;
-    const cur = gearRunesFor(save, item);
-    const next = cur.slice(0, gearSocketCount(item));
-    next[socketIdx] = runeId;
-    setSave({ ...save, gearRunes: { ...gearRunes, [item.id]: next } });
+    setSave((s) => {
+      const cur = gearRunesFor(s, item);
+      const next = cur.slice(0, gearSocketCount(item));
+      next[socketIdx] = runeId;
+      return { ...s, gearRunes: { ...(s.gearRunes || {}), [item.id]: next } };
+    });
   };
   const unsocketGearRune = (item, socketIdx) => {
     if (!item) return;
-    const next = gearRunesFor(save, item).slice();
-    next[socketIdx] = null;
-    setSave({ ...save, gearRunes: { ...gearRunes, [item.id]: next } });
+    setSave((s) => {
+      const next = gearRunesFor(s, item).slice();
+      next[socketIdx] = null;
+      return { ...s, gearRunes: { ...(s.gearRunes || {}), [item.id]: next } };
+    });
   };
 
   const setCounts = equippedSetCounts(save);
 
-  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 1600); };
+  const showToast = (msg) => {
+    setToast(msg);
+    if (toastT.current) clearTimeout(toastT.current);
+    toastT.current = setTimeout(() => setToast(''), 1600);
+  };
 
   const equipItem = (item) => {
-    setSave({ ...save, gearEquipped: { ...eq, [item.slot]: item.id } });
+    setSave((s) => applyEquipGear(s, item.id));
     showToast(`Equipped: ${item.name}`);
-    Audio.click();
+    Audio.click('confirm');
     setSelected(null);
     setPopoverSlot(null);
   };
 
   const unequipSlot = (slot) => {
-    const newEq = { ...eq };
-    delete newEq[slot];
-    setSave({ ...save, gearEquipped: newEq });
-    Audio.click();
+    setSave((s) => applyUnequipGear(s, slot));
+    Audio.click('back');
   };
 
   // Merging is a gamble now (see game/forge.js). Flux catalysts raise the
@@ -213,56 +247,70 @@ export default function GearPanel({ save, setSave, onFight, onBack }) {
     return { left, top, side };
   };
 
-  const levelUpGear = (item) => {
-    const lvl = item.level || 1;
-    if (lvl >= GEAR_MAX_LEVEL) return;
-    const cost = gearLevelCost(lvl, item.rarity);
-    // Slot parts first, generic parts as a 2:1 wildcard for the shortfall.
-    // gearLevelPayment owns that rule so the button's enabled state and the
-    // actual spend can never disagree about what is affordable.
-    const pay = gearLevelPayment(save, item.slot, cost);
-    if (!pay) {
-      const short = cost - slotPartsOf(save, item.slot);
+  const levelUpGear = (item, e) => {
+    const cost = gearLevelCost(item.level || 1, item.rarity);
+    let next = null;
+    setSave((s) => {
+      const out = applyGearLevel(s, item.id);
+      if (out === s) return s;
+      next = (out.gearInventory || []).find((x) => x.id === item.id) || null;
+      return out;
+    });
+    if (!next) {
+      const short = Math.max(0, cost - slotPartsOf(save, item.slot));
       showToast(`Need ${cost} ${PART_NAMES[item.slot]} — short ${short} (or ${short * WILDCARD_PART_RATE} generic parts)`);
+      Audio.click('back');
       return;
     }
-    setSave({
-      ...save,
-      gearSlotParts: { ...(save.gearSlotParts || {}), [item.slot]: slotPartsOf(save, item.slot) - pay.useSlot },
-      gearParts: (save.gearParts || 0) - pay.useWild,
-      gearInventory: inv.map(x => (x.id === item.id ? { ...x, level: lvl + 1 } : x)),
-    });
     Audio.claimPing();
-    if (lvl + 1 === GEAR_MAX_LEVEL) showToast(`${item.name} is finished — it can be forged now`);
+    if (e?.currentTarget) {
+      fireClaimFx(e.currentTarget, null, {
+        items: [{ icon: 'ui_cog', label: `Lv${next.level}` }],
+        flyTo: CAMP_CLAIM_FLY,
+      });
+    }
+    setSelected((sel) => (sel && sel.id === next.id ? next : sel));
+    if (next.level === GEAR_MAX_LEVEL) showToast(`${item.name} is finished — it can be forged now`);
+  };
+
+  const salvageItem = (item, e) => {
+    const n = salvageYield(item);
+    setSave((s) => applySalvageGear(s, item.id));
+    Audio.click('danger');
+    if (e?.currentTarget) {
+      fireClaimFx(e.currentTarget, null, {
+        items: [{ icon: PART_ICONS[item.slot], label: `+${n}` }],
+        flyTo: CAMP_CLAIM_FLY,
+      });
+    }
+    showToast(`Salvaged ${item.name} → +${n} ${PART_NAMES[item.slot]}`);
+    setSelected(null);
   };
 
   const tryMerge = (slot, rarity, flux = 0) => {
-    // Only finished pieces feed the forge (see getMergeGroups).
-    const candidates = inv.filter(x => x.slot === slot && x.rarity === rarity && (x.level || 1) >= GEAR_MAX_LEVEL);
-    if (candidates.length < 3) return;
-    const spend = Math.max(0, Math.min(FLUX_PER_MERGE_MAX, flux, save.flux || 0));
-    // The Forge building's contribution is a separate flat bonus, not extra
-    // flux — flux is capped, so folding it in there would be clamped away.
-    const { inventory: newInv, newItem, result } =
-      mergeItems(inv, candidates.slice(0, 3).map(x => x.id), spend, forgeBonus(save));
-    if (!result || result.atMax) return;
-    // pathMerges counts ATTEMPTS, not successes — The Path's forge step asks
-    // you to take the gamble, and losing it is the lesson.
-    setSave({
-      ...save,
-      gearInventory: newInv,
-      flux: (save.flux || 0) - spend,
-      pathMerges: (save.pathMerges || 0) + 1,
+    let outcome = null;
+    setSave((s) => {
+      const bag = s.gearInventory || [];
+      const candidates = bag.filter((x) => x.slot === slot && x.rarity === rarity && (x.level || 1) >= GEAR_MAX_LEVEL);
+      if (candidates.length < 3) return s;
+      const spend = Math.max(0, Math.min(FLUX_PER_MERGE_MAX, flux, s.flux || 0));
+      const { inventory: newInv, newItem, result } =
+        mergeItems(bag, candidates.slice(0, 3).map((x) => x.id), spend, forgeBonus(s));
+      if (!result || result.atMax) return s;
+      outcome = { result, newItem };
+      return {
+        ...s,
+        gearInventory: newInv,
+        flux: (s.flux || 0) - spend,
+        pathMerges: (s.pathMerges || 0) + 1,
+      };
     });
-    if (result.ok) {
-      showToast(`✦ SUCCESS → ${newItem?.name} [${newItem?.rarity?.toUpperCase()}]`);
-      // A merge consumes three items to make one, so it gets its own voice
-      // rather than borrowing the level-up chime: metal drawn together, a
-      // strike, then the ring of the result. The failure case falls in pitch
-      // instead of rising, so you can hear which happened without reading.
+    if (!outcome) return;
+    if (outcome.result.ok) {
+      showToast(`FORGE SUCCESS → ${outcome.newItem?.name} [${outcome.newItem?.rarity?.toUpperCase()}]`);
       Audio.mergeForge(true);
     } else {
-      showToast(`✖ MERGE FAILED — 2 lost, 1 left (${Math.round(result.chance * 100)}% chance)`);
+      showToast(`FORGE FAILED — 2 lost, 1 left (${Math.round(outcome.result.chance * 100)}% chance)`);
       Audio.mergeForge(false);
     }
   };
@@ -274,33 +322,54 @@ export default function GearPanel({ save, setSave, onFight, onBack }) {
 
   // ---- Artifacts handlers ----
   const equipArtifact = (item, slotIdx) => {
-    setSave({ ...save, artifactEquipped: { ...artEq, [slotIdx]: item.id } });
+    setSave((s) => ({ ...s, artifactEquipped: { ...(s.artifactEquipped || {}), [slotIdx]: item.id } }));
     showToast(`Equipped: ${item.name}`);
-    Audio.click();
+    Audio.click('confirm');
     setSelectedArt(null);
   };
   const unequipArtifactSlot = (slotIdx) => {
-    const newEq = { ...artEq };
-    delete newEq[slotIdx];
-    setSave({ ...save, artifactEquipped: newEq });
-    Audio.click();
+    setSave((s) => {
+      const next = { ...(s.artifactEquipped || {}) };
+      delete next[slotIdx];
+      return { ...s, artifactEquipped: next };
+    });
+    Audio.click('back');
   };
   const discardArtifact = (id) => {
-    const newEq = { ...artEq };
-    for (const k of Object.keys(newEq)) if (newEq[k] === id) delete newEq[k];
-    setSave({ ...save, artifactInventory: artInv.filter(x => x.id !== id), artifactEquipped: newEq });
+    setSave((s) => {
+      const next = { ...(s.artifactEquipped || {}) };
+      for (const k of Object.keys(next)) if (next[k] === id) delete next[k];
+      return {
+        ...s,
+        artifactInventory: (s.artifactInventory || []).filter((x) => x.id !== id),
+        artifactEquipped: next,
+      };
+    });
     setSelectedArt(null);
-    Audio.click();
+    Audio.click('danger');
   };
 
   // Real acquisition path: spend a Gacha Token (earned by clearing Star
   // Raid's final stage) to pull one artifact.
   const gachaTokens = save.gachaTokens || 0;
-  const pullGacha = () => {
-    if (gachaTokens <= 0) return;
-    const item = rollArtifact(save.attrs?.luck || 0);
-    setSave({ ...save, gachaTokens: gachaTokens - 1, artifactInventory: [...artInv, item] });
-    setGachaReveal(item);
+  const pullGacha = (e) => {
+    let pulled = null;
+    setSave((s) => {
+      if ((s.gachaTokens || 0) <= 0) return s;
+      pulled = rollArtifact(s.attrs?.luck || 0);
+      return {
+        ...s,
+        gachaTokens: (s.gachaTokens || 0) - 1,
+        artifactInventory: [...(s.artifactInventory || []), pulled],
+      };
+    });
+    if (!pulled) return;
+    setGachaReveal(pulled);
+    Audio.click('buy');
+    if (e?.currentTarget) fireClaimFx(e.currentTarget, null, {
+      items: [{ icon: 'ui_orb', label: pulled.rarity.toUpperCase() }],
+      flyTo: CAMP_CLAIM_FLY,
+    });
   };
 
   return (
@@ -310,7 +379,7 @@ export default function GearPanel({ save, setSave, onFight, onBack }) {
       {/* Tabs */}
       <div className="gear-tabs">
         {[['equip','PAPERDOLL'],['inventory','INVENTORY'],['merge','FORGE'],['artifacts','ARTIFACTS']].map(([k,l])=>(
-          <button key={k} className={`gear-tab ${tab===k?'active':''}`} onClick={() => setTab(k)}>{l}</button>
+          <button key={k} className={`gear-tab ${tab===k?'active':''}`} onClick={() => { setTab(k); Audio.click('confirm'); }}>{l}</button>
         ))}
         {/* Both `+ Grant Item` and `+ Grant Artifact` DEBUG buttons lived here
             and shipped to players. Their own comment said so: "bypasses tokens,
@@ -383,6 +452,29 @@ export default function GearPanel({ save, setSave, onFight, onBack }) {
                 </div>
               );
             })}
+            <div className="gear-art-row">
+              {Array.from({ length: ARTIFACT_SLOT_COUNT }).map((_, slotIdx) => {
+                const item = artInv.find(x => x.id === artEq[slotIdx]);
+                return (
+                  <button
+                    type="button"
+                    key={`art-${slotIdx}`}
+                    className={`artifact-slot gear-doll-art ${item ? 'filled' : 'empty'}`}
+                    style={{ '--rc': item ? ARTIFACT_RARITY_COLORS[item.rarity] : '#2a1a4e' }}
+                    onClick={() => {
+                      setPopoverSlot(null);
+                      setPopoverArtSlot(popoverArtSlot === slotIdx ? null : slotIdx);
+                    }}
+                    data-testid={`doll-artifact-slot-${slotIdx}`}
+                  >
+                    {item
+                      ? <span className="artifact-slot-icon"><GameIcon name="ui_orb" size={18} /></span>
+                      : <span className="artifact-slot-empty-icon"><GameIcon name="ui_orb" size={18} /></span>}
+                    <span className="artifact-slot-label">A{slotIdx + 1}</span>
+                  </button>
+                );
+              })}
+            </div>
 
           {/* Quick equip popover — opens BESIDE the slot that was tapped (see
               anchorFor). It lives inside .gear-doll-bg deliberately: the slots
@@ -396,24 +488,23 @@ export default function GearPanel({ save, setSave, onFight, onBack }) {
               data-testid="gear-popover">
               <div className="gear-popover-head">
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><GameIcon name={GEAR_SLOT_ICONS[popoverSlot]} size={16} /> {GEAR_SLOT_NAMES[popoverSlot].toUpperCase()}</span>
-                <button className="gear-popover-close" onClick={() => setPopoverSlot(null)}>✕</button>
+                <button className="gear-popover-close" onClick={() => setPopoverSlot(null)}>CLOSE</button>
               </div>
               <div className="gear-popover-list">
                 {inv.filter(x => x.slot === popoverSlot).length === 0 && (
                   <div className="gear-popover-empty">No {GEAR_SLOT_NAMES[popoverSlot].toLowerCase()} found yet.</div>
                 )}
                 {inv.filter(x => x.slot === popoverSlot)
-                  .sort((a, b) => GEAR_RARITIES.indexOf(b.rarity) - GEAR_RARITIES.indexOf(a.rarity)
-                    || (b.secondary?.val || 0) - (a.secondary?.val || 0))
-                  .map(item => (
+                  .sort((a, b) => gearScore(b) - gearScore(a))
+                  .map(item => {
+                    const worn = inv.find(x => x.id === eq[popoverSlot]);
+                    const cmp = worn && worn.id !== item.id ? compareToWorn(item, worn) : null;
+                    return (
                     <div key={item.id} className={`gear-popover-row ${eq[popoverSlot] === item.id ? 'eq' : ''}`}
                       style={{ '--rc': GEAR_RARITY_COLORS[item.rarity] }}
                       onClick={() => equipItem(item)}>
                       <span className="gear-popover-name">
                         {item.name}
-                        {/* The set tag is on the row you choose FROM — a set
-                            list you can only read after equipping cannot
-                            influence which piece you equip. */}
                         {(() => { const st = GEAR_SETS[itemSet(item)]; return st
                           ? <i className="gear-set-tag" style={{ '--sc': st.accent, display: 'inline-flex', alignItems: 'center', gap: 3 }}><GameIcon name={st.icon} size={12} /> {st.name}</i>
                           : null; })()}
@@ -421,8 +512,12 @@ export default function GearPanel({ save, setSave, onFight, onBack }) {
                       <span className="gear-popover-stat">{fmtVal(item.stat, gearStatValue(item))} {STAT_LABELS[item.stat]}</span>
                       {item.secondary && <span className="gear-popover-armor">+{item.secondary.val} armor</span>}
                       {eq[popoverSlot] === item.id && <span className="gear-popover-badge">EQ</span>}
+                      {cmp && cmp.upgrade && <span className="gear-cmp gear-cmp-gain">UP</span>}
+                      {cmp && cmp.downgrade && <span className="gear-cmp gear-cmp-loss">DOWN</span>}
+                      {cmp && !cmp.upgrade && !cmp.downgrade && <span className="gear-cmp">SWAP</span>}
                     </div>
-                  ))}
+                    );
+                  })}
               </div>
               {eq[popoverSlot] && (
                 <button className="gear-btn unequip" style={{ width: '100%', marginTop: 8 }}
@@ -462,8 +557,8 @@ export default function GearPanel({ save, setSave, onFight, onBack }) {
                       const free = runeInv.filter(x => !usedIds.has(x.id));
                       return (
                         <div key={i} style={{ marginBottom: 6 }}>
-                          <div className="gear-popover-empty" style={{ padding: '4px 0', textAlign: 'left' }}>
-                            ◈ Empty socket {i + 1}
+                          <div className="gear-popover-empty" style={{ padding: '4px 0', textAlign: 'left', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                            <GameIcon name="rune" size={11} /> Empty socket {i + 1}
                           </div>
                           {free.length === 0
                             ? <div className="gear-popover-empty">No spare runes — play Star Raid's Rune Run.</div>
@@ -539,9 +634,17 @@ export default function GearPanel({ save, setSave, onFight, onBack }) {
       {tab === 'inventory' && (
         <div className="gear-inventory">
           <div className="gear-parts-bar">
-            <span className="gear-parts-label" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><GameIcon name="ui_cog" size={13} /> GEAR PARTS</span>
+            <span className="gear-parts-label" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><GameIcon name="ui_cog" size={13} /> WILDCARD PARTS</span>
             <span className="gear-parts-val">{save.gearParts || 0}</span>
-            <span className="gear-parts-hint">Level a piece to {GEAR_MAX_LEVEL} before it can be forged up a rarity</span>
+            <span className="gear-parts-hint">Slot parts first. Wildcards fill a shortfall at 2:1.</span>
+            <div className="gear-slot-parts">
+              {GEAR_SLOTS.map((slot) => (
+                <span key={slot} className="gear-slot-part" title={PART_NAMES[slot]}>
+                  <GameIcon name={PART_ICONS[slot]} size={12} />
+                  {slotPartsOf(save, slot)}
+                </span>
+              ))}
+            </div>
           </div>
           {inv.length === 0 && (
             <div className="gear-empty">
@@ -550,29 +653,31 @@ export default function GearPanel({ save, setSave, onFight, onBack }) {
                 Defeat enemies to find gear!
               </div>
               <div style={{ fontSize:10, color:'#3a2a5e', marginTop:6 }}>
-                8% chance per kill. Higher enemy HP = better drops.
+                6% on a kill. Bosses always drop a piece.
               </div>
             </div>
           )}
           <div className="gear-inv-grid">
-            {inv.map(item => {
+            {sortGearInventory(inv).map(item => {
               const isEquipped = eq[item.slot] === item.id;
               const isSel = selected?.id === item.id;
+              const worn = inv.find(x => x.id === eq[item.slot]);
+              const cmp = worn && worn.id !== item.id ? compareToWorn(item, worn) : null;
               return (
                 <div
                   key={item.id}
-                  className={`gear-item ${isSel ? 'sel' : ''} ${isEquipped ? 'equipped' : ''}`}
+                  className={`gear-item ${isSel ? 'sel' : ''} ${isEquipped ? 'equipped' : ''} ${cmp && cmp.upgrade ? 'better' : ''}`}
                   style={{ '--rc': GEAR_RARITY_COLORS[item.rarity] }}
                   onClick={() => setSelected(isSel ? null : item)}
                   data-testid={`gear-item-${item.slot}-${item.rarity}`}
                 >
                   <div className="gear-item-icon">
-                    {GEAR_BASE_INDEX[item.base]
-                      ? <GameIcon name={GEAR_BASE_INDEX[item.base].icon} tone={GEAR_RARITY_COLORS[item.rarity]} size={28} />
-                      : GEAR_SLOT_ICONS[item.slot]}
+                    <GearGlyph item={item} size={28} tone={GEAR_RARITY_COLORS[item.rarity]} />
                     {gearSocketCount(item) > 0 && (
                       <span className="gear-socket-dot" title={`${gearSocketCount(item)} rune socket(s)`}>
-                        {'◈'.repeat(gearSocketCount(item))}
+                        {Array.from({ length: gearSocketCount(item) }, (_, i) => (
+                          <i key={i} className="gear-socket-pip" />
+                        ))}
                       </span>
                     )}
                   </div>
@@ -582,8 +687,8 @@ export default function GearPanel({ save, setSave, onFight, onBack }) {
                       <span className="gear-item-lvl">Lv{item.level || 1}</span>
                     </span>
                     <span className="gear-item-stat">{fmtVal(item.stat, gearStatValue(item))} {STAT_LABELS[item.stat]}</span>
-                    {/* Level track: the piece's own progress toward being
-                        forgeable, readable without opening anything. */}
+                    {cmp && cmp.upgrade && <span className="gear-cmp gear-cmp-gain">UP</span>}
+                    {cmp && cmp.downgrade && <span className="gear-cmp gear-cmp-loss">DOWN</span>}
                     <span className="gear-lvl-track">
                       {Array.from({ length: GEAR_MAX_LEVEL }).map((_, i) => (
                         <i key={i} className={i < (item.level || 1) ? 'on' : ''} />
@@ -594,8 +699,8 @@ export default function GearPanel({ save, setSave, onFight, onBack }) {
                   {(item.level || 1) < GEAR_MAX_LEVEL ? (
                     <button
                       className="gear-lvl-btn"
-                      disabled={(save.gearParts || 0) < gearLevelCost(item.level || 1, item.rarity)}
-                      onClick={(ev) => { ev.stopPropagation(); levelUpGear(item); }}
+                      disabled={!gearCanLevel(save, item)}
+                      onClick={(ev) => { ev.stopPropagation(); levelUpGear(item, ev); }}
                       data-testid={`gear-lvl-${item.id}`}
                     >
                       ▲ <GameIcon name="ui_cog" size={12} />{gearLevelCost(item.level || 1, item.rarity)}
@@ -611,11 +716,12 @@ export default function GearPanel({ save, setSave, onFight, onBack }) {
           {/* Item detail / equip */}
           {selected && (
             <div className="gear-detail" style={{ '--rc': GEAR_RARITY_COLORS[selected.rarity] }}>
-              <div className="gear-detail-name" style={{ display: 'flex', alignItems: 'center', gap: 5 }}><GameIcon name={GEAR_SLOT_ICONS[selected.slot]} size={16} /> {selected.name}</div>
+              <div className="gear-detail-name" style={{ display: 'flex', alignItems: 'center', gap: 5 }}><GearGlyph item={selected} size={16} /> {selected.name}</div>
               <div className="gear-detail-rarity" style={{ color: GEAR_RARITY_COLORS[selected.rarity] }}>
                 {selected.rarity.toUpperCase()} {GEAR_SLOT_NAMES[selected.slot]}
               </div>
               <div className="gear-detail-stat">{fmtVal(selected.stat, gearStatValue(selected))} {STAT_LABELS[selected.stat]}</div>
+              <GearCompareLines candidate={selected} worn={inv.find(x => x.id === eq[selected.slot])} />
               <div className="gear-detail-btns">
                 {eq[selected.slot] !== selected.id && (
                   <button className="gear-btn equip" onClick={() => equipItem(selected)} data-testid="gear-equip-btn">
@@ -627,11 +733,9 @@ export default function GearPanel({ save, setSave, onFight, onBack }) {
                     UNEQUIP
                   </button>
                 )}
-                <button className="gear-btn drop" onClick={() => {
-                  setSave({ ...save, gearInventory: inv.filter(x => x.id !== selected.id) });
-                  setSelected(null);
-                }}>
-                  DISCARD
+                <button className="gear-btn drop" data-testid="gear-salvage-btn"
+                  onClick={(e) => salvageItem(selected, e)}>
+                  SALVAGE · +{salvageYield(selected)} {PART_NAMES[selected.slot]}
                 </button>
               </div>
             </div>
@@ -700,7 +804,7 @@ export default function GearPanel({ save, setSave, onFight, onBack }) {
                 return (
                   <div key={`${base.slot}_${base.rarity}`} className="gear-merge-row">
                     <div className="gear-merge-info">
-                      <span style={{ color: GEAR_RARITY_COLORS[base.rarity] }}>{GEAR_SLOT_ICONS[base.slot]}</span>
+                      <span style={{ color: GEAR_RARITY_COLORS[base.rarity], display: 'inline-flex' }}><GearGlyph item={base} size={16} tone={GEAR_RARITY_COLORS[base.rarity]} /></span>
                       <span style={{ color: GEAR_RARITY_COLORS[base.rarity] }}>{base.rarity.toUpperCase()} {GEAR_SLOT_NAMES[base.slot]}</span>
                       <span style={{ color:'#4a3a6e', fontSize:10 }}>×{group.length}</span>
                     </div>
@@ -788,7 +892,7 @@ export default function GearPanel({ save, setSave, onFight, onBack }) {
             <div className="gear-popover" data-testid="artifact-popover">
               <div className="gear-popover-head">
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><GameIcon name="ui_orb" size={15} /> ARTIFACT SLOT {popoverArtSlot + 1}</span>
-                <button className="gear-popover-close" onClick={() => setPopoverArtSlot(null)}>✕</button>
+                <button className="gear-popover-close" onClick={() => setPopoverArtSlot(null)}>CLOSE</button>
               </div>
               <div className="gear-popover-list">
                 {artInv.length === 0 && <div className="gear-popover-empty">No artifacts found yet.</div>}
@@ -899,11 +1003,42 @@ export default function GearPanel({ save, setSave, onFight, onBack }) {
         </div>
       )}
 
+      {/* Artifact equip from the paperdoll — same popover the ARTIFACTS tab uses. */}
+      {popoverArtSlot !== null && tab === 'equip' && (
+        <div className="gear-popover" data-testid="doll-artifact-popover">
+          <div className="gear-popover-head">
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><GameIcon name="ui_orb" size={15} /> ARTIFACT SLOT {popoverArtSlot + 1}</span>
+            <button className="gear-popover-close" onClick={() => setPopoverArtSlot(null)}>CLOSE</button>
+          </div>
+          <div className="gear-popover-list">
+            {artInv.length === 0 && <div className="gear-popover-empty">No artifacts found yet. Eye of Horus, campaign clears, and the gacha drop them.</div>}
+            {[...artInv]
+              .sort((a, b) => ART_RARITY_ORDER.indexOf(b.rarity) - ART_RARITY_ORDER.indexOf(a.rarity))
+              .map(item => {
+                const equippedHere = artEq[popoverArtSlot] === item.id;
+                const equippedElsewhere = !equippedHere && Object.values(artEq).includes(item.id);
+                return (
+                  <div key={item.id} className={`gear-popover-row ${equippedHere ? 'eq' : ''} ${equippedElsewhere ? 'disabled' : ''}`}
+                    style={{ '--rc': ARTIFACT_RARITY_COLORS[item.rarity] }}
+                    onClick={() => !equippedElsewhere && (equipArtifact(item, popoverArtSlot), setPopoverArtSlot(null))}>
+                    <span className="gear-popover-name">{item.name}</span>
+                    {item.stats.map((s, si) => (
+                      <span key={si} className="gear-popover-stat" style={{ color: s.val >= 0 ? '#4dff91' : '#ff5566' }}>
+                        {fmtSigned(s.stat, s.val)}
+                      </span>
+                    ))}
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
+
       {/* Bottom Action Bar matching Reference Image 1 */}
       {tab === 'equip' && (
         <div className="gear-bottom-actions">
-          <button className="gear-action-btn back" onClick={onBack || (() => {})}>BACK</button>
-          <button className="gear-action-btn fight" onClick={onFight || (() => {})}>FIGHT</button>
+          <button className="gear-action-btn back" onClick={() => { Audio.click('back'); (onBack || (() => {}))(); }}>BACK</button>
+          <button className="gear-action-btn fight" onClick={() => { Audio.click('confirm'); (onFight || (() => {}))(); }}>FIGHT</button>
         </div>
       )}
     </div>

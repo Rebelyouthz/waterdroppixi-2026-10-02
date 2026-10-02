@@ -1,0 +1,36 @@
+{
+  "frameWidth": 128,
+  "frameHeight": 128,
+  "animations": {
+    "idle": {
+      "file": "sprites/waterdrop-idle-16.png",
+      "frames": 16,
+      "fps": 12,
+      "loop": true
+    },
+    "walk": {
+      "file": "sprites/waterdrop-walk-16.png",
+      "frames": 16,
+      "fps": 16,
+      "loop": true
+    },
+    "turnaround": {
+      "file": "sprites/waterdrop-turnaround-16.png",
+      "frames": 16,
+      "fps": 10,
+      "loop": true
+    },
+    "attack": {
+      "file": "sprites/waterdrop-attack-16.png",
+      "frames": 16,
+      "fps": 20,
+      "loop": false
+    },
+    "cheer": {
+      "file": "sprites/waterdrop-cheer-16.png",
+      "frames": 16,
+      "fps": 14,
+      "loop": false
+    }
+  }
+}

@@ -37,7 +37,7 @@
 // blur standing in for a lamp. The bloom + colour grade at the end are
 // whole-picture grading, which is the approved lever for mood — the same
 // distinction introCinema.js documents.
-import { Application, Container, Graphics, Sprite, FillGradient, ColorMatrixFilter, Rectangle } from 'pixi.js';
+import { Application, Container, Graphics, Sprite, FillGradient, ColorMatrixFilter, Rectangle, Assets } from 'pixi.js';
 import { AdvancedBloomFilter } from 'pixi-filters';
 import { Audio } from './audio';
 // THE approved lighting technique, shared with the run's renderer rather than
@@ -50,17 +50,27 @@ import {
 } from './litShading';
 // The SAME character the run draws, not a lookalike.
 import { heroHalfPoints } from './heroShape';
-import { drawHeroFace, drawLegs, drawHeadband } from './heroDraw';
+import { drawHeroFace, drawArms, drawHeadband, drawHeldWeapon } from './heroDraw';
 import { HeroGait } from './heroGait';
 import { EXPRESSIONS } from './heroAnim';
 import { BUILDINGS, buildingLevel, isStationRepaired } from './base';
+// The generated 16-frame sheets, and the flag that switches them on. Both the
+// sprite room and the drawn room are kept — this is a test, and a test that
+// deletes the thing it is being compared against cannot be judged.
+import { loadCampSheets, SheetSprite } from './stationSprites';
 // The floor plan lives in its own pixi-free module so the headless suite can
 // reach it — see stationLayout.js's header. A room whose geometry is only
 // checkable by eye is a room whose geometry never gets checked.
 import {
   STAGE_W, STAGE_H, FLOOR, FLOOR_W, FLOOR_H, BACK_FACE, WALL_T,
   HERO_R, WALK_SPEED, REACH, WINDOW, EMBLEM, STATIONS, anchorOf, plateOf,
+  windowRect, furniturePose, hallCozy01, sheetKeyForStation, RESTORE_ZONES,
 } from './stationLayout';
+
+/** Which room the player sees: the generated 16-frame sheets, or the version
+ *  drawn in code. Both are kept — this is a comparison, and a comparison that
+ *  deletes one side cannot be judged. One word to switch. */
+const ROOM_ART = 'sprites';   // 'sprites' | 'drawn'
 
 const TAU = Math.PI * 2;
 
@@ -82,6 +92,24 @@ const damp = (cur, target, rate, dt) => lerp(cur, target, 1 - Math.exp(-rate * d
 
 const ACCENT = (st) => (st.module && BUILDINGS[st.module] && BUILDINGS[st.module].accent) || '#7cd6ff';
 const hex = (s) => parseInt(String(s).replace('#', ''), 16);
+
+// Same snapped-rib silhouette combat uses (WEAPON_MODELS.katana). Copied here
+// so the walkable room does not import pixiRenderer.
+const STATION_RIB = {
+  accent: '#c8d4de', muzzle: 36,
+  parts: [
+    [-10.2, -2.0, 9.8, 4.0, '#1a1612'],
+    [-8.8, -2.2, 1.5, 4.4, '#3a2c22'],
+    [-3.4, -2.2, 1.4, 4.4, '#3a2c22'],
+    [-0.5, -3.2, 3.0, 2.0, '#6a7480'],
+    [-0.3, 1.1, 3.4, 2.4, '#4a545c'],
+    [3.0, -1.8, 16, 3.6, '#8a96a4'],
+    [3.0, -2.0, 16, 1.0, '#d4dee8'],
+    [19.0, -2.4, 9, 4.0, '#7a8692'],
+    [28.0, -3.0, 4.6, 2.8, '#6a7682'],
+    [32.4, -2.0, 3.0, 2.0, '#b8c4ce'],
+  ],
+};
 
 /**
  * THE MAIN HALL.
@@ -128,6 +156,9 @@ export class StationRoom {
     this.nearest = null;
     this._nearestId = null;
 
+    this._floorRipples = [];
+    this._dashGhosts = [];
+
     this._repaired = isStationRepaired(this.save);
     this._builtKey = '';           // invalidates the static layer when it moves
   }
@@ -143,12 +174,17 @@ export class StationRoom {
       height: this.canvas.clientHeight || STAGE_H,
       resolution: this.dpr,
       autoDensity: true,
-      backgroundColor: 0x04080b,
+      backgroundColor: 0x1a242c,
       antialias: true,
       preference: 'webgl',
     });
     if (this.destroyed) { app.destroy(true); return; }
 
+    // Letterbox used to be the app clear colour (near-black). Four hard
+    // edges on every contain-fit. Bleed paints hull metal behind the room
+    // so the bars read as the wreck, not as a black frame.
+    this.bleed = new Graphics();
+    app.stage.addChild(this.bleed);
     this.root = new Container();
     app.stage.addChild(this.root);
 
@@ -159,9 +195,15 @@ export class StationRoom {
     // IN the light rather than being washed by it; dust on top of everything
     // because it is between you and the room.
     this.gStatic = new Graphics();          this.root.addChild(this.gStatic);
+    // Earth / vista live IN the bay window, under the shutters. A full-stage
+    // jpg behind the hull painted the planet across a wreck.
+    this.windowClip = new Container();      this.root.addChild(this.windowClip);
+    this.gWindowLive = new Graphics();      this.root.addChild(this.gWindowLive);
     this.gCable = new Graphics();           this.root.addChild(this.gCable);
     this.lightLayer = new Container();      this.root.addChild(this.lightLayer);
     this.gLive = new Graphics();            this.root.addChild(this.gLive);
+    this.gRipples = new Graphics();         this.root.addChild(this.gRipples);
+    this.gDashGhosts = new Graphics();      this.root.addChild(this.gDashGhosts);
     this.gShadow = new Graphics();          this.root.addChild(this.gShadow);
     // The body is THREE layers, and the middle one is the point: a silhouette
     // fill, the per-pixel normal-mapped lit volume on top of it, then the rim
@@ -177,6 +219,21 @@ export class StationRoom {
     this.gVignette = new Graphics();
 
     this._buildLitSystem();
+    // The bay window stays a sealed shutter until the Main Hall exists.
+    // Loading the panorama earlier painted Earth across the whole stage
+    // behind the hull and made a wreck look like a finished home.
+    if (buildingLevel(this.save, 'rampart') >= 1) {
+      this._loadVista((this.save && this.save.profile && this.save.profile.stationVista) || 'earth');
+    }
+    // Lounge paintings sit under the cables so the floor conduits still
+    // run across the room. Furniture sits above the cables, under the
+    // pooled lights. Both layers stay empty until the sheets resolve —
+    // the room is fully playable before a single texture has arrived.
+    this.hallBgLayer = new Container();
+    this.root.addChildAt(this.hallBgLayer, this.root.getChildIndex(this.gCable));
+    this.spriteLayer = new Container();
+    this.root.addChildAt(this.spriteLayer, this.root.getChildIndex(this.lightLayer));
+    if (ROOM_ART === 'sprites') this._loadSprites();
     this.root.addChild(this.gBodyRim);
     this.root.addChild(this.gLegFront);
     this.root.addChild(this.gFace);
@@ -200,6 +257,216 @@ export class StationRoom {
     // __station.freeze() holds the frame so it can be screenshotted.
     if (typeof window !== 'undefined') window.__station = this;
     return this;
+  }
+
+  /** Pull in the camp sheets and place one sprite per station.
+   *
+   *  Async and non-blocking on purpose: if the sheets never arrive the room
+   *  still works, still walks and still opens every menu — it just looks like
+   *  the drawn version. Art should never be able to break navigation. */
+  async _loadSprites() {
+    if (this._spritesLoading || this.sprites) return;
+    this._spritesLoading = true;
+    const sheets = await loadCampSheets();
+    if (this.destroyed || !this.spriteLayer) { this._spritesLoading = false; return; }
+    this.sheets = sheets;
+    this.sprites = [];
+    this._furnLive = {};
+    this._furnPop = {};
+
+    // People-free lounge + wreck. Never the NPC shell. gStatic stays
+    // visible underneath as the fallback if a painting is missing.
+    const bg = this.hallBgLayer || this.spriteLayer;
+    const repaired = isStationRepaired(this.save);
+    if (sheets.wreck) {
+      this.wreckSprite = this._mountHallSheet(sheets.wreck, bg);
+      this.wreckSprite.alpha = 1;
+    }
+    if (sheets.restored) {
+      this.restoredSprite = this._mountHallSheet(sheets.restored, bg);
+      this.restoredSprite.alpha = repaired ? 1 : 0;
+      this.restoredSprite.visible = repaired;
+      // Sibling of the painting so it shares the contain-fit transform.
+      // An unparented mask sat in canvas pixels and the lounge appeared as
+      // a postage stamp in the top-left (looked at 2026-09-16).
+      // Do NOT set renderable=false: Pixi's stencil pipe has to draw this
+      // into the stencil buffer, and a non-renderable Graphics punches
+      // nothing — restored vanishes and the wreck looks like a black void.
+      this.restoreMask = new Graphics();
+      this.restoreMask.eventMode = 'none';
+      this.restoreMask.visible = false;
+      bg.addChild(this.restoreMask);
+      this.restoreVeil = new Graphics();
+      this.restoreVeil.eventMode = 'none';
+      bg.addChild(this.restoreVeil);
+    }
+    this._syncHallMask();
+
+    // The paintings already have a floor. The tileset is only a fallback
+    // for the drawn box hall.
+    if (sheets.floor && !sheets.restored && !sheets.wreck) {
+      const f = new SheetSprite(sheets.floor, { fps: 0, ax: 0, ay: 0, animated: false });
+      f.x = FLOOR.x0; f.y = FLOOR.y0;
+      f.width = FLOOR_W; f.height = FLOOR_H;
+      f.alpha = 0;
+      this.spriteLayer.addChild(f);
+      this.floorSprite = f;
+    }
+
+    if (sheets.emblem && !sheets.restored) {
+      const e = new SheetSprite(sheets.emblem, { fps: 6, ax: 0.5, ay: 0.5 });
+      e.x = EMBLEM.cx; e.y = EMBLEM.cy;
+      const native = sheets.emblem.fh || 128;
+      e.scale.set((EMBLEM.r * 2) / native);
+      this.spriteLayer.addChild(e);
+      this.emblemSprite = e;
+    }
+
+    for (const st of STATIONS) {
+      const key = sheetKeyForStation(st);
+      const sh = key && sheets[key];
+      const pose = furniturePose(st);
+      if (!sh || !pose) continue;
+      const sp = new SheetSprite(sh, { fps: 8, ax: pose.ax, ay: pose.ay });
+      sp.x = pose.x;
+      sp.y = pose.y;
+      const native = sh.fh || 128;
+      sp.scale.set(pose.h / native);
+      sp.visible = false;
+      this.spriteLayer.addChild(sp);
+      this.sprites.push({ sp, st, pose, native });
+    }
+
+    // Lamp sheets double the painted ceiling when the lounge is up.
+    // Keep them for the drawn hall only.
+    if (sheets.lights && !sheets.restored) {
+      this.lampSprites = [];
+      for (const lx of [FLOOR.x0 + FLOOR_W * 0.24, FLOOR.x0 + FLOOR_W * 0.76]) {
+        const sp = new SheetSprite(sheets.lights, { fps: 10, ax: 0.5, ay: 0 });
+        sp.x = lx;
+        sp.y = FLOOR.y0 - 6;
+        sp.blendMode = 'add';
+        const native = sheets.lights.fh || 128;
+        sp.scale.set(90 / native);
+        sp.alpha = 0;
+        this.spriteLayer.addChild(sp);
+        this.lampSprites.push(sp);
+      }
+    }
+
+    if (sheets.earthWindow && this.windowClip && !sheets.restored) {
+      const r = windowRect();
+      const sp = new SheetSprite(sheets.earthWindow, { fps: 8, ax: 0, ay: 0 });
+      sp.x = r.x; sp.y = r.y;
+      sp.width = r.w; sp.height = r.h;
+      sp.visible = false;
+      this.windowClip.addChild(sp);
+      this.earthWindowSprite = sp;
+      if (this.vistaSprite) this.vistaSprite.visible = false;
+    }
+
+    // Character stays the hardcoded drop. Never hide gBodyFill / gFace / heroLit.
+    this._paintVignette();
+    this._applyCozyGrade();
+    this._paintStatic();
+    this._spritesLoading = false;
+  }
+
+  _mountHallSheet(sheet, layer) {
+    const sp = new SheetSprite(sheet, { fps: 0, ax: 0, ay: 0, animated: false });
+    sp.x = 0;
+    sp.y = 0;
+    sp.width = STAGE_W;
+    sp.height = STAGE_H;
+    layer.addChild(sp);
+    return sp;
+  }
+
+  /** A lounge corner is lit once its module exists (AIDA's own order). */
+  _zoneLit(id) {
+    const st = STATIONS.find(s => s.id === id);
+    if (!st || !this._repaired) return false;
+    if (st.id === 'core' || st.id === 'exit') return true;
+    if (!st.module) return true;
+    return buildingLevel(this.save, st.module) > 0;
+  }
+
+  /** VFX sit on the painted furniture, not on the walk-plate. */
+  _fxPos(st) {
+    const pose = furniturePose(st);
+    if (pose && this.restoredSprite && this.restoredSprite.alpha > 0.2) {
+      return { x: pose.x, y: pose.y - pose.h * 0.28 };
+    }
+    return anchorOf(st);
+  }
+
+  _updateHallArt(dt) {
+    const repaired = this._repaired;
+    const allLit = repaired && this._allZonesLit();
+    if (this.wreckSprite) {
+      const target = allLit ? 0 : 1;
+      this.wreckSprite.alpha = damp(this.wreckSprite.alpha, target, 2.4, dt);
+      this.wreckSprite.visible = this.wreckSprite.alpha > 0.02;
+    }
+    if (this.restoredSprite) {
+      const target = repaired ? 1 : 0;
+      this.restoredSprite.alpha = damp(this.restoredSprite.alpha, target, 2.4, dt);
+      this.restoredSprite.visible = this.restoredSprite.alpha > 0.02;
+    }
+    this._syncHallMask();
+  }
+
+  /** Load and display the choosable panoramic orbital vista behind the station bay window. */
+  async _loadVista(vistaId = 'earth') {
+    if (buildingLevel(this.save, 'rampart') < 1) return;
+    const vistaMap = {
+      earth: '/backgrounds/vista_earth.jpg',
+      void: '/backgrounds/vista_void.jpg',
+      solstice: '/backgrounds/vista_solstice.jpg',
+      bloodmoon: '/backgrounds/vista_bloodmoon.jpg',
+      cyber: '/backgrounds/vista_cyber.jpg',
+    };
+    const url = vistaMap[vistaId] || vistaMap.earth;
+    try {
+      const tex = await Assets.load(url);
+      if (this.destroyed || !this.windowClip) return;
+      const r = windowRect();
+      if (!this.vistaSprite) {
+        this.vistaSprite = new Sprite(tex);
+        this.windowClip.addChildAt(this.vistaSprite, 0);
+      } else {
+        this.vistaSprite.texture = tex;
+      }
+      this.vistaSprite.x = r.x;
+      this.vistaSprite.y = r.y;
+      this.vistaSprite.width = r.w;
+      this.vistaSprite.height = r.h;
+      // The Earth loop is the window. The jpg is only a fallback.
+      this.vistaSprite.visible = !this.earthWindowSprite;
+    } catch (e) {
+      console.warn('Could not load vista texture:', url, e);
+    }
+  }
+
+  setVista(vistaId) {
+    if (this.save && this.save.profile) {
+      this.save.profile.stationVista = vistaId;
+    }
+    this._loadVista(vistaId);
+  }
+
+  setSave(save) {
+    const prevVista = this.save && this.save.profile && this.save.profile.stationVista;
+    const prevHall = this.save ? buildingLevel(this.save, 'rampart') : 0;
+    this.save = save || {};
+    const newVista = (this.save && this.save.profile && this.save.profile.stationVista) || 'earth';
+    const hall = buildingLevel(this.save, 'rampart');
+    if (hall >= 1 && (newVista !== prevVista || prevHall < 1)) {
+      this._loadVista(newVista);
+    }
+    if (ROOM_ART === 'sprites' && !this.sprites) this._loadSprites();
+    const key = this._stateKey ? this._stateKey() : null;
+    if (key && key !== this._builtKey && this._paintStatic) this._paintStatic();
   }
 
   /** The baked soft-radial texture every point light is a sprite of. Shared
@@ -315,6 +582,11 @@ export class StationRoom {
   _paintVignette() {
     // Whole-picture, not a light — it darkens the edges of the SHOT so the
     // middle of the room reads as the place you are.
+    // The lounge paintings are already moody. The 0.50 rim on top of them
+    // crushed the wreck to a black diamond (looked at 2026-09-16).
+    const painted = !!(this.wreckSprite || this.restoredSprite);
+    const rim = painted ? 0.22 : 0.50;
+    const mid = painted ? 0.05 : 0.10;
     const g = this.gVignette;
     g.clear();
     g.rect(0, 0, STAGE_W, STAGE_H).fill(new FillGradient({
@@ -324,8 +596,8 @@ export class StationRoom {
       outerCenter: { x: STAGE_W / 2, y: STAGE_H * 0.52 }, outerRadius: STAGE_H * 0.98,
       colorStops: [
         { offset: 0, color: 'rgba(0,0,0,0)' },
-        { offset: 0.70, color: 'rgba(2,6,10,0.10)' },
-        { offset: 1, color: 'rgba(1,3,6,0.50)' },
+        { offset: 0.70, color: `rgba(2,6,10,${mid})` },
+        { offset: 1, color: `rgba(1,3,6,${rim})` },
       ],
     }));
   }
@@ -351,11 +623,96 @@ export class StationRoom {
     grade.saturate(0.10, true);
     grade.resolution = 'inherit';
 
+    this._bloom = bloom;
+    this._grade = grade;
     this.root.filters = [bloom, grade];
     // The root is filtered EVERY frame and its bounds are known exactly — they
     // are the authored stage. Setting filterArea skips a per-frame
     // getGlobalBounds() over the whole display list.
     this.root.filterArea = new Rectangle(0, 0, STAGE_W, STAGE_H);
+    this._applyCozyGrade();
+  }
+
+  /** 0 = dusty wreck, 1 = every module built and the hall is a home. */
+  _cozy01() {
+    if (!isStationRepaired(this.save)) return 0;
+    const mods = STATIONS.filter(s => s.module);
+    let n = 0;
+    for (const st of mods) if (buildingLevel(this.save, st.module) > 0) n++;
+    return hallCozy01(true, n, mods.length);
+  }
+
+  _stationHasSprite(st) {
+    const key = sheetKeyForStation(st);
+    return !!(this.sheets && key && this.sheets[key]);
+  }
+
+  /** The people-free lounge painting is on. Stickers, cables and extra
+   *  bloom sit ON TOP of that picture and read as bugs, not as mix. */
+  _loungeUp() {
+    return !!(this.restoredSprite && this.restoredSprite.visible
+      && this.restoredSprite.alpha > 0.22 && !this.restoredSprite.mask);
+  }
+
+  /** Either hall painting is covering the room — wreck or lounge. */
+  _paintedHall() {
+    const wreck = this.wreckSprite && this.wreckSprite.visible && this.wreckSprite.alpha > 0.35;
+    const lounge = this.restoredSprite && this.restoredSprite.visible && this.restoredSprite.alpha > 0.22;
+    return !!(wreck || lounge);
+  }
+
+  _allZonesLit() {
+    return Object.keys(RESTORE_ZONES).every(id => this._zoneLit(id));
+  }
+
+  /** Lounge stays fully painted after AIDA wakes the hall. Unbuilt modules
+   *  get a dark veil — never a punch-out mask that left four lit rectangles
+   *  on a black void when the wreck sheet was missing or too dark. */
+  _syncHallMask() {
+    const restored = this.restoredSprite;
+    if (restored) restored.mask = null;
+    if (this.restoreMask) {
+      this.restoreMask.clear();
+      this.restoreMask.visible = false;
+    }
+    const veil = this.restoreVeil;
+    if (!veil) return;
+    veil.clear();
+    // AIDA wakes the whole lounge. The old patches were stage-sized rects;
+    // stacked on the grade they read as one lit rectangle and a black room.
+    // Unbuilt modules stay marked on their own doors, not as black slabs.
+    veil.visible = false;
+  }
+
+  _applyCozyGrade() {
+    if (!this._bloom) return;
+    const c = this._cozy01();
+    const painted = !!(this.wreckSprite || this.restoredSprite);
+    const lounge = this._loungeUp();
+    const key = `${c.toFixed(2)}|${painted ? 1 : 0}|${lounge ? 1 : 0}`;
+    if (key === this._cozyGradeKey) return;
+    this._cozyGradeKey = key;
+    const grade = new ColorMatrixFilter();
+    // Paintings already carry the wreck/lounge mood. The drawn-hall grade
+    // (brightness 0.90, saturate -0.16) on top of them reads as a black void.
+    if (painted) {
+      grade.brightness(lerp(1.22, 1.14, c), false);
+      grade.contrast(lerp(0.52, 0.53, c), true);
+      grade.saturate(lerp(0.08, 0.10, c), true);
+      this._bloom.threshold = lounge ? 0.84 : 0.72;
+      this._bloom.bloomScale = lounge ? 0.32 : 0.55;
+      this._bloom.brightness = lounge ? 0.90 : 0.96;
+    } else {
+      grade.brightness(lerp(0.90, 1.14, c), false);
+      grade.contrast(lerp(0.50, 0.56, c), true);
+      grade.saturate(lerp(-0.16, 0.18, c), true);
+      this._bloom.threshold = 0.66;
+      this._bloom.bloomScale = 1.10;
+      this._bloom.brightness = 1.0;
+    }
+    grade.resolution = 'inherit';
+    this._grade = grade;
+    this.root.filters = [this._bloom, grade];
   }
 
   // ── Layout / fitting ───────────────────────────────────────────────
@@ -371,6 +728,10 @@ export class StationRoom {
     this.root.x = (w - STAGE_W * s) / 2;
     this.root.y = (h - STAGE_H * s) / 2;
     this._fit = { s, ox: this.root.x, oy: this.root.y };
+    if (this.bleed) {
+      this.bleed.clear();
+      this.bleed.rect(-8, -8, w + 16, h + 16).fill(0x1a242c);
+    }
   }
 
   /** Convert a pointer position in CSS pixels (relative to the canvas) into
@@ -394,6 +755,18 @@ export class StationRoom {
     g.clear();
     const rep = isStationRepaired(this.save);
     this._repaired = rep;
+
+    // The paintings ARE the room. Drawing the box-hall under them was how
+    // dark door plates and floor slabs showed through as black blocks.
+    if (this.wreckSprite || this.restoredSprite) {
+      const wreckUp = this.wreckSprite && this.wreckSprite.alpha > 0.2;
+      const loungeUp = this.restoredSprite && this.restoredSprite.alpha > 0.2;
+      if (wreckUp || loungeUp) {
+        this._applyCozyGrade();
+        this._builtKey = this._stateKey();
+        return;
+      }
+    }
 
     // ── The hull around the room ────────────────────────────────────
     const OX0 = FLOOR.x0 - WALL_T, OX1 = FLOOR.x1 + WALL_T;
@@ -463,16 +836,19 @@ export class StationRoom {
     // ── The inlaid emblem in the middle of the floor ────────────────
     this._paintEmblem(g, EMBLEM.cx, EMBLEM.cy, EMBLEM.r, rep);
 
-    // ── Grime, cracks and debris — only while derelict ──────────────
-    if (!rep) {
-      for (let i = 0; i < 26; i++) {
+    // ── Grime, cracks and debris — fades as the hall becomes a home ─
+    const cozy = this._cozy01();
+    const mess = 1 - cozy;
+    if (mess > 0.04) {
+      const stains = Math.round(14 * mess);
+      for (let i = 0; i < stains; i++) {
         const x = FLOOR.x0 + noise(i * 41 + 3) * FLOOR_W;
         const y = FLOOR.y0 + noise(i * 23 + 11) * FLOOR_H;
-        const r = 12 + noise(i * 19) * 46;
-        g.ellipse(x, y, r, r * 0.55).fill({ color: 0x000000, alpha: 0.16 + noise(i * 7) * 0.14 });
+        const r = 5 + noise(i * 19) * 16;
+        g.ellipse(x, y, r, r * 0.55).fill({ color: 0x1c2830, alpha: (0.10 + noise(i * 7) * 0.10) * mess });
       }
-      // Cracks: a few short polylines, jittered deterministically.
-      for (let c = 0; c < 5; c++) {
+      const cracks = Math.round(5 * mess);
+      for (let c = 0; c < cracks; c++) {
         let x = FLOOR.x0 + noise(c * 97 + 13) * FLOOR_W;
         let y = FLOOR.y0 + noise(c * 53 + 29) * FLOOR_H;
         g.moveTo(x, y);
@@ -481,25 +857,30 @@ export class StationRoom {
           y += (noise(c * 100 + k * 9 + 5) - 0.5) * 34;
           g.lineTo(x, y);
         }
-        g.stroke({ width: 1.4, color: 0x000000, alpha: 0.4 });
+        g.stroke({ width: 1.2, color: 0x243038, alpha: 0.28 * mess });
       }
-      // Debris: knocked-over crates and loose panels near the walls.
-      for (let d = 0; d < 7; d++) {
-        const x = FLOOR.x0 + 26 + noise(d * 61 + 7) * (FLOOR_W - 52);
-        const y = FLOOR.y0 + 26 + noise(d * 71 + 17) * (FLOOR_H - 52);
-        const w = 16 + noise(d * 13) * 22, h = 10 + noise(d * 29) * 14;
-        const a = (noise(d * 37) - 0.5) * 0.9;
-        const pts = [];
-        for (const [ox, oy] of [[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]]) {
-          pts.push(x + ox * Math.cos(a) - oy * Math.sin(a), y + oy * Math.cos(a) + ox * Math.sin(a));
+      if (!rep) {
+        // Knocked-over crates only while it is still a wreck. After the
+        // repair they would read as "you never cleaned", which is the
+        // opposite of the dusty → cosy arc.
+        for (let d = 0; d < 7; d++) {
+          const x = FLOOR.x0 + 26 + noise(d * 61 + 7) * (FLOOR_W - 52);
+          const y = FLOOR.y0 + 26 + noise(d * 71 + 17) * (FLOOR_H - 52);
+          const w = 16 + noise(d * 13) * 22, h = 10 + noise(d * 29) * 14;
+          const a = (noise(d * 37) - 0.5) * 0.9;
+          const pts = [];
+          for (const [ox, oy] of [[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]]) {
+            pts.push(x + ox * Math.cos(a) - oy * Math.sin(a), y + oy * Math.cos(a) + ox * Math.sin(a));
+          }
+          g.poly(pts).fill({ color: 0x121c22 });
+          g.poly(pts).stroke({ width: 1, color: 0x263942, alpha: 0.7 });
         }
-        g.poly(pts).fill({ color: 0x121c22 });
-        g.poly(pts).stroke({ width: 1, color: 0x263942, alpha: 0.7 });
       }
-    } else {
-      // One living thing does more for "cosy" than any amount of extra light.
+    }
+    if (cozy > 0.38) {
       this._paintPlant(g, FLOOR.x0 + 44, FLOOR.y0 + 40);
     }
+    this._applyCozyGrade();
 
     // ── Doors and consoles ──────────────────────────────────────────
     for (const st of STATIONS) this._paintStation(g, st, rep);
@@ -508,32 +889,139 @@ export class StationRoom {
   }
 
   _paintWindow(g, cx, cy, hw, hh, rep) {
-    g.rect(cx - hw, cy - hh / 2, hw * 2, hh).fill({ color: 0x02040a });
-    // Stars behind the glass — deterministic, so they do not crawl.
-    for (let i = 0; i < 34; i++) {
-      const x = cx - hw + 4 + noise(i * 43 + 1) * (hw * 2 - 8);
-      const y = cy - hh / 2 + 3 + noise(i * 67 + 9) * (hh - 6);
-      g.circle(x, y, 0.5 + noise(i * 5) * 1.0).fill({ color: 0xdff4ff, alpha: 0.35 + noise(i * 3) * 0.5 });
-    }
-    // Earth: the planet he flew up from. Terminator on the left, so the room's
-    // key light and the planet's agree.
-    const er = hh * 0.44;
-    g.circle(cx + hw * 0.34, cy + 2, er).fill({ color: 0x1c5f86 });
-    g.circle(cx + hw * 0.34 + er * 0.22, cy + 2 - er * 0.18, er * 0.78).fill({ color: 0x2f8f7a, alpha: 0.5 });
-    g.circle(cx + hw * 0.34, cy + 2, er).stroke({ width: 1.2, color: 0x7fd8ff, alpha: 0.45 });
-    // Glass: one specular streak, not a wash.
-    g.poly([cx - hw + 8, cy + hh / 2 - 3, cx - hw + 26, cy - hh / 2 + 3, cx - hw + 38, cy - hh / 2 + 3, cx - hw + 20, cy + hh / 2 - 3])
-      .fill({ color: 0xffffff, alpha: 0.07 });
-    // Frame.
+    // Aperture & Frame outline
     g.rect(cx - hw, cy - hh / 2, hw * 2, hh).stroke({ width: 3, color: rep ? 0x54808f : 0x2a3d46 });
     g.rect(cx - hw - 4, cy - hh / 2 - 4, hw * 2 + 8, hh + 8).stroke({ width: 2, color: rep ? 0x2e4d59 : 0x1b2830, alpha: 0.8 });
-    if (!rep) {
-      // The crack. It stays after the repair in the fiction, but the room is
-      // about the change of state, so it goes.
-      g.moveTo(cx - hw * 0.5, cy - hh / 2)
-        .lineTo(cx - hw * 0.28, cy - 2).lineTo(cx - hw * 0.42, cy + 6).lineTo(cx - hw * 0.16, cy + hh / 2)
-        .stroke({ width: 1.3, color: 0xbfe6ff, alpha: 0.5 });
+  }
+
+  /** Dynamic Panoramic Space Observation Bay (Rotating Earth, Parallax Starfield, Spacecraft, Animated Blast Shutters) */
+  _updateLiveWindow(dt) {
+    if (!this.gWindowLive) return;
+    const g = this.gWindowLive;
+    g.clear();
+    // Paintings already have the bay. Drawn shutters on top of them (or
+    // bleeding through a half-alpha wreck) read as black plates in the sky.
+    if (this._paintedHall()) return;
+    const rep = this._repaired;
+    const BW_Y = FLOOR.y0 - BACK_FACE;
+    const cx = WINDOW.cx, cy = BW_Y + BACK_FACE / 2;
+    const hw = WINDOW.hw, hh = BACK_FACE - 10;
+    const x0 = cx - hw, y0 = cy - hh / 2;
+
+    // Target shutter opening: the window stays sealed until the Main Hall
+    // exists. There is no `interior` building — Gemini left that field dead
+    // and the blast doors never moved. Rampart IS the hall.
+    const hall = this.save ? buildingLevel(this.save, 'rampart') : 0;
+    const targetShutter = (rep && hall >= 1) ? 1.0 : 0.0;
+    
+    // Smooth damp towards target
+    if (this._shutterProgress == null) this._shutterProgress = targetShutter;
+    this._shutterProgress = damp(this._shutterProgress, targetShutter, 2.2, dt);
+    const shutter = this._shutterProgress;
+
+    // Earth-in-the-window sheet covers the glass. Hardcoded globe is the
+    // fallback when the sheet is missing or the shutters are still sealed.
+    const spriteEarth = !!(this.earthWindowSprite && this.earthWindowSprite.visible
+      && shutter > 0.18);
+
+    if (!spriteEarth) {
+    // 1. Deep Space Void Fill
+    g.rect(x0, y0, hw * 2, hh).fill({ color: 0x010308 });
+
+    // 2. Parallax Twinkling Stars & Deep Nebula
+    for (let i = 0; i < 42; i++) {
+      const sx = x0 + 4 + (((noise(i * 43 + 1) * (hw * 2 - 8) - this.t * (1.2 + (i % 3) * 0.8)) % (hw * 2 - 8) + (hw * 2 - 8)) % (hw * 2 - 8));
+      const sy = y0 + 4 + noise(i * 67 + 9) * (hh - 8);
+      const twinkle = 0.35 + Math.sin(this.t * 2.5 + i * 1.7) * 0.40;
+      const starCol = i % 5 === 0 ? 0x9be8ff : i % 7 === 0 ? 0xffdfa4 : 0xdff4ff;
+      g.circle(sx, sy, 0.4 + (i % 4 === 0 ? 0.9 : 0.4)).fill({ color: starCol, alpha: twinkle });
     }
+
+    // 3. Dynamic Rotating Earth
+    const er = hh * 0.44;
+    const ex = cx + hw * 0.36;
+    const ey = cy + 2;
+
+    // Atmospheric outer glow
+    g.circle(ex, ey, er * 1.08).fill({ color: 0x4fc8ff, alpha: 0.18 });
+    g.circle(ex, ey, er * 1.03).fill({ color: 0x7fd8ff, alpha: 0.32 });
+    // Ocean base
+    g.circle(ex, ey, er).fill({ color: 0x164c6e });
+
+    // Continents rotating across surface
+    const rot = (this.t * 0.04) % 1.0;
+    for (let c = 0; c < 3; c++) {
+      const cOffset = (c / 3.0 + rot) % 1.0;
+      const cLon = (cOffset - 0.5) * 2.0; // -1 to 1 across globe
+      if (Math.abs(cLon) < 0.88) {
+        const cX = ex + cLon * er * 0.85;
+        const cW = er * 0.45 * (1.0 - Math.abs(cLon) * 0.5);
+        const cH = er * 0.38;
+        const cY = ey + (c === 0 ? -er * 0.15 : c === 1 ? er * 0.18 : 0);
+        g.ellipse(cX, cY, cW, cH).fill({ color: 0x2d8a70, alpha: 0.72 });
+      }
+    }
+
+    // Cloud swirls
+    const cloudRot = (this.t * 0.055) % 1.0;
+    for (let k = 0; k < 4; k++) {
+      const kLon = ((k / 4.0 + cloudRot) % 1.0 - 0.5) * 2.0;
+      if (Math.abs(kLon) < 0.9) {
+        const kX = ex + kLon * er * 0.88;
+        const kY = ey + Math.sin(k * 2.1) * er * 0.3;
+        g.ellipse(kX, kY, er * 0.35, er * 0.12).fill({ color: 0xffffff, alpha: 0.42 });
+      }
+    }
+
+    // Planetary Terminator Shadow (Left side shadowed)
+    g.ellipse(ex - er * 0.35, ey, er * 0.85, er * 1.02).fill({ color: 0x040c14, alpha: 0.55 });
+    // Specular Rim Light
+    g.circle(ex, ey, er).stroke({ width: 1.4, color: 0xa6e8ff, alpha: 0.65 });
+
+    // 4. Distant Cargo Freighter Gliding
+    const shipProgress = (this.t * 0.035) % 1.4;
+    if (shipProgress < 1.0) {
+      const sx = x0 + 10 + shipProgress * (hw * 2 - 20);
+      const sy = y0 + 14 + Math.sin(shipProgress * Math.PI) * 4;
+      g.rect(sx - 4, sy - 1.5, 8, 3).fill({ color: 0x8fa6b2, alpha: 0.85 });
+      // Nav beacon flash
+      const beacon = Math.sin(this.t * 8.0) > 0.3 ? 0.9 : 0.1;
+      g.circle(sx - 3, sy, 1.2).fill({ color: 0x4dff91, alpha: beacon });
+      g.circle(sx + 3, sy, 1.2).fill({ color: 0xff4d6d, alpha: beacon });
+    }
+    }
+
+    // 5. Blast Shutters (Armored plates that slide open/close)
+    if (shutter < 0.99) {
+      const closeAmt = (1.0 - shutter);
+      const shutH = (hh / 2) * closeAmt + 2;
+
+      // Top Shutter Leaf
+      g.rect(x0, y0, hw * 2, shutH).fill({ color: 0x0c1a24 });
+      g.rect(x0, y0, hw * 2, shutH).stroke({ width: 1.5, color: 0x2d4855 });
+      // Bottom Shutter Leaf
+      g.rect(x0, y0 + hh - shutH, hw * 2, shutH).fill({ color: 0x0c1a24 });
+      g.rect(x0, y0 + hh - shutH, hw * 2, shutH).stroke({ width: 1.5, color: 0x2d4855 });
+
+      // Hazard Stripes along leading edges
+      const stripeW = 12;
+      const count = Math.ceil((hw * 2) / stripeW);
+      for (let s = 0; s < count; s++) {
+        if (s % 2 === 0) {
+          const sx = x0 + s * stripeW;
+          g.rect(sx, y0 + shutH - 4, stripeW, 4).fill({ color: 0xffb703, alpha: 0.85 });
+          g.rect(sx, y0 + hh - shutH, stripeW, 4).fill({ color: 0xffb703, alpha: 0.85 });
+        }
+      }
+
+      // Hydraulic Lock Seal Light in center
+      const lockCol = shutter > 0.05 ? 0xffbe0b : 0xff4d6d;
+      g.circle(cx, cy, 5).fill({ color: lockCol, alpha: 0.85 });
+    }
+
+    // 6. Specular Glass Sheen & Hexagonal Micro-Reinforcement Grid
+    g.poly([x0 + 10, y0 + hh - 4, x0 + 35, y0 + 4, x0 + 55, y0 + 4, x0 + 30, y0 + hh - 4])
+      .fill({ color: 0xffffff, alpha: 0.08 });
   }
 
   _paintEmblem(g, cx, cy, R, rep) {
@@ -585,6 +1073,13 @@ export class StationRoom {
     // The recess. A door is a hole in a wall; give it depth before anything.
     g.rect(x0, y0, p.w, p.h).fill({ color: live ? 0x081820 : 0x05090c });
     g.rect(x0, y0, p.w, p.h).stroke({ width: 2, color: live ? 0x3c6b7c : 0x1c2a31 });
+
+    // Built + a furniture sheet: keep the hole, skip the drawn console so the
+    // sprite is not sitting on a second copy of itself.
+    if (this._stationHasSprite(st) && live) {
+      g.rect(x0 + 4, y0 - 4, p.w - 8, 4).fill({ color: col, alpha: 0.95 });
+      return;
+    }
 
     if (st.id === 'exit') {
       // An exit is not a module — it is always open and it is always the same
@@ -670,6 +1165,7 @@ export class StationRoom {
       .fill({ color: rep ? 0x1a333d : 0x101a20 });
     g.poly([cx - 30, cy + 26, cx + 30, cy + 26, cx + 22, cy + 6, cx - 22, cy + 6])
       .stroke({ width: 1.4, color: rep ? 0x4d7d8f : 0x22323a, alpha: 0.9 });
+    if (this._stationHasSprite(st) && rep) return;
     // Column.
     g.rect(cx - 15, cy - 30, 30, 38).fill({ color: rep ? 0x14282f : 0x0c151a });
     g.rect(cx - 15, cy - 30, 30, 38).stroke({ width: 1.2, color: rep ? 0x3f6d80 : 0x1e2c33 });
@@ -697,6 +1193,9 @@ export class StationRoom {
     const g = this.gCable;
     g.clear();
     if (!this._repaired) return;
+    // The lounge painting already has floor conduits. Drawn L-cables on
+    // top of it look like debug lines.
+    if (this._paintedHall()) return;
     const core = anchorOf(STATIONS.find(s => s.id === 'core'));
     for (const st of STATIONS) {
       if (!st.module || buildingLevel(this.save, st.module) <= 0) continue;
@@ -748,7 +1247,8 @@ export class StationRoom {
       this.startRepair();
       return st;
     }
-    if (Audio.menuOpen) Audio.menuOpen();
+    if (Audio.stationInteract) Audio.stationInteract(st.id);
+    else if (Audio.menuOpen) Audio.menuOpen();
     this.onEnter(st);
     return st;
   }
@@ -759,7 +1259,32 @@ export class StationRoom {
   startRepair() {
     if (this._repaired || this._sweepT != null) return;
     this._sweepT = 0;
-    if (Audio.unlockReveal) Audio.unlockReveal(); else if (Audio.claimPing) Audio.claimPing();
+    if (Audio.campSparks) Audio.campSparks();
+    if (Audio.campSteam) Audio.campSteam();
+  }
+
+  /** High-speed hydro-dash evasion / speed burst */
+  dash() {
+    if (this._dashCooldown > 0 || this._dashT > 0) return;
+    this._dashT = 0.28;
+    this._dashCooldown = 0.65;
+
+    let dirX = this.vx, dirY = this.vy;
+    if (Math.hypot(dirX, dirY) < 10) {
+      dirX = Math.cos(this.gait.facingAngle != null ? this.gait.facingAngle : (Math.PI / 2));
+      dirY = Math.sin(this.gait.facingAngle != null ? this.gait.facingAngle : (Math.PI / 2));
+    }
+    const mag = Math.hypot(dirX, dirY) || 1;
+    this._dashDirX = dirX / mag;
+    this._dashDirY = dirY / mag;
+
+    if (Audio.heroDash) Audio.heroDash();
+    else if (Audio.dodgeRoll) Audio.dodgeRoll();
+  }
+
+  /** Trigger victory cheer animation */
+  cheer(dur = 1.2) {
+    this._cheerT = dur;
   }
 
   // ── Frame ──────────────────────────────────────────────────────────
@@ -785,23 +1310,83 @@ export class StationRoom {
     this._frameLights.length = 0;
 
     this._paintCable(dt);
+    this._updateLiveWindow(dt);
+    this._updateHallArt(dt);
     this._paintLive(dt);
+    this._paintRipplesAndGhosts(dt);
+    this._updateSprites(dt);
     this._drawHero();
     this._updateDust(dt);
   }
 
+  _paintRipplesAndGhosts(dt) {
+    // 1. Floor Water Ripples
+    const gr = this.gRipples;
+    gr.clear();
+    for (let i = this._floorRipples.length - 1; i >= 0; i--) {
+      const rp = this._floorRipples[i];
+      rp.life += dt;
+      if (rp.life >= rp.maxLife) {
+        this._floorRipples.splice(i, 1);
+        continue;
+      }
+      const u = rp.life / rp.maxLife;
+      const curR = lerp(rp.r, rp.maxR, u);
+      const alpha = (1 - u) * rp.alpha;
+      gr.ellipse(rp.x, rp.y, curR, curR * 0.45)
+        .stroke({ width: 1.4 * (1 - u * 0.5), color: rp.col, alpha });
+      if (u < 0.4) {
+        gr.ellipse(rp.x, rp.y, curR * 0.5, curR * 0.22)
+          .stroke({ width: 1, color: 0xffffff, alpha: (1 - u / 0.4) * 0.6 });
+      }
+    }
+
+    // 2. Dash Motion Ghost Trail
+    const gg = this.gDashGhosts;
+    gg.clear();
+    for (let i = this._dashGhosts.length - 1; i >= 0; i--) {
+      const gh = this._dashGhosts[i];
+      gh.life += dt;
+      if (gh.life >= gh.maxLife) {
+        this._dashGhosts.splice(i, 1);
+        continue;
+      }
+      const u = gh.life / gh.maxLife;
+      const alpha = (1 - u) * gh.alpha;
+      const r = HERO_R;
+      gg.ellipse(gh.x, gh.y - r * 0.7, r * 0.95, r * 1.1)
+        .fill({ color: 0x5fd6ff, alpha: alpha * 0.35 });
+      gg.ellipse(gh.x, gh.y - r * 0.7, r * 0.95, r * 1.1)
+        .stroke({ width: 1.2, color: 0x9fe8ff, alpha: alpha * 0.65 });
+    }
+  }
+
   _updateSweep(dt) {
     if (this._sweepT == null) return;
+    const prevT = this._sweepT;
     this._sweepT += dt;
-    // The save flips UNDER the sweep, so the room is already clean when the
-    // light passes over it. The wipe REVEALS the change rather than announcing
-    // one that happens afterwards — the same timing BasePanel's sweep uses.
-    if (!this._repaired && this._sweepT > 0.52) {
+
+    // Relay 1 (0.4s): BONG 1 & Sparks
+    if (prevT < 0.4 && this._sweepT >= 0.4) {
+      if (Audio.powerRelay) Audio.powerRelay(0);
+      if (Audio.campSparks) Audio.campSparks();
+    }
+    // Relay 2 (0.8s): BONG 2 & Dust Burst
+    if (prevT < 0.8 && this._sweepT >= 0.8) {
+      if (Audio.powerRelay) Audio.powerRelay(1);
+    }
+    // Relay 3 (1.2s): BONG 3 & Full Room Light Surge
+    if (prevT < 1.2 && this._sweepT >= 1.2) {
+      if (Audio.powerRelay) Audio.powerRelay(2);
+      if (Audio.campSteam) Audio.campSteam();
+      if (Audio.aidaVoice) Audio.aidaVoice('proud');
+      if (Audio.stationBuild) Audio.stationBuild();
       this.onRepair();
       this._repaired = true;
       this._paintStatic();
+      if (ROOM_ART === 'sprites' && !this.sprites) this._loadSprites();
     }
-    if (this._sweepT > 1.6) this._sweepT = null;
+    if (this._sweepT > 1.8) this._sweepT = null;
   }
 
   _updateHero(dt) {
@@ -825,10 +1410,41 @@ export class StationRoom {
 
     const targetVX = dx * WALK_SPEED, targetVY = dy * WALK_SPEED;
     const prevVX = this.vx, prevVY = this.vy;
-    // Accelerate hard, decelerate softer — that difference is what makes him
-    // feel heavy with water rather than like a cursor.
-    this.vx = damp(this.vx, targetVX, mag > 0 ? 13 : 8, dt);
-    this.vy = damp(this.vy, targetVY, mag > 0 ? 13 : 8, dt);
+
+    // Handle Active Dash
+    if (this._dashT > 0) {
+      this._dashT -= dt;
+      const dashSpeed = WALK_SPEED * 2.8;
+      this.vx = this._dashDirX * dashSpeed;
+      this.vy = this._dashDirY * dashSpeed;
+
+      if (Math.random() < 0.5) {
+        this._floorRipples.push({
+          x: this.px,
+          y: this.py + HERO_R * 1.2,
+          r: 6,
+          maxR: 32,
+          life: 0,
+          maxLife: 0.75,
+          col: 0x9fe8ff,
+          alpha: 0.75,
+        });
+      }
+      this._dashGhosts.push({
+        x: this.px + this.wobX,
+        y: this.py + HERO_R * 1.5,
+        life: 0,
+        maxLife: 0.28,
+        alpha: 0.55,
+      });
+      if (this._dashGhosts.length > 8) this._dashGhosts.shift();
+    } else {
+      // Accelerate hard, decelerate softer
+      this.vx = damp(this.vx, targetVX, mag > 0 ? 13 : 8, dt);
+      this.vy = damp(this.vy, targetVY, mag > 0 ? 13 : 8, dt);
+    }
+    if (this._dashCooldown > 0) this._dashCooldown -= dt;
+    if (this._cheerT > 0) this._cheerT -= dt;
 
     this.px = clamp(this.px + this.vx * dt, FLOOR.x0 + HERO_R, FLOOR.x1 - HERO_R);
     this.py = clamp(this.py + this.vy * dt, FLOOR.y0 + HERO_R, FLOOR.y1 - HERO_R);
@@ -856,7 +1472,20 @@ export class StationRoom {
     const step = Math.floor(this.gait.travel / 0.62);
     if (step !== this._lastStep) {
       this._lastStep = step;
-      if (this.speed01 > 0.25 && Audio.casingLand) Audio.casingLand();
+      if (this.speed01 > 0.25) {
+        this._floorRipples.push({
+          x: this.px,
+          y: this.py + HERO_R * 1.2,
+          r: 3,
+          maxR: 16,
+          life: 0,
+          maxLife: 0.65,
+          col: 0x5fd6ff,
+          alpha: 0.50,
+        });
+        if (Audio.campFootstep) Audio.campFootstep();
+        else if (Audio.casingLand) Audio.casingLand();
+      }
     }
 
     // ── Facing ──────────────────────────────────────────────────────
@@ -901,62 +1530,107 @@ export class StationRoom {
     const g = this.gLive;
     g.clear();
     const rep = this._repaired;
+    const cozy = this._cozy01();
+    const lampSheets = this.lampSprites && this.lampSprites.length > 0;
+
+    const lounge = this._loungeUp();
+    const painted = this._paintedHall();
 
     // Ceiling lamps. Two, warm, and only once the power is on. While derelict
     // one of them stutters on a lazy irregular cycle — a steady pulse reads as
-    // working, an irregular one reads as giving up.
-    for (const lx of [FLOOR.x0 + FLOOR_W * 0.24, FLOOR.x0 + FLOOR_W * 0.76]) {
-      const ly = FLOOR.y0 + 8;
-      if (rep) {
-        const flick = 0.94 + Math.sin(this.t * 3.1 + lx) * 0.06;
-        g.rect(lx - 62, ly - 6, 124, 6).fill({ color: 0xd8f2ff, alpha: 0.75 * flick });
-        this._light(lx, ly + 96, 330, 0xa8dcf0, 0.34 * flick);
-      } else {
-        const stutter = Math.sin(this.t * 11.7 + lx) > 0.78 ? 0.9 : 0.08;
-        g.rect(lx - 62, ly - 6, 124, 6).fill({ color: 0x7a93a0, alpha: 0.26 * stutter });
-        this._light(lx, ly + 70, 210, 0x6d8fa0, 0.14 * stutter);
+    // working, an irregular one reads as giving up. The pooled lights always
+    // fire; the drawn bars hide when a lamp sheet is sitting there.
+    // The lounge painting already has its own lamps — extra pools bloom the
+    // Earth window into a white slab. Same for the wreck painting.
+    if (!painted) {
+      for (const lx of [FLOOR.x0 + FLOOR_W * 0.24, FLOOR.x0 + FLOOR_W * 0.76]) {
+        const ly = FLOOR.y0 + 8;
+        if (rep) {
+          const flick = 0.94 + Math.sin(this.t * 3.1 + lx) * 0.06;
+          if (!lampSheets) g.rect(lx - 62, ly - 6, 124, 6).fill({ color: 0xd8f2ff, alpha: 0.75 * flick });
+          this._light(lx, ly + 96, 330, 0xa8dcf0, (0.20 + cozy * 0.18) * flick);
+        } else {
+          const stutter = Math.sin(this.t * 11.7 + lx) > 0.78 ? 0.9 : 0.08;
+          g.rect(lx - 62, ly - 6, 124, 6).fill({ color: 0x7a93a0, alpha: 0.26 * stutter });
+          this._light(lx, ly + 70, 210, 0x6d8fa0, 0.14 * stutter);
+        }
       }
+
+      if (rep) this._light(WINDOW.cx, FLOOR.y0 + FLOOR_H * 0.55, 430, 0x7fb8d0, 0.08 + cozy * 0.08);
+
+      const hall = this.save ? buildingLevel(this.save, 'rampart') >= 1 : false;
+      this._light(WINDOW.cx, FLOOR.y0 + 46, rep ? 280 : 190, 0x5fa8d8, hall && rep ? 0.28 : (rep ? 0.16 : 0.12));
+
+      for (const st of STATIONS) {
+        if (st.side === 'centre') continue;
+        const built = st.module ? buildingLevel(this.save, st.module) > 0 : true;
+        const live = rep && built;
+        const fx = this._fxPos(st);
+        if (st.id === 'exit') {
+          this._light(fx.x, fx.y + 14, 120, 0x4dff91, 0.22 + Math.sin(this.t * 1.7) * 0.03);
+          continue;
+        }
+        if (!live) continue;
+        const col = hex(ACCENT(st));
+        const breathe = 0.30 + Math.sin(this.t * 1.35 + fx.x * 0.01) * 0.05;
+        this._light(fx.x, fx.y - (st.side === 'top' ? 22 : st.side === 'bottom' ? -18 : 0), 165, col, breathe);
+
+        if (st.module === 'forge') {
+          for (let e = 0; e < 4; e++) {
+            const ep = ((this.t * 1.2 + e * 0.25) % 1.0);
+            const ex = fx.x + Math.sin(this.t * 3.0 + e * 1.5) * 12;
+            const ey = fx.y - 10 - ep * 24;
+            g.circle(ex, ey, 1.5 * (1 - ep)).fill({ color: 0xff9a3c, alpha: (1 - ep) * 0.85 });
+          }
+        } else if (st.module === 'well') {
+          for (let b = 0; b < 3; b++) {
+            const bp = ((this.t * 0.9 + b * 0.33) % 1.0);
+            const bx = fx.x + Math.sin(this.t * 2.2 + b * 2.0) * 10;
+            const by = fx.y - 8 - bp * 20;
+            g.circle(bx, by, 1.2 * (1 - bp)).fill({ color: 0x38bdf8, alpha: (1 - bp) * 0.75 });
+          }
+        } else if (st.module === 'incubator') {
+          for (let s = 0; s < 3; s++) {
+            const sang = this.t * 1.8 + (s / 3.0) * TAU;
+            const sx = fx.x + Math.cos(sang) * 14;
+            const sy = fx.y - 18 + Math.sin(sang) * 6;
+            g.circle(sx, sy, 1.3).fill({ color: 0x4ade80, alpha: 0.85 });
+          }
+        } else if (st.module === 'rampart') {
+          const radarAng = this.t * 2.2;
+          g.moveTo(fx.x, fx.y - 16).lineTo(fx.x + Math.cos(radarAng) * 18, fx.y - 16 + Math.sin(radarAng) * 18)
+            .stroke({ width: 1.2, color: 0xf43f5e, alpha: 0.65 });
+        }
+      }
+    } else if (rep) {
+      this._light(WINDOW.cx, FLOOR.y0 + 90, 220, 0x8ec8e0, 0.06);
     }
 
-    // A wide, weak fill over the middle of a REPAIRED hall. Without it the
-    // centre of the room falls between the two ceiling lamps and the player
-    // walks through a dark band on the way to the core.
-    if (rep) this._light(WINDOW.cx, FLOOR.y0 + FLOOR_H * 0.55, 430, 0x7fb8d0, 0.13);
-
-    // The viewport spills cold light onto the floor in front of it.
-    this._light(WINDOW.cx, FLOOR.y0 + 46, rep ? 280 : 190, 0x5fa8d8, rep ? 0.22 : 0.12);
-
-    // Door strips. One light each, and only when the module is actually
-    // running — the room IS the progress bar.
-    for (const st of STATIONS) {
-      if (st.side === 'centre') continue;
-      const built = st.module ? buildingLevel(this.save, st.module) > 0 : true;
-      const live = rep && built;
-      const a = anchorOf(st);
-      if (st.id === 'exit') {
-        this._light(a.x, a.y + 14, 120, 0x4dff91, 0.22 + Math.sin(this.t * 1.7) * 0.03);
-        continue;
-      }
-      if (!live) continue;
-      const col = hex(ACCENT(st));
-      const breathe = 0.30 + Math.sin(this.t * 1.35 + a.x * 0.01) * 0.05;
-      this._light(a.x, a.y - (st.side === 'top' ? 22 : st.side === 'bottom' ? -18 : 0), 165, col, breathe);
-    }
-
-    // The core.
+    // The core & A.I.D.A. Holographic Companion
     const core = anchorOf(STATIONS.find(s => s.id === 'core'));
-    if (rep) {
-      // A slow internal light with a second, faster component under it — one
-      // sine reads as a blinking LED, two read as something thinking.
+    if (rep && !lounge) {
+      // A slow internal light with a second, faster component under it
       const pulse = 0.34 + Math.sin(this.t * 1.1) * 0.10 + Math.sin(this.t * 2.9) * 0.04;
       this._light(core.x, core.y - 20, 130, 0x7fd8ff, pulse);
       g.circle(core.x, core.y - 20, 5 + Math.sin(this.t * 2.4) * 1.2).fill({ color: 0xdff4ff, alpha: 0.9 });
-      // Her eye, when she is looking at you. It tracks the player — she is
-      // never not watching, and it is never mentioned.
+      
+      // Floating Holographic Torus Ring & Orbiting Data Nodes
+      const holoY = core.y - 36 + Math.sin(this.t * 1.8) * 3.5;
+      g.ellipse(core.x, holoY, 18, 5.5).stroke({ width: 1.5, color: 0x5fd6ff, alpha: 0.75 });
+      g.ellipse(core.x, holoY, 12, 3.5).stroke({ width: 1, color: 0xa6e8ff, alpha: 0.45 });
+      
+      for (let n = 0; n < 4; n++) {
+        const nang = this.t * 2.0 + (n / 4.0) * TAU;
+        const nx = core.x + Math.cos(nang) * 18;
+        const ny = holoY + Math.sin(nang) * 5.5;
+        g.circle(nx, ny, 1.6).fill({ color: 0xdff4ff, alpha: 0.9 });
+      }
+
+      // Her eye, when she is looking at you. It tracks the player
       const ex = clamp((this.px - core.x) / 260, -1, 1) * 4;
       const ey = clamp((this.py - core.y) / 200, -1, 1) * 2.5;
       g.ellipse(core.x + ex, core.y - 20 + ey, 2.2, 3.4).fill({ color: 0x04202c, alpha: 0.85 });
-    } else {
+    } else if (!rep) {
       const w = Math.sin(this.t * 7.3) > 0.6 ? 1 : 0.12;
       this._light(core.x, core.y - 18, 74, 0xffcf80, 0.16 * w);
     }
@@ -1030,11 +1704,9 @@ export class StationRoom {
     // himself and the room would stop mattering.
     const L = this._computeRoomLight();
 
-    // The far leg goes UNDER the body, the near leg OVER it. Drawing both on
-    // one side is what makes a two-legged character look like a cardboard
-    // cut-out with sticks taped to the back.
+    // No legs — same drop as combat. Gait still drives bob/lean/weight.
     this.gLegBack.clear();
-    drawLegs(this.gLegBack, G, r, bx, by - bob, { sqx, lean, back: true });
+    this.gLegFront.clear();
 
     const gb = this.gBodyFill;
     gb.clear();
@@ -1099,20 +1771,87 @@ export class StationRoom {
       expr: EXPRESSIONS[exprId] || EXPRESSIONS.calm,
     };
     this.gLegFront.clear();
-    drawLegs(this.gLegFront, G, r, bx, by - bob, { sqx, lean, back: false });
 
     const gf = this.gFace;
     gf.clear();
     drawHeroFace(gf, bx, by - bob, r, lean, sqx, sqy, A, null);
-    // The headband, from the shared rig. Colour comes from the save so the
-    // rarity ladder in backlog #46 has somewhere to land; the default is the
-    // red one every reference sheet shows him wearing.
     const band = (this.save && this.save.cosmetics && this.save.cosmetics.headbandColor) || '#d1394a';
     drawHeadband(gf, bx, by - bob, r, band, { sqx, sqy, lean });
+
+    const aim = this.nearest
+      ? Math.atan2(anchorOf(this.nearest).y - (by - bob), anchorOf(this.nearest).x - bx)
+      : (Math.hypot(this.vx, this.vy) > 8 ? Math.atan2(this.vy, this.vx) : (this.faceX >= 0 ? 0 : Math.PI));
+    const gx = bx + Math.cos(aim) * r * 0.95;
+    const gy = (by - bob) + Math.sin(aim) * r * 0.35;
+    drawArms(gf, { x: bx, y: by - bob }, lean, r, gx, gy, aim, null, bx, by - bob);
+    drawHeldWeapon(gf, STATION_RIB, gx, gy, aim, {}, { recoil: 0 }, {});
+  }
+
+  /** Advance furniture sheets. The hero is drawn in code, not from a sheet. */
+  _updateSprites(dt) {
+    if (!this.sprites) return;
+    const cozy = this._cozy01();
+    const hall = this.save ? buildingLevel(this.save, 'rampart') >= 1 : false;
+    const shutter = this._shutterProgress == null ? (hall ? 1 : 0) : this._shutterProgress;
+    this._furnLive = this._furnLive || {};
+    this._furnPop = this._furnPop || {};
+
+    for (const { sp, st, pose, native } of this.sprites) {
+      const built = st.module ? buildingLevel(this.save, st.module) > 0 : this._repaired;
+      const live = built && this._repaired;
+      const id = st.id;
+      if (live && !this._furnLive[id]) this._furnPop[id] = 0;
+      this._furnLive[id] = live;
+      const show = live && !this._paintedHall();
+      sp.visible = show;
+      sp.animated = live;
+      sp.tint = live ? 0xffffff : 0x4a5a68;
+      sp.alpha = live ? 1 : 0;
+      if (live) {
+        this._furnPop[id] = Math.min(1, (this._furnPop[id] || 0) + dt / 0.28);
+        const u = this._furnPop[id];
+        const bounce = 1 + Math.sin(u * Math.PI) * 0.16 * (1 - u);
+        const s = ((pose && pose.h) || 56) / (native || 128);
+        sp.scale.set(s * (0.72 + 0.28 * u) * bounce);
+        sp.advance(dt);
+      }
+    }
+
+    if (this.emblemSprite) {
+      this.emblemSprite.visible = this._repaired;
+      this.emblemSprite.alpha = this._repaired ? 0.55 + cozy * 0.45 : 0;
+      if (this._repaired) this.emblemSprite.advance(dt);
+    }
+
+    if (this.floorSprite) {
+      this.floorSprite.visible = this._repaired;
+      this.floorSprite.alpha = cozy * 0.40;
+    }
+
+    if (this.lampSprites) {
+      for (const sp of this.lampSprites) {
+        sp.visible = this._repaired;
+        sp.alpha = this._repaired ? 0.22 + cozy * 0.55 : 0;
+        if (this._repaired) sp.advance(dt);
+      }
+    }
+
+    if (this.earthWindowSprite) {
+      const show = this._repaired && hall && shutter > 0.18;
+      this.earthWindowSprite.visible = show;
+      this.earthWindowSprite.alpha = show ? shutter : 0;
+      if (show) this.earthWindowSprite.advance(dt);
+    }
+    if (this.vistaSprite) {
+      this.vistaSprite.visible = hall && this._repaired && !this.earthWindowSprite && !this.restoredSprite;
+    }
   }
 
   _updateDust(dt) {
-    for (const d of this.dust) {
+    const cozy = this._cozy01();
+    const shown = Math.round(lerp(this.dust.length, 5, cozy));
+    for (let i = 0; i < this.dust.length; i++) {
+      const d = this.dust[i];
       d.x += (d.vx + Math.sin(this.t * 0.7 + d.ph) * 5) * dt;
       d.y += d.vy * dt;
       if (d.y < FLOOR.y0 - 40) { d.y = FLOOR.y1 + 20; d.x = FLOOR.x0 + Math.random() * FLOOR_W; }
@@ -1120,8 +1859,9 @@ export class StationRoom {
       if (d.x > FLOOR.x1 + 20) d.x = FLOOR.x0 - 10;
       d.s.x = d.x; d.s.y = d.y;
       d.s.scale.set(d.r / this._lightTexR);
-      // Filthy air while derelict; a few motes catching the light after.
-      d.s.alpha = (this._repaired ? 0.10 : 0.20) * (0.55 + Math.sin(this.t * 1.6 + d.ph) * 0.45);
+      // Filthy air while derelict; motes thin out as the hall becomes a home.
+      d.s.alpha = lerp(0.22, 0.045, cozy) * (0.55 + Math.sin(this.t * 1.6 + d.ph) * 0.45);
+      d.s.visible = i < shown;
     }
   }
 
@@ -1138,12 +1878,7 @@ export class StationRoom {
   freeze() { this.app && this.app.ticker.stop(); return this; }
   play() { this.app && this.app.ticker.start(); return this; }
 
-  // ── Teardown ───────────────────────────────────────────────────────
-  setSave(save) {
-    this.save = save || {};
-    const key = this._stateKey();
-    if (key !== this._builtKey) this._paintStatic();
-  }
+
 
   destroy() {
     this.destroyed = true;
@@ -1155,4 +1890,4 @@ export class StationRoom {
 
 // The floor plan re-exported so callers need only one import. Its home is
 // stationLayout.js; this is a convenience, not a second definition.
-export { STATIONS, FLOOR, anchorOf, plateOf, HERO_R, STAGE_W, STAGE_H } from './stationLayout';
+export { STATIONS, FLOOR, anchorOf, plateOf, furniturePose, windowRect, HERO_R, STAGE_W, STAGE_H } from './stationLayout';

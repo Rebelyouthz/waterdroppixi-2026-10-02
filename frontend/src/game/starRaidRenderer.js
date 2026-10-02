@@ -128,11 +128,11 @@ export class StarRaidRenderer {
     // dots at one alpha is what makes a sky read as flat noise.
     this._starLayers = [];
     const specs = [
-      { n: 90, speed: 14, size: 0.5 },
-      { n: 70, speed: 26, size: 0.8 },
-      { n: 46, speed: 48, size: 1.1 },
-      { n: 26, speed: 82, size: 1.6 },
-      { n: 12, speed: 130, size: 2.3 },
+      { n: 110, speed: 6, size: 0.45 },
+      { n: 78, speed: 16, size: 0.7 },
+      { n: 48, speed: 40, size: 1.05 },
+      { n: 24, speed: 95, size: 1.7 },
+      { n: 10, speed: 185, size: 2.5 },
     ];
     for (const sp of specs) {
       const arr = [];
@@ -173,7 +173,7 @@ export class StarRaidRenderer {
       r: rnd(H * 0.10, H * 0.15),
       // Fast enough to read as travelling, slow enough to still be the
       // furthest thing away.
-      speed: rnd(16, 24),
+      speed: rnd(8, 14),
       // Where the star sits behind it, as an angle. Fixed per spawn so the
       // rim light and the ray fan agree.
       sunAng: Math.random() * TAU,
@@ -182,15 +182,21 @@ export class StarRaidRenderer {
 
     // Asteroid belt — deeper, multi-layered belts with more varied shapes and sizes
     this._belt = [];
-    for (let i = 0; i < 65; i++) {
-      const isFar = Math.random() < 0.6;
+    for (let i = 0; i < 78; i++) {
+      const roll = Math.random();
+      let depth, r, speed, dark, meteor;
+      if (roll < 0.46) {
+        depth = 0; r = rnd(1.6, 4.4); speed = rnd(16, 38); dark = true; meteor = false;
+      } else if (roll < 0.78) {
+        depth = 1; r = rnd(5, 11); speed = rnd(52, 96); dark = false; meteor = false;
+      } else {
+        depth = 2; r = rnd(8, 18); speed = rnd(128, 210); dark = false; meteor = Math.random() < 0.48;
+      }
       this._belt.push({
         x: Math.random() * W, y: Math.random() * H,
-        r: isFar ? rnd(2, 6) : rnd(7, 18),
-        rot: Math.random() * TAU, spin: rnd(-1.4, 1.4) * (isFar ? 0.6 : 1),
-        speed: rnd(50, 140) * (isFar ? 0.5 : 1),
-        sides: 5 + ((Math.random() * 4) | 0),
-        dark: isFar
+        r, rot: Math.random() * TAU, spin: rnd(-1.4, 1.4) * (depth === 0 ? 0.5 : 1),
+        speed, sides: 5 + ((Math.random() * 4) | 0),
+        dark, meteor, depth,
       });
     }
 
@@ -201,7 +207,7 @@ export class StarRaidRenderer {
       this._nebulas.push({
         x: rnd(-W * 0.3, W * 1.3), y: rnd(-H * 0.5, H * 1.5),
         r: rnd(H * 0.2, H * 0.45), color: hues[(Math.random() * hues.length) | 0],
-        speed: rnd(1.5, 6),
+        speed: rnd(0.6, 2.4),
       });
     }
   }
@@ -294,24 +300,50 @@ export class StarRaidRenderer {
         .stroke({ width: 0.7, color: flares[i + 3] ? warm : cool, alpha: 0.4 });
     }
 
-    // Asteroid belt
+    // Asteroid belt + polished meteors. Far rocks drift; near ones carry
+    // a plasma tail so they read as falling, not as sliding polygons.
     const gb = this.gBelt; gb.clear();
     for (const a of this._belt) {
       a.y += a.speed * dt;
       a.rot += a.spin * dt;
-      if (a.y - a.r > H) { a.y = -a.r; a.x = Math.random() * W; }
+      if (a.y - a.r > H) { a.y = -a.r * (a.meteor ? 4 : 1); a.x = Math.random() * W; }
+      if (a.meteor) {
+        const trail = a.r * (9 + a.speed * 0.03);
+        const wob = Math.sin(a.rot) * a.r * 0.15;
+        gb.moveTo(a.x + wob, a.y).lineTo(a.x, a.y - trail)
+          .stroke({ width: a.r * 0.85, color: '#ff9a55', alpha: 0.16 });
+        gb.moveTo(a.x + wob * 0.4, a.y).lineTo(a.x, a.y - trail * 0.62)
+          .stroke({ width: a.r * 0.32, color: '#ffe0b0', alpha: 0.48 });
+        gb.moveTo(a.x, a.y).lineTo(a.x, a.y - trail * 0.28)
+          .stroke({ width: a.r * 0.14, color: '#fff8ee', alpha: 0.85 });
+        gb.circle(a.x, a.y, a.r * 0.72).fill({ color: '#3a2a20', alpha: 0.95 });
+        gb.circle(a.x - a.r * 0.18, a.y - a.r * 0.18, a.r * 0.38).fill({ color: '#8a6a4a', alpha: 0.9 });
+        gb.circle(a.x, a.y, a.r * 0.42).fill({ color: '#ffe8c4', alpha: 0.92 });
+        if (this._lightIdx < 16) this._emitLight(a.x, a.y, a.r * 7, '#ffb070', 0.38);
+        continue;
+      }
       const pts = [];
       for (let i = 0; i < a.sides; i++) {
         const ang = a.rot + (i / a.sides) * TAU;
         const rr = a.r * (0.7 + ((i * 41) % 7) * 0.06);
         pts.push(a.x + Math.cos(ang) * rr, a.y + Math.sin(ang) * rr);
       }
-      const baseCol = a.dark ? '#3a3328' : '#5a5348';
-      const litCol = a.dark ? '#5a5345' : '#8a8375';
-      const alpha = a.dark ? 0.4 : 0.7;
+      const baseCol = a.dark ? '#2e2a24' : '#5a5348';
+      const litCol = a.dark ? '#5a5345' : '#9a9280';
+      const shadeCol = a.dark ? '#1a1814' : '#2a2620';
+      const alpha = a.dark ? 0.38 : (a.depth === 2 ? 0.86 : 0.68);
       gb.poly(pts).fill({ color: baseCol, alpha: alpha });
-      // Edge highlight instead of flat circle crater for better depth
-      gb.moveTo(pts[0], pts[1]).lineTo(pts[2], pts[3]).lineTo(pts[4], pts[5]).stroke({ width: a.r*0.2, color: litCol, alpha: alpha * 0.8 });
+      if (pts.length >= 6) {
+        gb.poly([
+          pts[0], pts[1], pts[2], pts[3],
+          a.x, a.y,
+        ]).fill({ color: litCol, alpha: alpha * 0.55 });
+        gb.poly([
+          pts[4] ?? pts[0], pts[5] ?? pts[1], a.x, a.y,
+          pts[pts.length - 2], pts[pts.length - 1],
+        ]).fill({ color: shadeCol, alpha: alpha * 0.4 });
+      }
+      gb.moveTo(pts[0], pts[1]).lineTo(pts[2], pts[3]).lineTo(pts[4], pts[5]).stroke({ width: Math.max(0.8, a.r * 0.14), color: litCol, alpha: alpha * 0.85 });
     }
   }
 

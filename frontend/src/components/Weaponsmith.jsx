@@ -219,7 +219,7 @@ export default function Weaponsmith({ save, setSave, onClose, initialSub }) {
           </div>
           <div className="weaponsmith-stars" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#ffd166', fontWeight: 'bold' }}>
             <GameIcon name="ui_star" size={15} tone="#ffd166" />
-            <span>{save.gold || 801} Stjärnor</span>
+            <span>{save.gold || 801} Gold</span>
           </div>
           <button onClick={onClose} style={{ padding: '6px 12px', fontSize: 13 }}>✕</button>
         </div>

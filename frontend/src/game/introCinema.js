@@ -29,7 +29,6 @@
 // glitter, the fish, the bird, motes — are cleared and repainted per frame.
 // That is what keeps the framerate where Timmy asked for it.
 import { Application, Container, Graphics, Sprite, Texture, FillGradient, ColorMatrixFilter, Text, TextStyle } from 'pixi.js';
-import { AdvancedBloomFilter } from 'pixi-filters';
 import { Audio } from './audio';
 // THE SAME CHARACTER THE RUN DRAWS — not a lookalike. Timmy: 'tänk på göra han
 // som han är ingame de måste se lika ut.' heroShape.js is the one silhouette
@@ -136,30 +135,10 @@ export class IntroCinema {
     this._buildFight();
     this._buildGrade();
 
-    // ── THE PICTURE, not the light ─────────────────────────────────
-    // The scene above paints flat on its own. The game's world carries an
-    // AdvancedBloomFilter plus a ColorMatrix grade, and without them this film
-    // read as washed-out and lifeless next to it — Timmy: "är inte färger inte
-    // ljus inte shadaers filter". Bloom is what makes the sun, its glitter path
-    // and (later) the neon sludge and the fire actually GLOW rather than just
-    // being bright pixels; the grade is what gives the evening its warmth.
-    //
-    // This is whole-picture grading, which the lighting rules call the correct
-    // lever for "the shot needs mood" — it is NOT the forbidden per-sprite glow
-    // filter standing in for a light source. Every actual light in this film is
-    // still a pooled additive sprite off the baked texture.
-    //
-    // `threshold` sits above the sky and water so only genuinely hot things
-    // bloom; at the game's 0.6 the whole lake fogged over.
-    // `resolution: 'inherit'` is NOT optional here. A Filter's resolution
-    // defaults to 1, so on a 2x display the bloom and the grade are computed at
-    // HALF the screen's pixel density and scaled back up — the glow comes out
-    // muddy and soft instead of sharp, which reads as "the effects aren't
-    // really there". Costs memory and fill rate; worth it for a film.
-    const bloom = new AdvancedBloomFilter({
-      threshold: 0.78, bloomScale: 1.15, brightness: 1.0, blur: 5, quality: 4,
-      resolution: 'inherit',
-    });
+    // Whole-picture grade only. AdvancedBloomFilter crushed the lake to a
+    // black slab on this machine once already (contrast stacked with vignette),
+    // and the lighting mandate forbids community bloom as a light stand-in.
+    // Lights in this film are pooled additive sprites off the baked radial.
     const grade = new ColorMatrixFilter();
     // ColorMatrixFilter ranges are unintuitive and have bitten this project
     // before: contrast() is 0..1 with 0.5 NEUTRAL, saturate() is -1..1 with 0
@@ -179,8 +158,8 @@ export class IntroCinema {
     // control than guessing at contrast values whose neutral point is 0.5 and
     // which multiply onto each other. Turn this down first if the shot ever
     // goes heavy again; reach for the matrix values second.
-    grade.alpha = 0.85;
-    this.root.filters = [bloom, grade];
+    grade.alpha = 0.72;
+    this.root.filters = [grade];
 
     this._resize();
     this._onResize = () => this._resize();
@@ -879,7 +858,7 @@ export class IntroCinema {
     const bub = S.bubble;
     if (bt > 0.60) {
       const line = bt > 0.76;
-      const txt = line ? 'the hell is this..' : '?';
+      const txt = bt > 0.88 ? 'A map. Find who did this.' : line ? 'the hell is this..' : '?';
       if (S.bubbleText.text !== txt) {
         S.bubbleText.text = txt;
         S.bubbleText.style.fontSize = line ? 22 : 30;

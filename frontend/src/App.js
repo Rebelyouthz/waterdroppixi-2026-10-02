@@ -19,9 +19,12 @@ import { rollArtifact } from './game/artifacts';
 import { rollGearDrop } from './game/gear';
 import { rollRune } from './game/runes';
 import { rewardTier, rollCampaignChest, nextCampaignNode, nodeToMission, resolvedRewardMult } from './game/campaign';
+// totalBuildingLevels lives in campaign.js — Camp/StationRoom import it. Do not
+// reference it here without importing it (that eslint miss compiled the app red).
 import { PET_TYPES } from './components/PetPanel';
 import ToastHost from './components/ToastHost';
-import { pushToast } from './game/toastBus';
+import ClaimFx from './components/ClaimFx';
+import { pushToast, hydrateToastSeen } from './game/toastBus';
 
 function AppInner() {
   const [view, setView] = useState(null);
@@ -34,17 +37,29 @@ function AppInner() {
   const [showPaywall, setShowPaywall] = useState(false);
   const { paid, loading: authLoading, user } = useAuth();
 
+  // Mute lives on the save, but Audio only heard it while Settings was open.
+  // That meant Mute All looked on and still blasted the room on boot.
+  useEffect(() => {
+    const s = (save && save.settings) || {};
+    Audio.setSfxVol(s.sfx ?? 1.0);
+    Audio.setMusicVol(s.music ?? 0.28);
+    Audio.setMuted(!!s.muted);
+  }, [save]);
+
   // Start menu music on first user interaction (browsers block autoplay).
   // Keeps playing across views; only the GameScreen will swap music on game start.
   useEffect(() => {
-    const start = () => { try { Audio.startMusic(); } catch (e) {} };
-    document.addEventListener('pointerdown', start, { once: true });
-    document.addEventListener('keydown', start, { once: true });
-    document.addEventListener('touchstart', start, { once: true });
+    let triggered = false;
+    const events = ['pointerdown', 'keydown', 'touchstart', 'click'];
+    const start = () => {
+      if (triggered) return;
+      triggered = true;
+      events.forEach(ev => document.removeEventListener(ev, start));
+      try { Audio.startMusic(); } catch (e) {}
+    };
+    events.forEach(ev => document.addEventListener(ev, start, { once: true }));
     return () => {
-      document.removeEventListener('pointerdown', start);
-      document.removeEventListener('keydown', start);
-      document.removeEventListener('touchstart', start);
+      events.forEach(ev => document.removeEventListener(ev, start));
     };
   }, []);
 
@@ -52,9 +67,10 @@ function AppInner() {
     getPlayerId();
     setTimeout(() => {
       setBooted(true);
-      if (!save.profile.name) setView('welcome');
-      else if (!save.introSeen) setView('intro');
-      else setView('welcome');
+      // Named or not, boot lands on the start menu. START GAME plays the film
+      // if it has not been seen, then drops into orbit_find — never auto-play
+      // the cinema over the title, and never dump a fresh save into camp.
+      setView('welcome');
     }, 220);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -98,6 +114,7 @@ function AppInner() {
   // screen on the next camp entry carries the full list regardless.
   useEffect(() => {
     if (!booted) return;
+    hydrateToastSeen(save?.toastsSeen);
     const ns = settleProgression(save);
     if (ns !== save) { setSaveState(ns); saveLocal(ns); syncSave(ns); }
   }, [save, booted]);
@@ -166,6 +183,7 @@ function AppInner() {
   }, []);
 
   const onRunEnd = (result, newSave, mission) => {
+    if (result.evacHome) return;
     const ns = { ...newSave };
     // ---- Payout ledger -----------------------------------------------------
     // Everything granted by finishing a run, recorded as it is granted, so the
@@ -183,7 +201,7 @@ function AppInner() {
     bump('q_surv_3', result.time); bump('q_surv_5', result.time); bump('q_surv_8', result.time);
     bump('q_lvl_10', result.level); bump('q_lvl_20', result.level); bump('q_lvl_30', result.level);
     bump('q_gold_500', result.gold); bump('q_gold_1000', result.gold);
-    if (result.victory) { bump('q_boss', 1); }
+    if (result.victory && !(mission && mission.noBoss)) { bump('q_boss', 1); }
     if (result.noHit && result.victory) { bump('q_nohit', 1); }
     if (result.maxCombo) { bump('q_combo_50', result.maxCombo); }
     // runs quest: count today's completed runs
@@ -206,6 +224,18 @@ function AppInner() {
     // — a node you nearly cleared should not pay the same as one you walked
     // out of after thirty seconds.
     if (mission && mission.isCampaign && mission.node) {
+      if (mission.noBoss) {
+        if (result.victory) {
+          const g = (mission.node.rwd && mission.node.rwd.gold) || 650;
+          ns.gold = (ns.gold || 0) + g;
+          ns.lifetimeGold = (ns.lifetimeGold || 0) + g;
+          give('gold', g);
+          Object.assign(ns, markNodeCleared(ns, mission.node.id));
+          ns.pendingStationWalk = true;
+          pendingPayout = { tier: 3, node: mission.node, chests: [[{ type: 'gold', amount: g }]] };
+          Audio.rewardFanfare();
+        }
+      } else {
       const tier = rewardTier(result, mission.node);
       // A harder tier pays more per chest, and by MORE than the extra effort
       // costs — if Hard paid proportionally nobody would ever leave Normal,
@@ -257,8 +287,14 @@ function AppInner() {
       if (result.victory && mission.companion && result.companionNpc && result.companionNpc.alive) {
         const cid = mission.companion.id;
         ns.companions = { ...(ns.companions || {}), [cid]: { rescued: true } };
-        pushToast({ tone: 'legendary', icon: 'heart', title: `${mission.companion.name} rescued`, text: mission.companion.homeLine });
+        pushToast({
+          key: 'companion:' + mission.companion.id, once: true,
+          tone: 'legendary', icon: 'heart',
+          title: `${mission.companion.name} rescued`,
+          text: mission.companion.homeLine,
+        });
         Audio.rewardFanfare();
+      }
       }
     }
 
@@ -294,7 +330,7 @@ function AppInner() {
         ns.sp = (ns.sp || 0) + c.rwd.sp;
       }
     }
-    if (result.victory) ns.aidaSlain = (ns.aidaSlain || 0) + 1;
+    if (result.victory && !mission?.noBoss) ns.aidaSlain = (ns.aidaSlain || 0) + 1;
     if (result.necroKilled) ns.necroSlain = (ns.necroSlain || 0) + 1;
     if (result.voidKilled)  ns.voidSlain  = (ns.voidSlain  || 0) + 1;
     if (result.horusKilled) ns.horusSlain = (ns.horusSlain || 0) + 1;
@@ -332,7 +368,7 @@ function AppInner() {
     if (result.necroKilled) gems(5);
     if (result.voidKilled)  gems(6);
     if (result.horusKilled) gems(4);
-    if (result.victory)     gems(9);
+    if (result.victory && !mission?.noBoss)     gems(9);
 
     // Post-boss variation: each boss grants something distinct beyond gear
     // drops + gems, so beating one doesn't always feel like the same
@@ -353,7 +389,7 @@ function AppInner() {
       ns.petEggs = [...(ns.petEggs || []), { id: Date.now() + '_necroegg', type: petType.id, rarity: 'rare' }];
       give('egg', 1);
     }
-    if (result.victory) {
+    if (result.victory && !mission?.noBoss) {
       ns.artifactInventory = [...(ns.artifactInventory || []), rollArtifact(3)];
       ns.gachaTokens = (ns.gachaTokens || 0) + 2;
       give('artifact', 1); give('gachaTokens', 2);
@@ -383,7 +419,9 @@ function AppInner() {
     ns.talentPoints = (ns.talentPoints || 0) + tpGain; give('talentPoints', tpGain);
     const xpGain = Math.round((result.kills * 2 + result.level * 5 + (result.victory ? 200 : 0) + Math.floor(result.time / 6)) * rmul);
     addAccountXp(ns, xpGain); give('xp', xpGain);
-    const spGain = Math.round((1 + Math.floor(result.level / 5) + (result.victory ? 2 : 0)) * rmul);
+    // Skill tree is 440 SP; a clear at level 10 pays 8. That is ~55 clears to
+    // max, in the same ballpark as 516 TP / 8 per clear for the talent tree.
+    const spGain = Math.round((2 + Math.floor((result.level || 1) / 4) + (result.victory ? 4 : 0)) * rmul);
     ns.sp = (ns.sp || 0) + spGain; give('sp', spGain);
     // Gold banked from the run itself (GameScreen already added it to the
     // save). Recorded last so it sits at the top of the payout list.
@@ -453,28 +491,17 @@ function AppInner() {
     tryStartGame(() => { setActiveMission(null); setRunKey(k => k + 1); setView('game'); });
   };
 
+  const startStoryRun = () => {
+    const node = nextCampaignNode(save);
+    const m = node ? nodeToMission(node) : null;
+    tryStartGame(() => onMission(m), m);
+  };
+
   const startTutorialIfNeeded = () => {
-    if (!save.tutorialDone) {
-      // The combat tutorial run used to auto-launch here. Timmy retired it:
-      // a fresh save now lands in the camp instead, where the unlock
-      // cascade (see campaign.js's campUnlockStage) already shows nothing
-      // but "THE BASE" (dark) and the one available story mission — that IS
-      // the tutorial now, taught by the real first mission rather than a
-      // separate throwaway one. Marking tutorialDone here means this branch
-      // only ever fires once; TUTORIAL_MISSION itself is left intact rather
-      // than deleted, since nothing else that reads `save.tutorialDone`
-      // should have to change.
-      //
-      // FUNCTIONAL UPDATE, and it is load-bearing. This also runs from the
-      // intro film's `onDone`, immediately after a `setSave` that sets
-      // `introSeen`. Written as `{ ...save, ... }` BOTH calls spread the same
-      // pre-render snapshot, so this one silently discarded `introSeen` — the
-      // film then replayed on every boot and there was no way past it.
-      setSave(s => ({ ...s, tutorialDone: true }));
-      setView('camp');
-    } else {
-      startNormalGame();
-    }
+    // Endless is Camp's FIGHT button (gated on hangar). A first-hour Start
+    // Game must never land here — that used to dump into camp, then later
+    // into endless, skipping the wreck.
+    startNormalGame();
   };
 
   if (!booted || !view || authLoading) {
@@ -484,12 +511,15 @@ function AppInner() {
   if (view === 'welcome') {
     return (<>
       <Welcome save={save} setSave={setSave}
-        onContinue={() => { if (!save.introSeen) { setView('intro'); } else { startTutorialIfNeeded(); } }}
-        onCamp={() => setView('camp')} />
+        onContinue={() => { if (!save.introSeen) { setView('intro'); } else { startStoryRun(); } }}
+        onCamp={() => setView('camp')}
+        onReset={reset}
+        onReplayIntro={() => { setSave(s => ({ ...s, introSeen: false })); setView('intro'); }} />
       {showPaywall && <PaywallModal onClose={() => setShowPaywall(false)} />}
       {/* The welcome screen is where the first post-boot settle lands, so it
           needs a toast host as much as the camp does. */}
       <ToastHost />
+      <ClaimFx />
     </>);
   }
   if (view === 'intro') {
@@ -507,18 +537,17 @@ function AppInner() {
     // `setSave({...save, tutorialDone:true})` re-spread the SAME snapshot and
     // threw `introSeen` away. The film replayed forever.
     //
-    // The film always hands off to the CAMP, never to a run. Routing through
-    // `startTutorialIfNeeded` meant a save that already had `tutorialDone`
-    // (any returning player) got dropped straight into combat the moment the
-    // credits stopped, with no menu in between.
+    // Straight into orbit_find — you hold the wreck in the black, then the
+    // camp exists. Routing through startTutorialIfNeeded used to dump a
+    // returning player into endless the moment the credits stopped.
     return (<IntroCinema
       onDone={() => {
         setSave(s => ({ ...s, introSeen: true, tutorialDone: true }));
         // STRAIGHT INTO THE FIRST RUN — Timmy: 'sen ska den rakt in i första run
-        // ingame inte in i meny'. The film ends on the first enemy arriving at
-        // the camp station, so cutting to a menu would drop the thread the whole
-        // scene just set up. The menus come AFTER that run instead: death
-        // screen -> welcome (daily + wheel) -> camp.
+        // ingame inte in i meny'. The film ends on the wreck in orbit, so
+        // cutting to a furnished camp would drop the thread the whole scene
+        // just set up. The hall comes AFTER that run: hold it or get pulled
+        // inside with nothing.
         //
         // Routed through tryStartGame like every other run start, so the
         // entitlement gate still applies rather than the film being a way
@@ -557,10 +586,11 @@ function AppInner() {
       )}
       {showPaywall && <PaywallModal onClose={() => setShowPaywall(false)} />}
       <ToastHost />
+      <ClaimFx />
     </>);
   }
   if (view === 'starraid') {
-    return (<><StarRaidScreen save={save} setSave={setSave} onExit={() => setView('camp')} /><ToastHost /></>);
+    return (<><StarRaidScreen save={save} setSave={setSave} onExit={() => setView('camp')} /><ToastHost /><ClaimFx /></>);
   }
   if (view === 'game') {
     return (<>
@@ -580,6 +610,7 @@ function AppInner() {
           else setView(where);
         }} />
       <ToastHost />
+      <ClaimFx />
       {missionReward && <MissionReveal rewards={missionReward} onClose={() => { setMissionReward(null); setView('camp'); }} />}
     </>);
   }

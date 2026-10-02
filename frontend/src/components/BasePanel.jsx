@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { BUILDINGS, buildingLevel, buildingCost, isStationRepaired, isModuleAvailable, repairStation } from '../game/base';
-import { totalBuildingLevels, campNewlyUnlocked } from '../game/campaign';
+import { BUILDINGS, buildingLevel, isStationRepaired, isModuleAvailable, repairStation } from '../game/base';
+import { totalBuildingLevels } from '../game/campaign';
 import { COMPANION_LIST, isRescued } from '../game/companions';
 import { Audio } from '../game/audio';
 import GameIcon from './GameIcon';
@@ -49,27 +49,6 @@ export default function BasePanel({ save, setSave, onOpen, onClose, onUnlock, on
       say('Station sealed. Lights are on.');
     }, 520);
     setTimeout(() => setSweeping(false), 1500);
-  };
-
-  const upgrade = (id) => {
-    const lvl = buildingLevel(save, id);
-    const b = BUILDINGS[id];
-    if (lvl >= b.max) return;
-    if (!isModuleAvailable(save, id)) return;
-    const cost = buildingCost(id, lvl);
-    if ((save.gold || 0) < cost.gold) { say('Not enough gold'); return; }
-    if ((save.gearParts || 0) < cost.parts) { say(`Need ${cost.parts} gear parts`); return; }
-    const beforeLevels = totalBuildingLevels(save);
-    setSave({
-      ...save,
-      gold: save.gold - cost.gold,
-      gearParts: save.gearParts - cost.parts,
-      base: { ...(save.base || {}), [id]: lvl + 1 },
-    });
-    Audio.claimPing();
-    say(`${b.name} is now level ${lvl + 1}`);
-    const newly = campNewlyUnlocked(beforeLevels, beforeLevels + 1);
-    if (newly.length && onUnlock) onUnlock(newly);
   };
 
   const totalLevels = totalBuildingLevels(save);
@@ -184,9 +163,7 @@ export default function BasePanel({ save, setSave, onOpen, onClose, onUnlock, on
           {Object.values(BUILDINGS).map(b => {
             const lvl = buildingLevel(save, b.id);
             const maxed = lvl >= b.max;
-            const cost = buildingCost(b.id, lvl);
             const open = isModuleAvailable(save, b.id);
-            const afford = (save.gold || 0) >= cost.gold && (save.gearParts || 0) >= cost.parts;
             // The hull has no interior to walk into — it IS the interior — so it
             // never gets an ENTER. Camp.jsx's enterBuilding would otherwise fall
             // through its switch and open Meta instead, which is nonsense.
@@ -225,12 +202,7 @@ export default function BasePanel({ save, setSave, onOpen, onClose, onUnlock, on
                   {maxed ? (
                     <span className="base-btn maxlbl">{b.id === 'hull' ? 'SEALED' : 'MAX'}</span>
                   ) : (
-                    <button className="base-btn buy" disabled={!open || !afford} onClick={() => upgrade(b.id)}
-                            data-testid={`base-up-${b.id}`}>
-                      {open
-                        ? <><GameIcon name="gold" size={13} /> {cost.gold}{cost.parts ? <> · <GameIcon name="ui_cog" size={13} /> {cost.parts}</> : null}</>
-                        : <><GameIcon name="ui_lock" size={13} /> {repaired ? 'needs the hull' : 'station is derelict'}</>}
-                    </button>
+                    <span className="base-btn maxlbl">{open ? (b.id === 'drain' ? 'Walk to it in the hangar' : 'Walk to it in the hall') : (repaired ? (b.id === 'drain' ? 'needs the hangar' : 'needs the hull') : 'station is derelict')}</span>
                   )}
                 </div>
               </div>

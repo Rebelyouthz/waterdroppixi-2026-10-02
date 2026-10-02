@@ -482,3 +482,25 @@ export function rollEvent(clicker) {
   if (validEvents.length === 0) return null;
   return validEvents[Math.floor(Math.random() * validEvents.length)];
 }
+
+/**
+ * Returns player's Star-Atlas spaceship details from save for clicker map travel & prestige.
+ * Reads purely from save without touching or mutating Star Atlas structures.
+ */
+export function getEquippedShipDetails(save) {
+  const colorId = save?.profile?.shipColor || 'teal';
+  const colorMap = {
+    teal: '#5fd6ff',
+    gold: '#ffd166',
+    crimson: '#ff3366',
+    emerald: '#4dffd4',
+    violet: '#b362ff',
+    white: '#ffffff',
+    obsidian: '#334455',
+  };
+  const shipColor = colorMap[colorId] || (colorId.startsWith('#') ? colorId : '#5fd6ff');
+  const shipId = save?.starRaid?.shipId || 'skiff';
+  const shipName = shipId === 'gunship' ? 'Bulwark Gunship' : shipId === 'cruiser' ? 'Vanguard Cruiser' : 'Astro Skiff';
+  return { shipId, shipColor, shipName };
+}
+

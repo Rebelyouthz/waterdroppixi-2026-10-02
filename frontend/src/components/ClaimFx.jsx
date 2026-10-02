@@ -43,7 +43,7 @@ const _subs = new Set();
  *                                    ("inte på start skärmen dock").
  */
 export function fireClaimFx(anchor, reward, opts = {}) {
-  const items = rewardItems(reward);
+  const items = opts.items && opts.items.length ? opts.items : rewardItems(reward);
   if (!items.length) return;
   // Measured DURING the event. React nulls currentTarget once the handler
   // returns, and reading a rect in a later effect gives the post-layout
@@ -62,6 +62,9 @@ export function fireClaimFx(anchor, reward, opts = {}) {
 // the daily reward means waiting until tomorrow — so reviewing it costs a day.
 //   __claimFx(document.querySelector('[data-testid="claim-daily"]'), { gold: 400, sp: 2 })
 if (typeof window !== 'undefined') window.__claimFx = fireClaimFx;
+
+/** Camp header currency chips — fly claimed loot into the total you can see. */
+export const CAMP_CLAIM_FLY = '.camp-currency-row .camp-currency-chip';
 
 /** Mount ONCE per screen. Renders nothing until something is claimed. */
 export default function ClaimFx() {
@@ -148,7 +151,7 @@ export default function ClaimFx() {
             return (
               <span key={it.key} className={`cfx-chip cfx-${b.phase}`} style={style}>
                 <span className="cfx-chip-ico"><GameIcon name={it.icon} size={22} /></span>
-                <span className="cfx-chip-amt">+{it.amount}</span>
+                <span className="cfx-chip-amt">{typeof it.amount === 'number' ? '+' + it.amount : String(it.amount)}</span>
               </span>
             );
           })}

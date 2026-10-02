@@ -64,7 +64,7 @@ export default function TcgScreen({ save, setSave, onClose }) {
       Audio.cardFlip();
       if (next.over) {
         if (next.winner === 'you') {
-          setSave(s => ({ ...s, petFood: (s.petFood || 0) + 3 }));
+          setSave(s => ({ ...s, petFood: (s.petFood || 0) + 3, tcgWins: (s.tcgWins || 0) + 1 }));
           Audio.rewardFanfare();
         } else {
           Audio.hit();

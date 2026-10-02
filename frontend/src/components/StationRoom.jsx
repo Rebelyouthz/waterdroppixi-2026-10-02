@@ -1,59 +1,81 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { StationRoom as Room, STATIONS } from '../game/stationRoom';
-import { BUILDINGS, buildingLevel, isStationRepaired, repairStation } from '../game/base';
+import { BUILDINGS, buildingLevel, buildingCost, isStationRepaired, isModuleAvailable, repairStation, tryBuyBuilding } from '../game/base';
+import { totalBuildingLevels, campNewlyUnlocked, storyBeat } from '../game/campaign';
+import { getActiveAidaNode, applyAidaChoice } from '../game/aidaDialogue';
 import { Audio } from '../game/audio';
+import { pushToast } from '../game/toastBus';
 import GameIcon from './GameIcon';
+import AidaDialogueModal from './AidaDialogueModal';
+import StationQuestBanner from './StationQuestBanner';
 
-// THE MAIN HALL — the walkable station, as a screen.
-//
-// The split is the same one GameScreen already uses and the same one the
-// walkable-station plan settled on: PixiJS draws the room, React draws
-// everything you read. That keeps the prompt legible at any DPI, keeps focus
-// and touch targets in the DOM where the accessibility work already lives, and
-// means the room never has to grow its own text renderer.
-//
-// The one rule this screen must never break: it can NEVER trap the player away
-// from something they need. The exit is a door two steps from where you spawn,
-// Escape closes it, and every door in here also exists in the module list you
-// came from. Walking is the pleasure, not the tax.
-
-// Her voice: flat, patient, faintly disappointed. A customer-service AI
-// explaining a refund policy to a houseplant. She never uses more words than
-// the picture would have needed. (docs/STORY-BIBLE.md section 2.)
-const AIDA_LINES = [
-  'The core is warm. That is not the same as working.',
-  'You are standing in the room. Well done.',
-  'Every module you power on makes you stronger. That is the whole reason.',
-  'I have routed the current. Do not look at the cable.',
-  'There is more station than this. You have not paid for it yet.',
-];
-
-export default function StationRoom({ save, setSave, onOpen, onBuild, onClose }) {
+export default function StationRoom({ save, setSave, onOpen, onUnlock, onClose, onGather }) {
   const canvasRef = useRef(null);
   const roomRef = useRef(null);
   const [near, setNear] = useState(null);
-  const [aida, setAida] = useState(null);
+  const [aidaNodeKey, setAidaNodeKey] = useState(null);
   const [repaired, setRepaired] = useState(isStationRepaired(save));
+  const [gather, setGather] = useState(null);
 
-  // The save is read by the Pixi scene every frame, so it is handed over on a
-  // ref rather than through the effect's dependency list — re-initialising the
-  // whole room on a currency change would restart the scene mid-walk.
   const saveRef = useRef(save);
   saveRef.current = save;
+
+  const applyChoice = useCallback((choice) => {
+    if (!choice) return;
+    setSave(s => applyAidaChoice(s, choice));
+  }, [setSave]);
 
   const handleEnter = useCallback((st) => {
     if (st.id === 'exit') { onClose(); return; }
     if (st.id === 'core') {
-      if (!isStationRepaired(saveRef.current)) return;   // the room does the repair itself
-      setAida(AIDA_LINES[Math.floor(Math.random() * AIDA_LINES.length)]);
+      if (!isStationRepaired(saveRef.current)) return;
+      const activeNode = getActiveAidaNode(saveRef.current, { repairedNow: true });
+      setAidaNodeKey(activeNode.id);
       return;
     }
     const built = st.module ? buildingLevel(saveRef.current, st.module) > 0 : true;
-    // A locked door is not a dead end. It hands you to the module list with
-    // that module in front of you — the thing you actually came to do.
-    if (!built) { onBuild(st.module); return; }
+    if (!built) {
+      const before = totalBuildingLevels(saveRef.current);
+      const bought = tryBuyBuilding(saveRef.current, st.module);
+      if (!bought.ok) {
+        if (bought.reason === 'gold' || bought.reason === 'parts') {
+          const beat = storyBeat(saveRef.current);
+          setGather({ title: bought.title, text: bought.text, beat });
+        }
+        pushToast({ tone: 'default', icon: 'ui_lock', title: bought.title, text: bought.text });
+        return;
+      }
+      setSave(bought.save);
+      const newly = campNewlyUnlocked(before, before + 1);
+      if (newly.length && onUnlock) onUnlock(newly);
+      if (roomRef.current && roomRef.current.cheer) roomRef.current.cheer(1.6);
+      if (Audio.stationBuild) Audio.stationBuild();
+      else if (Audio.claimPing) Audio.claimPing();
+      const hullFirst = st.module === 'hull' && (bought.save.base || {}).hull === 1;
+      const hangarFirst = st.module === 'hangar' && (bought.save.base || {}).hangar === 1;
+      pushToast({
+        tone: 'legendary',
+        icon: hullFirst || hangarFirst ? 'ui_rocket' : 'ui_base',
+        title: hangarFirst
+          ? 'HANGAR ONLINE — SHIP AND MAPS OPEN'
+          : hullFirst
+            ? 'HULL SEALED'
+            : `${bought.title} ONLINE`,
+        text: hangarFirst
+          ? 'ENDLESS and MAPS are on the rail. CONTINUE STORY is the next planet.'
+          : hullFirst
+            ? 'The hall holds air. Walk the next hole, or go gather if the stores are empty.'
+            : bought.text,
+        key: `station:${st.module}:${(bought.save.base || {})[st.module] || 1}`,
+        once: true,
+      });
+      return;
+    }
+    if (st.module === 'hull') {
+      return;
+    }
     onOpen(st.module);
-  }, [onOpen, onBuild, onClose]);
+  }, [onOpen, onUnlock, onClose]);
 
   useEffect(() => {
     let room = null;
@@ -64,10 +86,12 @@ export default function StationRoom({ save, setSave, onOpen, onBuild, onClose })
         onNear: (st) => setNear(st),
         onEnter: handleEnter,
         onRepair: () => {
-          // ONE repair, shared with the module list. game/base.js owns the
-          // transform; nobody re-implements "set the flag and hope".
           setSave(s => repairStation(s));
           setRepaired(true);
+          // Trigger awakening dialogue immediately upon power restoration!
+          setTimeout(() => {
+            setAidaNodeKey('awakening_intro');
+          }, 300);
         },
       });
       await room.init();
@@ -79,12 +103,9 @@ export default function StationRoom({ save, setSave, onOpen, onBuild, onClose })
       if (roomRef.current) { roomRef.current.destroy(); roomRef.current = null; }
       else if (room) room.destroy();
     };
-    // Deliberately mounted ONCE. handleEnter is stable via useCallback and the
-    // save arrives through saveRef, so nothing here should re-run.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Push save changes into the live scene instead of remounting it.
   useEffect(() => {
     if (roomRef.current) roomRef.current.setSave(save);
     setRepaired(isStationRepaired(save));
@@ -95,10 +116,27 @@ export default function StationRoom({ save, setSave, onOpen, onBuild, onClose })
     const down = (e) => {
       const r = roomRef.current;
       if (!r) return;
-      if (e.code === 'Escape') { onClose(); return; }
-      if (e.code === 'Enter' || e.code === 'Space' || e.code === 'KeyE') {
+      if (e.code === 'Escape') {
+        if (aidaNodeKey) { setAidaNodeKey(null); return; }
+        if (gather) { setGather(null); return; }
+        onClose();
+        return;
+      }
+      // While Aida is talking, the modal owns E / Space / Enter.
+      if (aidaNodeKey) return;
+      if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
         e.preventDefault();
-        if (aida) { setAida(null); return; }
+        r.dash();
+        return;
+      }
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (r.nearest) r.interact();
+        else r.dash();
+        return;
+      }
+      if (e.code === 'Enter' || e.code === 'KeyE') {
+        e.preventDefault();
         r.interact();
         return;
       }
@@ -108,8 +146,6 @@ export default function StationRoom({ save, setSave, onOpen, onBuild, onClose })
       }
     };
     const up = (e) => { const r = roomRef.current; if (r) r.keyUp(e.code); };
-    // A window that loses focus mid-stride keeps the key "held" forever and
-    // the hero walks into a wall until you come back and press it again.
     const blur = () => { const r = roomRef.current; if (r) r.clearKeys(); };
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
@@ -119,12 +155,11 @@ export default function StationRoom({ save, setSave, onOpen, onBuild, onClose })
       window.removeEventListener('keyup', up);
       window.removeEventListener('blur', blur);
     };
-  }, [onClose, aida]);
+  }, [onClose, aidaNodeKey, gather]);
 
-  // ── Pointer: tap the floor to walk there ──────────────────────────
   const onPointer = (e) => {
     const r = roomRef.current;
-    if (!r || aida) return;
+    if (!r || aidaNodeKey) return;
     const rect = canvasRef.current.getBoundingClientRect();
     r.pointTo(e.clientX - rect.left, e.clientY - rect.top);
   };
@@ -135,8 +170,11 @@ export default function StationRoom({ save, setSave, onOpen, onBuild, onClose })
     ? BUILDINGS[near.module].accent
     : near && near.id === 'exit' ? '#4dff91' : '#7cd6ff';
 
-  // The one thing that must be unmissable before the station works.
   const repairPrompt = !repaired;
+  const nearCost = near && near.module && !built
+    ? buildingCost(near.module, buildingLevel(save, near.module))
+    : null;
+  const nearOpen = near && near.module ? isModuleAvailable(save, near.module) : true;
 
   return (
     <div className="sr-overlay" data-testid="station-room">
@@ -148,37 +186,46 @@ export default function StationRoom({ save, setSave, onOpen, onBuild, onClose })
 
       <div className="sr-head">
         <div className="sr-title">
-          <GameIcon name="ui_base" size={18} /> MAIN HALL
+          <GameIcon name="ui_base" size={18} /> ORBITAL SANCTUARY (HOME CAMP)
         </div>
         <span className="sr-sub">
-          {repaired ? `${total} module${total === 1 ? '' : 's'} online` : 'derelict — nothing is powered'}
+          {repaired ? `${total} module${total === 1 ? '' : 's'} online · life support active` : 'derelict — unpowered'}
         </span>
         <button className="sr-close" onClick={onClose} aria-label="Leave the station">✕</button>
       </div>
 
-      {/* The controls, said once, quietly. A player who already knows stops
-          reading it; a player who does not is never left guessing. */}
+      {/* Station Storyline Quest Banner */}
+      <StationQuestBanner
+        save={save}
+        setSave={setSave}
+        onTalkAida={(key) => setAidaNodeKey(key || 'ambient_greeting')}
+        onCheer={() => roomRef.current && roomRef.current.cheer(1.5)}
+        onGather={onGather}
+      />
+
+      {/* The controls guide */}
       <div className="sr-keys">
-        <span><b>WASD</b> / tap the floor to walk</span>
+        <span><b>WASD</b> / tap floor to walk</span>
+        <span><b>SHIFT / SPACE</b> to dash</span>
         <span><b>E</b> to use</span>
         <span><b>ESC</b> to leave</span>
       </div>
 
-      {/* ── The prompt ───────────────────────────────────────────────
-          Only the ARMED station is named. A permanent list of every door
-          would turn the room back into the menu it is supposed to replace. */}
-      {near && !aida && (
+      {/* Interactive Station Action Prompt */}
+      {near && !aidaNodeKey && !gather && (
         <div className={`sr-prompt${built ? '' : ' locked'}`} style={{ '--sr-accent': accent }}>
           <div className="sr-prompt-copy">
             <div className="sr-prompt-name">
-              {repairPrompt && near.id === 'core' ? 'CLEAN & REPAIR STATION' : near.name}
+              {repairPrompt && near.id === 'core' ? 'INSERT A.I.D.A. CORE & AWAKEN STATION' : near.name}
               {!built && near.module && <span className="sr-lock"><GameIcon name="ui_lock" size={12} /> not built</span>}
             </div>
             <div className="sr-prompt-hint">
               {repairPrompt && near.id === 'core'
-                ? 'Whoever lived here left in a hurry. Costs nothing but the afternoon.'
+                ? 'Central console is unpowered. Place the core to start clean and repair sequence.'
                 : !built && near.module
-                  ? `Raise ${BUILDINGS[near.module] ? BUILDINGS[near.module].name : 'this module'} in the module list to open this door.`
+                  ? (nearOpen
+                    ? `Install ${BUILDINGS[near.module] ? BUILDINGS[near.module].name : 'this module'} right here.${nearCost ? ` ${nearCost.gold} gold${nearCost.parts ? ` · ${nearCost.parts} parts` : ''}.` : ''}`
+                    : (repaired ? 'Seal the hull breaches first. Walk to the left wall.' : 'Insert the A.I.D.A. core in the middle of the hall.'))
                   : near.hint}
             </div>
           </div>
@@ -187,28 +234,53 @@ export default function StationRoom({ save, setSave, onOpen, onBuild, onClose })
             onClick={() => roomRef.current && roomRef.current.interact()}
             data-testid="station-use"
           >
-            {repairPrompt && near.id === 'core' ? '▸ REPAIR'
-              : !built && near.module ? 'BUILD IT'
+            {repairPrompt && near.id === 'core' ? '▸ INSERT CORE & AWAKEN'
+              : !built && near.module ? (nearOpen ? 'BUILD IT HERE' : 'LOCKED')
                 : near.id === 'exit' ? 'LEAVE' : 'ENTER'}
           </button>
         </div>
       )}
 
-      {/* ── A.I.D.A. ─────────────────────────────────────────────────
-          She never gets a text box in the fiction — she draws you a
-          condescending picture. This is the plate that picture sits on; the
-          slideshow itself is its own build (story bible, build order 6). */}
-      {aida && (
-        <div className="sr-aida" onClick={() => { setAida(null); if (Audio.menuBack) Audio.menuBack(); }}>
-          <div className="sr-aida-plate">
-            <div className="sr-aida-eye"><i /></div>
-            <div className="sr-aida-text">{aida}</div>
-            <div className="sr-aida-dismiss">tap to dismiss</div>
+      {gather && !aidaNodeKey && (
+        <div className="sr-prompt locked" style={{ '--sr-accent': '#ffd166' }} data-testid="station-gather">
+          <div className="sr-prompt-copy">
+            <div className="sr-prompt-name">{gather.title}</div>
+            <div className="sr-prompt-hint">
+              {gather.text}
+              {' '}Go out, bring salvage back, then build.
+            </div>
           </div>
+          {onGather ? (
+            <button
+              className="sr-use"
+              onClick={() => onGather()}
+              data-testid="station-gather-go"
+            >
+              ▸ GO GATHER
+            </button>
+          ) : (
+            <button className="sr-use" onClick={() => setGather(null)}>GOT IT</button>
+          )}
         </div>
+      )}
+
+      {/* Holographic A.I.D.A. NPC Dialogue Modal */}
+      {aidaNodeKey && (
+        <AidaDialogueModal
+          nodeKey={aidaNodeKey}
+          onClose={(choice) => {
+            applyChoice(choice);
+            setAidaNodeKey(null);
+          }}
+          onSelectChoice={(nextKey, choice) => {
+            applyChoice(choice);
+            setAidaNodeKey(nextKey);
+          }}
+        />
       )}
     </div>
   );
 }
 
 export { STATIONS };
+

@@ -716,6 +716,18 @@ const GLYPHS = {
     <path d="M25 5c-6 1.5-10.5 4.5-13 8" fill="none" stroke="#ffffff" strokeWidth="1.2" strokeLinecap="round" opacity="0.45" />
   </>),
 
+  // Combo Points: three chain links. Not a leaf (that's TP) and not a
+  // crystal (that's SP) — a chain you spend to open Snapped Rib strings.
+  curCombo: (u) => (<>
+    <ellipse cx="9" cy="16" rx="5.2" ry="6.4" fill="none" stroke={`url(#${u}-live)`} strokeWidth="2.6" transform="rotate(-28 9 16)" />
+    <ellipse cx="9" cy="16" rx="5.2" ry="6.4" fill="none" stroke={DARK} strokeWidth="1" opacity="0.55" transform="rotate(-28 9 16)" />
+    <ellipse cx="16" cy="16" rx="5.4" ry="6.6" fill="none" stroke={`url(#${u}-live)`} strokeWidth="2.8" />
+    <ellipse cx="16" cy="16" rx="5.4" ry="6.6" fill="none" stroke={DARK} strokeWidth="1" opacity="0.55" />
+    <ellipse cx="23" cy="16" rx="5.2" ry="6.4" fill="none" stroke={`url(#${u}-live)`} strokeWidth="2.6" transform="rotate(28 23 16)" />
+    <ellipse cx="23" cy="16" rx="5.2" ry="6.4" fill="none" stroke={DARK} strokeWidth="1" opacity="0.55" transform="rotate(28 23 16)" />
+    <path d="M12.4 12.2l3.2-1.6M16 13.2l3.4-1.4" stroke="#ffffff" strokeWidth="1.2" strokeLinecap="round" opacity="0.55" />
+  </>),
+
   // Skill points: three crystal shards rising from a common base. Distinct
   // from the gem by being ANGULAR and multiple — gems are wealth, SP is
   // something you spend on yourself.
@@ -823,15 +835,13 @@ const GLYPHS = {
   </>),
 
   katana: (u) => (<>
-    {/* blade */}
-    <path d="M27 3l1.6 1.6L10 24l-3.2-3.2z" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1.1" />
-    {/* the edge catches the light */}
-    <path d="M27 3l1.6 1.6L10 24" fill="none" stroke="#ffffff" strokeWidth="0.9" opacity="0.85" />
-    {/* tsuba (guard) */}
-    <path d="M6.4 20.4l5.2 5.2-2 2-5.2-5.2z" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1.1" />
-    {/* wrapped hilt */}
-    <path d="M4.2 22.8l5 5-2.6 2.6-5-5z" fill={DARK} />
-    <path d="M5 25.4l3 3M6.6 23.8l3 3" stroke={STEEL_HI} strokeWidth="0.9" opacity="0.8" />
+    {/* Snapped station rib — jagged shard, no tsuba. */}
+    <path d="M26 4l2.2 2.4-14 16.2-4.2-3.6z" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1.1" />
+    <path d="M26 4l2.2 2.4-8 9.2" fill="none" stroke="#ffffff" strokeWidth="0.9" opacity="0.8" />
+    <path d="M18 11.4l3.2-1.1 1.4 2.2-3.6 0.6z" fill="#6a7480" stroke={DARK} strokeWidth="0.7" />
+    <path d="M5.4 21.2l6.2 5.6-2.8 2.8-6.4-5.4z" fill={DARK} />
+    <path d="M6.4 23.6l3.2 2.8M8 22.2l3 2.6" stroke={STEEL_HI} strokeWidth="0.85" opacity="0.75" />
+    <path d="M12.2 20.8l2.6 1.4-0.8 1.8-2.8-1.2z" fill="#4a545c" />
   </>),
   pistol: (u) => (<>
     <path d="M3 11h16l3 1.5v4H12l-1.4 4H8.6l-1-4H3z" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1.2" strokeLinejoin="round" />
@@ -1026,6 +1036,12 @@ const GLYPHS = {
     <rect x="6" y="14" width="20" height="14" rx="2.5" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1.2" />
     <circle cx="16" cy="20" r="2.2" fill={DARK} />
     <rect x="15" y="20" width="2" height="4" fill={DARK} />
+  </>),
+  hatch: (u) => (<>
+    <circle cx="16" cy="16" r="13" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1.3" />
+    <circle cx="16" cy="16" r="8" fill="#061018" stroke={DARK} strokeWidth="1" />
+    <path d="M16 4v24M4 16h24M8 8l16 16M24 8L8 24" stroke={`url(#${u}-live)`} strokeWidth="1.6" />
+    <circle cx="16" cy="16" r="2.2" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="0.8" />
   </>),
   chest: (u) => (<>
     <path d="M4 14a3 3 0 0 1 3-3h18a3 3 0 0 1 3 3v11H4z" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1.2" />
@@ -2011,6 +2027,7 @@ export const ICONS = {
   cur_gems:   ['curGems',   '#4dffd4'],
   cur_slot:   ['curSlot',   '#ffcc00'],
   cur_tp:     ['curTalent', '#7ad96b'],
+  cur_cp:     ['curCombo',  '#ffb02e'],
   cur_sp:     ['curSkill',  '#8fe6ff'],
   cur_token:  ['curToken',  '#ff9933'],
   cur_key:    ['curKey',    '#e0c98a'],
@@ -2131,6 +2148,7 @@ export const ICONS = {
   // (flame, star, shield, gem, coin, token, bolt, blade, rune, trophy) rather
   // than redraw the same shape twice.
   ui_lock:      ['lock',      '#ff5a5a'],
+  ui_hatch:     ['hatch',     '#5fd6ff'],
   ui_chest:     ['chest',     '#ffb066'],
   ui_scroll:    ['scroll',    '#e0c98a'],
   ui_map:       ['map',       '#7ad9c8'],

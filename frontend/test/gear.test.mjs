@@ -10,6 +10,8 @@ import {
   PART_SLOTS, PART_NAMES, PART_ICONS, WILDCARD_PART_RATE, GEAR_MAX_LEVEL,
   gearLevelCost, gearStatValue,
   SOCKET_ODDS, GEAR_MAX_SOCKETS, rollSocketCount, gearSocketCount,
+  gearCanLevel, applyGearLevel, applySalvageGear, salvageYield, compareToWorn,
+  sortGearInventory, gearScore,
 } from '../src/game/gear.js';
 import { resolveMerge, MERGE_ODDS } from '../src/game/forge.js';
 import { applyRunesToStats, gearRunesFor } from '../src/game/runes.js';
@@ -340,6 +342,56 @@ check('mythicplus is forge-only and never drops', () => {
     }
   }
   return null;
+});
+
+check('level-up spends slot parts, not only the generic pile', () => {
+  const item = generateGearItem('boots', 'common', seeded(21));
+  item.level = 1;
+  const rich = { gearInventory: [item], gearSlotParts: { boots: 40 }, gearParts: 0 };
+  if (!gearCanLevel(rich, item)) return 'slot parts did not enable a level';
+  const out = applyGearLevel(rich, item.id);
+  if (out === rich) return 'applyGearLevel was a no-op on a payable piece';
+  if ((out.gearInventory[0].level || 1) !== 2) return 'level did not climb';
+  if (slotPartsOf(out, 'boots') >= 40) return 'slot parts were not spent';
+  if (rich.gearInventory[0].level !== 1) return 'applyGearLevel mutated the caller';
+  const broke = { gearInventory: [item], gearSlotParts: {}, gearParts: 0 };
+  if (gearCanLevel(broke, item)) return 'levelled with nothing';
+});
+
+check('salvage unequips and pays slot scrap', () => {
+  const item = generateGearItem('helmet', 'rare', seeded(22));
+  item.level = 4;
+  const save = {
+    gearInventory: [item],
+    gearEquipped: { helmet: item.id },
+    gearSlotParts: { helmet: 1 },
+    gearRunes: { [item.id]: ['r1'] },
+  };
+  const n = salvageYield(item);
+  const out = applySalvageGear(save, item.id);
+  if (out.gearInventory.length) return 'salvaged item stayed in the bag';
+  if (out.gearEquipped.helmet) return 'salvage left a dangling equipped id';
+  if (out.gearRunes[item.id]) return 'socket map kept a dead item id';
+  if (slotPartsOf(out, 'helmet') !== 1 + n) return `scrap ${slotPartsOf(out, 'helmet')}, expected ${1 + n}`;
+  if (save.gearInventory.length !== 1) return 'salvage mutated the caller';
+});
+
+check('compareToWorn only claims UP when the primary stat matches', () => {
+  const a = generateGearItem('arms', 'common', seeded(23));
+  const bigger = { ...a, id: 'bigger', val: a.val * 2 };
+  const up = compareToWorn(bigger, a);
+  if (!up.upgrade) return 'a bigger same-stat piece is not marked UP';
+  const down = compareToWorn(a, bigger);
+  if (!down.downgrade) return 'a smaller same-stat piece is not marked DOWN';
+  const swap = compareToWorn({ ...a, id: 'swap', stat: a.stat === 'dmg' ? 'atks' : 'dmg', val: a.val * 3 }, a);
+  if (swap.upgrade) return 'a different primary was sold as an upgrade';
+});
+
+check('inventory sort is best first', () => {
+  const common = generateGearItem('ring', 'common', seeded(24));
+  const epic = generateGearItem('ring', 'epic', seeded(25));
+  const sorted = sortGearInventory([common, epic]);
+  if (gearScore(sorted[0]) < gearScore(sorted[1])) return 'epic did not sort above common';
 });
 
 console.log(`\ngear.test.mjs: ${pass} passed, ${fails.length} failed`);

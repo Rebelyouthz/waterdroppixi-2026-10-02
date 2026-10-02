@@ -153,7 +153,11 @@ export default function ExplorationScreen({ save, setSave, onClose }) {
   };
 
   const advanceOrFinish = () => {
-    if (nodeIdx + 1 >= path.length) { setPhase('pathDone'); return; }
+    if (nodeIdx + 1 >= path.length) {
+      setSave(s => ({ ...s, exploreClears: (s.exploreClears || 0) + 1 }));
+      setPhase('pathDone');
+      return;
+    }
     setNodeIdx(i => i + 1);
     setProgress(0);
     setPhase('walking');
@@ -183,6 +187,7 @@ export default function ExplorationScreen({ save, setSave, onClose }) {
       if (final.winner === 'you') {
         const card = rollCard(save.attrs?.luck || 0);
         applyHaulToSave({ type: 'card', card });
+        setSave(s => ({ ...s, tcgWins: (s.tcgWins || 0) + 1 }));
         pushToast({ tone: 'default', icon: 'swarm', title: 'Encounter won', text: 'Found a card' });
       }
     }
@@ -195,6 +200,7 @@ export default function ExplorationScreen({ save, setSave, onClose }) {
     setSave(s => {
       let ns = { ...s };
       if (won) {
+        ns.tcgWins = (ns.tcgWins || 0) + 1;
         if (prize.type === 'card') ns.tcgCardInventory = [...(ns.tcgCardInventory || []), prize.card, ...(prize.card2 ? [prize.card2] : [])];
         if (prize.type === 'egg') ns.petEggs = [...(ns.petEggs || []), { id: `e_${Date.now().toString(36)}`, rarity: prize.rarity, type: PET_TYPES[Math.floor(Math.random() * PET_TYPES.length)].id }];
         if (prize.type === 'gold') ns.gold = (ns.gold || 0) + prize.amount;

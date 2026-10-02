@@ -92,6 +92,14 @@ export const BADGES = [
     progress: (s) => Math.min(1, Object.keys(s.mapProgress || {}).length),
   },
   {
+    id: 'b_first_timer', name: '1st Timer', tier: 'bronze', cat: 'story',
+    glyph: 'compass', hue: '#9fe0ff',
+    desc: 'Found Sanctuary. You held the wreck long enough to walk inside.',
+    hint: 'Clear the orbit approach — survive the first two minutes',
+    check: (s) => !!(s.mapProgress || {}).orbit_find,
+    progress: (s) => (s.mapProgress || {}).orbit_find ? 1 : 0,
+  },
+  {
     id: 'b_story_normal', name: 'The Lake Remembers', tier: 'gold', cat: 'story',
     glyph: 'crown', hue: '#4dc4ff',
     desc: 'The whole story, cleared on Normal.',

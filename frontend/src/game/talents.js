@@ -95,16 +95,16 @@ const FINISHERS = [
     flag: 'finSlow', val: 1.6, icon: 'ui_clock' },
   { step: 10, id: 't_fin_pool',   name: 'Bloodbath',
     desc: 'The mess left behind burns anything standing in it for 5s.',
-    flag: 'finPool', val: 5, pending: true, icon: 'pBurn' },
+    flag: 'finPool', val: 5, icon: 'pBurn' },
   { step: 11, id: 't_fin_free',   name: 'Second Serving',
     desc: '25% chance an execution costs no cooldown at all.',
     flag: 'finFree', val: 0.25, icon: 'ui_infinity' },
   { step: 12, id: 't_fin_thirds', name: 'Twin Cut',
     desc: 'The katana execution comes apart in three, not two.',
-    flag: 'finThirds', pending: true, icon: 'ui_daggers' },
+    flag: 'finThirds', icon: 'ui_daggers' },
   { step: 13, id: 't_fin_fourth', name: 'Point Blank',
     desc: 'The Hydro execution fires a fourth shot. 84% of the body, not 65%.',
-    flag: 'finFourth', pending: true, icon: 'hydropistol' },
+    flag: 'finFourth', icon: 'hydropistol' },
   { step: 14, id: 't_fin_exec',   name: 'Mercy Rule',
     desc: 'Anything under 25% HP can simply be executed where it stands.',
     flag: 'finExec', val: 0.25, icon: 'ui_void' },
@@ -178,49 +178,49 @@ const COMBOS = [
 const EFFECTS = [
   { step: 1,  id: 't_eff_boom',   name: 'Explosive Rounds',
     desc: 'Your shots detonate on impact. Small blast, no falloff.',
-    flag: 'fxExplode', val: 42, pending: true, icon: 'pBurn' },
+    flag: 'fxExplode', val: 42, icon: 'pBurn' },
   { step: 2,  id: 't_eff_coward', name: "Coward's Aim",
     desc: '+55% damage while nothing is within 200px of you.',
     flag: 'fxCoward', val: 0.55, icon: 'part_sight' },
   { step: 3,  id: 't_eff_pierce', name: 'Through And Through',
     desc: 'Shots pass through one extra body and gain damage doing it.',
-    flag: 'fxPierce', val: 0.2, pending: true, icon: 'pPierce' },
+    flag: 'fxPierce', val: 0.2, icon: 'pPierce' },
   { step: 4,  id: 't_eff_chain',  name: 'Conduction',
     desc: 'Every 6th hit arcs to two nearby enemies.',
-    flag: 'fxChain', val: 6, pending: true, icon: 'pLightning' },
+    flag: 'fxChain', val: 6, icon: 'pLightning' },
   { step: 5,  id: 't_eff_bleed',  name: 'Serrated',
     desc: 'Wounds keep bleeding. Damage over time that stacks.',
-    flag: 'fxBleed', val: 0.25, pending: true, icon: 'pSharp' },
+    flag: 'fxBleed', val: 0.25, icon: 'pSharp' },
   { step: 6,  id: 't_eff_freeze', name: 'Cold Spray',
     desc: 'Hits slow. Enough hits and it stops moving entirely.',
-    flag: 'fxChill', val: 0.3, pending: true, icon: 'pFrost' },
+    flag: 'fxChill', val: 0.3, icon: 'pFrost' },
   { step: 7,  id: 't_eff_split',  name: 'Fork',
     desc: 'A killing shot splits into two that carry on.',
-    flag: 'fxSplit', val: 2, pending: true, icon: 'ui_daggers' },
+    flag: 'fxSplit', val: 2, icon: 'ui_daggers' },
   { step: 8,  id: 't_eff_orbit',  name: 'Satellites',
     desc: 'Two drops orbit you and hurt what they touch.',
-    flag: 'fxOrbit', val: 2, pending: true, icon: 'pOrbit' },
+    flag: 'fxOrbit', val: 2, icon: 'pOrbit' },
   { step: 9,  id: 't_eff_ricochet', name: 'Bank Shot',
     desc: 'Shots bounce to a new target instead of dying on impact.',
-    flag: 'fxBounce', val: 2, pending: true, icon: 'pRicochet' },
+    flag: 'fxBounce', val: 2, icon: 'pRicochet' },
   { step: 10, id: 't_eff_lvlnova', name: 'Level Nova',
     desc: 'Levelling up now clears the screen rather than nudging it.',
-    flag: 'fxLevelNova', val: 2.2, pending: true, icon: 'pAura' },
+    flag: 'fxLevelNova', val: 2.2, icon: 'pAura' },
   { step: 11, id: 't_eff_thorns', name: 'Backwash',
     desc: 'Anything that touches you takes what it dealt, doubled.',
-    flag: 'fxThorns', val: 2, pending: true, icon: 'pShield' },
+    flag: 'fxThorns', val: 2, icon: 'pShield' },
   { step: 12, id: 't_eff_drought', name: 'Drought',
     desc: 'Enemies below 15% HP evaporate when anything of yours touches them.',
-    flag: 'fxDrought', val: 0.15, pending: true, icon: 'ui_void' },
+    flag: 'fxDrought', val: 0.15, icon: 'ui_void' },
   { step: 13, id: 't_eff_echo',   name: 'Echo',
     desc: 'Every shot fires a second, weaker copy a moment later.',
-    flag: 'fxEcho', val: 0.45, pending: true, icon: 'ui_infinity' },
+    flag: 'fxEcho', val: 0.45, icon: 'ui_infinity' },
   { step: 14, id: 't_eff_rain',   name: 'Downpour',
     desc: 'Water falls where enemies are thickest, continuously.',
-    flag: 'fxRain', val: 1, pending: true, icon: 'ui_waterdrop' },
+    flag: 'fxRain', val: 1, icon: 'ui_waterdrop' },
   { step: 15, id: 't_eff_flood',  name: 'THE FLOOD', keystone: true,
     desc: 'Everything you kill leaves water. The water kills. The water spreads.',
-    flag: 'fxFlood', val: 1, pending: true, icon: 'pStarBurst' },
+    flag: 'fxFlood', val: 1, icon: 'pStarBurst' },
 ];
 
 const withBranch = (list, branch) => list.map(t => ({ ...t, branch, cost: talentCost(t.step) }));
@@ -270,3 +270,29 @@ export function talentPointsSpent(save) {
 // What all three branches cost end to end — the number the talent-point
 // economy has to be balanced against.
 export const TALENT_TOTAL_COST = TALENTS.reduce((a, t) => a + t.cost, 0);
+
+// Real verbs / keystones that get the camp UNLOCKED plate — not every
+// talent. A meter tick is not a ceremony. Hydro Protocol, orbiting drops,
+// rain, flood, and the three capstones are things you can DO.
+export const TALENT_CEREMONIES = {
+  t_fin_hydro: { sub: 'HYDRO GUN EXECUTION' },
+  t_fin_apex:  { sub: 'MASS KILL REFUNDS THE EXECUTION' },
+  t_cmb_god:   { sub: 'THE CHAIN NEVER DIES' },
+  t_eff_orbit: { sub: 'TWO DROPS ORBIT YOU' },
+  t_eff_rain:  { sub: 'RAIN WHERE THEY CLUSTER' },
+  t_eff_flood: { sub: 'THE WATER KILLS AND SPREADS' },
+};
+
+export function talentCeremonyOf(talent) {
+  if (!talent) return null;
+  const row = TALENT_CEREMONIES[talent.id];
+  if (!row) return null;
+  return {
+    type: 'move',
+    id: talent.id,
+    name: talent.name,
+    icon: talent.icon,
+    sub: row.sub,
+    how: talent.desc,
+  };
+}

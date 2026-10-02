@@ -1,14 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { ENEMIES } from '../game/data';
+import { ENEMIES, WEAPONS } from '../game/data';
 import { STARTER_WEAPONS } from '../game/data_ext2';
 import { rollGearDrop } from '../game/gear';
 import { rollRune } from '../game/runes';
 import { rollAttachment } from '../game/attachments';
 import { patrolSlots, patrolRewardMult } from '../game/base';
 import { pushToast } from '../game/toastBus';
+import { applyReward } from '../store';
+import {
+  battlePassReachedNode, battlePassUnclaimedCount, normalizeBpClaimed,
+  bpRewardBag, BP_NODE_COUNT, codexUnclaimedCount,
+} from '../game/campClaims';
 import { Audio } from '../game/audio';
 import CardBattle from './CardBattle';
 import GameIcon from './GameIcon';
+import { fireClaimFx, CAMP_CLAIM_FLY } from './ClaimFx';
 
 // ─── Claim badge — a living waterdrop, not the Eye of Horus ───────────────
 // Was a literal Eye of Horus glyph, gold, unrelated to anything else in the
@@ -49,7 +55,12 @@ export function ClaimBadge({ size = 14 }) {
 // shortest one and collect it repeatedly. `chance` entries are rolls rather
 // than guarantees, so a long patrol has something to hope for on top of its
 // floor.
-const PATROL_DEFS = [
+export const PATROL_DEFS = [
+  {
+    id: 'shore', name: 'Shore Walk', icon: 'ui_waterdrop', dur: 3 * 60 * 1000,
+    rwd: { gold: 220, gearParts: 4 },
+    desc: '3m — Walk the wet ring. Back before the next run is over.',
+  },
   {
     id: 'scavenge', name: 'Scavenge', icon: 'ui_search', dur: 60 * 60 * 1000,
     rwd: { gold: 800, gearParts: 10, chance: [{ p: 0.30, petFood: 2 }] },
@@ -120,12 +131,12 @@ export function PatrolPanel({ save, setSave }) {
   // Roughly half of completed patrols run into something on the way back.
   // Rolled at CLAIM time rather than at send time so the outcome cannot be
   // predicted and re-rolled by cancelling and re-sending the mission.
-  const claimMission = (mId, lootMult = null) => {
+  const claimMission = (mId, lootMult = null, anchor = null) => {
     const m = liveMissions.find(x => x.id === mId);
     if (!m || m.status !== 'complete') return;
     const def = PATROL_DEFS.find(d => d.id === m.defId);
-    if (lootMult === null && Math.random() < 0.5) {
-      const tier = PATROL_DEFS.indexOf(def);
+    if (lootMult === null && def.id !== 'shore' && Math.random() < 0.5) {
+      const tier = Math.max(0, PATROL_DEFS.indexOf(def) - 1);
       setEncounter({ missionId: mId, tier: Math.max(0, tier) });
       return;
     }
@@ -137,15 +148,16 @@ export function PatrolPanel({ save, setSave }) {
     // Encounter outcome scales the whole haul, so a fight you won is visible
     // in every line of the payout rather than as a separate bonus.
     const petMultF = petMult * mult;
+    const bag = {};
     const grant = (rwd) => {
-      if (rwd.gold)      { ns.gold = (ns.gold || 0) + Math.round(rwd.gold * petMultF); got.push(`★ ${Math.round(rwd.gold * petMultF)}`); }
-      if (rwd.gems)      { ns.gems = (ns.gems || 0) + Math.round(rwd.gems * petMultF); got.push(`Gems ${Math.round(rwd.gems * petMultF)}`); }
-      if (rwd.sp)        { ns.sp = (ns.sp || 0) + Math.round(rwd.sp * petMultF); got.push(`◆ ${Math.round(rwd.sp * petMultF)}`); }
-      if (rwd.gearParts) { ns.gearParts = (ns.gearParts || 0) + Math.round(rwd.gearParts * petMultF); got.push(`Parts ${Math.round(rwd.gearParts * petMultF)}`); }
-      if (rwd.slotCoins) { ns.slotCoins = (ns.slotCoins || 0) + rwd.slotCoins; got.push(`Coins ${rwd.slotCoins}`); }
-      if (rwd.gachaTokens) { ns.gachaTokens = (ns.gachaTokens || 0) + rwd.gachaTokens; got.push(`Tokens ${rwd.gachaTokens}`); }
-      if (rwd.petFood)   { ns.petFood = (ns.petFood || 0) + rwd.petFood; got.push(`Food ${rwd.petFood}`); }
-      if (rwd.flux)      { ns.flux = (ns.flux || 0) + rwd.flux; got.push(`Flux ${rwd.flux}`); }
+      if (rwd.gold)      { bag.gold = (bag.gold || 0) + Math.round(rwd.gold * petMultF); got.push(`Gold ${Math.round(rwd.gold * petMultF)}`); }
+      if (rwd.gems)      { bag.gems = (bag.gems || 0) + Math.round(rwd.gems * petMultF); got.push(`Gems ${Math.round(rwd.gems * petMultF)}`); }
+      if (rwd.sp)        { bag.sp = (bag.sp || 0) + Math.round(rwd.sp * petMultF); got.push(`SP ${Math.round(rwd.sp * petMultF)}`); }
+      if (rwd.gearParts) { bag.gearParts = (bag.gearParts || 0) + Math.round(rwd.gearParts * petMultF); got.push(`Parts ${Math.round(rwd.gearParts * petMultF)}`); }
+      if (rwd.slotCoins) { bag.slotCoins = (bag.slotCoins || 0) + rwd.slotCoins; got.push(`Coins ${rwd.slotCoins}`); }
+      if (rwd.gachaTokens) { bag.gachaTokens = (bag.gachaTokens || 0) + rwd.gachaTokens; got.push(`Tokens ${rwd.gachaTokens}`); }
+      if (rwd.petFood)   { bag.petFood = (bag.petFood || 0) + rwd.petFood; got.push(`Food ${rwd.petFood}`); }
+      if (rwd.flux)      { bag.flux = (bag.flux || 0) + rwd.flux; got.push(`Flux ${rwd.flux}`); }
       if (rwd.xp)        { ns.profile = { ...ns.profile, xp: (ns.profile?.xp || 0) + Math.round(rwd.xp * petMultF) }; got.push(`XP ${Math.round(rwd.xp * petMultF)}`); }
       if (rwd.gear)      { ns.gearInventory = [...(ns.gearInventory || []), rollGearDrop(m.durationMs / 1000)]; got.push('Equipment'); }
       if (rwd.rune)      { ns.runeInventory = [...(ns.runeInventory || []), rollRune(ns.attrs?.luck || 0)]; got.push('Rune'); }
@@ -165,12 +177,17 @@ export function PatrolPanel({ save, setSave }) {
     for (const c of def.rwd.chance || []) {
       if (Math.random() < c.p) grant(c);
     }
+    applyReward(ns, bag);
     ns.patrol = { missions: liveMissions.map(x => x.id === mId ? { ...x, status: 'claimed' } : x) };
     setSave(ns);
     setClaimMsg(got.join('  ·  '));
     setTimeout(() => setClaimMsg(''), 4200);
-    pushToast({ tone: 'gold', icon: def.icon, title: `${def.name} complete`, text: got.join('  ·  ') });
-    Audio.claimPing();
+    fireClaimFx(anchor, Object.keys(bag).length ? bag : def.rwd, { flyTo: CAMP_CLAIM_FLY });
+    Audio.claimPing?.();
+    pushToast({
+      key: 'patrol:' + mId, once: true,
+      tone: 'gold', icon: def.icon, title: `${def.name} complete`, text: got.join('  ·  '),
+    });
   };
 
   const cancelMission = (mId) => {
@@ -212,16 +229,16 @@ export function PatrolPanel({ save, setSave }) {
             <span className="patrol-m-icon"><GameIcon name={def.icon} size={20} /></span>
             <div className="patrol-m-info">
               <span className="patrol-m-name">{def.name}</span>
-              <span className="patrol-m-status">{done ? '✓ COMPLETE — CLAIM NOW' : left}</span>
+              <span className="patrol-m-status">{done ? 'COMPLETE — CLAIM NOW' : left}</span>
               {!done && <div className="patrol-bar"><div className="patrol-bar-fill" style={{ width: pct + '%' }}/></div>}
             </div>
             {done && (
-              <button className="patrol-btn claim" onClick={() => claimMission(m.id)} data-testid={`patrol-claim-${m.defId}`}>
+              <button className="patrol-btn claim" onClick={(e) => claimMission(m.id, null, e.currentTarget)} data-testid={`patrol-claim-${m.defId}`}>
                 CLAIM{rwd_preview(def, petMult)}
               </button>
             )}
             {!done && (
-              <button className="patrol-btn cancel" onClick={() => cancelMission(m.id)}>✕</button>
+              <button className="patrol-btn cancel" onClick={() => cancelMission(m.id)}>ABORT</button>
             )}
           </div>
         );
@@ -267,7 +284,7 @@ export function PatrolPanel({ save, setSave }) {
 function rwd_preview(def, mult = 1) {
   const r = def.rwd;
   const parts = [];
-  if (r.gold)  parts.push(`${Math.round(r.gold  * mult)}★`);
+  if (r.gold)  parts.push(`${Math.round(r.gold  * mult)} Gold`);
   if (r.gems)  parts.push(`${Math.round(r.gems  * mult)} Gems`);
   if (r.sp)    parts.push(`${Math.round(r.sp    * mult)}SP`);
   if (r.xp)    parts.push(`${Math.round(r.xp    * mult)}XP`);
@@ -286,47 +303,72 @@ const BP_REWARDS_FREE = Array.from({ length: 40 }, (_, i) => {
   if (n % 20 === 0) return { type:'gem',    amount:20,          icon:'cur_gems', label:`${20} Gems` };
   if (n % 10 === 0) return { type:'shard',  amount:1,           icon:'rune',     label:`Shard` };
   if (n % 5  === 0) return { type:'slot',   amount:3,           icon:'cur_slot', label:`3 Coins` };
-  if (n % 4  === 0) return { type:'gold',   amount:500+n*50,    icon:'cur_gold', label:`${500+n*50}★` };
+  if (n % 4  === 0) return { type:'gold',   amount:500+n*50,    icon:'cur_gold', label:`${500+n*50} Gold` };
   if (n % 3  === 0) return { type:'gem',    amount:5,           icon:'cur_gems', label:`5 Gems` };
   if (n % 2  === 0) return { type:'talent', amount:5,           icon:'cur_tp',   label:`5 TP` };
-  return              { type:'gold',   amount:200+n*20,    icon:'cur_gold', label:`${200+n*20}★` };
+  return              { type:'gold',   amount:200+n*20,    icon:'cur_gold', label:`${200+n*20} Gold` };
 });
 const BP_REWARDS_PREMIUM = Array.from({ length: 40 }, (_, i) => {
   const n = i + 1;
   if (n % 20 === 0) return { type:'gem',     amount:50,           icon:'cur_gems', label:`${50} Gems` };
   if (n % 10 === 0) return { type:'petEgg',  amount:1,            icon:'ui_egg',   label:`Pet Egg` };
   if (n % 5  === 0) return { type:'petFood', amount:8,            icon:'petFood',  label:`8 Pet Food` };
-  if (n % 4  === 0) return { type:'gold',    amount:900+n*70,     icon:'cur_gold', label:`${900+n*70}★` };
+  if (n % 4  === 0) return { type:'gold',    amount:900+n*70,     icon:'cur_gold', label:`${900+n*70} Gold` };
   if (n % 3  === 0) return { type:'gem',     amount:12,           icon:'cur_gems', label:`12 Gems` };
   if (n % 2  === 0) return { type:'talent',  amount:10,           icon:'cur_tp',   label:`10 TP` };
   return               { type:'petFood', amount:4,            icon:'petFood',  label:`4 Pet Food` };
 });
-const XP_PER_NODE = 200;
-
-function claimBpNode(save, setSave, track, i, reachedNode) {
-  const claimedObj = save.battlePass?.claimed && !Array.isArray(save.battlePass.claimed)
-    ? save.battlePass.claimed : { free: Array.isArray(save.battlePass?.claimed) ? save.battlePass.claimed : [], premium: [] };
+function claimBpNode(save, setSave, track, i, reachedNode, e) {
+  const claimedObj = normalizeBpClaimed(save);
   const claimed = claimedObj[track] || [];
   if (i > reachedNode || claimed.includes(i)) return;
   const rwd = (track === 'premium' ? BP_REWARDS_PREMIUM : BP_REWARDS_FREE)[i];
-  let ns = { ...save, battlePass: { claimed: { ...claimedObj, [track]: [...claimed, i] } } };
-  if (rwd.type === 'gold')    ns.gold         = (ns.gold         || 0) + rwd.amount;
-  if (rwd.type === 'gem')     ns.gems         = (ns.gems         || 0) + rwd.amount;
-  if (rwd.type === 'slot')    ns.slotCoins    = (ns.slotCoins    || 0) + rwd.amount;
-  if (rwd.type === 'talent')  ns.talentPoints = (ns.talentPoints || 0) + rwd.amount;
-  if (rwd.type === 'shard')   ns.character    = { ...ns.character, shards: (ns.character?.shards || 0) + rwd.amount };
-  if (rwd.type === 'petFood') ns.petFood      = (ns.petFood      || 0) + rwd.amount;
-  if (rwd.type === 'petEgg')  ns.petEggs      = [...(ns.petEggs || []), { rarity: 'common', type: 'aquaSprite' }];
+  const ns = {
+    ...save,
+    battlePass: { ...(save.battlePass || {}), claimed: { ...claimedObj, [track]: [...claimed, i] } },
+  };
+  applyReward(ns, bpRewardBag(rwd));
+  if (rwd.type === 'petEgg') {
+    ns.petEggs = [...(ns.petEggs || []), { rarity: 'common', type: 'aquaSprite' }];
+  }
   setSave(ns);
+  Audio.claimPing?.();
+  fireClaimFx(e?.currentTarget, rwd, { flyTo: CAMP_CLAIM_FLY });
+}
+
+function claimAllBp(save, setSave, e) {
+  const reached = battlePassReachedNode(save);
+  const claimedObj = normalizeBpClaimed(save);
+  const ns = { ...save, battlePass: { ...(save.battlePass || {}), claimed: { free: [...claimedObj.free], premium: [...claimedObj.premium] } } };
+  const bag = {};
+  let n = 0;
+  for (const track of ['free', 'premium']) {
+    const rewards = track === 'premium' ? BP_REWARDS_PREMIUM : BP_REWARDS_FREE;
+    const claimed = ns.battlePass.claimed[track];
+    for (let i = 0; i <= reached; i++) {
+      if (claimed.includes(i)) continue;
+      claimed.push(i);
+      n++;
+      const rwd = rewards[i];
+      const piece = bpRewardBag(rwd);
+      Object.entries(piece).forEach(([k, v]) => { bag[k] = (bag[k] || 0) + v; });
+      if (rwd.type === 'petEgg') {
+        ns.petEggs = [...(ns.petEggs || []), { rarity: 'common', type: 'aquaSprite' }];
+      }
+    }
+  }
+  if (!n) return;
+  applyReward(ns, bag);
+  setSave(ns);
+  Audio.claimPing?.();
+  fireClaimFx(e?.currentTarget, bag, { flyTo: CAMP_CLAIM_FLY });
 }
 
 export function BattlePassPanel({ save, setSave }) {
-  const rawClaimed = save.battlePass?.claimed;
-  const claimedObj = rawClaimed && !Array.isArray(rawClaimed) ? rawClaimed : { free: Array.isArray(rawClaimed) ? rawClaimed : [], premium: [] };
-  const profileXp   = save.profile?.xp || 0;
-  const reachedNode = Math.floor(profileXp / XP_PER_NODE);
-  const unclaimedFree    = BP_REWARDS_FREE.filter((_, i) => i <= reachedNode && !(claimedObj.free || []).includes(i)).length;
-  const unclaimedPremium = BP_REWARDS_PREMIUM.filter((_, i) => i <= reachedNode && !(claimedObj.premium || []).includes(i)).length;
+  const claimedObj = normalizeBpClaimed(save);
+  const reachedNode = battlePassReachedNode(save);
+  const unclaimed = battlePassUnclaimedCount(save);
+  const rank = save.profile?.level || 1;
 
   const renderTrack = (track, rewards, claimedList, label, accentClass) => (
     <div className={`bp-track-wrap ${accentClass}`}>
@@ -338,10 +380,10 @@ export function BattlePassPanel({ save, setSave }) {
           const canClaim  = reached && !isClaimed;
           return (
             <div key={i} className={`bp-node ${reached?'reached':''} ${isClaimed?'claimed':''} ${canClaim?'claimable':''}`}
-              onClick={() => canClaim && claimBpNode(save, setSave, track, i, reachedNode)} data-testid={`bp-node-${track}-${i}`}>
+              onClick={(e) => canClaim && claimBpNode(save, setSave, track, i, reachedNode, e)} data-testid={`bp-node-${track}-${i}`}>
               <span className="bp-node-icon"><GameIcon name={rwd.icon} size={18} /></span>
               <span className="bp-node-label">{rwd.label}</span>
-              {isClaimed && <span className="bp-check">✓</span>}
+              {isClaimed && <span className="bp-check">CLAIMED</span>}
               {canClaim  && <span className="bp-glow-ring"/>}
               <span className="bp-node-num">{i+1}</span>
             </div>
@@ -355,10 +397,13 @@ export function BattlePassPanel({ save, setSave }) {
     <div className="bp-panel" data-testid="bp-panel">
       <div className="bp-header">
         <span className="bp-title">SEASON PASS</span>
-        <span className="bp-progress">XP: {profileXp} / {40 * XP_PER_NODE}</span>
-        {(unclaimedFree + unclaimedPremium) > 0 && <span className="bp-unclaimed">{unclaimedFree + unclaimedPremium} rewards ready!</span>}
+        <span className="bp-progress">Rank {rank} · node {reachedNode + 1}/{BP_NODE_COUNT}</span>
+        {unclaimed > 0 && <span className="bp-unclaimed">{unclaimed} rewards ready</span>}
+        {unclaimed > 0 && (
+          <button className="patrol-btn claim" onClick={(e) => claimAllBp(save, setSave, e)} data-testid="bp-claim-all">CLAIM ALL</button>
+        )}
       </div>
-      <div className="bp-desc">Earn XP from runs. Each {XP_PER_NODE} XP = 1 reward node — both tracks unlocked.</div>
+      <div className="bp-desc">Each account rank opens one node on both tracks. Leftover XP inside a rank does not count — the wrap is the clock.</div>
       {renderTrack('premium', BP_REWARDS_PREMIUM, claimedObj.premium || [], 'PREMIUM (pet rewards)', 'bp-premium')}
       {renderTrack('free', BP_REWARDS_FREE, claimedObj.free || [], 'FREE', 'bp-free')}
     </div>
@@ -368,6 +413,11 @@ export function BattlePassPanel({ save, setSave }) {
 // ─── CODEX ────────────────────────────────────────────────
 const ENEMY_LORE = {
   slime:'A gelatinous organism mutated by Lake contamination. Weak, but legion.',
+  sludgeling:'Silt that learned to walk. First thing on the shore — three hits if all you have is the rib.',
+  sludgeWarden:'The pond\'s own guardian, not the Eye. Eight hits of snapped station before it stays down.',
+  briner:'Salt-crusted and fast. Two hits. Ripples after the first pond.',
+  bogHusk:'A body the bog kept. Four hits. It does not hurry.',
+  theDredger:'It dredges the shallows for anything that still moves. Twelve hits. The second pond\'s answer to a boss.',
   bat:'Voidbat — phase-shifted creature drawn to dimensional rifts. Fast and unpredictable.',
   brute:'Mutant humanoid reinforced by crystallized water. Slow but devastating.',
   ranger:'A corrupted soldier armed with liquid-nitrogen projectile launchers.',
@@ -397,9 +447,14 @@ export function CodexPanel({ save, setSave }) {
   const killed  = codex.enemies   || {};
   const weapons = codex.weapons   || {};
   const claimed = codex.claimedDiscoveries || [];
+  const unclaimed = codexUnclaimedCount(save);
+  const weaponIds = [...new Set([
+    ...Object.keys(STARTER_WEAPONS || {}),
+    ...Object.keys(weapons),
+    ...Object.keys(WEAPONS),
+  ])];
 
   const totalDiscovered = Object.keys(killed).length + Object.keys(weapons).length;
-  const totalClaimable  = [...Object.keys(killed), ...Object.keys(weapons)].filter(id => !claimed.includes(id)).length;
 
   // Proof-of-concept for the general "a claim should always be felt" rule
   // (Timmy: "vid claim alltid ska de visas å kännas å låta") — this used to
@@ -410,16 +465,54 @@ export function CodexPanel({ save, setSave }) {
   // needs to add the sound/toast/local burst — the "flows into the current
   // total" half of the ask was already built, just never wired to a sound.
   const [burstId, setBurstId] = useState(null);
-  const claimDiscovery = (id) => {
-    if (claimed.includes(id)) return;
-    setSave({
+  const payDiscoveries = (ids) => {
+    const ns = {
       ...save,
-      gems: (save.gems || 0) + 1,
-      codex: { ...save.codex, claimedDiscoveries: [...claimed, id] }
-    });
+      codex: { ...save.codex, claimedDiscoveries: [...claimed, ...ids] },
+    };
+    applyReward(ns, { gems: ids.length });
+    return ns;
+  };
+  const claimDiscovery = (id, e) => {
+    if (claimed.includes(id)) return;
+    setSave(payDiscoveries([id]));
     Audio.claimPing?.();
+    fireClaimFx(e?.currentTarget, { gems: 1 }, { flyTo: CAMP_CLAIM_FLY });
     setBurstId(id);
     setTimeout(() => setBurstId(cur => (cur === id ? null : cur)), 750);
+  };
+  const claimAllCodex = (e) => {
+    const ids = [...new Set([
+      ...Object.keys(killed),
+      ...Object.keys(weapons),
+    ])].filter((id) => !claimed.includes(id));
+    if (!ids.length) return;
+    setSave(payDiscoveries(ids));
+    Audio.claimPing?.();
+    fireClaimFx(e?.currentTarget, { gems: ids.length }, { flyTo: CAMP_CLAIM_FLY });
+  };
+
+  const row = (id, { disc, name, lore, lockedLore, kills, killsTone, icon, boss }) => {
+    const alrClaimed = claimed.includes(id);
+    return (
+      <div key={id} className={`codex-entry${boss ? ' boss' : ''} ${disc ? 'found' : 'undiscovered'}`} data-testid={`codex-${boss ? 'boss' : 'enemy'}-${id}`}>
+        <div className="codex-entry-icon"><GameIcon name={icon} size={20} tone={disc ? undefined : '#3a2a5e'} /></div>
+        <div className="codex-entry-info">
+          <div className="codex-entry-name">{disc ? name : '???'}</div>
+          <div className="codex-entry-lore">{disc ? lore : lockedLore}</div>
+          {disc && <div className="codex-entry-kills" style={killsTone ? { color: killsTone } : undefined}>{kills}</div>}
+        </div>
+        {disc && !alrClaimed && (
+          <button className={`codex-claim-btn${boss ? ' boss-claim' : ''}`} onClick={(e) => claimDiscovery(id, e)} data-testid={`codex-claim-${id}`}>
+            <GameIcon name="cur_gems" size={12} /> +1
+          </button>
+        )}
+        {disc && alrClaimed && <span className="codex-claimed-badge">CLAIMED</span>}
+        {burstId === id && (
+          <span className="codex-claim-burst"><GameIcon name="cur_gems" size={13} /> +1</span>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -427,10 +520,13 @@ export function CodexPanel({ save, setSave }) {
       <div className="codex-header">
         <span className="codex-title">CODEX</span>
         <span className="codex-count">{totalDiscovered} entries</span>
-        {totalClaimable > 0 && (
+        {unclaimed > 0 && (
           <span className="codex-claim-hint" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-            {totalClaimable} unclaimed <GameIcon name="cur_gems" size={13} />
+            {unclaimed} unclaimed <GameIcon name="cur_gems" size={13} />
           </span>
+        )}
+        {unclaimed > 0 && (
+          <button className="patrol-btn claim" onClick={claimAllCodex} data-testid="codex-claim-all">CLAIM ALL</button>
         )}
       </div>
 
@@ -451,26 +547,12 @@ export function CodexPanel({ save, setSave }) {
           {ALL_ENEMY_IDS.map(id => {
             const e = ENEMIES[id];
             const disc = (killed[id]?.count || 0) > 0;
-            const alrClaimed = claimed.includes(id);
-            return (
-              <div key={id} className={`codex-entry ${disc?'found':'unknown'}`} data-testid={`codex-enemy-${id}`}>
-                <div className="codex-entry-icon" style={{color: disc ? e.color : '#2a1a4e'}}>●</div>
-                <div className="codex-entry-info">
-                  <div className="codex-entry-name">{disc ? e.name : '???'}</div>
-                  <div className="codex-entry-lore">{disc ? (ENEMY_LORE[id]||'Unknown entity.') : 'Kill this enemy to reveal.'}</div>
-                  {disc && <div className="codex-entry-kills">Kills: {killed[id]?.count||0}×</div>}
-                </div>
-                {disc && !alrClaimed && (
-                  <button className="codex-claim-btn" onClick={() => claimDiscovery(id)} data-testid={`codex-claim-${id}`}>
-                    <GameIcon name="cur_gems" size={12} /> +1
-                  </button>
-                )}
-                {disc && alrClaimed && <span className="codex-claimed-badge">✓</span>}
-                {burstId === id && (
-                  <span className="codex-claim-burst"><GameIcon name="cur_gems" size={13} /> +1</span>
-                )}
-              </div>
-            );
+            return row(id, {
+              disc, name: e.name, lore: ENEMY_LORE[id] || 'Unknown entity.',
+              lockedLore: 'Kill this enemy to reveal.',
+              kills: `Kills: ${killed[id]?.count || 0}×`,
+              icon: 'ui_waterdrop',
+            });
           })}
         </div>
       )}
@@ -480,49 +562,38 @@ export function CodexPanel({ save, setSave }) {
           {ALL_BOSS_IDS.map(id => {
             const e = ENEMIES[id];
             const disc = (killed[id]?.count || 0) > 0;
-            const alrClaimed = claimed.includes(id);
-            return (
-              <div key={id} className={`codex-entry boss ${disc?'found':'unknown'}`} data-testid={`codex-boss-${id}`}>
-                <div className="codex-entry-icon" style={{color: disc ? e.color : '#2a1a4e', fontSize:22}}>◉</div>
-                <div className="codex-entry-info">
-                  <div className="codex-entry-name">{disc ? e.name : '???'}</div>
-                  <div className="codex-entry-lore">{disc ? (ENEMY_LORE[id]||'A dangerous entity.') : 'Defeat this boss to reveal lore.'}</div>
-                  {disc && <div className="codex-entry-kills" style={{color:'#ff3146'}}>Defeats: {killed[id]?.count||0}×</div>}
-                </div>
-                {disc && !alrClaimed && (
-                  <button className="codex-claim-btn boss-claim" onClick={() => claimDiscovery(id)} data-testid={`codex-claim-${id}`}>
-                    <GameIcon name="cur_gems" size={12} /> +1
-                  </button>
-                )}
-                {disc && alrClaimed && <span className="codex-claimed-badge">✓</span>}
-                {burstId === id && (
-                  <span className="codex-claim-burst"><GameIcon name="cur_gems" size={13} /> +1</span>
-                )}
-              </div>
-            );
+            return row(id, {
+              disc, name: e.name, lore: ENEMY_LORE[id] || 'A dangerous entity.',
+              lockedLore: 'Defeat this boss to reveal lore.',
+              kills: `Defeats: ${killed[id]?.count || 0}×`,
+              killsTone: '#ff3146', icon: 'ui_void', boss: true,
+            });
           })}
         </div>
       )}
 
       {tab === 'weapons' && (
         <div className="codex-grid">
-          {Object.entries(STARTER_WEAPONS || {}).map(([wid, w]) => {
+          {weaponIds.map(wid => {
+            const w = WEAPONS[wid] || STARTER_WEAPONS[wid] || { name: wid };
             const disc = (weapons[wid]?.count || 0) > 0;
             const alrClaimed = claimed.includes(wid);
             return (
-              <div key={wid} className={`codex-entry ${disc?'found':'unknown'}`} data-testid={`codex-weapon-${wid}`}>
-                <div className="codex-entry-icon" style={{color: disc ? '#ffd166' : '#2a1a4e'}}><GameIcon name="ui_cog" size={20} /></div>
+              <div key={wid} className={`codex-entry ${disc ? 'found' : 'undiscovered'}`} data-testid={`codex-weapon-${wid}`}>
+                <div className="codex-entry-icon">
+                  <GameIcon name={w.icon || wid} size={20} tone={disc ? undefined : '#3a2a5e'} />
+                </div>
                 <div className="codex-entry-info">
-                  <div className="codex-entry-name">{disc ? (w.name||wid) : '???'}</div>
-                  <div className="codex-entry-lore">{disc ? (w.desc||'A weapon of the Lake.') : 'Use this weapon in a run.'}</div>
-                  {disc && <div className="codex-entry-kills" style={{color:'#ffd166'}}>Runs: {weapons[wid]?.count||0}×</div>}
+                  <div className="codex-entry-name">{disc ? (w.name || wid) : '???'}</div>
+                  <div className="codex-entry-lore">{disc ? (w.desc || 'A weapon of the Lake.') : 'Use this weapon in a run.'}</div>
+                  {disc && <div className="codex-entry-kills" style={{ color: '#ffd166' }}>Runs: {weapons[wid]?.count || 0}×</div>}
                 </div>
                 {disc && !alrClaimed && (
-                  <button className="codex-claim-btn" onClick={() => claimDiscovery(wid)} data-testid={`codex-claim-${wid}`}>
+                  <button className="codex-claim-btn" onClick={(e) => claimDiscovery(wid, e)} data-testid={`codex-claim-${wid}`}>
                     <GameIcon name="cur_gems" size={12} /> +1
                   </button>
                 )}
-                {disc && alrClaimed && <span className="codex-claimed-badge">✓</span>}
+                {disc && alrClaimed && <span className="codex-claimed-badge">CLAIMED</span>}
                 {burstId === wid && (
                   <span className="codex-claim-burst"><GameIcon name="cur_gems" size={13} /> +1</span>
                 )}

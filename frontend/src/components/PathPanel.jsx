@@ -1,8 +1,8 @@
 import React from 'react';
 import { PATH_STEPS, currentStep, pathProgress } from '../game/path';
 import { applyReward } from '../store';
-import { Audio } from '../game/audio';
 import GameIcon from './GameIcon';
+import { fireClaimFx, CAMP_CLAIM_FLY } from './ClaimFx';
 
 // The Path, rendered as a single lit rung with the finished ones stacked
 // behind it. Only the current step is expanded — the whole point is that the
@@ -13,12 +13,12 @@ export default function PathPanel({ save, setSave, onGo }) {
   const doneCount = pathProgress(save);
   const ready = step ? step.check(save) : false;
 
-  const claim = () => {
+  const claim = (e) => {
     if (!step || !ready) return;
     const ns = { ...save, pathClaimed: { ...done, [step.id]: true } };
     applyReward(ns, step.rwd, null);
     setSave(ns);
-    Audio.levelUp();
+    fireClaimFx(e?.currentTarget, step.rwd, { flyTo: CAMP_CLAIM_FLY });
   };
 
   const rwdBits = (r) => [

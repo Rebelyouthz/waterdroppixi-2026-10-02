@@ -1,13 +1,15 @@
 // Logic checks for the three new pure modules. No React, no Audio — these
 // are the parts that decide progression, so they are the parts worth proving.
 import assert from 'node:assert';
+import fs from 'node:fs';
 import {
   DIFFICULTIES, difficultyUnlocked, tierComplete, progressFor,
   markNodeCleared, resolveDifficulty, scaleReward, rewardMult,
 } from '../src/game/difficulty.js';
 import { BADGES, awardBadges, toggleBadge, setBadgeSlot, equippedBadges, MAX_EQUIPPED_BADGES } from '../src/game/badges.js';
 import { STORY_QUESTS, CAMP_QUESTS, completedUnpaid, activeQuests, currentQuest } from '../src/game/storyQuests.js';
-import { campaignNodes, bossGateTime, rollCampaignChest, rewardTier } from '../src/game/campaign.js';
+import { dashPathMinCost, DASH_NODE_ID } from '../src/game/poe_tree.js';
+import { campaignNodes, bossGateTime, rollCampaignChest, rewardTier, campUnlockStage, isCampSubTabLocked, isEndlessUnlocked, isFirstHourRun, firstHourTips, runDebrief, storyBeat } from '../src/game/campaign.js';
 import { characterSlots, CHAR_RARITIES, CHAR_MAX_LEVELS, MAP_STAGES } from '../src/game/data_ext2.js';
 import { WAVE_TIMELINE } from '../src/game/data.js';
 import { applyReward } from '../src/store.js';
@@ -174,6 +176,54 @@ t('quest ids are unique across both tracks', () => {
   assert.equal(new Set(ids).size, ids.length);
 });
 
+t('the storyline points at Shadow Dash, not any skill node', () => {
+  const q = STORY_QUESTS.find(x => x.id === 's_dash');
+  assert.ok(q, 's_dash is missing from STORY_QUESTS');
+  assert.equal(q.go, 'skills');
+  assert.equal(q.check({ skills: {} }), false);
+  assert.equal(q.check({ skills: { poe_com0: 1 } }), false);
+  assert.equal(q.check({ skills: { [DASH_NODE_ID]: 1 } }), true);
+  assert.equal(dashPathMinCost(), 5, 'dash walk is 1+1+3 SP');
+  const camp = CAMP_QUESTS.find(x => x.id === 'c_skill');
+  assert.ok(camp.goal.toLowerCase().includes('three'), 'c_skill must not steal the dash lesson');
+});
+
+t('after the wreck run the story step is insert AIDA, not Dash', () => {
+  const s = { ...fresh(), runsCompleted: 1, questsDone: { s_first_run: true } };
+  assert.equal(currentQuest(s, 'story').id, 's_insert');
+  assert.equal(STORY_QUESTS[1].id, 's_insert');
+  assert.equal(CAMP_QUESTS[0].id, 'c_awaken');
+  s.questsDone.s_insert = true;
+  s.stationRepaired = true;
+  assert.equal(currentQuest(s, 'story').id, 's_hull');
+  s.questsDone.c_awaken = true;
+  assert.equal(currentQuest(s, 'camp').id, 'c_hull');
+});
+
+t('first-hour coaching covers the wreck and the rain pool, not the Lake', () => {
+  assert.equal(isFirstHourRun({ node: { id: 'orbit_find' } }), true);
+  assert.equal(isFirstHourRun({ node: { id: 'pond_1' } }), true);
+  assert.equal(isFirstHourRun({ node: { id: 'lake_1' } }), false);
+  const wreck = firstHourTips({ node: { id: 'orbit_find' } });
+  assert.ok(wreck.some(x => /HOLD/i.test(x.text)));
+  assert.ok(wreck.every(x => x.at < 120), 'orbit tips must fire inside the 120s wreck');
+  assert.equal(firstHourTips({ node: { id: 'lake_1' } }).length, 0);
+});
+
+t('death debrief follows the hall / gather door, not a generic spend line', () => {
+  // Dying on the wreck still counts as a run — CONTINUE STORY must be the
+  // hall, not another orbit attempt (storyBeat used to stay on HOLD THE WRECK).
+  const wrecked = { ...fresh(), runsCompleted: 1 };
+  const d = runDebrief(wrecked);
+  assert.ok(d);
+  assert.match(d.campLabel, /WALK THE HALL/);
+  assert.equal(d.lockRetry, true);
+  assert.equal(storyBeat(wrecked).why, 'insert');
+  const hull = { ...wrecked, stationRepaired: true };
+  assert.match(runDebrief(hull).campLabel, /SEAL THE HULL/);
+  assert.equal(storyBeat(hull).why, 'hull');
+});
+
 console.log('\n=== campaign pacing ===');
 t('the opening node gates early enough to be an onramp', () => {
   // The campaign used to open on lake_1, which gated at 151s. The Rain Pool
@@ -233,7 +283,7 @@ t('no two consecutive nodes share a gate time', () => {
 });
 
 t('a failed run that reached the guardian still pays two chests', () => {
-  const node = campaignNodes()[0];
+  const node = campaignNodes().find(n => !n.noBoss);
   const gate = bossGateTime(node);
   assert.equal(rewardTier({ victory: false, time: gate + 1 }, node), 2);
   assert.equal(rewardTier({ victory: false, time: gate * 0.5 }, node), 1);
@@ -250,6 +300,54 @@ t('chest drop chances stay under 100% even at the nightmare multiplier', () => {
     if (!chest.some(c => c.type === 'gear')) { sawNoGear = true; break; }
   }
   assert.ok(sawNoGear, 'gear dropped in every one of 2000 nightmare chests — chance cap is broken');
+});
+
+t('the campaign opens on the orbit approach, not the Rain Pool', () => {
+  const first = campaignNodes()[0];
+  assert.equal(first.id, 'orbit_find');
+  assert.ok(first.noBoss && first.cannotDie && first.campExterior);
+});
+
+t('finding the wreck does not unlock the whole camp', () => {
+  // campUnlockStage used to treat any non-pond node as "already past the
+  // intro", so clearing the two-minute approach jumped the camp to stage 3.
+  assert.equal(campUnlockStage({ mapProgress: {}, profile: { level: 1 } }), 0);
+  assert.equal(campUnlockStage({ mapProgress: { orbit_find: true }, profile: { level: 1 } }), 0);
+  assert.equal(campUnlockStage({ mapProgress: { orbit_find: true, pond_1: true }, profile: { level: 1 } }), 1);
+  assert.equal(campUnlockStage({ mapProgress: { lake_1: true }, profile: { level: 1 } }), 3);
+});
+
+t('endless opens when the hangar is built, not at the hull', () => {
+  assert.equal(isEndlessUnlocked({ base: {} }), false);
+  assert.equal(isEndlessUnlocked({ base: { hull: 1 } }), false);
+  assert.equal(isEndlessUnlocked({ base: { hull: 1, hangar: 1 } }), true);
+  assert.equal(isEndlessUnlocked({ mapProgress: { lake_1: true }, profile: { level: 1 }, base: {} }), true);
+});
+
+t('Endless is not MAPS, and MAPS cannot skip the hangar tutorial', () => {
+  const empty = { mapProgress: {}, profile: { level: 1 }, base: {} };
+  assert.equal(isCampSubTabLocked('campaign', empty), false);
+  assert.equal(isCampSubTabLocked('maps', empty), true);
+  assert.equal(isCampSubTabLocked('challenges', empty), true);
+  const hulled = { mapProgress: {}, profile: { level: 1 }, base: { hull: 1 } };
+  assert.equal(isCampSubTabLocked('maps', hulled), true, 'MAPS still waits on the hangar');
+  assert.equal(isCampSubTabLocked('challenges', hulled), true);
+  const ponded = { mapProgress: { pond_1: true }, profile: { level: 1 }, base: { hull: 1 } };
+  assert.equal(isCampSubTabLocked('maps', ponded), true, 'a Rain Pool clear is not a ship');
+  assert.equal(isCampSubTabLocked('challenges', ponded), true, 'challenges still wait on a second module');
+  const twoMods = { mapProgress: { pond_1: true }, profile: { level: 1 }, base: { hull: 1, well: 1 } };
+  assert.equal(isCampSubTabLocked('challenges', twoMods), false);
+  const hangared = { mapProgress: { pond_1: true }, profile: { level: 1 }, base: { hull: 1, hangar: 1 } };
+  assert.equal(isCampSubTabLocked('maps', hangared), false);
+});
+
+t('the story spine cannot skip a map', () => {
+  const lake = campaignNodes().find(n => n.id === 'lake_1');
+  const ruins = campaignNodes().find(n => n.id === 'ruins_1');
+  const gobekli = campaignNodes().find(n => n.id === 'gobekli_1');
+  assert.equal(lake.unlockGoal, 'pond_3');
+  assert.equal(ruins.unlockGoal, 'lake_3');
+  assert.equal(gobekli.unlockGoal, 'ruins_3');
 });
 
 // ---------------------------------------------------------------------------
@@ -298,25 +396,32 @@ t('levels still actually open slots inside a rarity', () => {
 
 t('every currency a quest pays out is one applyReward actually credits', () => {
   const CREDITED = new Set(['gold', 'sp', 'gems', 'slotCoins', 'petFood', 'gearParts',
-    'flux', 'cores', 'talentPoints', 'gachaTokens']);
+    'flux', 'cores', 'talentPoints', 'gachaTokens', 'comboPoints']);
   for (const q of [...STORY_QUESTS, ...CAMP_QUESTS]) {
     for (const k of Object.keys(q.rwd)) {
       assert.ok(CREDITED.has(k), `${q.id} pays "${k}", which applyReward drops on the floor`);
     }
   }
   // And prove it against the real implementation, not just a list.
-  const s = { gold: 0, talentPoints: 0, gachaTokens: 0 };
-  applyReward(s, { gold: 10, talentPoints: 6, gachaTokens: 3 }, null);
+  const s = { gold: 0, talentPoints: 0, gachaTokens: 0, comboPoints: 0 };
+  applyReward(s, { gold: 10, talentPoints: 6, gachaTokens: 3, comboPoints: 2 }, null);
   assert.equal(s.talentPoints, 6);
   assert.equal(s.gachaTokens, 3);
+  assert.equal(s.comboPoints, 2);
 });
 
 t('no storyline gate collides with an ambient boss event', () => {
   // The ambient WAVE_TIMELINE rotation is suppressed during campaign nodes, so
   // this is belt-and-braces: if that suppression is ever removed, a gate
   // landing on a boss checkpoint spawns two guardians at once.
+  const engine = fs.readFileSync(new URL('../src/game/engine.js', import.meta.url), 'utf8');
+  assert.ok(
+    /if \(!this\.noBoss && !this\.campaignBossAt && this\.nextBoss/.test(engine),
+    'ambient boss rotation is no longer suppressed on campaign nodes',
+  );
   const bossTimes = WAVE_TIMELINE.filter(w => w.event).map(w => w.t);
   for (const n of campaignNodes()) {
+    if (n.noBoss) continue;
     const gate = bossGateTime(n);
     for (const bt of bossTimes) {
       if (Math.abs(gate - bt) <= 2) {
@@ -325,7 +430,6 @@ t('no storyline gate collides with an ambient boss event', () => {
       }
     }
   }
-  assert.ok(true);
 });
 
 t('an earned badge no longer overrides a slot the player deliberately cleared', () => {

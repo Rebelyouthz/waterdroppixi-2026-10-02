@@ -28,6 +28,8 @@ import { pushToast } from './toastBus';
 import { Audio } from './audio';
 import { settleMastery } from './masterMilestones';
 import { settleStarRaidMilestones } from './starRaidMilestones';
+import { ACHIEVEMENTS, achMetric, achievementToastCopy } from './data_ext2';
+import { applyComboPointSources } from './comboSchool';
 
 // Turns a reward bag into the compact item list the camp-entry screen renders.
 // Exported so the claim-juice overlay (components/ClaimFx.jsx) renders a payout
@@ -36,7 +38,9 @@ import { settleStarRaidMilestones } from './starRaidMilestones';
 // starts showing a currency the other one silently drops.
 export const REWARD_ICONS = {
   gold: 'gold', sp: 'sp', gems: 'gems', slotCoins: 'slotCoins', talentPoints: 'cur_tp',
+  comboPoints: 'cur_cp',
   petFood: 'petFood', gearParts: 'ui_part', flux: 'cur_shards', cores: 'ui_gem', gachaTokens: 'ui_ticket',
+  pieces: 'cur_pieces', shards: 'cur_shards', freeSpin: 'cur_slot',
   // `rewardItems` filters on this table, so a payout with no entry is silently
   // DROPPED from the reward screen — the player is paid and never told. That
   // was true of every item reward: finish a run, earn a piece of gear, a rune,
@@ -51,10 +55,46 @@ export const REWARD_ICONS = {
   xp: 'ui_star',
 };
 
+// Daily login / battle pass / patrol rows speak `{ type, amount }`.
+// Reward bags speak `{ gold: 200 }`. applyReward understands both;
+// ClaimFx's rewardItems used to understand only the bag, so the daily
+// login fired a burst with zero chips — a silent no-op that looked like
+// "daily reward has nothing". One map. Both shapes.
+const TYPE_TO_BAG = {
+  gold: 'gold', sp: 'sp', gems: 'gems', gem: 'gems',
+  slotCoins: 'slotCoins', slot: 'slotCoins',
+  talentPoints: 'talentPoints', talent: 'talentPoints',
+  comboPoints: 'comboPoints', combo: 'comboPoints',
+  gearParts: 'gearParts', probeKeys: 'probeKeys',
+  petFood: 'petFood', flux: 'flux', cores: 'cores', gachaTokens: 'gachaTokens',
+  pieces: 'pieces', shards: 'shards', freeSpin: 'freeSpin',
+  xp: 'xp', gear: 'gear', rune: 'rune', artifact: 'artifact', egg: 'egg',
+  petEgg: 'egg', chest: 'gear',
+};
+
+export function normalizeRewardBag(rwd) {
+  if (!rwd || typeof rwd !== 'object') return {};
+  const bag = {};
+  const add = (k, n) => {
+    if (!REWARD_ICONS[k]) return;
+    const v = typeof n === 'number' ? n : (n ? 1 : 0);
+    if (!v) return;
+    bag[k] = (bag[k] || 0) + v;
+  };
+  for (const k of Object.keys(REWARD_ICONS)) {
+    if (rwd[k]) add(k, rwd[k]);
+  }
+  if (rwd.type) {
+    const k = TYPE_TO_BAG[rwd.type];
+    if (k) add(k, rwd.amount != null ? rwd.amount : 1);
+  }
+  return bag;
+}
+
 export function rewardItems(rwd) {
   if (!rwd) return [];
-  return Object.entries(rwd)
-    .filter(([k, v]) => REWARD_ICONS[k] && v)
+  return Object.entries(normalizeRewardBag(rwd))
+    .filter(([, v]) => v)
     .map(([k, v]) => ({ icon: REWARD_ICONS[k], key: k, amount: v }));
 }
 
@@ -78,10 +118,38 @@ function settleTierClearing(save) {
   return changed;
 }
 
+function markToast(s, key) {
+  s.toastsSeen = { ...(s.toastsSeen || {}), [key]: true };
+}
+
+function toastSeen(save, key) {
+  return !!(save.toastsSeen && save.toastsSeen[key]);
+}
+
+// Old saves have no toastsSeen. Mark everything already earned so boot does
+// not replay a wall of "ACHIEVEMENT UNLOCKED" for work they did months ago.
+function backfillToastsSeen(save) {
+  const seen = {};
+  for (const a of ACHIEVEMENTS) {
+    if (achMetric(save, a.metric) >= a.goal) seen['ach:' + a.id] = true;
+  }
+  for (const id of Object.keys(save.badgesEarned || {})) seen['badge:' + id] = true;
+  for (const id of Object.keys(save.questsDone || {})) seen['quest:' + id] = true;
+  for (const [d, ok] of Object.entries(save.diffCleared || {})) {
+    if (ok) seen['diff:' + d] = true;
+  }
+  return seen;
+}
+
 export function settleProgression(save) {
   if (!save) return save;
   let ns = null;
   const touch = () => { if (!ns) ns = { ...save }; return ns; };
+
+  if (save.toastsSeen == null) {
+    const s = touch();
+    s.toastsSeen = backfillToastsSeen(save);
+  }
 
   // 1. Tier clearing FIRST — the badge and quest checks below read the flags
   //    it writes, so doing it after would delay both by one settle pass and
@@ -93,11 +161,17 @@ export function settleProgression(save) {
     s.diffCleared = tiers;
     for (const d of newly) {
       const def = difficultyDef(d);
-      pushToast({
-        tone: 'legendary', icon: def.icon,
-        title: `${def.name} complete`,
-        text: d === 'nightmare' ? 'There is nothing above this.' : `${difficultyDef(DIFF_IDS[DIFF_IDS.indexOf(d) + 1])?.name || 'The next tier'} is open.`,
-      });
+      const key = 'diff:' + d;
+      const sSeen = touch();
+      if (!toastSeen(sSeen, key)) {
+        markToast(sSeen, key);
+        pushToast({
+          key, once: true,
+          tone: 'legendary', icon: def.icon,
+          title: `${def.name} complete`,
+          text: d === 'nightmare' ? 'There is nothing above this.' : `${difficultyDef(DIFF_IDS[DIFF_IDS.indexOf(d) + 1])?.name || 'The next tier'} is open.`,
+        });
+      }
       bankReward(s, {
         icon: def.icon, tone: 'legendary',
         title: `${def.name} storyline complete`,
@@ -137,13 +211,18 @@ export function settleProgression(save) {
       applyReward(s, q.rwd, null);
       if (q.rwd?.gold) s.lifetimeGold = (s.lifetimeGold || 0) + q.rwd.gold;
       const track = QUEST_TRACKS.find(t => t.id === q.track);
-      if (toasted++ < TOAST_CAP) {
-        pushToast({
-          tone: q.track === 'story' ? 'legendary' : 'default',
-          icon: q.icon,
-          title: `${track?.name || 'QUEST'} — ${q.title}`,
-          text: '✓ ' + q.goal,
-        });
+      const qKey = 'quest:' + q.id;
+      if (!toastSeen(s, qKey)) {
+        markToast(s, qKey);
+        if (toasted++ < TOAST_CAP) {
+          pushToast({
+            key: qKey, once: true,
+            tone: q.track === 'story' ? 'legendary' : 'default',
+            icon: q.icon,
+            title: `${track?.name || 'QUEST'} — ${q.title}`,
+            text: '✓ ' + q.goal,
+          });
+        }
       }
       bankReward(s, {
         icon: q.icon, tone: q.track === 'story' ? 'legendary' : 'default',
@@ -153,6 +232,37 @@ export function settleProgression(save) {
     }
   }
   if (paidAny) Audio.claimPing?.();
+
+  // 2b. Combo Points. Each source pays once. Large Snapped Rib nodes spend
+  //     them; they never gate a talent step. Catch-up on old saves is
+  //     intended — they already did the work.
+  {
+    const combo = applyComboPointSources(ns || save);
+    if (combo.newly.length) {
+      ns = combo.save;
+      for (const src of combo.newly) {
+        const cKey = 'combo:' + src.id;
+        if (!toastSeen(ns, cKey)) {
+          markToast(ns, cKey);
+          if (toasted++ < TOAST_CAP) {
+            pushToast({
+              key: cKey, once: true,
+              tone: 'gold',
+              icon: 'cur_cp',
+              title: 'COMBO POINT',
+              text: src.where,
+            });
+          }
+        }
+        bankReward(ns, {
+          icon: 'cur_cp', tone: 'gold',
+          title: 'Combo Point', text: src.where,
+          items: rewardItems({ comboPoints: src.amount }),
+        });
+      }
+      Audio.claimPing?.();
+    }
+  }
 
   // 3. Badges. Last, so a badge that depends on a quest reward (lifetime gold,
   //    say) sees the payout from this same pass rather than the next one.
@@ -166,12 +276,17 @@ export function settleProgression(save) {
     s.profile = probe.profile;
     for (const b of fresh) {
       const tier = BADGE_TIERS[b.tier];
-      pushToast({
-        tone: tier.rank >= 4 ? 'legendary' : 'default',
-        icon: 'ui_medal',
-        title: `Badge earned — ${b.name}`,
-        text: `${tier.name} · ${b.desc}`,
-      });
+      const bKey = 'badge:' + b.id;
+      if (!toastSeen(s, bKey)) {
+        markToast(s, bKey);
+        pushToast({
+          key: bKey, once: true,
+          tone: tier.rank >= 4 ? 'legendary' : 'default',
+          icon: 'ui_medal',
+          title: `Badge earned — ${b.name}`,
+          text: `${tier.name} · ${b.desc}`,
+        });
+      }
       bankReward(s, {
         icon: 'ui_medal', tone: tier.rank >= 4 ? 'legendary' : 'default',
         badgeId: b.id,
@@ -179,6 +294,34 @@ export function settleProgression(save) {
       });
     }
     if (fresh.length) Audio.rewardFanfare?.();
+  }
+
+  // 3b. Achievements. Toast when the GOAL is first reached — not when the
+  //     player later taps CLAIM. Claim is juice (ClaimFx); the toast is the
+  //     "you did it". A family (same metric, next goal) toasts AGAIN with
+  //     NEXT TIER copy so it cannot be mistaken for the first unlock looping.
+  {
+    const ACH_TOAST_CAP = 4;
+    let achToasts = 0;
+    for (const a of ACHIEVEMENTS) {
+      const live = ns || save;
+      const aKey = 'ach:' + a.id;
+      if (toastSeen(live, aKey)) continue;
+      if (achMetric(live, a.metric) < a.goal) continue;
+      const s = touch();
+      markToast(s, aKey);
+      if (achToasts++ >= ACH_TOAST_CAP) continue;
+      const copy = achievementToastCopy(a);
+      pushToast({
+        key: aKey, once: true,
+        tone: 'achievement',
+        icon: a.icon,
+        kicker: copy.kicker,
+        title: copy.title,
+        text: copy.text,
+      });
+      Audio.achievement?.();
+    }
   }
 
   // 4. Mastery Points.

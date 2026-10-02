@@ -50,6 +50,10 @@ export const STATIONS = [
   { id: 'nav',    module: 'patrolPost', side: 'top',    at: 0.24, name: 'NAVIGATION',  hint: 'Charts, routes, patrols' },
   { id: 'fab',    module: 'forge',      side: 'top',    at: 0.76, name: 'FABRICATION', hint: 'Gear, artifacts, crafting' },
   { id: 'recl',   module: 'well',       side: 'left',   at: 0.52, name: 'RECLAMATION', hint: 'The Well. Nobody asks how many times.' },
+  // The hull is the room itself — four holes you walk up to and patch.
+  // Kept off the back wall so it never sits on the Earth window, and far
+  // enough from Reclamation that the prompt cannot flicker between them.
+  { id: 'hull',   module: 'hull',       side: 'left',   at: 0.18, name: 'HULL BREACH', hint: 'Four holes. Air going the wrong way.', fixture: true },
   { id: 'bio',    module: 'incubator',  side: 'right',  at: 0.52, name: 'BIO LAB',     hint: 'Eggs, pets, mutations' },
   { id: 'hangar', module: 'hangar',     side: 'bottom', at: 0.78, name: 'HANGAR',      hint: 'The ship. Outside the ring.' },
   // Not a door — a console bolted to the wall of the room you are already in.
@@ -57,7 +61,7 @@ export const STATIONS = [
   // doorway to somewhere else.
   { id: 'def',    module: 'rampart',    side: 'bottom', at: 0.50, name: 'DEFENCE',     hint: 'Core, towers, waves', fixture: true },
   { id: 'core',   module: null,         side: 'centre', at: 0,    name: 'A.I.D.A.',    hint: 'The data core' },
-  { id: 'exit',   module: null,         side: 'bottom', at: 0.20, name: 'LEAVE',       hint: 'Back to the module list' },
+  { id: 'exit',   module: null,         side: 'bottom', at: 0.20, name: 'LEAVE',       hint: 'Back to camp' },
 ];
 
 /** Where the player has to stand for a station to arm, in stage units. */
@@ -88,3 +92,80 @@ export function plateOf(st) {
     default:       return { x: a.x, y: a.y, w: 0, h: 0, dir: 'v' };
   }
 }
+
+/** Inner glass of the bay window, in stage units. Same rect `_paintWindow`
+ *  and the live shutters use — a sprite of Earth belongs HERE, not stretched
+ *  across the whole stage behind the hull. */
+export function windowRect() {
+  const hh = BACK_FACE - 10;
+  return {
+    x: WINDOW.cx - WINDOW.hw,
+    y: FLOOR.y0 - BACK_FACE + (BACK_FACE - hh) / 2,
+    w: WINDOW.hw * 2,
+    h: hh,
+  };
+}
+
+/** How finished the hall looks. 0 is the dusty wreck; 1 is every module
+ *  installed. Repair alone is not "cosy" — it is just powered and empty. */
+export function hallCozy01(repaired, builtModules, totalModules) {
+  if (!repaired) return 0;
+  const t = totalModules > 0 ? totalModules : 1;
+  const v = 0.22 + (builtModules / t) * 0.78;
+  return v < 0 ? 0 : v > 1 ? 1 : v;
+}
+
+/** Which camp sheet belongs on a station. The hull is the room itself, so it
+ *  never gets a furniture sprite — that was how a 128px icon ate half the
+ *  left wall. */
+export function sheetKeyForStation(st) {
+  if (!st || st.id === 'hull') return null;
+  if (st.id === 'core') return 'core';
+  if (st.id === 'exit') return 'portal';
+  return st.module || null;
+}
+
+/** Where a furniture sheet sits in the lounge painting (960x540).
+ *  Walk anchors stay on the floor plan so the room still plays the same;
+ *  the ART sits on the painted couches / lab / window console so a built
+ *  module looks like it belongs in that room, not like a sticker on a wall. */
+const LOUNGE_POSE = {
+  nav:    { x: 98,  y: 210, ax: 0.5, ay: 1,   h: 50 },
+  fab:    { x: 836, y: 200, ax: 0.5, ay: 1,   h: 52 },
+  recl:   { x: 292, y: 338, ax: 0.5, ay: 1,   h: 70 },
+  bio:    { x: 812, y: 318, ax: 0.5, ay: 1,   h: 64 },
+  hangar: { x: 710, y: 470, ax: 0.5, ay: 1,   h: 46 },
+  def:    { x: 480, y: 198, ax: 0.5, ay: 1,   h: 40 },
+  core:   { x: 480, y: 258, ax: 0.5, ay: 1,   h: 70 },
+  exit:   { x: 190, y: 478, ax: 0.5, ay: 0.5, h: 32 },
+};
+
+export function furniturePose(st) {
+  if (!st || st.id === 'hull') return null;
+  if (LOUNGE_POSE[st.id]) return LOUNGE_POSE[st.id];
+  const p = plateOf(st);
+  const a = anchorOf(st);
+  if (st.side === 'centre') return { x: a.x, y: a.y + 22, ax: 0.5, ay: 1, h: 76 };
+  if (st.id === 'exit') return { x: p.x, y: p.y, ax: 0.5, ay: 0.5, h: 34 };
+  if (st.side === 'top') return { x: p.x, y: FLOOR.y0 + 8, ax: 0.5, ay: 1, h: BACK_FACE + 16 };
+  if (st.side === 'bottom') return { x: p.x, y: FLOOR.y1 - 2, ax: 0.5, ay: 1, h: 48 };
+  if (st.side === 'left') return { x: FLOOR.x0 + 6, y: a.y + 26, ax: 1, ay: 1, h: 68 };
+  if (st.side === 'right') return { x: FLOOR.x1 - 6, y: a.y + 26, ax: 0, ay: 1, h: 68 };
+  return { x: a.x, y: a.y, ax: 0.5, ay: 1, h: 56 };
+}
+
+/** Dark patches on the restored lounge painting. Unbuilt modules stay
+ *  shadowed; buying one fades its patch so that corner of the picture
+ *  comes alive. Stage units, aimed at the people-free hall painting
+ *  (left couches, back Earth window, right lab) — not a second floor plan. */
+export const RESTORE_ZONES = {
+  nav:    { x: 40,  y: 70,  w: 220, h: 150 },
+  fab:    { x: 700, y: 64,  w: 220, h: 180 },
+  recl:   { x: 64,  y: 196, w: 310, h: 220 },
+  hull:   { x: 16,  y: 108, w: 96,  h: 210 },
+  bio:    { x: 686, y: 220, w: 250, h: 220 },
+  hangar: { x: 620, y: 428, w: 250, h: 96 },
+  def:    { x: 292, y: 44,  w: 376, h: 200 },
+  core:   { x: 350, y: 248, w: 250, h: 160 },
+  exit:   { x: 110, y: 438, w: 190, h: 86 },
+};

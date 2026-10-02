@@ -24,8 +24,8 @@ export default function DifficultyPicker({ save, setSave }) {
   const pick = (d) => {
     if (!difficultyUnlocked(save, d.id, allIds)) return;
     if (d.id === active) return;
-    Audio.click();
-    setSave({ ...save, difficulty: d.id });
+    Audio.click('confirm');
+    setSave((s) => ({ ...s, difficulty: d.id }));
     pushToast({
       tone: d.id === 'normal' ? 'default' : 'legendary',
       icon: d.icon,
@@ -62,15 +62,15 @@ export default function DifficultyPicker({ save, setSave }) {
               <span className="diff-card-stats">
                 <i><GameIcon name="ui_void" size={12} /> ×{d.hpMult.toFixed(2).replace(/\.00$/, '')} HP</i>
                 <i><GameIcon name="ui_blade" size={12} /> ×{d.dmgMult.toFixed(2).replace(/\.00$/, '')} DMG</i>
-                <i>★ ×{d.goldMult.toFixed(2).replace(/\.00$/, '')} REWARD</i>
+                <i><GameIcon name="cur_gold" size={12} /> ×{d.goldMult.toFixed(2).replace(/\.00$/, '')} REWARD</i>
               </span>
               <span className="diff-card-prog">
                 <span className="diff-card-bar"><i style={{ width: `${allIds.length ? (cleared / allIds.length) * 100 : 0}%` }} /></span>
                 {cleared}/{allIds.length} nodes
               </span>
               {!unlocked && <span className="diff-card-lock"><GameIcon name="ui_lock" size={12} /> {d.requiresLabel}</span>}
-              {isActive && <span className="diff-card-active">▶ ACTIVE</span>}
-              {complete && <span className="diff-card-done">✓ COMPLETE</span>}
+              {isActive && <span className="diff-card-active">ACTIVE</span>}
+              {complete && <span className="diff-card-done">COMPLETE</span>}
             </button>
           );
         })}

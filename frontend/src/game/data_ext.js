@@ -67,6 +67,14 @@ export const SHIP_COLORS = [
 ];
 export const CIGAR_UNLOCK_RANK = 7; // idle cigar cosmetic (see task: character polish)
 
+export const STATION_VISTAS = [
+  { id: 'earth', rank: 0, name: 'Earth Twilight', desc: 'Azure orbital atmospheric glow & city lights', src: '/backgrounds/vista_earth.jpg', color: '#5fd6ff' },
+  { id: 'void', rank: 0, name: 'Deep Quasar', desc: 'Purple nebula & glowing pulsar disk', src: '/backgrounds/vista_void.jpg', color: '#b362ff' },
+  { id: 'solstice', rank: 0, name: 'Solstice Sun', desc: 'Golden solar flares & sacred geometry corona', src: '/backgrounds/vista_solstice.jpg', color: '#ffd166' },
+  { id: 'bloodmoon', rank: 0, name: 'Blood Moon', desc: 'Crimson eclipse & dark occult orbital trees', src: '/backgrounds/vista_bloodmoon.jpg', color: '#ff3355' },
+  { id: 'cyber', rank: 0, name: 'Cyber Megacity', desc: 'High-altitude neon highway ecumenopolis', src: '/backgrounds/vista_cyber.jpg', color: '#39ff14' },
+];
+
 // ---------- SKILL TREE ----------
 // Branches: Combat, Mobility, Defense, Greed, Arcane
 // Each skill has cost (SP), max level, prerequisite, and effect (applied as run modifiers).
@@ -505,6 +513,8 @@ export function weeklyQuests(weekSeed) {
 }
 
 // ---------- DAILY SPIN WHEEL (separate from the 7-day login streak below) ----------
+export const SPIN_JACKPOT = { gold: 1500, gems: 10 };
+
 export const SPIN_WHEEL_SLICES = [
   { id: 'sw_gold_s',  icon: 'cur_gold', label: '150 Gold',  type: 'gold',      amount: 150,  weight: 22 },
   { id: 'sw_gold_m',  icon: 'cur_gold', label: '400 Gold',  type: 'gold',      amount: 400,  weight: 14 },
@@ -567,24 +577,24 @@ export function accountLevelReward(level) {
 
 // ---------- MILESTONES ----------
 export const MILESTONES = [
-  { id: 'ms_kills_1k',  name: '1K Kills',        desc: 'Nå 1000 totala kills',        metric: 'totalKills',    goal: 1000,  reward: { gold: 500,  sp: 2  } },
-  { id: 'ms_kills_5k',  name: '5K Kills',        desc: 'Nå 5000 totala kills',        metric: 'totalKills',    goal: 5000,  reward: { gold: 1500, sp: 5  } },
-  { id: 'ms_kills_20k', name: '20K Kills',       desc: 'Nå 20000 totala kills',       metric: 'totalKills',    goal: 20000, reward: { gold: 5000, sp: 15 } },
-  { id: 'ms_runs_10',   name: '10 Runs',          desc: 'Fullfölj 10 rundor',          metric: 'runsCompleted', goal: 10,    reward: { gold: 400,  sp: 1  } },
-  { id: 'ms_runs_50',   name: '50 Runs',          desc: 'Fullfölj 50 rundor',          metric: 'runsCompleted', goal: 50,    reward: { gold: 2000, sp: 5  } },
-  { id: 'ms_runs_100',  name: '100 Runs',         desc: 'Fullfölj 100 rundor',         metric: 'runsCompleted', goal: 100,   reward: { gold: 6000, sp: 12 } },
-  { id: 'ms_boss',      name: 'A.I.D.A. Slayer',  desc: 'Besegra A.I.D.A.',            metric: 'aidaSlain',     goal: 1,     reward: { gold: 5000, sp: 10 } },
-  { id: 'ms_necro',     name: 'Bone Breaker',     desc: 'Besegra Nekromansen',         metric: 'necroSlain',    goal: 1,     reward: { gold: 1200, sp: 3  } },
-  { id: 'ms_void',      name: 'Titan Toppler',    desc: 'Besegra Void Titan',          metric: 'voidSlain',     goal: 1,     reward: { gold: 2500, sp: 6  } },
-  { id: 'ms_ocular',    name: 'Eye Opener',       desc: 'Besegra Eye of Horus',        metric: 'ocularSlain',   goal: 1,     reward: { gold: 800,  sp: 2  } },
-  { id: 'ms_time_3m',   name: 'Survivor',         desc: 'Överlev 3 minuter',           metric: 'bestRunTime',   goal: 180,   reward: { gold: 400,  sp: 1  } },
-  { id: 'ms_time_5m',   name: 'Endurance',        desc: 'Överlev 5 minuter',           metric: 'bestRunTime',   goal: 300,   reward: { gold: 600,  sp: 2  } },
-  { id: 'ms_time_10m',  name: 'Marathonist',      desc: 'Överlev 10 minuter',          metric: 'bestRunTime',   goal: 600,   reward: { gold: 2000, sp: 6  } },
-  { id: 'ms_level_10',  name: 'Rising',           desc: 'Nå level 10 i en runda',      metric: 'bestLevel',     goal: 10,    reward: { gold: 300,  sp: 1  } },
-  { id: 'ms_level_25',  name: 'Power Surge',      desc: 'Nå level 25 i en runda',      metric: 'bestLevel',     goal: 25,    reward: { gold: 800,  sp: 3  } },
-  { id: 'ms_level_40',  name: 'Ascendant',        desc: 'Nå level 40 i en runda',      metric: 'bestLevel',     goal: 40,    reward: { gold: 2500, sp: 8  } },
-  { id: 'ms_nohit',     name: 'Untouchable',      desc: 'Fullfölj en runda utan att träffas', metric: 'noHitRuns', goal: 1, reward: { gold: 3000, sp: 8  } },
-  { id: 'ms_endless',   name: 'Void Walker',      desc: 'Nå Endless Mode',             metric: 'endlessReached',goal: 1,     reward: { gold: 8000, sp: 20 } },
+  { id: 'ms_kills_1k',  name: '1K Kills',        desc: 'Reach 1000 lifetime kills',        metric: 'totalKills',    goal: 1000,  reward: { gold: 500,  sp: 2  } },
+  { id: 'ms_kills_5k',  name: '5K Kills',        desc: 'Reach 5000 lifetime kills',        metric: 'totalKills',    goal: 5000,  reward: { gold: 1500, sp: 5  } },
+  { id: 'ms_kills_20k', name: '20K Kills',       desc: 'Reach 20000 lifetime kills',       metric: 'totalKills',    goal: 20000, reward: { gold: 5000, sp: 15 } },
+  { id: 'ms_runs_10',   name: '10 Runs',          desc: 'Finish 10 runs',                   metric: 'runsCompleted', goal: 10,    reward: { gold: 400,  sp: 1  } },
+  { id: 'ms_runs_50',   name: '50 Runs',          desc: 'Finish 50 runs',                   metric: 'runsCompleted', goal: 50,    reward: { gold: 2000, sp: 5  } },
+  { id: 'ms_runs_100',  name: '100 Runs',         desc: 'Finish 100 runs',                  metric: 'runsCompleted', goal: 100,   reward: { gold: 6000, sp: 12 } },
+  { id: 'ms_boss',      name: 'A.I.D.A. Slayer',  desc: 'Defeat A.I.D.A.',                  metric: 'aidaSlain',     goal: 1,     reward: { gold: 5000, sp: 10 } },
+  { id: 'ms_necro',     name: 'Bone Breaker',     desc: 'Defeat the Necromancer',           metric: 'necroSlain',    goal: 1,     reward: { gold: 1200, sp: 3  } },
+  { id: 'ms_void',      name: 'Titan Toppler',    desc: 'Defeat the Void Titan',            metric: 'voidSlain',     goal: 1,     reward: { gold: 2500, sp: 6  } },
+  { id: 'ms_ocular',    name: 'Eye Opener',       desc: 'Defeat the Eye of Horus',          metric: 'ocularSlain',   goal: 1,     reward: { gold: 800,  sp: 2  } },
+  { id: 'ms_time_3m',   name: 'Survivor',         desc: 'Survive 3 minutes',                metric: 'bestRunTime',   goal: 180,   reward: { gold: 400,  sp: 1  } },
+  { id: 'ms_time_5m',   name: 'Endurance',        desc: 'Survive 5 minutes',                metric: 'bestRunTime',   goal: 300,   reward: { gold: 600,  sp: 2  } },
+  { id: 'ms_time_10m',  name: 'Marathonist',      desc: 'Survive 10 minutes',               metric: 'bestRunTime',   goal: 600,   reward: { gold: 2000, sp: 6  } },
+  { id: 'ms_level_10',  name: 'Rising',           desc: 'Reach level 10 in a run',          metric: 'bestLevel',     goal: 10,    reward: { gold: 300,  sp: 1  } },
+  { id: 'ms_level_25',  name: 'Power Surge',      desc: 'Reach level 25 in a run',          metric: 'bestLevel',     goal: 25,    reward: { gold: 800,  sp: 3  } },
+  { id: 'ms_level_40',  name: 'Ascendant',        desc: 'Reach level 40 in a run',          metric: 'bestLevel',     goal: 40,    reward: { gold: 2500, sp: 8  } },
+  { id: 'ms_nohit',     name: 'Untouchable',      desc: 'Finish a run without being hit',   metric: 'noHitRuns',     goal: 1,     reward: { gold: 3000, sp: 8  } },
+  { id: 'ms_endless',   name: 'Void Walker',      desc: 'Reach Endless Mode',               metric: 'endlessReached',goal: 1,     reward: { gold: 8000, sp: 20 } },
 ];
 
 // ---------- EXTRA WEAPON (extra variety) ----------

@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { META_UPGRADES, metaCost, WEAPONS } from '../game/data';
-import { MILESTONES, AVATARS, CHESTS, rollChest, getRank, RANK_TITLES, PROFILE_FRAMES, NAME_COLORS, HEADBANDS, SHIP_COLORS, CIGAR_UNLOCK_RANK, accountXpToNext } from '../game/data_ext';
+import { META_UPGRADES, metaCost, metaMarkName, WEAPONS } from '../game/data';
+import { MILESTONES, AVATARS, CHESTS, rollChest, getRank, RANK_TITLES, PROFILE_FRAMES, NAME_COLORS, accountXpToNext } from '../game/data_ext';
+import { collectPendingLevelUp, pendingRewardBag, rankUnlocksBetween, nextRankPrize, rewardTiles } from '../game/profileLevelUp';
 import ProfilePanel from './ProfilePanel';
-import { META_UNLOCK_REQS, POE_INDEX, POE_ATTRS } from '../game/poe_tree';
+import { META_UNLOCK_REQS, POE_INDEX, POE_ATTRS, attrCanAdd, attrNextLine, DASH_NODE_ID } from '../game/poe_tree';
+import { skillMoveOf, unlockBannerFrom } from '../game/skillMoves';
 import { applyReward, DEFAULT_SAVE, saveLocal } from '../store';
 import SkillTree from './SkillTree';
 import Weaponsmith from './Weaponsmith';
@@ -13,11 +15,16 @@ import TalentTree from './TalentTree';
 import CampaignPanel from './CampaignPanel';
 import PetPanel from './PetPanel';
 import ProspectorScreen from './ProspectorScreen';
-import { nextCampaignNode, isCampTabLocked, campUnlockHint, campUnlockStage, isCampSubTabLocked } from '../game/campaign';
+import { nextCampaignNode, isCampTabLocked, campUnlockHint, campUnlockStage, isCampSubTabLocked, isEndlessUnlocked, storyBeat } from '../game/campaign';
+import { battlePassUnclaimedCount, patrolReadyCount, codexUnclaimedCount, achievementsReady } from '../game/campClaims';
+import { isStationRepaired } from '../game/base';
 import { currentStep } from '../game/path';
 import ClickerScreen from './ClickerScreen';
+import AssetStudioModal from './AssetStudioModal';
 import BasePanel from './BasePanel';
 import StationRoom from './StationRoom';
+import HangarRoom from './HangarRoom';
+import DrainScreen from './DrainScreen';
 import BaseDefenceScreen from './BaseDefenceScreen';
 import PathPanel from './PathPanel';
 import TcgScreen from './TcgScreen';
@@ -25,20 +32,21 @@ import ExplorationScreen from './ExplorationScreen';
 import { pendingMilestones } from '../game/clicker';
 import GearPanel from './GearPanel';
 import { BattlePassPanel, CodexPanel, PatrolPanel, ClaimBadge } from './MetaFeatures';
-import { ACHIEVEMENTS, CAMPAIGN_QUESTS, achMetric } from '../game/data_ext2';
-import { MissionsPanel, ChallengesPanel, AchievementsPanel, CardShopModal, ActiveLoadoutPanel, SettingsPanel, MapsPanel } from './CampPanels';
+import { CAMPAIGN_QUESTS } from '../game/data_ext2';
+import { MissionsPanel, ChallengesPanel, AchievementsPanel, CardShopModal, ActiveLoadoutPanel, SettingsPanel, MapsPanel, DailyRewardsWidget } from './CampPanels';
 import { Audio } from '../game/audio';
 import BadgeSlots, { BadgePicker } from './BadgeSlots';
-import QuestTracker from './QuestTracker';
+import QuestTracker, { WhatsOnStrip } from './QuestTracker';
 import GameIcon from './GameIcon';
 import CampFrame, { CampCosmos } from './CampFrame';
+import { fireClaimFx, CAMP_CLAIM_FLY } from './ClaimFx';
 
 // Display name + icon for every tab the unlock cascade can reveal — read by
 // both the tab bar (locked tabs are hidden, not dimmed, per Timmy: "bara base
 // ska finnas där") and the big reveal banner BasePanel's `onUnlock` triggers.
 const CAMP_TAB_META = {
   cards:      { label: 'META UPGRADES', icon: 'ui_gem' },
-  skills:     { label: 'SKILLTREE',     icon: 'ui_skills' },
+  skills:     { label: 'SKILL TREE', icon: 'ui_skills', sub: 'BUY SHADOW DASH — FOLLOW THE TEAL NODES' },
   talent:     { label: 'TALENTS',       icon: 'ui_leaf' },
   gear:       { label: 'GEAR',          icon: 'gear' },
   character:  { label: 'CHARACTER',     icon: 'ui_character' },
@@ -53,6 +61,9 @@ const CAMP_TAB_META = {
   loadout:    { label: 'LOADOUT',       icon: 'ui_loadout' },
   pass:       { label: 'SEASON PASS',   icon: 'ui_medal' },
   codex:      { label: 'CODEX',         icon: 'ui_codex' },
+  // Not a camp tab. Banner only — the hatch is in the hangar. Do not add
+  // this to CAMP_UNLOCK_BATCHES (that fires on any Nth building level).
+  drain:      { label: 'THE DRAIN',     icon: 'ui_hatch', sub: 'THE GRATE UNDER THE HANGAR' },
 };
 
 // A number that rolls from its current displayed value to the new one rather
@@ -129,18 +140,37 @@ const openChest = (chestId) => {
 // the first, stage 1 (pond_1 cleared, pond_2 next) shows the second, and so
 // on; a stage with no entry here just doesn't show a briefing.
 const CAMP_BRIEFINGS = {
-  0: {
+  insert: {
     kicker: 'SITREP',
-    title: 'So. This is the camp.',
+    title: 'So. This is the wreck.',
     lines: [
-      "Half a hull, some crates, and whatever didn't melt on the way down. This is the camp.",
-      "Somewhere in that wreck is a black box with a location burned into it. Somebody wrote that down on purpose.",
-      "Nirvana to this. There's a joke in there and you're too wet to laugh at it.",
-      "Nav array's dead. Lights are dead. Everything here is dead except you, technically.",
-      "Fix that first. Bleed on some things, bring back what they drop, get the camp running.",
-      "Then go ask your new friends some very pointed questions.",
+      "You found it. A ring in the dark with nobody home and the windows shut.",
+      "The chip in your gut wants the socket in the middle of the hall. Walk it there. That is A.I.D.A. She will lie later. Right now she turns the lights on.",
+      "You do not build this place from a list. You walk up to the holes and you patch them, one room at a time.",
+      "Until the hull holds air, everything else is locked and dusty. That is the point.",
+      "When the stores are empty she sends you back out. That loop is the story until the hangar holds a ship.",
     ],
-    cta: 'FIRST DROPS ▸',
+    cta: 'WALK THE HALL ▸',
+  },
+  hull: {
+    kicker: 'SITREP // POWER',
+    title: 'She is in. The lights are ugly.',
+    lines: [
+      "A.I.D.A. is talking. Ignore half of it. The holes in the left wall are the other half.",
+      "Walk to a breach. Patch it. That is The Hull. Until it holds, nothing else in this ring will take a bolt.",
+      "Then you go back out only when you cannot pay. The Rain Pool still remembers being clean.",
+    ],
+    cta: 'SEAL THE HULL ▸',
+  },
+  gather: {
+    kicker: 'SITREP // STORES',
+    title: 'The stores are empty.',
+    lines: [
+      "You saw the price. You do not have it. That is not a bug. That is the work.",
+      "CONTINUE STORY is a gather run now. Hold the Rain Pool. Bring the wet coins back. Install the next piece.",
+      "Do that until the hangar holds a ship. Then the maps open and the game starts for real.",
+    ],
+    cta: 'GO GATHER ▸',
   },
   1: {
     kicker: 'SITREP // UPDATE',
@@ -154,23 +184,56 @@ const CAMP_BRIEFINGS = {
     ],
     cta: 'RIPPLES ▸',
   },
+  2: {
+    kicker: 'SITREP // THE POOL',
+    title: 'The rain still remembers being clean.',
+    lines: [
+      "You sealed the hull. The rest of this ring still wants parts you do not have.",
+      "CONTINUE STORY is a gather run until the hangar holds a ship. Skills and talents opened with the first bolt. Spend them before you go.",
+      "The second pool is longer. Same guardian. Learn it.",
+    ],
+    cta: 'HOLD THE POOL ▸',
+  },
+  3: {
+    kicker: 'SITREP // HANGAR',
+    title: 'A ship. Finally.',
+    lines: [
+      "The hangar holds something that still flies — or the Rain Pool is behind you. MAPS is open. Endless is open. The first hour is over.",
+      "The Lake is next. It is not an onramp. Spend what you carried home.",
+    ],
+    cta: 'THE MAPS ARE YOURS ▸',
+  },
 };
 
 export default function Camp({ save, setSave, onBack, onStart, onMission, onStory, onStarRaid }) {
   const storyNode = nextCampaignNode(save);
-  // Shown once per stage — never re-fires once dismissed for that stage.
-  // Never blocks: both buttons dismiss it, one of them just also starts
-  // the mission. Old saves may carry the pre-migration boolean
-  // `campBriefingSeen: true`; treated as "stage 0 already seen".
-  const briefSeen = typeof save.campBriefingSeen === 'object' && save.campBriefingSeen
+  const beat = storyBeat(save);
+  // Shown once per beat — never re-fires once dismissed for that key.
+  // Old saves may carry `campBriefingSeen: true` or `{ 0: true }`; both mean
+  // the insert sitrep already played.
+  const briefSeenRaw = typeof save.campBriefingSeen === 'object' && save.campBriefingSeen
     ? save.campBriefingSeen
     : (save.campBriefingSeen ? { 0: true } : {});
+  const briefSeen = briefSeenRaw[0] ? { ...briefSeenRaw, insert: true } : briefSeenRaw;
   const briefStage = campUnlockStage(save);
-  const briefing = CAMP_BRIEFINGS[briefStage];
-  const showBriefing = !!briefing && !briefSeen[briefStage];
-  const dismissBriefing = (thenStory) => {
-    setSave({ ...save, campBriefingSeen: { ...briefSeen, [briefStage]: true } });
-    if (thenStory && onStory) onStory();
+  const briefKey = beat.why === 'insert' ? 'insert'
+    : beat.why === 'hull' ? 'hull'
+    : beat.why === 'gather' ? 'gather'
+    : briefStage === 1 ? 1
+    : briefStage === 2 ? 2
+    : briefStage === 3 ? 3
+    : null;
+  const briefing = briefKey != null ? CAMP_BRIEFINGS[briefKey] : null;
+  const showBriefing = !!briefing && !briefSeen[briefKey] && !save.pendingStationWalk;
+  const followStory = () => {
+    Audio.click();
+    if (beat.kind === 'hall') { setStationOpen(true); return; }
+    if (beat.kind === 'mission' && onStory) onStory();
+  };
+  const dismissBriefing = (thenGo) => {
+    setSave({ ...save, campBriefingSeen: { ...briefSeen, [briefKey]: true } });
+    if (!thenGo) return;
+    followStory();
   };
   // Camp starts locked and opens up panel by panel as the Rain Pool nodes
   // clear — see campaign.js's campUnlockStage. `guard` wraps a tab's onClick
@@ -190,7 +253,21 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
   // unlock") is that each menu gets its own moment, not a wall of text.
   const [unlockQueue, setUnlockQueue] = useState([]);
   const [unlockShown, setUnlockShown] = useState(null);
-  const queueUnlocks = (tabIds) => setUnlockQueue(q => [...q, ...tabIds.filter(id => !q.includes(id))]);
+  const pendingSkillTour = useRef(false);
+  const queueUnlocks = (items) => setUnlockQueue(q => {
+    const next = [...q];
+    for (const raw of items || []) {
+      const item = unlockBannerFrom(raw);
+      if (!item?.id) continue;
+      if (next.some(x => (typeof x === 'string' ? x : x.id) === item.id)) continue;
+      next.push(item);
+    }
+    return next;
+  });
+  const onMoveUnlock = (move) => {
+    const item = skillMoveOf(move) || unlockBannerFrom(move);
+    if (item) queueUnlocks([item]);
+  };
   // Pop the next queued unlock the moment nothing is showing.
   useEffect(() => {
     if (unlockShown || unlockQueue.length === 0) return;
@@ -216,12 +293,19 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
     // unmounting at the old 2200ms cut the banner off before its own exit
     // animation began — it just vanished. If that CSS timing changes,
     // change this with it.
-    const t = setTimeout(() => setUnlockShown(null), 3050);
+    const shown = unlockShown;
+    const t = setTimeout(() => {
+      const id = typeof shown === 'string' ? shown : shown.id;
+      if (id === 'skills') pendingSkillTour.current = true;
+      setUnlockShown(null);
+    }, 3050);
     return () => clearTimeout(t);
   }, [unlockShown]);
 
   const [toast, setToast] = useState('');
   const [tab, setTab] = useState('campaign');
+  const goTab = (id) => { Audio.click(); setTab(id); };
+  const tapOpen = (setFn) => () => { Audio.click(); setFn(true); };
   // ── INITIAL FOCUS ──────────────────────────────────────────────────────────
   // The camp had no focus handling of any kind: nothing focused on open, no
   // focus order, no visible ring. On a controller that is not "a bit awkward",
@@ -244,6 +328,13 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
   }, []);
   const [shopOpen, setShopOpen] = useState(false);
   const [skillOpen, setSkillOpen] = useState(false);
+  useEffect(() => {
+    if (unlockShown || unlockQueue.length || skillOpen) return;
+    if (!pendingSkillTour.current) return;
+    pendingSkillTour.current = false;
+    if (((save.skills || {})[DASH_NODE_ID] || 0) >= 1) return;
+    setSkillOpen(true);
+  }, [unlockShown, unlockQueue, skillOpen, save.skills]);
   const [forgeOpen, setForgeOpen] = useState(false);
   // Which Weaponsmith sub-tab to land on. The smith holds three unrelated
   // systems, so "go to the smith" is not a destination on its own — the
@@ -252,6 +343,8 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
   const [chestOpen, setChestOpen] = useState(false);
   const [loadoutOpen, setLoadoutOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [studioOpen, setStudioOpen] = useState(false);
+  const [dailyOpen, setDailyOpen] = useState(false);
   const [popCard, setPopCard] = useState(null);
 
   const [characterOpen, setCharacterOpen] = useState(false);
@@ -263,17 +356,30 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
   const [clickerOpen, setClickerOpen] = useState(false);
   const [baseOpen, setBaseOpen] = useState(false);
   const [stationOpen, setStationOpen] = useState(false);
+  const [hangarOpen, setHangarOpen] = useState(false);
+  const [drainOpen, setDrainOpen] = useState(false);
   const [defenceOpen, setDefenceOpen] = useState(false);
+  useEffect(() => {
+    if (!save.pendingStationWalk) return;
+    if (isCampTabLocked('base', save)) return;
+    setStationOpen(true);
+  }, [save.pendingStationWalk, save.runsCompleted]);
   // Entering a building opens the system it houses, so the base is the way
   // into everything rather than a sixth place that duplicates them.
   const enterBuilding = (id) => {
+    if (id === 'hull') return;
     setBaseOpen(false);
     // The walkable room's doors route through THIS function, not a second
     // switch of their own — a door in the Main Hall and a card in the module
     // list have to land in the same place forever, and the only way to
     // guarantee that is for there to be one mapping.
-    setStationOpen(false);
-    if (id === 'hangar') { onStarRaid && onStarRaid(); return; }
+    // Hangar stays mounted under the Drain overlay so DESCEND/CLIMB OUT
+    // does not dump you on the camp rail. The hall unmounts whenever the
+    // hangar opens — two live Pixi apps is how the tab used to wedge.
+    if (id !== 'drain') setStationOpen(false);
+    if (id !== 'hangar' && id !== 'drain') setHangarOpen(false);
+    if (id === 'hangar') { setHangarOpen(true); return; }
+    if (id === 'drain') { setHangarOpen(true); setDrainOpen(true); return; }
     if (id === 'incubator') { setPetOpen(true); return; }
     if (id === 'well') { setClickerOpen(true); return; }
     if (id === 'forge') { setTab('gear'); return; }
@@ -292,8 +398,10 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
       // you to pick a start weapon; dropping you on TUNING and letting you
       // hunt for the control is how a two-click task becomes a dead end.
       case 'smithBlueprints': setForgeSub('blueprints'); setForgeOpen(true); break;
-      case 'base':     setBaseOpen(true); break;
+      case 'base':     setStationOpen(true); break;
       case 'defence':  setDefenceOpen(true); break;
+      case 'hangar':   setHangarOpen(true); break;
+      case 'drain':    setHangarOpen(true); setDrainOpen(true); break;
       case 'prospect': setProspectorOpen(true); break;
       case 'patrol':   setTab('patrol'); break;
       case 'starraid': if (onStarRaid) onStarRaid(); break;
@@ -314,9 +422,11 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
       case 'pets':      setPetOpen(true); break;
       case 'tcg':       setTcgOpen(true); break;
       case 'pass':      setTab('pass'); break;
-      // Daily quests live on the Welcome screen, not in the camp — the only
-      // honest destination for this step is back out the front door.
-      case 'daily':     onBack && onBack(); break;
+      case 'codex':     setTab('codex'); setCodexSub('codex'); break;
+      case 'achievements': setTab('codex'); setCodexSub('achievements'); break;
+      // Daily login lives in camp as the same widget that used to hide on
+      // Welcome. Dumping TAKE ME THERE to the start menu was a dead door.
+      case 'daily':     setDailyOpen(true); break;
       case 'profile':   setBadgeOpen(true); break;
       default: setTab('cards');
     }
@@ -434,11 +544,16 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
   useEffect(() => () => clearTimeout(burstTimer.current), []);
 
   const buyAttr = (attrId) => {
-    const freeAttr = Math.max(0, (save.profile?.level || 1) - 1 - Object.values(save.attrs || {}).reduce((a, b) => a + b, 0));
-    if (freeAttr <= 0) return;
-    const cur = (save.attrs || {})[attrId] || 0;
-    setSave({ ...save, attrs: { ...(save.attrs || {}), [attrId]: cur + 1 } });
-    Audio.click();
+    const def = POE_ATTRS.find(a => a.id === attrId);
+    let ok = false;
+    setSave(s => {
+      if (!attrCanAdd(s, def)) return s;
+      const cur = (s.attrs || {})[attrId] || 0;
+      ok = true;
+      return { ...s, attrs: { ...(s.attrs || {}), [attrId]: cur + 1 } };
+    });
+    if (ok) Audio.click('buy');
+    else Audio.click('back');
   };
 
   const buy = (upg, e) => {
@@ -493,16 +608,24 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
     buyFxRef.current = null;
     popFeedback(fx.id);
     if (fx.rect) burstMeta(fx.upg, fx.rect, fx.from); else Audio.click();
+    const to = (save.meta && save.meta[fx.id]) || 0;
+    const mark = metaMarkName(fx.id, to);
+    if (mark && fx.from < to) {
+      setToast(mark.toUpperCase());
+      setTimeout(() => setToast(''), 1800);
+      Audio.levelUp?.();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [save.meta]);
 
-  const claimMilestone = (m) => {
+  const claimMilestone = (m, e) => {
     if (save.milestones.claimed[m.id]) return;
     const val = save[m.metric] || 0;
     if (val < m.goal) return;
     const ns = { ...save, milestones: { ...save.milestones, claimed: { ...save.milestones.claimed, [m.id]: true } } };
     applyReward(ns, m.reward, openChest);
-    setSave(ns); Audio.levelUp(); Audio.waterDrop();
+    setSave(ns);
+    fireClaimFx(e?.currentTarget, m.reward, { flyTo: CAMP_CLAIM_FLY });
   };
 
   const handleReset = () => {
@@ -516,21 +639,10 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
   const attrFreePts = Math.max(0, (save.profile?.level || 1) - 1 - Object.values(save.attrs || {}).reduce((a, b) => a + b, 0));
 
   // ── Notification computations ────────────────
-  const _now = Date.now();
-  const _discovered = Object.keys(save.codex?.enemies||{}).length + Object.keys(save.codex?.weapons||{}).length;
-  const _claimed    = (save.codex?.claimedDiscoveries||[]).length;
-  const codexNew    = _discovered > _claimed;
-
-  const _reached    = Math.floor((save.profile?.xp||0) / 200);
-  const _passClaim  = (save.battlePass?.claimed||[]).length;
-  const passNew     = _reached > _passClaim;
-
-  const _pMissions  = save.patrol?.missions || [];
-  const patrolNew   = _pMissions.some(m => m.status === 'complete' || (m.status === 'active' && _now - m.startMs >= m.durationMs));
-
-  const _achDone    = ACHIEVEMENTS.filter(a => achMetric(save, a.metric) >= a.goal).length;
-  const _achClaim   = Object.keys(save.achClaimed||{}).length;
-  const achNew      = _achDone > _achClaim;
+  const codexNew    = codexUnclaimedCount(save) > 0;
+  const passNew     = battlePassUnclaimedCount(save) > 0;
+  const patrolNew   = patrolReadyCount(save) > 0;
+  const achNew      = achievementsReady(save).length > 0;
 
   // Milestones (codexSub='milestones', a sibling of Codex/Achievements) had
   // no notification badge at all — a completed milestone sat unclaimed with
@@ -609,25 +721,32 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
           </div>,
           document.body
         )}
-        {unlockShown && createPortal(
-          <div className="camp-unlock-banner" key={unlockShown} data-testid="camp-unlock-banner">
-            {/* Rotating light rays + two shockwave rings behind the logo.
-                The old banner scaled everything in at once, which read as
-                a single pop; staggering the parts (rays → rings → logo →
-                word → name) is what turns it into an EVENT. Purely
-                decorative, so aria-hidden and never blocking the pointer. */}
-            <div className="cub-burst" aria-hidden>
-              <span className="cub-rays" />
-              <span className="cub-ring" />
-              <span className="cub-ring cub-ring2" />
-            </div>
-            <div className="cub-tag">UNLOCKED</div>
-            <div className="cub-icon"><GameIcon name={CAMP_TAB_META[unlockShown]?.icon || 'ui_lock'} size={110} /></div>
-            <div className="cub-name">{CAMP_TAB_META[unlockShown]?.label || unlockShown}</div>
-            <div className="cub-sub">NEW MENU AVAILABLE</div>
-          </div>,
-          document.body
-        )}
+        {unlockShown && (() => {
+          const shown = typeof unlockShown === 'string' ? { type: 'tab', id: unlockShown } : unlockShown;
+          const meta = shown.type === 'move'
+            ? shown
+            : { type: 'tab', id: shown.id, ...(CAMP_TAB_META[shown.id] || {}) };
+          const bannerId = shown.id || 'unlock';
+          return createPortal(
+            <div className="camp-unlock-banner" key={bannerId} data-testid="camp-unlock-banner" data-unlock-id={bannerId}>
+              {/* Rotating light rays + two shockwave rings behind the logo.
+                  The old banner scaled everything in at once, which read as
+                  a single pop; staggering the parts (rays → rings → logo →
+                  word → name) is what turns it into an EVENT. Purely
+                  decorative, so aria-hidden and never blocking the pointer. */}
+              <div className="cub-burst" aria-hidden>
+                <span className="cub-rays" />
+                <span className="cub-ring" />
+                <span className="cub-ring cub-ring2" />
+              </div>
+              <div className="cub-tag">UNLOCKED</div>
+              <div className="cub-icon"><GameIcon name={meta.icon || 'ui_lock'} size={110} /></div>
+              <div className="cub-name">{meta.name || meta.label || bannerId}</div>
+              <div className="cub-sub">{meta.sub || (shown.type === 'move' ? meta.how : 'NEW MENU AVAILABLE')}</div>
+            </div>,
+            document.body
+          );
+        })()}
         <div className="camp-sidebar">
           <div className="camp-profile-bar camp-profile-bar-framed cp-plaque" ref={profileBarRef}>
             {/* ── THE HOLO PORT ────────────────────────────────────────────
@@ -733,6 +852,9 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
               <span className="camp-currency-chip" style={{ color: '#4dffd4' }}><GameIcon name="cur_gems" size={18} /> <CountUp value={save.gems || 0} /></span>
               <span className="camp-currency-chip" style={{ color: '#ffcc00' }}><GameIcon name="cur_slot" size={18} /> <CountUp value={save.slotCoins || 0} /></span>
               <span className="camp-currency-chip" style={{ color: '#7ad96b' }}><GameIcon name="cur_tp" size={18} /> <CountUp value={save.talentPoints || 0} /></span>
+              <span className="camp-currency-chip" style={{ color: '#ffb02e' }} data-testid="chip-combo-points">
+                <GameIcon name="cur_cp" size={18} /> <CountUp value={save.comboPoints || 0} />
+              </span>
               <span className="camp-currency-chip" style={{ color: '#8fe6ff' }}><GameIcon name="cur_sp" size={18} /> <CountUp value={save.sp} /></span>
               <span className="camp-currency-chip" style={{ color: '#ff9933' }}><GameIcon name="cur_token" size={18} /> <CountUp value={save.gachaTokens || 0} /></span>
               {/* Probe Keys gate Lootmine dives. Shown here with everything
@@ -791,17 +913,21 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
                     aria-label="Close attributes"
                   >✕</button>
                 </div>
-                <div className="char-attr-desc">Earned 1 per profile level (RANK). Permanent bonuses.</div>
+                <div className="char-attr-desc">One point per profile rank. Permanent. Spend them — they do nothing in the bank.</div>
                 <div className="poe-attr-grid">
                   {POE_ATTRS.map(a => {
                     const cur = (save.attrs || {})[a.id] || 0;
-                    const canAdd = attrFreePts > 0;
+                    const canAdd = attrCanAdd(save, a);
+                    const cap = a.curve ? a.max : Math.max(12, cur + Math.max(attrFreePts, 1));
+                    const pct = Math.max(0, Math.min(100, (cur / cap) * 100));
                     return (
                       <div key={a.id} className="poe-attr-row" data-testid={`attr-${a.id}`}>
                         <span className="poe-attr-icon" style={{ color: a.color }}><GameIcon name={a.icon} size={18} tone={a.color} /></span>
                         <div className="poe-attr-info">
                           <span className="poe-attr-name">{a.name}{a.curve ? ` (${cur}/${a.max})` : ''}</span>
                           <span className="poe-attr-desc2">{a.desc}</span>
+                          <span className="poe-attr-next">{attrNextLine(a, cur)}</span>
+                          <span className="poe-attr-track" aria-hidden><i style={{ width: `${pct}%`, background: a.color }} /></span>
                         </div>
                         <div className="poe-attr-ctl">
                           <span className="poe-attr-val">{cur}</span>
@@ -822,9 +948,9 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
             {/* The story is the default way to play, so it gets a real
                 call-to-action rather than being one tab among fifteen. */}
             {storyNode && (
-              <button className="camp-story-btn" onClick={onStory} data-testid="continue-story">
-                <span className="camp-story-kicker">CONTINUE STORY</span>
-                <span className="camp-story-node"><GameIcon name={storyNode.mapIcon} size={13} /> {storyNode.mapName} — {storyNode.name}</span>
+              <button className="camp-story-btn" onClick={followStory} data-testid="continue-story">
+                <span className="camp-story-kicker">{beat.kicker || 'CONTINUE STORY'}</span>
+                <span className="camp-story-node"><GameIcon name={storyNode.mapIcon} size={13} /> {beat.label || `${storyNode.mapName} — ${storyNode.name}`}</span>
                 <span className="camp-story-go">▸</span>
               </button>
             )}
@@ -837,85 +963,102 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
                   always the rail's width, so the bug cannot come back. */}
               {tab === 'campaign' && (
                 <div className="gear-tabs camp-subnav">
-                  <button className={`gear-tab ${campaignSub === 'campaign' ? 'active' : ''}`} onClick={() => setCampaignSub('campaign')} data-testid="tab-campaign-story" style={{ position: 'relative' }}><GameIcon name="ui_scroll" size={14} /> STORY {campaignQuestNew && <ClaimBadge />}</button>
+                  <button className={`gear-tab ${campaignSub === 'campaign' ? 'active' : ''}`} onClick={() => { Audio.click(); setCampaignSub('campaign'); }} data-testid="tab-campaign-story" style={{ position: 'relative' }}><GameIcon name="ui_scroll" size={14} /> STORY {campaignQuestNew && <ClaimBadge />}</button>
                   {/* MAPS, MISSIONS and CHALLENGES stay OUT of the bar until the
                       camp has been built up twice — not dimmed, absent, the same
                       rule the main tab rail follows. A new player gets exactly one
                       door. MAPS is also the way into free play, so hiding it is
                       what keeps Endless shut until we open it deliberately. */}
                   {!isCampSubTabLocked('maps', save) && (
-                    <button className={`gear-tab ${campaignSub === 'maps' ? 'active' : ''}`} onClick={() => setCampaignSub('maps')} data-testid="tab-maps"><GameIcon name="ui_map" size={14} /> MAPS</button>
+                    <button className={`gear-tab ${campaignSub === 'maps' ? 'active' : ''}`} onClick={() => { Audio.click(); setCampaignSub('maps'); }} data-testid="tab-maps"><GameIcon name="ui_map" size={14} /> MAPS</button>
                   )}
                   {!isCampSubTabLocked('missions', save) && (
-                    <button className={`gear-tab ${campaignSub === 'missions' ? 'active' : ''}`} onClick={() => setCampaignSub('missions')} data-testid="tab-missions" style={{ position: 'relative' }}><GameIcon name="ui_scroll" size={14} /> MISSIONS {pathReady && <ClaimBadge />}</button>
+                    <button className={`gear-tab ${campaignSub === 'missions' ? 'active' : ''}`} onClick={() => { Audio.click(); setCampaignSub('missions'); }} data-testid="tab-missions" style={{ position: 'relative' }}><GameIcon name="ui_scroll" size={14} /> MISSIONS {pathReady && <ClaimBadge />}</button>
                   )}
                   {!isCampSubTabLocked('challenges', save) && (
-                    <button className={`gear-tab ${campaignSub === 'challenges' ? 'active' : ''}`} onClick={() => setCampaignSub('challenges')} data-testid="tab-challenges"><GameIcon name="ui_trophy" size={14} /> CHALLENGES</button>
+                    <button className={`gear-tab ${campaignSub === 'challenges' ? 'active' : ''}`} onClick={() => { Audio.click(); setCampaignSub('challenges'); }} data-testid="tab-challenges"><GameIcon name="ui_trophy" size={14} /> CHALLENGES</button>
                   )}
                 </div>
               )}
-            <button ref={firstTabRef} className={`camp-tab ${tab==='campaign'?'active':''}`} onClick={() => setTab('campaign')} data-testid="tab-campaign" style={{position:'relative'}}><GameIcon name="ui_scroll" size={15} /> CAMPAIGN {(pathReady || campaignQuestNew) && <ClaimBadge/>}</button>
-            <button className={`camp-tab ${tab === 'stats' ? 'active' : ''}`} onClick={() => setTab('stats')} data-testid="tab-stats"><GameIcon name="ui_chart" size={15} /> STATS</button>
+            <button ref={firstTabRef} className={`camp-tab ${tab==='campaign'?'active':''}`} onClick={() => goTab('campaign')} data-testid="tab-campaign" style={{position:'relative'}}><GameIcon name="ui_scroll" size={15} /> CAMPAIGN {(pathReady || campaignQuestNew) && <ClaimBadge/>}</button>
+            <button className={`camp-tab ${tab === 'stats' ? 'active' : ''}`} onClick={() => goTab('stats')} data-testid="tab-stats"><GameIcon name="ui_chart" size={15} /> STATS</button>
             {/* THE BASE is the one tab that's always PRESENT — dimmed until
                 pond_1 clears, per Timmy: "bara base ska finnas där ... även
                 den va greyed out först". Every other gated tab below is
                 fully absent from the bar (not dimmed) until its unlock
                 batch fires, so the early tab bar reads as "one thing to do"
                 rather than a wall of locks. */}
-            <button {...(lockedProps('base') || { className: 'camp-tab' })} onClick={lockGuard('base', () => setBaseOpen(true))} data-testid="tab-base"><GameIcon name={isCampTabLocked('base', save) ? 'ui_lock' : 'ui_base'} size={15} /> THE BASE</button>
+            <button
+              {...(lockedProps('base') || { className: `camp-tab${!isStationRepaired(save) ? ' camp-attr-pulse' : ''}` })}
+              onClick={lockGuard('base', () => { Audio.click(); setStationOpen(true); })}
+              data-testid="tab-base"
+            >
+              <GameIcon name={isCampTabLocked('base', save) ? 'ui_lock' : 'ui_base'} size={15} /> THE BASE
+            </button>
             {!isCampTabLocked('starraid', save) && (
-              <button className={`camp-tab ${tab === 'starraid' ? 'active' : ''}`} onClick={() => setTab('starraid')} data-testid="tab-starraid"><GameIcon name="ui_rocket" size={15} /> STAR RAID</button>
+              <button className={`camp-tab ${tab === 'starraid' ? 'active' : ''}`} onClick={() => goTab('starraid')} data-testid="tab-starraid"><GameIcon name="ui_rocket" size={15} /> STAR RAID</button>
             )}
             {!isCampTabLocked('prospector', save) && (
-              <button className="camp-tab" onClick={() => setProspectorOpen(true)} data-testid="tab-prospector"><GameIcon name="ui_pickaxe" size={15} /> LOOTMINE</button>
+              <button className="camp-tab" onClick={tapOpen(setProspectorOpen)} data-testid="tab-prospector"><GameIcon name="ui_pickaxe" size={15} /> LOOTMINE</button>
             )}
             {!isCampTabLocked('clicker', save) && (
-              <button className="camp-tab" onClick={() => setClickerOpen(true)} data-testid="tab-clicker" style={{ position: 'relative' }}>
+              <button className="camp-tab" onClick={tapOpen(setClickerOpen)} data-testid="tab-clicker" style={{ position: 'relative' }}>
                 <GameIcon name="ui_waterdrop" size={15} /> THE WELL {clickerReady > 0 && <ClaimBadge />}
               </button>
             )}
             <div className="camp-tab-divider" />
             {!isCampTabLocked('character', save) && (
-              <button className="camp-tab" onClick={() => setCharacterOpen(true)} data-testid="tab-character"><GameIcon name="ui_character" size={15} /> CHARACTER</button>
+              <button className="camp-tab" onClick={tapOpen(setCharacterOpen)} data-testid="tab-character"><GameIcon name="ui_character" size={15} /> CHARACTER</button>
             )}
             {!isCampTabLocked('pets', save) && (
-              <button className="camp-tab" onClick={() => setPetOpen(true)} data-testid="tab-pets"><GameIcon name="ui_pets" size={15} /> PETS</button>
+              <button className="camp-tab" onClick={tapOpen(setPetOpen)} data-testid="tab-pets"><GameIcon name="ui_pets" size={15} /> PETS</button>
             )}
             {!isCampTabLocked('talent', save) && (
-              <button className="camp-tab" onClick={() => setTalentOpen(true)} data-testid="tab-talent"><GameIcon name="ui_leaf" size={15} /> TALENTS</button>
+              <button className="camp-tab" onClick={tapOpen(setTalentOpen)} data-testid="tab-talent"><GameIcon name="ui_leaf" size={15} /> TALENTS</button>
             )}
             {!isCampTabLocked('skills', save) && (
-              <button className="camp-tab" onClick={() => setSkillOpen(true)} data-testid="open-skills"><GameIcon name="ui_skills" size={15} /> SKILLS</button>
+              <button className="camp-tab" onClick={tapOpen(setSkillOpen)} data-testid="open-skills"><GameIcon name="ui_skills" size={15} /> SKILLS</button>
             )}
             {!isCampTabLocked('cards', save) && (
-              <button className={`camp-tab ${tab==='cards'?'active':''}`} onClick={() => setTab('cards')} data-testid="tab-cards"><GameIcon name="ui_gem" size={15} /> META</button>
+              <button className={`camp-tab ${tab==='cards'?'active':''}`} onClick={() => goTab('cards')} data-testid="tab-cards"><GameIcon name="ui_gem" size={15} /> META</button>
             )}
             {!isCampTabLocked('gear', save) && (
-              <button className={`camp-tab ${tab==='gear'?'active':''}`} onClick={() => setTab('gear')} data-testid="tab-gear"><GameIcon name="gear" size={15} /> GEAR</button>
+              <button className={`camp-tab ${tab==='gear'?'active':''}`} onClick={() => goTab('gear')} data-testid="tab-gear"><GameIcon name="gear" size={15} /> GEAR</button>
             )}
             {!isCampTabLocked('pass', save) && (
-              <button className={`camp-tab ${tab==='pass'?'active':''}`} style={{position:'relative'}} onClick={() => setTab('pass')} data-testid="tab-pass"><GameIcon name="ui_medal" size={15} /> SEASON PASS {passNew && <ClaimBadge/>}</button>
+              <button className={`camp-tab ${tab==='pass'?'active':''}`} style={{position:'relative'}} onClick={() => goTab('pass')} data-testid="tab-pass"><GameIcon name="ui_medal" size={15} /> SEASON PASS {passNew && <ClaimBadge/>}</button>
             )}
             {!isCampTabLocked('patrol', save) && (
-              <button className={`camp-tab ${tab==='patrol'?'active':''}`} style={{position:'relative'}} onClick={() => setTab('patrol')} data-testid="tab-patrol"><GameIcon name="ui_map" size={15} /> PATROL {patrolNew && <ClaimBadge/>}</button>
+              <button className={`camp-tab ${tab==='patrol'?'active':''}`} style={{position:'relative'}} onClick={() => goTab('patrol')} data-testid="tab-patrol"><GameIcon name="ui_map" size={15} /> PATROL {patrolNew && <ClaimBadge/>}</button>
             )}
             {!isCampTabLocked('codex', save) && (
-              <button className={`camp-tab ${tab==='codex'?'active':''}`} style={{position:'relative'}} onClick={() => setTab('codex')} data-testid="tab-codex"><GameIcon name="ui_codex" size={15} /> CODEX {(codexNew || achNew || milestonesNew) && <ClaimBadge/>}</button>
+              <button className={`camp-tab ${tab==='codex'?'active':''}`} style={{position:'relative'}} onClick={() => goTab('codex')} data-testid="tab-codex"><GameIcon name="ui_codex" size={15} /> CODEX {(codexNew || achNew || milestonesNew) && <ClaimBadge/>}</button>
             )}
             <div className="camp-tab-divider" />
             {!isCampTabLocked('shop', save) && (
-              <button className="camp-tab" onClick={() => setShopOpen(true)} data-testid="open-card-shop"><GameIcon name="ui_token" size={15} /> CARD SHOP</button>
+              <button className="camp-tab" onClick={tapOpen(setShopOpen)} data-testid="open-card-shop"><GameIcon name="ui_token" size={15} /> CARD SHOP</button>
             )}
             {!isCampTabLocked('forge', save) && (
-              <button className="camp-tab" onClick={() => setForgeOpen(true)} data-testid="open-forge"><GameIcon name="ui_smith" size={15} /> SMITH</button>
+              <button className="camp-tab" onClick={tapOpen(setForgeOpen)} data-testid="open-forge"><GameIcon name="ui_smith" size={15} /> SMITH</button>
             )}
             {!isCampTabLocked('chest', save) && (
-              <button className="camp-tab" onClick={() => setChestOpen(true)} data-testid="open-chest"><GameIcon name="ui_chest" size={15} /> CHESTS</button>
+              <button className="camp-tab" onClick={tapOpen(setChestOpen)} data-testid="open-chest"><GameIcon name="ui_chest" size={15} /> CHESTS</button>
             )}
             {!isCampTabLocked('loadout', save) && (
-              <button className="camp-tab" onClick={() => setLoadoutOpen(true)} data-testid="open-loadout"><GameIcon name="ui_loadout" size={15} /> LOADOUT</button>
+              <button className="camp-tab" onClick={tapOpen(setLoadoutOpen)} data-testid="open-loadout"><GameIcon name="ui_loadout" size={15} /> LOADOUT</button>
             )}
-            <button className="camp-tab" onClick={() => setSettingsOpen(true)} data-testid="open-settings"><GameIcon name="ui_cog" size={15} /> SETTINGS</button>
+            <button className="camp-tab" onClick={tapOpen(setSettingsOpen)} data-testid="open-settings"><GameIcon name="ui_cog" size={15} /> SETTINGS</button>
+            <button
+              className="camp-tab"
+              onClick={() => { setStudioOpen(true); Audio.click?.(); }}
+              data-testid="open-asset-studio"
+              style={{
+                background: '#190c2e', border: '1px solid #ffd166', color: '#ffd166',
+                boxShadow: '0 0 10px rgba(255, 209, 102, 0.25)', fontWeight: 'bold'
+              }}
+            >
+              🎨 ASSET STUDIO (5 STYLES)
+            </button>
           </div>
         </div>
 
@@ -923,6 +1066,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
           {/* Active Story Quests Section (Reference Image 2) */}
           <div className="camp-top-grid full-width">
             <QuestTracker save={save} onGo={pathGo} />
+            <WhatsOnStrip save={save} onGo={pathGo} />
           </div>
           {tab === 'cards' && (
             <>
@@ -963,7 +1107,11 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
                         </div>
                       ) : (
                         <div className="pips">
-                          {Array.from({ length: upg.max }, (_, i) => <span key={i} className={'pip ' + (i < lvl ? 'on' : '')} />)}
+                          {Array.from({ length: upg.max }, (_, i) => {
+                            const on = i < lvl;
+                            const mark = metaMarkName(upg.id, i + 1);
+                            return <span key={i} className={'pip ' + (on ? 'on' : '') + (mark ? ' pip-mark' : '')} title={mark || undefined} />;
+                          })}
                         </div>
                       )}
                       <div className="desc">{upg.desc}</div>
@@ -985,7 +1133,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
 
           {tab === 'campaign' && (
             <>
-              {campaignSub === 'campaign' && <CampaignPanel save={save} setSave={setSave} />}
+              {campaignSub === 'campaign' && <CampaignPanel save={save} setSave={setSave} beat={beat} onFollow={followStory} />}
               {campaignSub === 'maps' && !isCampSubTabLocked('maps', save) && <MapsPanel save={save} setSave={setSave} onStart={(cfg) => onMission(cfg)} />}
               {/* THE PATH lives under MISSIONS, not STORY. It is a chain of
                   claimable objectives with rewards — the same kind of thing
@@ -1064,7 +1212,7 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
                           <div className="lvl">{Math.min(val, m.goal)} / {m.goal}</div>
                           <div style={{ fontSize: 12, color: 'var(--accent-2)' }}>{m.reward.gold && `★ ${m.reward.gold}`} {m.reward.sp && `◆ ${m.reward.sp} SP`}</div>
                           {claimed ? <div style={{ color: 'var(--rune)' }}>✓ CLAIMED</div> :
-                            <button onClick={() => claimMilestone(m)} disabled={!done}>{done ? '✓ CLAIM' : 'LOCKED'}</button>}
+                            <button onClick={(e) => claimMilestone(m, e)} disabled={!done}>{done ? '✓ CLAIM' : 'LOCKED'}</button>}
                         </div>
                       );
                     })}
@@ -1094,14 +1242,36 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
               </div>
 
               <div className="stats-sec-h">Enemy Intelligence &amp; Slayings</div>
-              <div className="stats-grid">
-                <Stat label="A.I.D.A. Slain" val={save.aidaSlain} />
-                <Stat label="Necromancer Slain" val={save.necroSlain || 0} />
-                <Stat label="Void Titan Slain" val={save.voidSlain || 0} />
-                <Stat label="Eye of Horus Slain" val={save.horusSlain || 0} />
+              <div className="stats-bars" data-testid="stats-boss-bars">
+                {(() => {
+                  const bosses = [
+                    { label: 'A.I.D.A.', val: save.aidaSlain || 0, color: '#4dffd4' },
+                    { label: 'Necromancer', val: save.necroSlain || 0, color: '#b362ff' },
+                    { label: 'Void Titan', val: save.voidSlain || 0, color: '#7a8cff' },
+                    { label: 'Eye of Horus', val: save.horusSlain || 0, color: '#ffd166' },
+                  ];
+                  const max = Math.max(1, ...bosses.map(b => b.val));
+                  return bosses.map(b => (
+                    <StatBar key={b.label} label={b.label} val={b.val} max={max} color={b.color} />
+                  ));
+                })()}
               </div>
 
               <div className="stats-sec-h">Resources &amp; Progression</div>
+              <div className="stats-bars" data-testid="stats-share-bars">
+                {(() => {
+                  const rows = [
+                    { label: 'Runs', val: save.runsCompleted || 0, color: '#4dffd4' },
+                    { label: 'Kills', val: save.totalKills || 0, color: '#ff7a1a' },
+                    { label: 'Gold', val: save.gold || 0, color: '#ffd166' },
+                    { label: 'Chests', val: save.chestsOpened || 0, color: '#b362ff' },
+                  ];
+                  const max = Math.max(1, ...rows.map(r => r.val));
+                  return rows.map(r => (
+                    <StatBar key={r.label} label={r.label} val={r.val} max={max} color={r.color} />
+                  ));
+                })()}
+              </div>
               <div className="stats-grid">
                 <Stat label="Account Rank" val={save.profile.level} />
                 <Stat label="Skill Points" val={save.sp} />
@@ -1134,8 +1304,10 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
               <GameIcon name={save.startWeapon || 'hydropistol'} size={15} />
               <span>{((WEAPONS[save.startWeapon || 'hydropistol'] || {}).name || 'HYDRO PISTOL').toUpperCase()}</span>
             </button>
-            <button onClick={onStart} data-testid="camp-fight"
-              style={{ borderColor: '#ff7a1a', boxShadow: 'var(--pixel-edge), 0 6px 0 #000, 0 0 28px #ff7a1a66' }}>▸ FIGHT</button>
+            {isEndlessUnlocked(save) && (
+              <button onClick={onStart} data-testid="camp-fight"
+                style={{ borderColor: '#ff7a1a', boxShadow: 'var(--pixel-edge), 0 6px 0 #000, 0 0 28px #ff7a1a66' }}>▸ ENDLESS</button>
+            )}
           </div>
         </div>
         {/* LAST in the DOM on purpose. The vines have to paint OVER the panel
@@ -1147,13 +1319,19 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
       </div>
       {toast && <div className="toast">{toast}</div>}
       {shopOpen && <CardShopModal save={save} setSave={setSave} onClose={() => setShopOpen(false)} />}
-      {skillOpen && <SkillTree save={save} setSave={setSave} onClose={() => setSkillOpen(false)} />}
+      {skillOpen && <SkillTree save={save} setSave={setSave} onClose={() => setSkillOpen(false)} onMoveUnlock={onMoveUnlock} />}
       {forgeOpen && <Weaponsmith save={save} setSave={setSave} initialSub={forgeSub} onClose={() => setForgeOpen(false)} />}
       {chestOpen && <Shop save={save} setSave={setSave} onClose={() => setChestOpen(false)} />}
       {loadoutOpen && <ActiveLoadoutPanel save={save} setSave={setSave} onClose={() => setLoadoutOpen(false)} />}
       {settingsOpen && <SettingsPanel save={save} setSave={setSave} onClose={() => setSettingsOpen(false)} onReset={handleReset} />}
+      {dailyOpen && (
+        <div className="modal-overlay" data-testid="camp-daily"
+          onClick={(e) => { if (e.target.classList.contains('modal-overlay')) setDailyOpen(false); }}>
+          <DailyRewardsWidget save={save} setSave={setSave} />
+        </div>
+      )}
       {characterOpen && <CharacterPanel save={save} setSave={setSave} onClose={() => setCharacterOpen(false)} />}
-      {talentOpen && <TalentTree save={save} setSave={setSave} onClose={() => setTalentOpen(false)} />}
+      {talentOpen && <TalentTree save={save} setSave={setSave} onClose={() => setTalentOpen(false)} onMoveUnlock={onMoveUnlock} />}
       {petOpen && <PetPanel save={save} setSave={setSave} onClose={() => setPetOpen(false)} onOpenTcg={() => setTcgOpen(true)} />}
       {tcgOpen && <TcgScreen save={save} setSave={setSave} onClose={() => setTcgOpen(false)} />}
       {explorationOpen && <ExplorationScreen save={save} setSave={setSave} onClose={() => setExplorationOpen(false)} />}
@@ -1161,21 +1339,45 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
       {clickerOpen && <ClickerScreen save={save} setSave={setSave} onClose={() => setClickerOpen(false)} />}
       {baseOpen && <BasePanel save={save} setSave={setSave} onOpen={enterBuilding} onClose={() => setBaseOpen(false)} onUnlock={queueUnlocks}
                               onWalk={() => { setBaseOpen(false); setStationOpen(true); }} />}
-      {/* THE MAIN HALL — the station as a place. Leaving it drops you back on
-          the module list you came from rather than out in the camp, so the two
-          views read as one screen with two ways of looking at it. */}
-      {stationOpen && (
+      {/* THE MAIN HALL — the station as a place. Leaving it drops you back
+          in the camp tab list. You buy modules by walking up to them here,
+          not from a shop list. */}
+      {stationOpen && !hangarOpen && !clickerOpen && (
         <StationRoom
           save={save}
           setSave={setSave}
           onOpen={enterBuilding}
-          onBuild={() => { setStationOpen(false); setBaseOpen(true); }}
-          onClose={() => { setStationOpen(false); setBaseOpen(true); }}
+          onUnlock={queueUnlocks}
+          onGather={() => {
+            setStationOpen(false);
+            if (save.pendingStationWalk) setSave(s => ({ ...s, pendingStationWalk: false }));
+            if (onStory) onStory();
+          }}
+          onClose={() => {
+            setStationOpen(false);
+            if (save.pendingStationWalk) setSave(s => ({ ...s, pendingStationWalk: false }));
+          }}
         />
+      )}
+      {hangarOpen && (
+        <HangarRoom
+          save={save}
+          setSave={setSave}
+          onUnlock={queueUnlocks}
+          onStarRaid={onStarRaid}
+          onDefence={() => setDefenceOpen(true)}
+          onDrain={() => setDrainOpen(true)}
+          escEnabled={!drainOpen}
+          onClose={() => { setHangarOpen(false); setStationOpen(true); }}
+        />
+      )}
+      {drainOpen && (
+        <DrainScreen save={save} setSave={setSave} onClose={() => setDrainOpen(false)} />
       )}
       {defenceOpen && <BaseDefenceScreen save={save} setSave={setSave} onClose={() => setDefenceOpen(false)} />}
       {profileOpen && <ProfilePanel save={save} setSave={setSave} onClose={() => setProfileOpen(false)} onBadges={() => { setProfileOpen(false); setBadgeOpen(true); }} />}
       {badgeOpen && <BadgePicker save={save} setSave={setSave} onClose={() => setBadgeOpen(false)} />}
+      {studioOpen && <AssetStudioModal onClose={() => setStudioOpen(false)} />}
       {/* Waits only for a reveal banner to finish, never for a TAB.
           It used to also require `!isCampTabLocked('cards', save)` — the idea
           being that showing this the instant you walk into camp buries "you got
@@ -1190,21 +1392,11 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
           nothing is lost either way, and with the base open after one run there
           IS something to act on by the time this can fire. */}
       {save.pendingLevelUp && !unlockShown && unlockQueue.length === 0 && (
-        <LevelUpOverlay save={save} onCollect={() => {
-          const r = save.pendingLevelUp;
-          const char = save.character || DEFAULT_SAVE.character;
-          setSave({
-            ...save,
-            pendingLevelUp: null,
-            gold: (save.gold || 0) + r.gold,
-            sp:   (save.sp   || 0) + r.sp,
-            gems: (save.gems || 0) + (r.gems || 0),
-            slotCoins: (save.slotCoins || 0) + (r.slotCoins || 0),
-            talentPoints: (save.talentPoints || 0) + (r.talentPoints || 0),
-            freeShopSpins: (save.freeShopSpins || 0) + (r.freeSpin ? 1 : 0),
-            character: { ...char, pieces: (char.pieces || 0) + (r.pieces || 0), shards: (char.shards || 0) + (r.shards || 0) },
-          });
-          Audio.claimPing();
+        <LevelUpOverlay save={save} onCollect={(e) => {
+          const bag = pendingRewardBag(save.pendingLevelUp);
+          fireClaimFx(e?.currentTarget, bag, { flyTo: CAMP_CLAIM_FLY });
+          setSave((s) => collectPendingLevelUp(s));
+          Audio.click('confirm');
         }} />
       )}
     </div>
@@ -1214,17 +1406,26 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
 function Stat({ label, val }) {
   return (<div className="stat-cell"><div className="stat-lbl">{label}</div><div className="stat-val">{val}</div></div>);
 }
+function StatBar({ label, val, max, color }) {
+  const pct = Math.max(0, Math.min(100, (val / Math.max(1, max)) * 100));
+  return (
+    <div className="stat-bar-row">
+      <span className="stat-bar-l">{label}</span>
+      <span className="stat-bar-track"><i style={{ width: `${pct}%`, background: color }} /></span>
+      <span className="stat-bar-n">{val}</span>
+    </div>
+  );
+}
 function fmtTime(t) { if (!t) return '00:00'; const m = Math.floor(t / 60); const s = Math.floor(t % 60); return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; }
 
 const _CF = [
-  {l:6,d:0,c:'#ff3146'},{l:14,d:.4,c:'#ffd166'},{l:23,d:.8,c:'#4dffd4'},
-  {l:33,d:.2,c:'#b362ff'},{l:44,d:1.1,c:'#ff8c00'},{l:55,d:.6,c:'#4dc4ff'},
-  {l:66,d:1.5,c:'#ffd700'},{l:76,d:.3,c:'#ff3146'},{l:85,d:.9,c:'#4dffd4'},
+  {l:6,d:0,c:'#4dffd4'},{l:14,d:.4,c:'#ffd166'},{l:23,d:.8,c:'#4dc4ff'},
+  {l:33,d:.2,c:'#b362ff'},{l:44,d:1.1,c:'#ff8c00'},{l:55,d:.6,c:'#7fe8d0'},
+  {l:66,d:1.5,c:'#ffd700'},{l:76,d:.3,c:'#4dffd4'},{l:85,d:.9,c:'#c9f6ff'},
   {l:93,d:.1,c:'#b362ff'},{l:10,d:1.8,c:'#ffd166'},{l:29,d:1.3,c:'#ff8c00'},
-  {l:50,d:1.0,c:'#4dc4ff'},{l:70,d:1.7,c:'#ff3146'},{l:88,d:.5,c:'#ffd700'},
+  {l:50,d:1.0,c:'#4dc4ff'},{l:70,d:1.7,c:'#7fe8d0'},{l:88,d:.5,c:'#ffd700'},
   {l:19,d:1.4,c:'#4dffd4'},
 ];
-const _LASERS = [0,45,90,135,180,225,270,315];
 
 function LevelUpOverlay({ save, onCollect }) {
   const r = save.pendingLevelUp;
@@ -1256,50 +1457,22 @@ function LevelUpOverlay({ save, onCollect }) {
   // Every payout on this screen, in one ordered list rather than nine
   // conditional divs. Building it as data is what lets them be revealed one at
   // a time — you cannot sequence JSX you have already spread across the card.
-  const rewards = React.useMemo(() => {
-    // `icon` is a GameIcon id, not an emoji — the same art the currency row in
-    // the banner uses, so what you are paid looks like what you then own. They
-    // used to be two unrelated sets of emoji and a player could reasonably not
-    // connect "🔷 Char. Pieces" here with anything at all.
-    const out = [
-      { key: 'gold', icon: 'cur_gold', label: 'Gold', amount: r.gold, color: '#ffd166' },
-      { key: 'sp', icon: 'cur_sp', label: 'SP', amount: r.sp, color: '#8fe6ff' },
-      { key: 'tp', icon: 'cur_tp', label: 'TP', amount: r.talentPoints, color: '#7ad96b' },
-      { key: 'gems', icon: 'cur_gems', label: 'Gems', amount: r.gems, color: '#4dffd4' },
-      { key: 'coins', icon: 'cur_slot', label: `Slot Coin${r.slotCoins > 1 ? 's' : ''}`, amount: r.slotCoins, color: '#ffcc00' },
-      { key: 'pieces', icon: 'cur_pieces', label: 'Char. Pieces', amount: r.pieces, color: '#b362ff' },
-      { key: 'shards', icon: 'cur_shards', label: 'Evo. Shards', amount: r.shards, color: '#ff7a1a' },
-    ].filter(x => (x.amount || 0) > 0);
-    if (r.freeSpin) out.push({ key: 'spin', icon: 'cur_slot', label: 'Free Shop Spin!', amount: null, color: '#4dffd4' });
-    return out;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // What this rank actually opened. All three reference sheets carry a
-  // "NEW FEATURE UNLOCKS" block, and the game already has real rank-gated
-  // content to put in it — profile frames, headbands, name colours, ship
-  // colours and the cigar — which until now unlocked completely silently. A
-  // player could hit rank 5 and own a Bronze Ring without ever being told.
-  const unlocks = React.useMemo(() => {
-    if (!isRankUp) return [];
-    const out = [];
-    const at = (list, label) => {
-      for (const x of list) if (x.rank === newRank) out.push({ label, name: x.name });
-    };
-    at(PROFILE_FRAMES, 'Profile frame');
-    at(HEADBANDS, 'Headband');
-    at(NAME_COLORS, 'Name colour');
-    at(SHIP_COLORS, 'Ship colour');
-    if (newRank === CIGAR_UNLOCK_RANK) out.push({ label: 'Cosmetic', name: 'The cigar' });
-    return out;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const rewards = React.useMemo(() => rewardTiles(r), [r]);
+  // Every rank crossed in this uncollected jump — not only the last one.
+  // A 19→25 bundle used to skip Bronze Ring (rank 5) because the list
+  // keyed on `x.rank === newRank` alone.
+  const unlocks = React.useMemo(
+    () => rankUnlocksBetween(Number.isFinite(r.fromLevel) ? r.fromLevel : r.level - 1, r.level),
+    [r],
+  );
+  const coming = nextRankPrize(r.level);
 
   // How many have landed. Each one flies in, lands on the portrait and only
   // then does the next start — "so you see and feel exactly what you get, when
   // you get it" rather than a wall of numbers appearing at once.
   const [shown, setShown] = useState(0);
   const [struck, setStruck] = useState(null);   // the key currently hitting
+  const [xpShow, setXpShow] = useState(0);
   const doneAll = shown >= rewards.length;
 
   useEffect(() => {
@@ -1307,6 +1480,19 @@ function LevelUpOverlay({ save, onCollect }) {
     else Audio.levelUp();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const target = r.xpGained || 0;
+    const start = Date.now();
+    const dur = 920;
+    const id = setInterval(() => {
+      const t = Math.min(1, (Date.now() - start) / dur);
+      const eased = 1 - (1 - t) * (1 - t);
+      setXpShow(Math.round(target * eased));
+      if (t >= 1) clearInterval(id);
+    }, 32);
+    return () => clearInterval(id);
+  }, [r.xpGained]);
 
   // The XP bar rises first, then the rewards land on top of it. Pitch climbs
   // with the fill so the bar is audibly going somewhere. The bar itself now
@@ -1340,35 +1526,38 @@ function LevelUpOverlay({ save, onCollect }) {
 
   // Let an impatient player skip straight to the end — a reveal you cannot
   // interrupt stops being a reward and becomes a wait.
-  const skipOrCollect = () => {
+  const skipOrCollect = (e) => {
     if (!doneAll) { setShown(rewards.length); setStruck(null); return; }
-    onCollect();
+    onCollect(e);
   };
+
+  useEffect(() => {
+    const onKey = (ev) => {
+      if (ev.key === 'Enter' || ev.key === ' ') {
+        ev.preventDefault();
+        skipOrCollect();
+      } else if (ev.key === 'Escape') {
+        ev.preventDefault();
+        if (doneAll) onCollect();
+        else { setShown(rewards.length); setStruck(null); }
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [doneAll, rewards.length, onCollect]);
 
   return (
     <div className="lu-overlay" data-testid="levelup-overlay" onClick={skipOrCollect}>
       {_CF.map((c,i) => <div key={i} className="lu-confetti" style={{left:`${c.l}%`,animationDelay:`${c.d}s`,background:c.c}} />)}
-      {_LASERS.map(a => <div key={a} className="lu-laser" style={{transform:`translate(-50%,-50%) rotate(${a}deg)`}} />)}
-      {/* The outer frame is a WRAPPER, not a pseudo-element on the card.
-          Two reasons, both found by looking at a screenshot of it:
-            - `.lu-card` has a clip-path for its bevelled corners, and a
-              clip-path clips its own pseudo-elements too, so a frame drawn at
-              `inset:-16px` was cut away entirely and never appeared.
-            - a positioned ::before paints ABOVE non-positioned siblings, so
-              the frame was covering "★ LEVEL n ★" and the XP bar — they were
-              rendering the whole time, behind it.
-          Also NOT `oil-live`: one element has exactly one ::before, so two
-          frame classes overwrite rather than layer. */}
       <div className="lu-frame" onClick={(e) => e.stopPropagation()}>
+      <div className="lu-crest" aria-hidden="true">
+        <GameIcon name="ui_waterdrop" size={52} />
+      </div>
       <div className="lu-card">
-        {/* Title banner. All three reference sheets lead with a crimson plate
-            carrying the headline, and it is the first thing your eye lands on
-            — the old layout led with a portrait and buried the actual news
-            underneath it. */}
         <div className={`lu-banner${isRankUp ? ' is-rank' : ''}`}>
           <span className="lu-banner-l" aria-hidden="true" />
           <span className="lu-banner-txt">
-            {isRankUp ? `RANK UP — ${RANK_TITLES[newRank]}!` : `NEW ACCOUNT LEVEL: ${r.level}!`}
+            {isRankUp ? `PROFILE LEVEL UP — RANK ${newRank} ${RANK_TITLES[newRank]}` : `PROFILE LEVEL UP — LV ${r.level}`}
           </span>
           <span className="lu-banner-r" aria-hidden="true" />
         </div>
@@ -1381,15 +1570,10 @@ function LevelUpOverlay({ save, onCollect }) {
             photo sees their photo; otherwise their chosen avatar. Either way
             it is THEIR profile rather than a generic drop. */}
         <div className={`lu-portrait${struck ? ' is-struck' : ''}`}>
-          {/* Layered bezel, back to front: a spinning black/crimson band, a
-              counter-spinning silver filigree, four holder claws gripping the
-              picture, then the glass. Two rings turning opposite ways is what
-              stops it reading as one flat spinning disc. */}
           <span className="lu-bezel-outer" aria-hidden="true" />
           <span className="lu-bezel-band" aria-hidden="true" />
           <span className="lu-bezel-fili" aria-hidden="true" />
           <span className="lu-portrait-sheen" aria-hidden="true" />
-          {[0, 1, 2, 3].map(i => <span key={i} className={`lu-claw c${i}`} aria-hidden="true" />)}
           {photo
             ? <img className="lu-portrait-img" src={photo} alt="" />
             : <span className="lu-portrait-icon"><GameIcon name={av.icon} size={44} /></span>}
@@ -1408,20 +1592,16 @@ function LevelUpOverlay({ save, onCollect }) {
                 two just moved is the whole point of the screen. */}
             <div className="lu-bar rank"><i style={{ width: `${((r.level % 4) / 4) * 100}%` }} /></div>
             <div className="lu-bar lvl"><i className="lu-bar-run" style={{ '--pct': `${lvlPct * 100}%` }} /></div>
-            <div className="lu-profxp">+{r.xpGained || 0} Account XP</div>
+            <div className="lu-profxp">+{xpShow} Account XP</div>
           </div>
         </div>
 
         {/* What is still ahead, kept as one quiet line under the row rather
             than as a heading — it is context, not news. */}
-        {!isRankUp && (
+        {coming && (
           <div className="lu-next-rank">
-            {(() => {
-              const toNext = (newRank + 1) * 4 - r.level;
-              return toNext > 0 && newRank < RANK_TITLES.length - 1
-                ? `${toNext} more level${toNext > 1 ? 's' : ''} to RANK ${newRank + 1} — ${RANK_TITLES[newRank + 1]}`
-                : null;
-            })()}
+            {coming.levelsLeft} more level{coming.levelsLeft === 1 ? '' : 's'} to RANK {coming.rank} — {coming.title}
+            {coming.unlocks.length > 0 ? ` · ${coming.unlocks.map((u) => u.name).join(', ')}` : ''}
           </div>
         )}
         {/* The one currently in flight, drawn OVER the card so it can travel
@@ -1429,8 +1609,7 @@ function LevelUpOverlay({ save, onCollect }) {
         {struck && (() => {
           const it = rewards.find(x => x.key === struck);
           return it ? (
-            <div className="lu-strike" style={{ '--rc': it.color }} aria-hidden="true">
-              <span className="lu-strike-icon"><GameIcon name={it.icon} tone={it.color} size={44} /></span>
+            <div className="lu-strike lu-strike-glow" style={{ '--rc': it.color }} aria-hidden="true">
               <span className="lu-strike-ring" />
             </div>
           ) : null;
@@ -1463,24 +1642,25 @@ function LevelUpOverlay({ save, onCollect }) {
                 </svg>
               </span>
               <span className="lu-tile-ic"><GameIcon name={it.icon} tone={it.color} size={38} /></span>
-              <span className="lu-tile-amt">{it.amount != null ? `+${it.amount}` : '✦'}</span>
+              <span className="lu-tile-amt">+{it.amount}</span>
               <span className="lu-tile-lbl">{it.label}</span>
             </div>
           ))}
           {r.streakBonus && doneAll && (
-            <div className="lu-rwd" style={{color:'#ffd700',textShadow:'0 0 16px #ffd700aa',fontSize:15,letterSpacing:'0.15em',marginTop:6,border:'1px solid #ffd70066',padding:'4px 10px',background:'#1a1200'}}>
-              ★ 2× STREAK BONUS! ★
-              <div style={{fontSize:11,opacity:0.7,letterSpacing:'0.1em'}}>3 rank-ups today</div>
+            <div className="lu-rwd lu-streak">
+              1.5× STREAK BONUS
+              <div className="lu-streak-sub">{r.streakCount || 3} account levels today</div>
             </div>
           )}
         </div>
         {/* Only on a rank-up, and only when the rank actually opened something
             — an empty "NEW UNLOCKS" heading is worse than none. */}
-        {doneAll && unlocks.length > 0 && (
+        {unlocks.length > 0 && (
           <div className="lu-unlocks">
-            <div className="lu-unlocks-head">NEW UNLOCKS</div>
+            <div className="lu-unlocks-head">NEW FEATURE UNLOCKS!</div>
             {unlocks.map((u, i) => (
               <div className="lu-unlock" key={i} style={{ animationDelay: `${i * 110}ms` }}>
+                <span className="lu-unlock-lock" aria-hidden="true"><GameIcon name="ui_lock" size={12} /></span>
                 <span className="lu-unlock-check" aria-hidden="true">
                   <svg viewBox="0 0 16 16" width="11" height="11">
                     <path d="M3 8.4l3.2 3.2L13 4.8" fill="none" stroke="#07160c"
@@ -1488,18 +1668,18 @@ function LevelUpOverlay({ save, onCollect }) {
                   </svg>
                 </span>
                 <b>{u.name}</b>
-                <i>{u.label}</i>
+                <i>{u.label} Access</i>
               </div>
             ))}
           </div>
         )}
 
-        <div className="lu-actions" style={{ display: 'flex', gap: 10, marginTop: 12 }}>
-          <button className="base-btn" onClick={onCollect} style={{ flex: '1 1 0', padding: '12px 14px', fontSize: 13 }} data-testid="levelup-back">
+        <div className="lu-actions">
+          <button type="button" className="base-btn lu-back" onClick={(e) => { Audio.click('back'); onCollect(e); }} data-testid="levelup-back">
             BACK TO BASE
           </button>
-          <button className="lu-collect" onClick={skipOrCollect} style={{ flex: '1.2 1 0', margin: 0 }} data-testid="levelup-collect">
-            {doneAll ? 'CLAIM & CONTINUE ▸' : 'SKIP ▸'}
+          <button type="button" className="lu-collect" onClick={skipOrCollect} data-testid="levelup-collect">
+            {doneAll ? 'CLAIM & CONTINUE' : 'SKIP'}
           </button>
         </div>
       </div>

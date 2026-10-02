@@ -30,19 +30,51 @@ export const WEAPONS = {
   // trades all reach for damage, and on a killing blow it cuts the enemy in
   // half. Its 'melee' behaviour is what makes its wounds read as slashes
   // rather than bullet holes (see _addImpactMark).
+  // THE FIRST WEAPON, and it is not a weapon.
+  //
+  // Timmy, 2026-08-25: "de ar en bit fran campet han brutit av for a forsvara
+  // sig ... vass for de plat saker titanium sakert men inte nan sylvass katana
+  // med balans a snyggt hantag mer en temporar raddning a de narmsta som fanns
+  // till hands."
+  //
+  // So it stops being a katana. It is a structural rib snapped off the
+  // derelict station's frame — the same ribs the hull is drawn with. Titanium,
+  // so it holds an edge where it tore, and nothing else about it is a blade:
+  // no balance, no grip, no point. He picked it up because it was there.
+  //
+  // The ID stays `katana`. It is referenced 77 times, including the save field
+  // `katanaRuns` and the story quest `s_katana`, and renaming an id to match a
+  // display string is how a save quietly stops counting. Display strings only —
+  // the same call the buildings rename made.
   katana: {
     id: 'katana',
-    name: 'Tidecutter Katana',
-    icon: '🗡',
+    name: 'Snapped Rib',
+    icon: 'katana',
     type: 'manual',
     behaviour: 'melee',
-    desc: 'A single clean arc. Kills split the body in two.',
+    desc: 'Not a blade. A torn piece of the station, sharp where it broke.',
     base: {
-      damage: 88,
-      fireRate: 2.1,      // swings per second
-      area: 96,           // reach, in world px
-      knockback: 40,
-      crit: 0.16,
+      // Deliberately WORSE than the katana it replaces — "de ska va lite
+      // samre" — but worse in the RIGHT PLACE, and that took measuring.
+      //
+      // The hit-tier ladder (1 hit = 4 HP, 2 = 42, 3 = 83, 4 = 123, 5 = 159,
+      // 6 = 190, elite = 257) was derived against 88 damage, and Timmy named
+      // the two-hit feel as the one thing to preserve. Recomputed across the
+      // whole campaign: at 84 damage tiers 5 and 6 each slip a hit, and at 76
+      // tier 4 slips and elites go 8 -> 10. At 86 the entire ladder 1-6 holds
+      // exactly and only elites move, 8 -> 9.
+      //
+      // So the edge stays sharp — torn titanium genuinely is — and the
+      // degradation goes where the character actually lives: a slow swing
+      // because nothing about it is balanced, almost no crit because a broken
+      // edge does not find a seam, less reach than a blade, and more
+      // knockback, because it is closer to a girder than to a sword.
+      // Net effect: 214 DPS -> 173, about 19% worse, ladder intact.
+      damage: 86,         // was 88 — barely; the tear is the sharp part
+      fireRate: 1.85,     // was 2.1 — heavy in the wrong place, slow to return
+      area: 88,           // was 96 — shorter than a blade
+      knockback: 52,      // was 40 — it hits like the girder it is
+      crit: 0.09,         // was 0.16 — no edge geometry to find a seam
       color: '#dff4ff',
       sound: 'shoot',
     },
@@ -996,6 +1028,11 @@ export const ENEMIES = {
     id: 'bossHollowQueen', name: 'The Hollow Queen', size: 78, hp: 14000, dmg: 48, speed: 95, color: '#8a3fd4',
     xp: 950, gold: 950, ai: 'boss', boss: true, shootCD: 1.1,
   },
+  bossAnnunaki: {
+    id: 'bossAnnunaki', name: 'The Annunaki Watcher', size: 110, hp: 18000, dmg: 65, speed: 45, color: '#e59866',
+    xp: 1500, gold: 1500, ai: 'boss', boss: true, shootCD: 0.85,
+    title: '12,000-Year Primordial Architect',
+  },
 };
 
 // ---------- LEVEL UP CARD POOL (in-run) ----------
@@ -1074,6 +1111,37 @@ export const META_UPGRADES = [
 
 export function metaCost(upg, currentLvl) {
   return Math.floor(upg.baseCost * Math.pow(upg.curve, currentLvl));
+}
+
+// Named beats on the fat meta tracks. The grain is already 5–10 levels;
+// these are the dopamine markers at the halfway pip and at MAX so a purchase
+// is an event rather than another +2%.
+export const META_MARKS = {
+  m_hp:        { 5: 'Tempered Shell',     10: 'Hardened Core' },
+  m_dmg:       { 5: 'Honed Edge',         10: 'Sharpened Will' },
+  m_atks:      { 5: 'Resonant Cadence',   10: 'Pulse Mastery' },
+  m_spd:       { 5: 'Light Step',          8: 'Lightfoot' },
+  m_crit:      { 5: 'Lucky Eye',          10: 'Eye of Fortune' },
+  m_critd:     { 5: 'Vorpal Edge',        10: 'Vorpal Mind' },
+  m_armor:     { 5: 'Annunaki Scale',     10: 'Annunaki Plating' },
+  m_regen:     { 5: 'Lake Breath',         8: 'Flow of Nirvana' },
+  m_pickup:    { 5: 'Tidal Reach',         8: 'Tidal Pull' },
+  m_xp:        { 5: 'Lake Memory',         8: 'Memory of Lake' },
+  m_gold:      { 5: 'Goldsense',           8: 'Midas Ear' },
+  m_luck:      { 5: 'Eldritch Tick',       8: 'Eldritch Luck' },
+  m_dodge:     { 5: 'Veil Step',           8: 'Veil Walker' },
+  m_projspd:   { 5: 'Swift Rounds',        8: 'Rail Shot' },
+  m_projrange: { 5: 'Long Barrel',         8: 'Horizon Shot' },
+  m_superCrit: { 5: 'Super Strike' },
+  m_megaCrit:  { 5: 'Mega Strike' },
+  m_heal:      { 5: 'Vital Drops' },
+  m_zoom:      { 5: 'Eagle Eye' },
+  m_lvlBoomDmg:{ 5: 'Shockwave Mastery' },
+  m_lvlBoomKB: { 5: 'Earthshaker' },
+};
+
+export function metaMarkName(upgId, lvl) {
+  return (META_MARKS[upgId] || {})[lvl] || null;
 }
 
 // ---------- WAVE / DIFFICULTY ----------

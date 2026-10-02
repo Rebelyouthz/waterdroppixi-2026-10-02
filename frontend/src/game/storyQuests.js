@@ -39,6 +39,8 @@
 //    chore list.
 
 import { MAP_STAGES } from './data_ext2';
+import { DASH_NODE_ID } from './poe_tree';
+import { buildingLevel, isStationRepaired } from './base';
 
 const any = (o) => Object.keys(o || {}).length > 0;
 const sum = (o) => Object.values(o || {}).reduce((a, b) => a + (b || 0), 0);
@@ -67,6 +69,30 @@ export const STORY_QUESTS = [
     rwd: { gold: 300, gearParts: 8 },
   },
   {
+    id: 's_insert', icon: 'ui_codex', go: 'base',
+    title: 'Wake the wreck',
+    goal: 'Walk the hall and insert the A.I.D.A. core',
+    why: 'The chip wants the socket. She turns the lights on. Everything else in this ring waits on that.',
+    check: (s) => isStationRepaired(s),
+    rwd: { gold: 250, gearParts: 6 },
+  },
+  {
+    id: 's_hull', icon: 'ui_base', go: 'base',
+    title: 'Seal the hull',
+    goal: 'Patch The Hull so the station holds air',
+    why: 'Skills, talents and meta stay dusty until the first bolt. If you cannot pay, CONTINUE STORY is a gather run.',
+    check: (s) => buildingLevel(s, 'hull') >= 1,
+    rwd: { gold: 400, gearParts: 10 },
+  },
+  {
+    id: 's_dash', icon: 'pQuick', go: 'skills',
+    title: 'Unlock Shadow Dash',
+    goal: 'Open the Skill Tree and buy the three teal Mobility nodes until Shadow Dash is yours',
+    why: 'SHIFT on PC, swipe the left stick on phone. I-frames through a pack. The rest of the wheel waits until you can duck.',
+    check: (s) => ((s.skills || {})[DASH_NODE_ID] || 0) >= 1,
+    rwd: { gold: 250, sp: 2 },
+  },
+  {
     id: 's_survive', icon: 'ui_clock', go: 'story',
     title: 'Hold the line',
     goal: 'Survive 2 minutes in a single run',
@@ -93,8 +119,8 @@ export const STORY_QUESTS = [
     // the reason a player first needs it.
     id: 's_katana', icon: 'katana', go: 'smithBlueprints',
     title: 'Put the gun down',
-    goal: 'Finish one run carrying the Tidecutter Katana',
-    why: 'Shooting is not the only answer, and the katana is the only weapon that cuts a body clean in half. Weaponsmith → BLUEPRINTS → CARRY THIS. If you hate it, never again.',
+    goal: 'Finish one run carrying the Snapped Rib',
+    why: 'Shooting is not the only answer, and the rib is the only thing you own that cuts a body clean in half. Weaponsmith → BLUEPRINTS → CARRY THIS. If you hate it, never again.',
     check: (s) => (s.katanaRuns || 0) >= 1,
     rwd: { gold: 600, gearParts: 16 },
   },
@@ -258,6 +284,22 @@ export const STORY_QUESTS = [
 
 export const CAMP_QUESTS = [
   {
+    id: 'c_awaken', icon: 'ui_codex', go: 'base',
+    title: 'Plug her in',
+    goal: 'Insert A.I.D.A. into the hall socket',
+    why: 'The camp is a dark ring until she is in. You walk there. You do not pick her from a list.',
+    check: (s) => isStationRepaired(s),
+    rwd: { gold: 200, gearParts: 4 },
+  },
+  {
+    id: 'c_hull', icon: 'ui_base', go: 'base',
+    title: 'Hold air',
+    goal: 'Buy The Hull — the first building',
+    why: 'That purchase is what opens Skills, Talents and Meta. Gold you cannot spend yet is a gather run, not a wall.',
+    check: (s) => buildingLevel(s, 'hull') >= 1,
+    rwd: { gold: 350, gearParts: 8 },
+  },
+  {
     id: 'c_attr', icon: 'ui_bolt', go: 'attrs',
     title: 'Spend a point',
     goal: 'Put one attribute point somewhere',
@@ -292,17 +334,17 @@ export const CAMP_QUESTS = [
   {
     id: 'c_skill', icon: 'ui_skills', go: 'skills',
     title: 'Learn something',
-    goal: 'Buy one node in the Skill tree',
-    why: 'The skill tree is where the run-changing unlocks live — dashes, shields, weapon evolutions.',
-    check: (s) => sum(s.skills) >= 1,
+    goal: 'Buy three nodes in the Skill tree',
+    why: 'The rest of the wheel is yours after dash. Combat, Defense, the others — spend what is left.',
+    check: (s) => sum(s.skills) >= 3,
     rwd: { gold: 350, sp: 1 },
   },
   {
     id: 'c_talent', icon: 'ui_leaf', go: 'talents',
     title: 'Put down roots',
-    goal: 'Buy 5 talent levels',
-    why: 'Talents are 300 small steps, not 30 big ones. Points come from every run whether you win or not.',
-    check: (s) => sum(s.talent) >= 5,
+    goal: 'Buy 5 talents',
+    why: 'Each talent is one behaviour change, bought once — not 300 percentage ticks. Climb up from the bottom.',
+    check: (s) => Object.keys(s.talent || {}).length >= 5,
     rwd: { gold: 450, talentPoints: 6 },
   },
   {
@@ -371,10 +413,10 @@ export const CAMP_QUESTS = [
   },
   {
     id: 'c_base', icon: 'ui_base', go: 'base',
-    title: 'Raise the base',
-    goal: 'Build anything, once',
-    why: 'Buildings are where gold stops buying stats and starts buying systems.',
-    check: (s) => sum(s.base) >= 1,
+    title: 'Raise a second module',
+    goal: 'Build something after The Hull',
+    why: 'The Hull opened the ring. The next bolt is a system — Hangar, Well, Bio Lab — not another stat.',
+    check: (s) => sum(s.base) >= 2,
     rwd: { gold: 800, gearParts: 22 },
   },
   {

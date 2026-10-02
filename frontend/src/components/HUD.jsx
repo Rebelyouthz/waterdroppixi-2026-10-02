@@ -1,6 +1,6 @@
 import React from 'react';
 import { SET_INDEX } from '../game/data_ext2';
-import { nodeObjectives } from '../game/campaign';
+import { nodeObjectives, isFirstHourRun, firstHourTips } from '../game/campaign';
 import { pushToast } from '../game/toastBus';
 import GameIcon from './GameIcon';
 
@@ -54,19 +54,9 @@ function ObjectiveList({ snap, node }) {
   );
 }
 
-// Tutorial text that appears at specific time milestones. Retimed against the
-// reworked wave curve, and rewritten to teach the two rules that actually
-// decide whether a new player survives: keep moving, and level 4 is when the
-// build starts. The last line sets the expectation the whole difficulty pass
-// depends on — the first guardian is meant to beat you, several times.
-const TUTORIAL_TIPS = [
-  { at: 3,   text: 'Move with WASD, aim with the mouse, click to fire. Never stop moving — standing still draws them in faster.' },
-  { at: 20,  text: 'XP orbs level you up and every level is a card. Cards are where your build comes from, not gear.' },
-  { at: 45,  text: 'Gold is spent at CAMP between runs. Hearts heal. Both are worth stepping out of position for.' },
-  { at: 75,  text: 'Level 4 opens a second weapon slot. Every fourth level after that opens another one.' },
-  { at: 110, text: 'Dying is not failure here — a run that reaches the guardian still pays out two chests.' },
-  { at: 150, text: 'The guardian is here, and it is stronger than you. Learn its pattern. Come back with the camp behind you.' },
-];
+// First-hour coaching lives in campaign.firstHourTips — wreck/pond copy,
+// timed to orbit_find's 120s window so the last line actually fires.
+// mission.isTutorial is retired; the HUD used to gate on it and stay silent.
 
 // =============================================
 // VESSEL GAUGE — one XP meter, one HP meter, built together
@@ -284,15 +274,20 @@ export default function HUD({ snap, isTutorial, mission, levelUpOpen = false }) 
   // tip would be re-pushed sixty times a second once its timestamp passed.
   const tipsFired = React.useRef(new Set());
   const tutTime = snap ? snap.time : 0;
+  const coach = isFirstHourRun(mission);
+  const coachNode = mission?.node?.id || (mission?.isTutorial ? 'tutorial' : '');
   React.useEffect(() => {
-    if (!isTutorial) return;
-    for (const tip of TUTORIAL_TIPS) {
+    if (!coach) return;
+    for (const tip of firstHourTips(mission)) {
       if (tutTime >= tip.at && !tipsFired.current.has(tip.at)) {
         tipsFired.current.add(tip.at);
-        pushToast({ tone: 'default', icon: 'ui_star', title: 'TUTORIAL', text: tip.text });
+        pushToast({
+          key: `tut:${coachNode}:${tip.at}`, once: true,
+          tone: 'default', icon: 'ui_star', title: 'TUTORIAL', text: tip.text,
+        });
       }
     }
-  }, [tutTime, isTutorial]);
+  }, [tutTime, coach, coachNode, mission]);
 
   if (!snap) return null;
   const xpPct = (snap.xp / snap.xpToNext) * 100;
@@ -522,7 +517,7 @@ export default function HUD({ snap, isTutorial, mission, levelUpOpen = false }) 
       </div>
 
       <div className="help">
-        <b>WASD</b> move · <b>MOUSE</b> aim · <b>CLICK</b> fire<br />
+        <b>WASD</b> move · <b>MOUSE</b> aim · <b>{coach ? 'HOLD' : 'CLICK'}</b> {coach ? 'swing' : 'fire'}<br />
         <b>R</b> reload · <b>SPACE</b> dash · <b>1-4</b> skills · <b>ESC</b> pause
       </div>
 

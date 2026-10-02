@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   CLICKER_BUILDINGS, CLICKER_MANAGERS, isBuildingAutomated,
-  CLICKER_MAPS, CLICKER_RESEARCH_TREE, STAR_ATLAS_SHIP_COMPONENTS,
+  CLICKER_MAPS, CLICKER_RESEARCH_TREE,
   buildingCost, clickUpgradeCost,
   dropsPerSec, dropsPerClick, pendingMilestones, nextMilestone,
   CLICKER_MILESTONES, fmtDrops,
-  prestigeGain, prestigeMult, doPrestige, SPRING_BONUS,
+  prestigeGain, prestigeMult, doPrestige,
   currentChapter, headlinesForChapter, unlockedDossiers, rollEvent,
-  CONSPIRACY_CHAPTERS
+  CONSPIRACY_CHAPTERS, getEquippedShipDetails
 } from '../game/clicker';
 import { rollRune } from '../game/runes';
 import { rollPartsDrop, addParts } from '../game/gear';
@@ -16,7 +17,7 @@ import { clickerRateMult } from '../game/base';
 import { Audio } from '../game/audio';
 import { pushToast } from '../game/toastBus';
 import GameIcon from './GameIcon';
-import ClaimFx, { fireClaimFx } from './ClaimFx';
+import { fireClaimFx } from './ClaimFx';
 import { CHEST_VISUALS } from '../game/masterMilestones';
 import { ClickerWorld } from '../game/clickerWorld';
 
@@ -84,7 +85,7 @@ export default function ClickerScreen({ save, setSave, onClose }) {
   // Tactical Anomaly Choice Modal State
   const [choiceEvent, setChoiceEvent] = useState(null);
 
-  // Shop navigation tab: 'buildings' | 'managers' | 'research' | 'hangar'
+  // Shop navigation tab: 'buildings' | 'managers' | 'research' | 'expeditions'
   const [shopTab, setShopTab] = useState('buildings');
 
   // Building Production Cycles state (progress: 0..1, ready: bool)
@@ -102,8 +103,6 @@ export default function ClickerScreen({ save, setSave, onClose }) {
   const pending = pendingMilestones(cl);
   const next = nextMilestone(cl);
 
-  const [splashes, setSplashes] = useState([]);
-  const splashId = useRef(0);
   const [dossierOpen, setDossierOpen] = useState(false);
   const [headlineIdx, setHeadlineIdx] = useState(0);
   const [showRevelation, setShowRevelation] = useState(false);
@@ -111,6 +110,10 @@ export default function ClickerScreen({ save, setSave, onClose }) {
   const [combo, setCombo] = useState(0);
   const comboTimer = useRef(null);
   const [ratePop, setRatePop] = useState(false);
+  const [gainText, setGainText] = useState('');
+  const popRef = useRef(null);
+  const tapBag = useRef(0);
+  const tapFlush = useRef(null);
   const [milestoneDetail, setMilestoneDetail] = useState(null);
 
   // Track chapter changes
@@ -126,8 +129,14 @@ export default function ClickerScreen({ save, setSave, onClose }) {
   const clickerActive = useRef(true);
   useEffect(() => {
     clickerActive.current = true;
-    return () => { clickerActive.current = false; };
+    return () => {
+      clickerActive.current = false;
+      if (tapFlush.current) clearTimeout(tapFlush.current);
+    };
   }, []);
+
+  const [worldReady, setWorldReady] = useState(false);
+  const [worldFailed, setWorldFailed] = useState(false);
 
   // ── PixiJS conspiracy world canvas ──────────────────────────────
   const canvasRef = useRef(null);
@@ -139,8 +148,8 @@ export default function ClickerScreen({ save, setSave, onClose }) {
       mapId: selectedMap,
       theme: chapter.theme,
       chapter: chapterIdx,
-      onTapWell: () => {
-        tapFromCanvas();
+      onTapWell: (x, y) => {
+        tapFromCanvas(x, y);
       },
       onTapObject: (id, obj) => {
         handleWorldInteraction(id, obj);
@@ -249,37 +258,54 @@ export default function ClickerScreen({ save, setSave, onClose }) {
               ...c,
               drops: (c.drops || 0) + lootGain,
               total: (c.total || 0) + lootGain,
-              metaInsight: (c.metaInsight || 0) + 15,
-              shipScrap: (c.shipScrap || 0) + 5,
             },
           };
         });
-        pushToast({ tone: 'cyan', icon: 'ui_eye', title: 'SECRET LOOT DISCOVERED!', text: `Found hidden blueprints & ancient drops!` });
-        Audio.rankUp && Audio.rankUp();
+        pushToast({ tone: 'legendary', icon: 'gem', title: 'SECRET LOOT UNEARTHED!', text: `Extracted ancient harmonic cache!` });
+        Audio.rewardFanfare && Audio.rewardFanfare();
       },
     });
 
-    world.init().then(() => {
-      worldRef.current = world;
-    });
+    world.init()
+      .then(() => { if (!world.destroyed) setWorldReady(true); })
+      .catch((err) => { console.error(err); setWorldFailed(true); });
+    worldRef.current = world;
 
     return () => {
-      worldRef.current = null;
       world.destroy();
+      worldRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Update map selection
+  // Sync hero stats with click level & prestiges
   useEffect(() => {
-    if (worldRef.current) {
-      worldRef.current.setMap(selectedMap);
+    if (!worldRef.current) return;
+    const tier = (cl.prestiges > 2 || (cl.clickLvl || 0) >= 50) ? 4
+      : (cl.prestiges > 0 || (cl.clickLvl || 0) >= 25) ? 3
+      : (cl.clickLvl || 0) >= 10 ? 2 : 1;
+    worldRef.current.updateHeroStats({
+      lvl: (cl.clickLvl || 0) + 1,
+      tier,
+    });
+  }, [cl.clickLvl, cl.prestiges]);
+
+  // Handle map switch with Star-Atlas spaceship hyperspace sequence
+  const switchMap = (newMapId) => {
+    if (selectedMap === newMapId) return;
+    const shipDetails = getEquippedShipDetails(save);
+    if (worldRef.current && worldRef.current.startHyperspaceTravel) {
+      worldRef.current.startHyperspaceTravel(newMapId, () => {
+        setSelectedMap(newMapId);
+      }, shipDetails);
+    } else {
+      setSelectedMap(newMapId);
     }
-  }, [selectedMap]);
+  };
 
   // Handle world entity interactions (Stonehenge, Göbekli)
   const handleWorldInteraction = useCallback((id) => {
-    if (id === 'stonehenge') {
+    if (id === 'stonehenge' || id === 'crop_circle') {
       const gain = Math.max(10, perClick * 3);
       setSave(cur => {
         const c = cur.clicker || {};
@@ -287,7 +313,7 @@ export default function ClickerScreen({ save, setSave, onClose }) {
       });
       pushToast({ tone: 'dim', icon: 'bolt', title: 'SOLSTICE HARMONIC', text: `Stonehenge resonates! +${fmtDrops(gain)} Drops` });
       Audio.clickerTap && Audio.clickerTap();
-    } else if (id === 'gobekli') {
+    } else if (id === 'gobekli' || id === 'gobekli_sanctuary') {
       const gain = Math.max(15, perClick * 4);
       setSave(cur => {
         const c = cur.clicker || {};
@@ -337,24 +363,13 @@ export default function ClickerScreen({ save, setSave, onClose }) {
           }
         }
 
-        if (autoGainTotal > 0) {
-          setSave(cur => {
-            const c = cur.clicker || {};
-            return {
-              ...cur,
-              clicker: {
-                ...c,
-                drops: (c.drops || 0) + autoGainTotal,
-                total: (c.total || 0) + autoGainTotal,
-                lastMs: Date.now(),
-              },
-            };
-          });
-        }
-
+        // Income is dropsPerSec, once. This loop only paints the cycle bar.
+        // Paying b.rate again here stacked a second economy on the idle tick
+        // and called setSave ten times a second, which re-rendered all of camp.
+        void autoGainTotal;
         return next;
       });
-    }, 100);
+    }, 400);
 
     return () => clearInterval(interval);
   }, [cl, currentRateMult, setSave]);
@@ -443,32 +458,6 @@ export default function ClickerScreen({ save, setSave, onClose }) {
     Audio.levelUp && Audio.levelUp();
   };
 
-  // Restore Star-Atlas Ship Component
-  const restoreShipComponent = (comp) => {
-    const scrap = cl.shipScrap || 0;
-    if (scrap < comp.req || (cl.shipParts || {})[comp.id]) return;
-
-    setSave(cur => {
-      const c = cur.clicker || {};
-      return {
-        ...cur,
-        clicker: {
-          ...c,
-          shipScrap: scrap - comp.req,
-          shipParts: { ...(c.shipParts || {}), [comp.id]: true },
-        },
-      };
-    });
-
-    pushToast({
-      tone: 'legendary',
-      icon: comp.icon,
-      title: `${comp.name.toUpperCase()} RESTORED!`,
-      text: `Ship upgrade active: ${comp.desc}`,
-    });
-    Audio.rankUp && Audio.rankUp();
-  };
-
   // Event timer
   useEffect(() => {
     if (!activeEvent || activeEvent.taps) return;
@@ -529,12 +518,31 @@ export default function ClickerScreen({ save, setSave, onClose }) {
   }, [headlines.length]);
 
   // ── Tap handler ─────────────────────────────────────────────────
-  const tapFromCanvas = useCallback(() => {
+  const splashGain = (text) => {
+    const host = popRef.current;
+    if (!host) return;
+    const s = document.createElement('span');
+    s.textContent = text;
+    host.appendChild(s);
+    setTimeout(() => s.remove(), 700);
+  };
+
+  const tapFromCanvas = useCallback((x, y) => {
     const gain = perClick;
-    setSave(cur => {
-      const c = cur.clicker || {};
-      return { ...cur, clicker: { ...c, drops: (c.drops || 0) + gain, total: (c.total || 0) + gain } };
-    });
+    tapBag.current += gain;
+    splashGain(`+${fmtDrops(gain)}`);
+    if (!tapFlush.current) {
+      tapFlush.current = setTimeout(() => {
+        tapFlush.current = null;
+        const banked = tapBag.current;
+        tapBag.current = 0;
+        if (banked <= 0) return;
+        setSave(cur => {
+          const c = cur.clicker || {};
+          return { ...cur, clicker: { ...c, drops: (c.drops || 0) + banked, total: (c.total || 0) + banked } };
+        });
+      }, 90);
+    }
     if (activeEvent?.taps && eventTapsLeft > 0) {
       setEventTapsLeft(t => { if (t <= 1) setActiveEvent(null); return t - 1; });
     }
@@ -543,143 +551,219 @@ export default function ClickerScreen({ save, setSave, onClose }) {
     comboTimer.current = setTimeout(() => setCombo(0), 850);
     Audio.clickerTap();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [perClick, activeEvent, eventTapsLeft]);
+  }, [perClick, activeEvent, eventTapsLeft, setSave]);
 
-  const tap = (e) => {
-    tapFromCanvas();
-    const rect = e.currentTarget.getBoundingClientRect();
-    const id = splashId.current++;
-    const gain = perClick;
-    setSplashes(s => [...s.slice(-9), {
-      id,
-      x: (e.clientX ?? rect.left + rect.width / 2) - rect.left,
-      y: (e.clientY ?? rect.top + rect.height / 2) - rect.top,
-      gain,
-    }]);
-    setTimeout(() => setSplashes(s => s.filter(x => x.id !== id)), 780);
-    if (worldRef.current) worldRef.current.flashTap();
-  };
+  useEffect(() => {
+    const w = worldRef.current;
+    if (!w) return;
+    w.onTapWell = tapFromCanvas;
+  }, [tapFromCanvas]);
 
-  // ── Choice Event Resolver ───────────────────────────────────────
+  // Handle Tactical Anomaly Choice Resolution
   const resolveChoice = (opt) => {
-    if (!choiceEvent) return;
     if (opt.action === 'burst') {
       const burstAmount = Math.max(500, dropsPerSec(cl) * 45);
       setSave(cur => {
         const c = cur.clicker || {};
         return { ...cur, clicker: { ...c, drops: (c.drops || 0) + burstAmount, total: (c.total || 0) + burstAmount } };
       });
-      pushToast({ tone: 'gold', icon: 'gem', title: 'TRANSMISSION DECLASSIFIED', text: `+${fmtDrops(burstAmount)} Drops added to cache!` });
+      pushToast({ tone: 'gold', icon: 'gem', title: 'SIGNAL DECLASSIFIED', text: `+${fmtDrops(burstAmount)} Drops banked!` });
     } else if (opt.action === 'tapBuff') {
-      setActiveEvent({ id: 'freq_harness', name: 'FREQUENCY HARNESSED', tapMult: 3, duration: 15, icon: 'bolt', desc: '×3 Tap Power active!' });
-      setEventTimeLeft(15);
-      pushToast({ tone: 'cyan', icon: 'bolt', title: 'FREQUENCY HARNESSED', text: '×3 Tap Power active for 15s!' });
+      setActiveEvent({
+        id: 'tapBuffChoice',
+        name: 'HARNESSED FREQUENCY',
+        desc: '×3 Tap Power active',
+        tapMult: 3,
+        taps: 30,
+        icon: 'beam',
+      });
+      setEventTapsLeft(30);
+      pushToast({ tone: 'gold', icon: 'beam', title: 'FREQUENCY HARNESSED', text: '×3 Tap Power for next 30 taps!' });
     }
-    Audio.rankUp && Audio.rankUp();
     setChoiceEvent(null);
   };
 
-  // ── Buy handler ─────────────────────────────────────────────────
+  // Passive production tick
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (rate <= 0) return;
+      const gain = rate * 0.2;
+      setSave(cur => {
+        const c = cur.clicker || {};
+        return {
+          ...cur,
+          clicker: {
+            ...c,
+            drops: (c.drops || 0) + gain,
+            total: (c.total || 0) + gain,
+            lastMs: Date.now(),
+          },
+        };
+      });
+    }, 1000);
+    return () => clearInterval(t);
+  }, [rate, setSave]);
+
+  // Buy building helper
   const buy = (def) => {
+    const owned = cl.buildings?.[def.id] || 0;
+    let count = 1;
+    let cost = 0;
+
+    if (buyMode === 'max') {
+      const maxRes = maxAffordable(def, owned, cl.drops || 0);
+      if (maxRes.count <= 0) return;
+      count = maxRes.count;
+      cost = maxRes.cost;
+    } else {
+      count = buyMode;
+      cost = bulkCost(def, owned, count);
+      if ((cl.drops || 0) < cost) return;
+    }
+
     setSave(cur => {
       const c = cur.clicker || {};
-      const owned = c.buildings?.[def.id] || 0;
-      const budget = c.drops || 0;
-      let count, cost;
-      if (buyMode === 'max') {
-        const r = maxAffordable(def, owned, budget);
-        count = r.count; cost = r.cost;
-      } else {
-        count = Math.min(buyMode, 9999);
-        cost = bulkCost(def, owned, count);
-      }
-      if (count <= 0 || budget < cost) return cur;
+      const b = { ...(c.buildings || {}) };
+      b[def.id] = (b[def.id] || 0) + count;
       return {
         ...cur,
-        clicker: { ...c, drops: budget - cost, buildings: { ...(c.buildings || {}), [def.id]: owned + count } },
+        clicker: {
+          ...c,
+          drops: (c.drops || 0) - cost,
+          buildings: b,
+        },
       };
     });
-    setRatePop(true);
-    setTimeout(() => setRatePop(false), 250);
     Audio.clickerBuy();
+    setRatePop(true);
+    setGainText(`+${fmtDrops((def.rate || 0) * count)}/s`);
+    setTimeout(() => { setRatePop(false); setGainText(''); }, 900);
   };
 
+  // Buy click upgrade
   const buyClick = () => {
+    const cost = clickUpgradeCost(cl.clickLvl || 0);
+    if ((cl.drops || 0) < cost) return;
     setSave(cur => {
       const c = cur.clicker || {};
-      const cost = clickUpgradeCost(c.clickLvl || 0);
-      if ((c.drops || 0) < cost) return cur;
-      return { ...cur, clicker: { ...c, drops: c.drops - cost, clickLvl: (c.clickLvl || 0) + 1 } };
+      return {
+        ...cur,
+        clicker: {
+          ...c,
+          drops: (c.drops || 0) - cost,
+          clickLvl: (c.clickLvl || 0) + 1,
+        },
+      };
     });
-    setRatePop(true);
-    setTimeout(() => setRatePop(false), 250);
     Audio.clickerBuy();
+    setGainText('+1 per tap');
+    setTimeout(() => setGainText(''), 900);
   };
 
-  // ── Claim ───────────────────────────────────────────────────────
-  const [claimingMileIdx, setClaimingMileIdx] = useState(null);
-  
-  const claimAll = (e) => {
-    if (!pending.length) return;
-    const anchor = e && e.currentTarget ? e.currentTarget : null;
-    const total = {};
-    for (const m of pending) {
-      for (const [k, v] of Object.entries(m.reward || {})) {
-        if (typeof v === 'number') total[k] = (total[k] || 0) + v;
+  // Claim milestone helper
+  const claim = (idx, e) => {
+    const m = CLICKER_MILESTONES[idx];
+    if (!m) return;
+    if ((cl.claimed || {})[idx]) return;
+    if ((cl.total || 0) < m.threshold) return;
+
+    setSave(cur => {
+      const c = cur.clicker || {};
+      const claimed = { ...(c.claimed || {}), [idx]: true };
+      let newSave = { ...cur, clicker: { ...c, claimed } };
+
+      if (m.reward.gold) newSave = { ...newSave, gold: (newSave.gold || 0) + m.reward.gold };
+      if (m.reward.gems) newSave = { ...newSave, gems: (newSave.gems || 0) + m.reward.gems };
+      if (m.reward.runeTier) {
+        const rune = rollRune(m.reward.runeTier);
+        newSave = { ...newSave, runes: [...(newSave.runes || []), rune] };
       }
-    }
-    const ns = { ...save };
-    const claimed = { ...(cl.claimed || {}) };
-    for (const m of pending) {
-      const r = m.reward;
-      if (r.gold) { ns.gold = (ns.gold || 0) + r.gold; ns.lifetimeGold = (ns.lifetimeGold || 0) + r.gold; }
-      if (r.gems) ns.gems = (ns.gems || 0) + r.gems;
-      if (r.sp) ns.sp = (ns.sp || 0) + r.sp;
-      if (r.slotCoins) ns.slotCoins = (ns.slotCoins || 0) + r.slotCoins;
-      if (r.gachaTokens) ns.gachaTokens = (ns.gachaTokens || 0) + r.gachaTokens;
-      if (r.gearParts) ns.gearParts = (ns.gearParts || 0) + r.gearParts;
-      { const p = rollPartsDrop(1); ns.gearSlotParts = addParts(ns, p.slot, p.amount); }
-      if (r.flux) ns.flux = (ns.flux || 0) + r.flux;
-      if (r.rune) {
-        const runes = [...(ns.runeInventory || [])];
-        for (let i = 0; i < r.rune; i++) runes.push(rollRune(ns.attrs?.luck || 0));
-        ns.runeInventory = runes;
+      if (m.reward.petCard) {
+        const card = rollCard(m.reward.petCard);
+        newSave = { ...newSave, petCards: [...(newSave.petCards || []), card] };
       }
-      if (r.tcgCard) {
-        const cards = [...(ns.tcgCardInventory || [])];
-        for (let i = 0; i < r.tcgCard; i++) cards.push(rollCard(ns.attrs?.luck || 0));
-        ns.tcgCardInventory = cards;
+      if (m.reward.gearTier) {
+        const part = rollPartsDrop(m.reward.gearTier);
+        newSave = addParts(newSave, part);
       }
-      claimed[m.at] = true;
-    }
-    ns.clicker = { ...cl, claimed };
-    setSave(ns);
-    pushToast({ tone: 'gold', icon: 'gem', title: `${pending.length} milestone${pending.length > 1 ? 's' : ''} claimed`, text: pending.map(m => m.label).join('  ·  ') });
-    fireClaimFx(anchor, total);
+      return newSave;
+    });
+
     Audio.levelUp();
-    setClaimingMileIdx('all');
-    setTimeout(() => setClaimingMileIdx(null), 600);
+    if (e && e.currentTarget) fireClaimFx(e.currentTarget, m.reward);
+    const meta = MILESTONE_META[idx] || { name: `Tier ${idx + 1}`, chestType: 'bronze' };
+    pushToast({
+      tone: 'legendary',
+      icon: 'ui_chest',
+      title: `${meta.name} UNLOCKED!`,
+      text: `Dossier declassified! Rewards secured.`,
+    });
+  };
+
+  const claimAll = (e) => {
+    if (pending.length === 0) return;
+
+    let totalGold = 0, totalGems = 0;
+    const newRunes = [], newCards = [];
+    let curSave = save;
+
+    const newClaimed = { ...(cl.claimed || {}) };
+    pending.forEach(({ index, milestone }) => {
+      newClaimed[index] = true;
+      if (milestone.reward.gold) totalGold += milestone.reward.gold;
+      if (milestone.reward.gems) totalGems += milestone.reward.gems;
+      if (milestone.reward.runeTier) newRunes.push(rollRune(milestone.reward.runeTier));
+      if (milestone.reward.petCard) newCards.push(rollCard(milestone.reward.petCard));
+      if (milestone.reward.gearTier) {
+        const part = rollPartsDrop(milestone.reward.gearTier);
+        curSave = addParts(curSave, part);
+      }
+    });
+
+    if (e && e.currentTarget) fireClaimFx(e.currentTarget, { gold: totalGold, gems: totalGems, gear: newRunes.length + newCards.length });
+
+    setSave({
+      ...curSave,
+      gold: (curSave.gold || 0) + totalGold,
+      gems: (curSave.gems || 0) + totalGems,
+      runes: [...(curSave.runes || []), ...newRunes],
+      petCards: [...(curSave.petCards || []), ...newCards],
+      clicker: { ...cl, claimed: newClaimed },
+    });
+
+    Audio.levelUp();
+    pushToast({
+      tone: 'legendary',
+      icon: 'ui_chest',
+      title: `DECLASSIFIED ${pending.length} FILES!`,
+      text: `+${totalGold} Gold, +${totalGems} Gems and artifacts secured!`,
+    });
   };
 
   const getBuyInfo = (def) => {
     const owned = cl.buildings?.[def.id] || 0;
-    const budget = cl.drops || 0;
+    let cost = 0, count = 1, afford = false;
     if (buyMode === 'max') {
-      const r = maxAffordable(def, owned, budget);
-      const prog = r.cost > 0 ? Math.min(1, budget / r.cost) : (budget > 0 ? 1 : 0);
-      return { count: r.count, cost: r.cost, afford: r.count > 0, progress: prog };
+      const res = maxAffordable(def, owned, cl.drops || 0);
+      count = Math.max(1, res.count);
+      cost = res.cost > 0 ? res.cost : buildingCost(def, owned);
+      afford = res.count > 0;
+    } else {
+      count = buyMode;
+      cost = bulkCost(def, owned, count);
+      afford = (cl.drops || 0) >= cost;
     }
-    const count = buyMode;
-    const cost = bulkCost(def, owned, count);
-    const prog = cost > 0 ? Math.min(1, budget / cost) : 1;
-    return { count, cost, afford: budget >= cost, progress: prog };
+    const progress = cost > 0 ? Math.min(1, (cl.drops || 0) / cost) : 1;
+    return { cost, count, afford, progress };
   };
 
   const clickCost = clickUpgradeCost(cl.clickLvl || 0);
   const clickAfford = (cl.drops || 0) >= clickCost;
   const clickProgress = clickCost > 0 ? Math.min(1, (cl.drops || 0) / clickCost) : 1;
 
-  return (
+  const equippedShip = getEquippedShipDetails(save);
+
+  return createPortal(
     <div
       className="modal-overlay"
       data-testid="clicker"
@@ -687,12 +771,6 @@ export default function ClickerScreen({ save, setSave, onClose }) {
     >
       <div
         className={`clk-panel clk-theme-${chapter.theme} illuminati-clicker-panel`}
-        onScroll={() => {
-          if (worldRef.current) worldRef.current.setPaused(true);
-        }}
-        onMouseEnter={() => {
-          if (worldRef.current) worldRef.current.setPaused(false);
-        }}
       >
         {/* The Conspiracy Board Background */}
         <div className="clk-conspiracy-board" />
@@ -700,16 +778,16 @@ export default function ClickerScreen({ save, setSave, onClose }) {
         <div className="clk-head" style={{ zIndex: 10 }}>
           <div className="clk-title" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#ffd166', textShadow: '0 0 10px rgba(0,0,0,1)' }}>
             <GameIcon name="ui_eye" size={18} tone="#ffd166" />
-            <span>THE ILLUMINATI WELL</span>
+            <span>THE WELL</span>
           </div>
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
             <span style={{ fontFamily: 'VT323', color: '#ffd166', fontSize: 16 }}>
-              ✦ INSIGHT: {cl.metaInsight || 0}
+              INSIGHT {cl.metaInsight || 0}
             </span>
             <span style={{ fontFamily: 'VT323', color: '#4dffd4', fontSize: 16 }}>
-              ⚙ SCRAP: {cl.shipScrap || 0}
+              SCRAP {cl.shipScrap || 0}
             </span>
-            <button className="prosp-close" onClick={onClose}>✕</button>
+            <button className="prosp-close" onClick={onClose}>CLOSE</button>
           </div>
         </div>
 
@@ -719,7 +797,7 @@ export default function ClickerScreen({ save, setSave, onClose }) {
             <button
               key={m.id}
               className={`clk-map-pill ${selectedMap === m.id ? 'active' : ''}`}
-              onClick={() => setSelectedMap(m.id)}
+              onClick={() => switchMap(m.id)}
             >
               <span>{m.name}</span>
             </button>
@@ -755,22 +833,26 @@ export default function ClickerScreen({ save, setSave, onClose }) {
             <span style={{ color: activeEvent?.mult ? '#4dffd4' : 'inherit' }}>{fmtDrops(rate)}/s</span> · 
             <span style={{ color: activeEvent?.tapMult ? '#4dffd4' : 'inherit' }}> {fmtDrops(perClick)} per tap</span>
           </div>
+          {gainText && <div className="clk-gain" data-testid="clk-gain">{gainText}</div>}
           {combo > 2 && (
             <div className="clk-combo">COMBO ×{combo}</div>
           )}
         </div>
 
-        {/* ── PixiJS Survivor Arena World Canvas (Bigger & Interactive) ── */}
-        <div className="clk-world-wrap" onClick={tap}>
+        {/* ── PixiJS Survivor Arena World Canvas (Prominent & Responsive) ── */}
+        <div className="clk-world-wrap">
           <canvas ref={canvasRef} className="clk-world-canvas" />
-          {splashes.map(s => (
-            <div key={s.id} className="clk-ripple" style={{ left: s.x, top: s.y }} />
-          ))}
-          {splashes.map(s => (
-            <span key={s.id} className="clk-splash clk-conspiracy-splash" style={{ left: s.x, top: s.y }}>
-              +{fmtDrops(s.gain)}
-            </span>
-          ))}
+          <div className="clk-pop" ref={popRef} aria-hidden="true" />
+          {(worldFailed || !worldReady) && (
+            <button
+              type="button"
+              className="clk-well"
+              data-testid="clk-well-fallback"
+              onClick={() => tapFromCanvas(400, 220)}
+              style={{ position: worldFailed ? 'relative' : 'absolute', inset: worldFailed ? 'auto' : 0, zIndex: 2, opacity: worldFailed ? 1 : 0, pointerEvents: worldFailed ? 'auto' : 'none' }}
+              aria-label="Tap for drops"
+            />
+          )}
         </div>
 
         {/* Dossier Drawer (Classified Files) */}
@@ -799,104 +881,65 @@ export default function ClickerScreen({ save, setSave, onClose }) {
           </div>
         )}
 
-        {/* Springs (prestige) */}
-        {(() => {
-          const gain = prestigeGain(cl);
-          const mult = prestigeMult(cl);
-          const springs = cl.springs || 0;
-          if (springs <= 0 && gain <= 0) return null;
-          return (
-            <div className="clk-spring" data-testid="clk-spring" style={{ zIndex: 10 }}>
-              <div className="clk-spring-head">
-                <span className="clk-spring-title">✧ SPRINGS</span>
-                <span className="clk-spring-mult">
-                  {springs > 0 && Array.from({ length: Math.min(springs, 10) }).map((_, i) => (
-                    <span key={i} className="clk-spring-icon">💧</span>
-                  ))}
-                  {springs > 10 && <span> +{springs - 10}</span>}
-                  {' '}×{mult.toFixed(2)}
-                </span>
-              </div>
-              {gain > 0 ? (
-                <>
-                  <div className="clk-spring-desc">
-                    Reset the well to bank <b>+{gain}</b> Spring{gain > 1 ? 's' : ''}.
-                    Buildings and taps reset — lifetime total and milestones stay.
-                  </div>
-                  <button className="clk-spring-btn" data-testid="clk-prestige" style={{ position: 'relative', overflow: 'hidden' }}
-                    onClick={(e) => {
-                      const ns = { ...save, clicker: doPrestige(cl) };
-                      setSave(ns); Audio.rankUp && Audio.rankUp();
-                      pushToast('✧ +' + gain + ' Spring' + (gain > 1 ? 's' : '') +
-                        ' — production ×' + prestigeMult(ns.clicker).toFixed(2));
-                      const burst = document.createElement('div');
-                      burst.className = 'clk-prestige-beam';
-                      e.currentTarget.appendChild(burst);
-                      setTimeout(() => burst.remove(), 1500);
-                    }}>
-                    ✧ DRAW THE SPRING · +{gain}
-                  </button>
-                </>
-              ) : (
-                <div className="clk-spring-desc">
-                  Each Spring is +{Math.round(SPRING_BONUS * 100)}% forever.
-                  Keep producing — the next one comes from lifetime drops.
-                </div>
-              )}
-            </div>
-          );
-        })()}
-
-        {/* ── Conspiracy Milestone Cards ──────────────────────────── */}
-        <div className="clk-mile" style={{ padding: '16px 0', overflow: 'hidden' }}>
-          <div className="clk-mile-head" style={{ padding: '0 16px', marginBottom: 12 }}>
-            <span>LIFETIME {fmtDrops(cl.total || 0)}</span>
-            {next
-              ? <span className="clk-mile-next">next at {fmtDrops(next.at)}</span>
-              : <span className="clk-mile-next">all milestones claimed</span>}
-          </div>
-          
-          <div className="clk-milestone-scroll">
+        {/* ── Redacted Milestone Dossiers ─────────────────────────── */}
+        <div className="clk-milestones-carousel" style={{ zIndex: 10 }}>
+          <div className="clk-milestones-track">
             {CLICKER_MILESTONES.map((m, idx) => {
-              const done = !!(cl.claimed || {})[m.at];
-              const ready = !done && (cl.total || 0) >= m.at;
-              const locked = !done && !ready;
-              const meta = MILESTONE_META[idx] || { name: 'UNKNOWN FILE', flavor: '???', chestType: 'bronze' };
-              const vis = CHEST_VISUALS[meta.chestType] || CHEST_VISUALS.bronze;
+              const claimed = !!(cl.claimed || {})[idx];
+              const unlocked = (cl.total || 0) >= m.threshold;
+              const meta = MILESTONE_META[idx] || { name: `FILE #${idx + 1}`, flavor: 'Redacted by order of the Committee.', chestType: 'bronze' };
+              const chest = CHEST_VISUALS[meta.chestType] || CHEST_VISUALS.bronze;
+              const isNext = next && next.index === idx;
 
               return (
                 <div
-                  key={m.at}
-                  className={`clk-milestone-card ${meta.chestType} ${done ? 'done' : ready ? 'ready' : 'locked'} ${claimingMileIdx === 'all' && ready ? 'claiming' : ''}`}
-                  style={{ '--chest-glow': vis.glow }}
-                  onClick={() => !locked && setMilestoneDetail(milestoneDetail === idx ? null : idx)}
+                  key={idx}
+                  className={`clk-dossier-card ${claimed ? 'claimed' : unlocked ? 'unlocked' : 'redacted'} ${isNext ? 'next-target' : ''}`}
+                  onClick={() => setMilestoneDetail(idx)}
                 >
-                  <div className="clk-mc-icon">
-                    <GameIcon name={vis.icon} size={done ? 20 : ready ? 26 : 18} tone={done ? '#666' : vis.glow} />
+                  <div className="clk-card-stamp">{claimed ? 'DECLASSIFIED' : unlocked ? 'READY' : 'TOP SECRET'}</div>
+                  
+                  <div className="clk-card-icon-wrap" style={{ color: chest.accent }}>
+                    <GameIcon name={chest.icon} size={36} tone={chest.accent} />
                   </div>
-                  <div className="clk-mc-body">
-                    <div className="clk-mc-name">{locked ? '██████████' : meta.name}</div>
-                    <div className="clk-mc-threshold">{fmtDrops(m.at)} drops</div>
-                    {!locked && <div className="clk-mc-reward">{m.label}</div>}
-                  </div>
-                  <div className="clk-mc-stamp">
-                    {done && <span className="clk-stamp-done">DECLASSIFIED</span>}
-                    {ready && <span className="clk-stamp-ready">CLASSIFIED</span>}
-                    {locked && <span className="clk-stamp-locked">■■■</span>}
-                  </div>
-                  {done && <div className="clk-mc-check"><GameIcon name="ui_check" size={12} tone="#4dffd4" /></div>}
-                  {ready && <div className="clk-mc-bang">!</div>}
 
-                  {milestoneDetail === idx && !locked && (
-                    <div className="clk-mc-detail">
-                      <div className="clk-mc-flavor">"{meta.flavor}"</div>
-                      <div className="clk-mc-rewards-list">
-                        {Object.entries(m.reward || {}).map(([k, v]) => (
-                          <span key={k} className="clk-mc-reward-chip">
-                            <GameIcon name={k === 'gold' ? 'coin' : k === 'gems' ? 'gem' : k === 'sp' ? 'bolt' : 'orb'} size={12} tone={vis.glow} />
-                            {v} {k}
-                          </span>
-                        ))}
+                  <div className="clk-card-body">
+                    <div className="clk-card-title">{meta.name}</div>
+                    <div className="clk-card-threshold">{fmtDrops(m.threshold)} DROPS</div>
+                    <div className="clk-card-flavor">"{meta.flavor}"</div>
+                  </div>
+
+                  {unlocked && !claimed && (
+                    <button
+                      className="clk-card-claim-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        claim(idx, e);
+                      }}
+                    >
+                      DECLASSIFY
+                    </button>
+                  )}
+
+                  {milestoneDetail === idx && (
+                    <div className="clk-dossier-modal" onClick={e => e.stopPropagation()}>
+                      <div className="clk-dossier-modal-title">{meta.name}</div>
+                      <div className="clk-dossier-modal-meta">THRESHOLD: {fmtDrops(m.threshold)} H2O</div>
+                      <div className="clk-dossier-modal-flavor">{meta.flavor}</div>
+                      <div className="clk-dossier-rewards-list">
+                        {m.reward.gold && <div>✦ +{m.reward.gold} Gold</div>}
+                        {m.reward.gems && <div>✦ +{m.reward.gems} Gems</div>}
+                        {m.reward.runeTier && <div>✦ Tier {m.reward.runeTier} Ancient Rune</div>}
+                        {m.reward.petCard && <div>✦ Tier {m.reward.petCard} Conspiracy Pet Card</div>}
+                        {m.reward.gearTier && <div>✦ Tier {m.reward.gearTier} Black-Ops Gear Parts</div>}
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                        {unlocked && !claimed && (
+                          <button className="clk-card-claim-btn" onClick={(e) => { claim(idx, e); setMilestoneDetail(null); }}>
+                            CLAIM REWARDS
+                          </button>
+                        )}
+                        <button className="clk-dossier-close-btn" onClick={() => setMilestoneDetail(null)}>CLOSE</button>
                       </div>
                     </div>
                   )}
@@ -914,7 +957,7 @@ export default function ClickerScreen({ save, setSave, onClose }) {
           )}
         </div>
 
-        {/* ── Shop Section Tabs (Buildings vs Managers vs Research vs Hangar) ─────── */}
+        <div className="clk-shop-dock">
         <div className="clk-tabs-bar">
           <button
             className={`clk-tab-btn ${shopTab === 'buildings' ? 'active' : ''}`}
@@ -935,10 +978,10 @@ export default function ClickerScreen({ save, setSave, onClose }) {
             RESEARCH MATRIX
           </button>
           <button
-            className={`clk-tab-btn ${shopTab === 'hangar' ? 'active' : ''}`}
-            onClick={() => setShopTab('hangar')}
+            className={`clk-tab-btn ${shopTab === 'expeditions' ? 'active' : ''}`}
+            onClick={() => setShopTab('expeditions')}
           >
-            STAR-ATLAS HANGAR
+            EXPEDITIONS & PRESTIGE
           </button>
         </div>
 
@@ -966,8 +1009,8 @@ export default function ClickerScreen({ save, setSave, onClose }) {
               >
                 <div className="clk-buy-fill" style={{ width: `${Math.round(clickProgress * 100)}%` }} />
                 <div className="clk-buy-inner">
-                  <span className="clk-buy-name">Stronger Pull <i>Lv {cl.clickLvl || 0}</i></span>
-                  <span className="clk-buy-desc">+1 drop per tap</span>
+                  <span className="clk-buy-name">Stronger Hydro Aim <i>Lv {cl.clickLvl || 0}</i></span>
+                  <span className="clk-buy-desc">+1 drop per tap & faster laser velocity</span>
                   <span className={`clk-buy-cost ${clickAfford ? 'cost-ready' : ''}`}>{fmtDrops(clickCost)}</span>
                 </div>
               </button>
@@ -1115,41 +1158,100 @@ export default function ClickerScreen({ save, setSave, onClose }) {
           </div>
         )}
 
-        {shopTab === 'hangar' && (
-          /* ── Star-Atlas Hangar Ship Restoration Tab ────────────── */
-          <div className="clk-hangar-list">
+        {shopTab === 'expeditions' && (
+          /* ── Expeditions & Star-Atlas Ship Prestige Tab ────────────── */
+          <div className="clk-expeditions-list">
             <div className="clk-mgr-intro">
-              Restore the ancient Star-Atlas Cruiser in the Camp Hangar using Hull Scraps salvaged from Clicker Expeditions!
+              Deploy your Star-Atlas Cruiser (<span style={{ color: equippedShip.shipColor, fontWeight: 'bold' }}>{equippedShip.shipId.toUpperCase()}</span>) on planetary expeditions and draw ancient Springs!
             </div>
-            {STAR_ATLAS_SHIP_COMPONENTS.map(comp => {
-              const done = !!(cl.shipParts || {})[comp.id];
-              const afford = (cl.shipScrap || 0) >= comp.req;
 
-              return (
-                <div key={comp.id} className={`clk-hangar-card ${done ? 'done' : afford ? 'ready' : 'locked'}`}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <GameIcon name={comp.icon} size={30} tone={done ? '#4dffd4' : afford ? '#ffd166' : '#777'} />
-                    <div style={{ flex: 1 }}>
-                      <div className="clk-hangar-name">{comp.name}</div>
-                      <div className="clk-hangar-desc">{comp.desc}</div>
+            {/* Expedition Maps */}
+            <div className="clk-maps-grid">
+              {CLICKER_MAPS.map(m => {
+                const isCurrent = selectedMap === m.id;
+                return (
+                  <div key={m.id} className={`clk-map-card ${isCurrent ? 'active' : ''}`}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ fontWeight: 'bold', color: isCurrent ? '#4dffd4' : '#ffd166' }}>{m.name}</div>
+                      {isCurrent ? (
+                        <span className="clk-mgr-badge hired">CURRENT ARENA</span>
+                      ) : (
+                        <button className="clk-warp-btn" onClick={() => switchMap(m.id)}>
+                          WARP SHIP ✈
+                        </button>
+                      )}
                     </div>
-                    {done ? (
-                      <span className="clk-mgr-badge hired">RESTORED</span>
-                    ) : (
-                      <button
-                        className={`clk-mgr-hire-btn ${afford ? 'can-afford' : ''}`}
-                        disabled={!afford}
-                        onClick={() => restoreShipComponent(comp)}
-                      >
-                        RESTORE ({comp.req} Scrap)
-                      </button>
-                    )}
+                    <div style={{ fontSize: 11, opacity: 0.8, marginTop: 4 }}>{m.desc}</div>
                   </div>
+                );
+              })}
+            </div>
+
+            {/* Springs Prestige Section */}
+            {(() => {
+              const gain = prestigeGain(cl);
+              const mult = prestigeMult(cl);
+              const springs = cl.springs || 0;
+              return (
+                <div className="clk-spring" data-testid="clk-spring" style={{ marginTop: 16 }}>
+                  <div className="clk-spring-head">
+                    <span className="clk-spring-title">✧ ANCIENT SPRINGS PRESTIGE</span>
+                    <span className="clk-spring-mult">
+                      {springs > 0 && Array.from({ length: Math.min(springs, 8) }).map((_, i) => (
+                        <span key={i} className="clk-spring-icon">💧</span>
+                      ))}
+                      {' '}×{mult.toFixed(2)} MULTIPLIER
+                    </span>
+                  </div>
+                  <div className="clk-spring-desc">
+                    Reset the well to bank <b>+{gain}</b> Spring{gain > 1 ? 's' : ''}.
+                    Your Star-Atlas spaceship will warp through hyperspace, resetting well buildings while preserving permanent insight, milestones and multipliers!
+                  </div>
+                  {gain > 0 ? (
+                    <button
+                      className="clk-spring-btn"
+                      data-testid="clk-prestige"
+                      style={{ position: 'relative', overflow: 'hidden' }}
+                      onClick={() => {
+                        const shipDetails = getEquippedShipDetails(save);
+                        if (worldRef.current && worldRef.current.startHyperspaceTravel) {
+                          worldRef.current.startHyperspaceTravel('pyramid', () => {
+                            const ns = { ...save, clicker: doPrestige(cl) };
+                            setSave(ns);
+                            Audio.rankUp && Audio.rankUp();
+                            pushToast({
+                              tone: 'legendary',
+                              icon: 'gem',
+                              title: 'SPRING DRAWN!',
+                              text: `+${gain} Springs! Production boosted ×${prestigeMult(ns.clicker).toFixed(2)}`,
+                            });
+                          }, shipDetails);
+                        } else {
+                          const ns = { ...save, clicker: doPrestige(cl) };
+                          setSave(ns);
+                          Audio.rankUp && Audio.rankUp();
+                          pushToast({
+                            tone: 'legendary',
+                            icon: 'gem',
+                            title: 'SPRING DRAWN!',
+                            text: `+${gain} Springs! Production boosted ×${prestigeMult(ns.clicker).toFixed(2)}`,
+                          });
+                        }
+                      }}
+                    >
+                      ✧ DRAW THE SPRING · +{gain} SPRINGS
+                    </button>
+                  ) : (
+                    <div style={{ fontSize: 12, color: '#888', textAlign: 'center', padding: '8px 0' }}>
+                      Gather more total drops to unlock the next Spring Prestige tier.
+                    </div>
+                  )}
                 </div>
               );
-            })}
+            })()}
           </div>
         )}
+        </div>
       </div>
       
       {/* Chapter Revelation Cutscene */}
@@ -1196,8 +1298,7 @@ export default function ClickerScreen({ save, setSave, onClose }) {
       {milestoneDetail !== null && (
         <div className="clk-milestone-detail-bg" onClick={() => setMilestoneDetail(null)} />
       )}
-
-      <ClaimFx />
-    </div>
+    </div>,
+    document.body,
   );
 }

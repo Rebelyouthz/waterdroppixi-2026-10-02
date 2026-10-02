@@ -43,7 +43,7 @@ export const PATH_STEPS = [
     title: 'Clear the first node',
     why: 'A story node ends on its guardian, not on a clock — that is the shape of the whole campaign.',
     goal: 'Put down one guardian',
-    check: (s) => anyValue(s.mapProgress),
+    check: (s) => Object.keys(s.mapProgress || {}).some(id => id !== 'orbit_find'),
     rwd: { gold: 400, gearParts: 10 },
   },
   {
@@ -135,12 +135,20 @@ export const PATH_STEPS = [
     rwd: { gold: 900, gearParts: 28 },
   },
   {
-    id: 'useHangar', icon: 'ui_rocket', go: 'starraid',
+    id: 'useHangar', icon: 'ui_rocket', go: 'hangar',
     title: 'Fly a raid',
     why: 'Star Raid is a different game with the same account — its scrap and artifacts come back here.',
-    goal: 'Build the Hangar and finish a raid',
+    goal: 'Build the Hangar, walk the bay, and finish a raid',
     check: (s) => buildingLevel(s, 'hangar') >= 1 && ((s.starRaid || {}).stageUnlocked || 0) >= 1,
     rwd: { gold: 950, gems: 2 },
+  },
+  {
+    id: 'useDrain', icon: 'ui_hatch', go: 'drain',
+    title: 'Unscrew the grate',
+    why: 'Mutations only come from under the hangar. Gold and skill points drip; the dash stretch does not.',
+    goal: 'Open THE DRAIN and drink once',
+    check: (s) => (s.mutationsUnlocked || []).length >= 1 || (s.drainRuns || 0) >= 1 || (s.shaftRuns || 0) >= 1,
+    rwd: { gold: 800, sp: 1, talentPoints: 1 },
   },
   {
     id: 'useProspect', icon: 'ui_pickaxe', go: 'prospect',

@@ -5,6 +5,7 @@ import { GEAR_SLOT_ICONS, GEAR_STAT_LABELS, fmtGearVal } from '../game/gear';
 import { PET_TYPES } from './PetPanel';
 import { Audio } from '../game/audio';
 import { pushToast } from '../game/toastBus';
+import { fireClaimFx, CAMP_CLAIM_FLY } from './ClaimFx';
 import GameIcon from './GameIcon';
 
 // Best rarity among a set of drops decides the toast's tone — a chest with
@@ -55,8 +56,13 @@ export default function Shop({ save, setSave, onClose }) {
     pushToast({ tone: bestRarityTone(drops), title: label, text: drops.map(d => d.name).join(', ') });
   };
 
-  const open = (chest) => {
+  const burstLoot = (anchor, bag) => {
+    fireClaimFx(anchor, bag, { flyTo: CAMP_CLAIM_FLY });
+  };
+
+  const open = (chest, e) => {
     if (!canAfford(chest) || opening) return;
+    const anchor = e?.currentTarget || null;
     setOpening(true);
     Audio.click();
 
@@ -82,6 +88,7 @@ export default function Shop({ save, setSave, onClose }) {
         const drops = [{ isPetEgg: true, egg: newEgg, petType, icon: 'ui_egg', name: `${petType.name} Egg`, rarity: chosenRarity }];
         setOpenedDrops(drops);
         announceDrops(drops, chest.name || 'Chest opened');
+        burstLoot(anchor, { egg: 1 });
         setOpening(false);
       }, 900);
       return;
@@ -101,6 +108,7 @@ export default function Shop({ save, setSave, onClose }) {
         const drops = newParts.map(p => ({ ...p, isPart: true, icon: PART_SLOT_INFO[p.slot]?.icon || 'ui_part' }));
         setOpenedDrops(drops);
         announceDrops(drops, chest.name || 'Chest opened');
+        burstLoot(anchor, { gearParts: newParts.length });
         setOpening(false);
       }, 900);
       return;
@@ -118,6 +126,7 @@ export default function Shop({ save, setSave, onClose }) {
         ];
         setOpenedDrops(drops);
         announceDrops(drops, chest.name || 'Chest opened');
+        burstLoot(anchor, { gold: goldAmt, gems: gemsAmt });
         setOpening(false);
       }, 900);
       return;
@@ -137,6 +146,7 @@ export default function Shop({ save, setSave, onClose }) {
       setSave(ns);
       setOpenedDrops(drops);
       announceDrops(drops, chest.name || 'Chest opened');
+      burstLoot(anchor, { gear: drops.length });
       setOpening(false);
     }, 900);
   };
@@ -209,7 +219,7 @@ export default function Shop({ save, setSave, onClose }) {
                       return <span key={rar} style={{ color: r?.color, marginRight: 6 }}>{rar} {Math.round(w / total * 100)}%</span>;
                     })}
                   </div>
-                  <button onClick={() => open(c)} disabled={!canAfford(c)} data-testid={`open-${c.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, justifyContent: 'center' }}>
+                  <button onClick={(e) => open(c, e)} disabled={!canAfford(c)} data-testid={`open-${c.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, justifyContent: 'center' }}>
                     {c.currency === 'gems' ? <><GameIcon name="cur_gems" size={13} /> {c.cost}</> : <>★ {c.cost}</>}
                   </button>
                 </div>

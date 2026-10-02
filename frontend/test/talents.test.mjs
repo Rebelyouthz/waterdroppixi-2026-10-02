@@ -147,6 +147,30 @@ check('no talent is sold to the player while inert', () => {
     + `\`pending: true\`:\n      ` + sold.map(t => `${t.branch}/${t.step} ${t.id} (${t.flag})`).join('\n      ');
 });
 
+check('the talent panel shows all 45 by name, and pending is not also locked', () => {
+  const jsx = fs.readFileSync(path.join(ROOT, 'components', 'TalentTree.jsx'), 'utf8');
+  if (!/\{t\.name\}/.test(jsx)) return 'tiles dropped names — the ladder looks empty';
+  if (!/TALENTS\.length/.test(jsx)) return 'the count is not TALENTS.length';
+  if (!/!t\.pending \? 'is-locked'/.test(jsx)) {
+    return 'pending talents must not also take is-locked (that pair erased the Effects column)';
+  }
+  return null;
+});
+
+check('combo school is taught, not sold as a 46th talent, and ceremonies are real talents', () => {
+  const jsx = fs.readFileSync(path.join(ROOT, 'components', 'TalentTree.jsx'), 'utf8');
+  if (/TALENTS\.length !== 45/.test(jsx)) return 'panel started counting a 46th';
+  if (!/rib-form-detail/.test(jsx)) return 'rib forms cannot be inspected';
+  if (!/combo-node-/.test(jsx)) return 'large combo nodes never landed in the tree';
+  for (const id of Object.keys(T.TALENT_CEREMONIES || {})) {
+    if (!T.TALENT_INDEX[id]) return `ceremony ${id} is not a talent`;
+  }
+  if (!T.TALENT_CEREMONIES || Object.keys(T.TALENT_CEREMONIES).length < 4) {
+    return 'TALENT_CEREMONIES is missing';
+  }
+  return null;
+});
+
 console.log(`\n  LIVE:    ${live.length}/45`);
 for (const b of T.TALENT_BRANCHES) {
   const l = T.talentsFor(b.id).filter(t => isLive(t.flag)).length;

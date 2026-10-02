@@ -338,7 +338,8 @@ check('the currency row and reward payouts use drawn icons, not emoji', () => {
     if (EMOJI.test(line)) bad.push(`banner: ${line.trim().slice(0, 60)}`);
   }
 
-  const rewards = /const out = \[([\s\S]*?)\]\.filter/.exec(camp);
+  const luMod = read('game/profileLevelUp.js');
+  const rewards = /export function rewardTiles\([\s\S]*?const out = \[([\s\S]*?)\]\.filter/.exec(luMod);
   if (!rewards) return 'could not find the level-up reward list';
   for (const line of rewards[1].split('\n')) {
     if (EMOJI.test(line)) bad.push(`reward: ${line.trim().slice(0, 60)}`);
@@ -533,6 +534,63 @@ check('every level-up card has its own art', () => {
     else if (!glyphs.has(reg[id])) bad.push(`${id} -> ${reg[id]} (glyph does not exist)`);
   }
   return bad.length ? `${bad.length} cards without art: ${bad.slice(0, 8).join(', ')}` : null;
+});
+
+
+// ---- THE SOUND FILES ACTUALLY EXIST -------------------------------------
+// A filename typo in SAMPLE_POOLS does not throw and does not log: `sample()`
+// returns false and the caller falls back to its synth voice. The game keeps
+// working and quietly never plays the recording - this project's signature
+// failure, arrived at through a new door.
+check('every sampled sound in audio.js exists in public/sounds', () => {
+  const audio = read('game/audio.js');
+  const blk = audio.match(/const SAMPLE_POOLS = \{([\s\S]*?)\n\};/);
+  if (!blk) return 'SAMPLE_POOLS is gone from audio.js';
+  const names = [...blk[1].matchAll(/'([\w.-]+\.(?:wav|mp3))'/g)].map(m => m[1]);
+  if (!names.length) return 'SAMPLE_POOLS lists no files at all';
+  const dir = path.join(SRC, '..', 'public', 'sounds');
+  if (!fs.existsSync(dir)) return 'public/sounds does not exist';
+  const onDisk = new Set(fs.readdirSync(dir));
+  const missing = names.filter(n => !onDisk.has(n));
+  return missing.length
+    ? missing.length + ' sound(s) referenced but not on disk: ' + missing.slice(0, 6).join(', ')
+    : null;
+});
+
+// LIMIT, stated rather than implied: this greps for the CALL, so it catches a
+// deleted or renamed one but NOT a disabled one. Proved by injecting
+// `false && sample(...)`, which it passed. The check above — files exist on
+// disk — is the one that catches the real failure mode, a filename typo.
+check('the sample layer is reachable from the SFX entry points', () => {
+  const audio = read('game/audio.js');
+  const missing = [];
+  for (const pair of [['click', 'ui'], ['waterDrop', 'drop'], ['shoot', 'weapon']]) {
+    const at = audio.indexOf('  ' + pair[0] + '(');
+    if (at < 0) { missing.push(pair[0] + '() is gone from audio.js'); continue; }
+    const body = audio.slice(at, at + 1200);
+    if (body.indexOf("sample('" + pair[1] + "'") < 0) missing.push(pair[0] + "() no longer plays the '" + pair[1] + "' pool");
+  }
+  return missing.length ? missing.join('; ') : null;
+});
+
+check('THE DRAIN path opens the drain, and AIDA does not punch the hall', () => {
+  const camp = read('components/Camp.jsx');
+  const drain = /case 'drain':\s*([^;]+;[^;]+;)/.exec(camp);
+  if (!drain || !/setDrainOpen\(true\)/.test(drain[1])) {
+    return 'pathGo drain opens the hangar and stops — the grate never starts';
+  }
+  if (!/case 'clicker':/.test(camp) || !/id === 'well'/.test(camp)) {
+    return 'THE WELL is not wired from the hall or the quest path';
+  }
+  const hall = read('game/stationRoom.js');
+  if (/restored\.mask\s*=\s*this\.restoreMask/.test(hall)) {
+    return 'the lounge painting is punch-masked again';
+  }
+  const sync = hall.slice(hall.indexOf('_syncHallMask()'), hall.indexOf('_applyCozyGrade'));
+  if (/veil\.visible = true/.test(sync)) {
+    return 'AIDA still lays black rectangles over the lounge';
+  }
+  return null;
 });
 
 console.log(`\nwiring.test.mjs: ${pass} passed, ${fails.length} failed`);

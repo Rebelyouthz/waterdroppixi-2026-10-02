@@ -10,6 +10,9 @@ import {
   springsFor, prestigeGain, prestigeMult, doPrestige,
   dropsPerSec, SPRING_THRESHOLD, SPRING_BONUS, CLICKER_BUILDINGS,
 } from '../src/game/clicker.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra = '') => {
@@ -81,6 +84,32 @@ console.log('\n=== degenerate inputs ===');
 ok('undefined clicker does not throw', prestigeGain(undefined) === 0 && prestigeMult(undefined) === 1);
 ok('a reset with nothing earned is a no-op', doPrestige(mk()) === undefined ? false : doPrestige(mk()).springs === 0);
 ok('negative/garbage total is clamped', springsFor(-5) === 0 && springsFor(NaN) === 0);
+
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src');
+const worldSrc = fs.readFileSync(path.join(ROOT, 'game', 'clickerWorld.js'), 'utf8');
+const css = fs.readFileSync(path.join(ROOT, 'overhaul.css'), 'utf8');
+const screen = fs.readFileSync(path.join(ROOT, 'components', 'ClickerScreen.jsx'), 'utf8');
+const campSrc = fs.readFileSync(path.join(ROOT, 'components', 'Camp.jsx'), 'utf8');
+
+console.log('\n=== shop actually reachable ===');
+ok('every tap pays drops (not only the pyramid eye)', /TAP_PAY_ALWAYS/.test(worldSrc));
+ok('bloom filter is not on the clicker world', !/new AdvancedBloomFilter/.test(worldSrc));
+ok('an idle game sells the thing you cannot buy yet',
+  /clk-buy\.far/.test(css) && !/\.clk-buy\.far\s*\{[^}]*display\s*:\s*none/.test(css));
+ok('paperclip decoration cannot eat clicks', /\.clk-buy::before[\s\S]{0,280}pointer-events:\s*none/.test(css));
+ok('clicker modal portals out of camp stacking', /createPortal\(/.test(screen) && /clk-shop-dock/.test(screen));
+{
+  const last = css.lastIndexOf('.clk-shop {');
+  const slice = css.slice(last, last + 260);
+  ok('last clk-shop is a column list, not a 280px grid',
+    /flex-direction:\s*column/.test(slice) && !/minmax\(280px/.test(slice));
+}
+ok('last clk-buy is not the manila-folder restyle',
+  !/#dfd8c8/.test(css.slice(css.lastIndexOf('.clk-buy {'), css.lastIndexOf('.clk-buy {') + 280)));
+ok('sky gradient declares type + local textureSpace',
+  /textureSpace:\s*'local'/.test(worldSrc) && /type:\s*'linear'/.test(worldSrc));
+ok('hall Pixi unmounts while the well is open',
+  /stationOpen && !hangarOpen && !clickerOpen/.test(campSrc));
 
 console.log(`\n${pass} checks passed${fail ? `, ${fail} FAILED` : ''}.\n`);
 process.exit(fail ? 1 : 0);

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import GameIcon from './GameIcon';
+import { Audio } from '../game/audio';
 // The swipe maths lives in game/gestures.js so the plain-node test suite can
 // reach it — see test/gestures.test.mjs. Keeping a copy here as well is exactly
 // how the thresholds would drift apart.
@@ -507,6 +508,11 @@ export default function MobileControls({
   const [show, setShow] = useState(false);
   const [leftVis,  setLeftVis]  = useState({ active: false, vx: 0, vy: 0 });
   const [rightVis, setRightVis] = useState({ active: false, vx: 0, vy: 0 });
+  const [atkMode, setAtkMode] = useState('light');
+  const atkModeRef = useRef('light');
+  atkModeRef.current = atkMode;
+  const [heavyVis, setHeavyVis] = useState({ active: false, vx: 0, vy: 0 });
+  const heavyVec = useRef({ vx: 0, vy: 0 });
   // Dials relocate to wherever the thumb lands and return home on release.
   // originRef is what the touch maths reads (synchronous, no render needed);
   // origin state exists only so the DOM follows.
@@ -516,7 +522,7 @@ export default function MobileControls({
 
   const leftVec   = useRef({ vx: 0, vy: 0 });
   const rightVec  = useRef({ vx: 0, vy: 0 });
-  const tracking  = useRef({ left: null, right: null });
+  const tracking  = useRef({ left: null, right: null, heavy: null });
   // Rolling gesture samples per side, judged by judgeSwipe(). `armed` goes
   // false after a gesture fires and comes back once the thumb settles, so one
   // long drag can produce a second dash — but only after actually slowing
@@ -554,11 +560,22 @@ export default function MobileControls({
     if (!show || !visible) return;
 
     const sideOf = (cx) => cx < window.innerWidth / 2 ? 'left' : 'right';
+    const heavyHome = (o) => ({ x: o.x, y: o.y - DIAL * 0.95 });
+    const inHeavyZone = (cx, cy, o) => {
+      const h = heavyHome(o);
+      return Math.hypot(cx - h.x, cy - h.y) < DIAL * 0.48;
+    };
     const pushUpdate = () => {
       const { vx: lx, vy: ly } = leftVec.current;
       const { vx: rx, vy: ry } = rightVec.current;
-      const firing = fireOnAim && (Math.abs(rx) > 0.15 || Math.abs(ry) > 0.15);
-      cbRef.current.onUpdate({ x: lx, y: ly }, { x: rx, y: ry }, firing);
+      const hv = heavyVec.current;
+      const heavyStick = tracking.current.heavy != null && (Math.abs(hv.vx) > 0.12 || Math.abs(hv.vy) > 0.12);
+      const aimFire = fireOnAim && (Math.abs(rx) > 0.15 || Math.abs(ry) > 0.15);
+      const modeHeavy = atkModeRef.current === 'heavy';
+      const firing = aimFire || heavyStick;
+      const heavy = heavyStick || (aimFire && modeHeavy);
+      const aim = heavyStick ? { x: hv.vx, y: hv.vy } : { x: rx, y: ry };
+      cbRef.current.onUpdate({ x: lx, y: ly }, aim, firing, { heavy, modeHeavy });
     };
     const bothDown = () => tracking.current.left != null && tracking.current.right != null;
 
@@ -569,6 +586,16 @@ export default function MobileControls({
       e.preventDefault();
       const wasBoth = bothDown();
       for (const t of e.changedTouches) {
+        const oRight = originRef.current.right;
+        if (tracking.current.heavy == null && inHeavyZone(t.clientX, t.clientY, oRight)) {
+          tracking.current.heavy = t.identifier;
+          const h = heavyHome(oRight);
+          const vec = computeVec(h, t.clientX, t.clientY);
+          heavyVec.current = vec;
+          setHeavyVis({ active: true, ...vec });
+          pushUpdate();
+          continue;
+        }
         const side = sideOf(t.clientX);
         if (tracking.current[side] != null) continue;
         tracking.current[side] = t.identifier;
@@ -605,6 +632,13 @@ export default function MobileControls({
       if (tracking.current.left !== null || tracking.current.right !== null) e.preventDefault();
       const now = performance.now();
       for (const t of e.changedTouches) {
+        if (tracking.current.heavy === t.identifier) {
+          const vec = computeVec(heavyHome(originRef.current.right), t.clientX, t.clientY);
+          heavyVec.current = vec;
+          setHeavyVis({ active: true, ...vec });
+          pushUpdate();
+          continue;
+        }
         const side = tracking.current.left === t.identifier ? 'left'
                    : tracking.current.right === t.identifier ? 'right' : null;
         if (!side) continue;
@@ -646,6 +680,13 @@ export default function MobileControls({
     const onTouchEnd = (e) => {
       const wasBoth = bothDown();
       for (const t of e.changedTouches) {
+        if (tracking.current.heavy === t.identifier) {
+          tracking.current.heavy = null;
+          heavyVec.current = { vx: 0, vy: 0 };
+          setHeavyVis({ active: false, vx: 0, vy: 0 });
+          pushUpdate();
+          continue;
+        }
         const side = tracking.current.left === t.identifier ? 'left'
                    : tracking.current.right === t.identifier ? 'right' : null;
         if (!side) continue;
@@ -826,6 +867,35 @@ export default function MobileControls({
 
       <div className="joy-lbl joy-lbl-left"  style={{ left: `${origin.left.x - 90}px`,  top: `${origin.left.y + 74}px` }}>MOVE · FLICK TO DASH</div>
       <div className="joy-lbl joy-lbl-right" style={{ left: `${origin.right.x - 90}px`, top: `${origin.right.y + 74}px` }}>{swipeAttackUnlocked ? 'AIM · FLICK TO SWIPE' : 'AIM'}</div>
+
+      <button
+        type="button"
+        className={`atk-mode-sw${atkMode === 'heavy' ? ' is-heavy' : ''}`}
+        data-joy-skill
+        data-testid="atk-mode-sw"
+        onClick={() => {
+          setAtkMode((m) => {
+            const next = m === 'light' ? 'heavy' : 'light';
+            Audio.click(next === 'heavy' ? 'heavy' : 'confirm');
+            return next;
+          });
+        }}
+        style={{ left: `${origin.right.x + 62}px`, top: `${origin.right.y - 18}px` }}
+      >
+        {atkMode === 'heavy' ? 'HEAVY' : 'LIGHT'}
+      </button>
+
+      {heavyVis.active && (
+        <div
+          className="heavy-ghost"
+          data-testid="heavy-ghost"
+          style={{
+            left: `${origin.right.x}px`,
+            top: `${origin.right.y - DIAL * 0.95}px`,
+            transform: `translate(-50%, -50%) translate(${heavyVis.vx * MAX_D}px, ${heavyVis.vy * MAX_D}px)`,
+          }}
+        />
+      )}
     </>
   );
 }

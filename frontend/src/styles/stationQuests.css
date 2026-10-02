@@ -1,0 +1,311 @@
+/* =============================================================================
+   HOLOGRAPHIC A.I.D.A. NPC DIALOGUE & STATION STORYLINE QUEST BANNER
+   ============================================================================= */
+
+/* ── Holographic A.I.D.A. NPC Dialogue Modal ───────────────────────── */
+.aida-dialogue-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2900;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 16px 28px;
+  background: rgba(2, 8, 14, 0.65);
+  backdrop-filter: blur(4px);
+  animation: aida-fade-in 0.2s ease both;
+}
+
+@keyframes aida-fade-in {
+  from { opacity: 0; transform: scale(0.98); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.aida-dialogue-box {
+  width: min(680px, 100%);
+  background: linear-gradient(180deg, rgba(12, 30, 42, 0.96), rgba(6, 16, 24, 0.98));
+  border: 1px solid rgba(95, 214, 255, 0.4);
+  border-top: 3px solid #5fd6ff;
+  clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.8), inset 0 0 30px rgba(95, 214, 255, 0.08);
+  padding: 20px 24px;
+}
+
+.aida-holo-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(79, 224, 232, 0.2);
+}
+
+.aida-holo-avatar {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 2px solid #5fd6ff;
+  background: radial-gradient(circle, #0e3d4f 0%, #06151e 80%);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.aida-holo-emoji {
+  font-size: 24px;
+  filter: drop-shadow(0 0 8px currentColor);
+}
+
+.aida-holo-scanlines {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.4) 50%),
+              linear-gradient(90deg, rgba(255, 0, 0, 0.04), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.04));
+  background-size: 100% 4px, 6px 100%;
+  pointer-events: none;
+}
+
+.aida-holo-name {
+  font-family: 'Rajdhani', sans-serif, system-ui;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: #5fd6ff;
+}
+
+.aida-holo-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: #7d9ba6;
+  margin-top: 2px;
+}
+
+.aida-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  box-shadow: 0 0 8px currentColor;
+  animation: aida-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes aida-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.8; }
+  50%      { transform: scale(1.3); opacity: 1; }
+}
+
+.aida-holo-body {
+  position: relative;
+  min-height: 52px;
+}
+
+.aida-holo-text {
+  font-size: 15px;
+  line-height: 1.55;
+  color: #e4f4fb;
+  letter-spacing: 0.02em;
+  margin: 0;
+}
+
+.aida-holo-continue {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: #5fd6ff;
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+.aida-holo-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.aida-holo-choice-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: rgba(14, 40, 54, 0.8);
+  border: 1px solid rgba(95, 214, 255, 0.35);
+  border-left: 3px solid #5fd6ff;
+  color: #eaf7ff;
+  font-size: 13.5px;
+  font-family: inherit;
+  letter-spacing: 0.04em;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.aida-holo-choice-btn:hover {
+  background: rgba(22, 60, 80, 0.95);
+  border-color: #5fd6ff;
+  box-shadow: 0 0 16px rgba(95, 214, 255, 0.25);
+  transform: translateX(4px);
+}
+
+.aida-choice-bullet {
+  color: #5fd6ff;
+  font-size: 11px;
+}
+
+/* ── Station Storyline Quest Banner HUD ─────────────────────────────── */
+.station-quest-banner {
+  position: absolute;
+  top: calc(58px + env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(620px, calc(100% - 32px));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 16px;
+  background: linear-gradient(180deg, rgba(14, 34, 44, 0.94), rgba(7, 18, 24, 0.94));
+  border: 1px solid rgba(95, 214, 255, 0.35);
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+
+.station-quest-banner:hover {
+  border-color: #5fd6ff;
+  box-shadow: 0 8px 30px rgba(95, 214, 255, 0.2);
+}
+
+.station-quest-banner.is-ready {
+  border-color: #ffd166;
+  background: linear-gradient(180deg, rgba(34, 40, 20, 0.94), rgba(18, 22, 10, 0.94));
+  box-shadow: 0 0 20px rgba(255, 209, 102, 0.3);
+}
+
+.sqb-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.sqb-icon-badge {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid #5fd6ff;
+  background: rgba(10, 25, 34, 0.8);
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.sqb-info {
+  min-width: 0;
+}
+
+.sqb-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sqb-tag {
+  font-family: 'Rajdhani', sans-serif, system-ui;
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  color: #5fd6ff;
+  font-weight: 700;
+}
+
+.sqb-title {
+  font-family: 'Rajdhani', sans-serif, system-ui;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: #eaf7ff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sqb-desc {
+  font-size: 11.5px;
+  color: #8fa6b2;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sqb-gather-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 16px;
+  background: linear-gradient(180deg, #5fd6ff, #2a8fb8);
+  border: 1px solid #9ee8ff;
+  color: #041018;
+  font-family: 'Rajdhani', sans-serif, system-ui;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  box-shadow: 0 0 16px rgba(95, 214, 255, 0.4);
+}
+
+.sqb-claim-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 16px;
+  background: linear-gradient(180deg, #ffd166, #ff9a4d);
+  border: 1px solid #ffe699;
+  color: #1a1200;
+  font-family: 'Rajdhani', sans-serif, system-ui;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  box-shadow: 0 0 16px rgba(255, 209, 102, 0.4);
+  animation: sqb-glow 1.5s ease-in-out infinite alternate;
+}
+
+@keyframes sqb-glow {
+  from { transform: scale(1); filter: brightness(1); }
+  to   { transform: scale(1.04); filter: brightness(1.15); }
+}
+
+.sqb-progress-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: #7d9ba6;
+  white-space: nowrap;
+}
+
+.sqb-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #5fd6ff;
+}

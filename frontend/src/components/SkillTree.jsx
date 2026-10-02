@@ -2,8 +2,10 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   POE_TREE_NODES, POE_BRANCHES, POE_RADIAL_NODES, POE_RADIAL_INDEX, BRANCH_ANGLES, MAX_TIER, MAX_TIER_RADIUS, RADIAL_CENTER, RING_BASE,
   POE_H2O_NODES, POE_H2O_INDEX, POE_H2O_BRANCH, isTreeFullyMaxed,
+  DASH_PATH, DASH_NODE_ID, dashPathMinCost,
 } from '../game/poe_tree';
 import { Audio } from '../game/audio';
+import { skillMoveOf } from '../game/skillMoves';
 import GameIcon from './GameIcon';
 import { StatText } from './ToastHost';
 
@@ -398,7 +400,7 @@ for (const node of POE_H2O_NODES) {
 }
 
 // ══════════════════════════════════════════════════════
-export default function SkillTree({ save, setSave, onClose }) {
+export default function SkillTree({ save, setSave, onClose, onMoveUnlock }) {
   const containerRef = useRef();
   const [scale, setScale] = useState(0.38);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -416,8 +418,13 @@ export default function SkillTree({ save, setSave, onClose }) {
   const fxKey = useRef(1);
   const dragState = useRef({ active: false, startX: 0, startY: 0, startPanX: 0, startPanY: 0, moved: false });
   const initialized = useRef(false);
+  const dashGranted = useRef(false);
 
   const skills = save.skills || {};
+  const hasDash = (skills[DASH_NODE_ID] || 0) >= 1;
+  const [dashGuide, setDashGuide] = useState(
+    () => !((save.skills || {})[DASH_NODE_ID] >= 1)
+  );
 
   // ── Framing on open ──────────────────────────────
   // Two different jobs depending on the screen.
@@ -446,6 +453,22 @@ export default function SkillTree({ save, setSave, onClose }) {
     setPan({ x: rect.width / 2 - RADIAL_CENTER * s, y: rect.height / 2 - RADIAL_CENTER * s });
   }, []);
 
+  const frameDashPath = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    if (rect.width === 0) return;
+    const path = DASH_PATH.map(id => POE_RADIAL_INDEX[id]).filter(Boolean);
+    if (!path.length) return;
+    const fx = path.reduce((a, n) => a + n.rx, 0) / path.length;
+    const fy = path.reduce((a, n) => a + n.ry, 0) / path.length;
+    const s = rect.width < 620 ? 0.78 : 0.62;
+    setScale(s);
+    setPan({ x: rect.width / 2 - fx * s, y: rect.height / 2 - fy * s });
+    const target = POE_RADIAL_INDEX[DASH_NODE_ID];
+    if (target) setSelected(target);
+  }, []);
+
   useEffect(() => {
     if (initialized.current) return;
     const container = containerRef.current;
@@ -464,6 +487,13 @@ export default function SkillTree({ save, setSave, onClose }) {
       ? 0.72
       : Math.max(0.12, Math.min(0.85, fitScale));
 
+    const dashIntro = !((skills[DASH_NODE_ID] || 0) >= 1);
+    if (dashIntro) {
+      initialized.current = true;
+      frameDashPath();
+      return;
+    }
+
     let fx = RADIAL_CENTER, fy = RADIAL_CENTER;
     if (isNarrow) {
       const frontier = POE_RADIAL_NODES.filter(n =>
@@ -480,6 +510,26 @@ export default function SkillTree({ save, setSave, onClose }) {
     // every purchase would yank the view out from under the player.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // One-time SP top-up so the dash walk (5 SP) is actually buyable the
+  // first time the tree opens. Without this the camera lands on a node
+  // they cannot afford, which is the opposite of a lesson.
+  useEffect(() => {
+    if (dashGranted.current) return;
+    dashGranted.current = true;
+    setSave(prev => {
+      if (prev.skillTreeDashGrant) return prev;
+      if ((prev.skills || {})[DASH_NODE_ID] >= 1) return prev;
+      const need = dashPathMinCost();
+      const have = prev.sp || 0;
+      return { ...prev, skillTreeDashGrant: true, sp: have < need ? need : have };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (hasDash) setDashGuide(false);
+  }, [hasDash]);
 
   // ── Wheel zoom ───────────────────────────────────
   // Throttled to at most one state update per animation frame — the SVG
@@ -636,6 +686,12 @@ export default function SkillTree({ save, setSave, onClose }) {
   //   · a SHOCKWAVE ring pushes out through the connectors, so the gain
   //     visibly travels into the branch rather than stopping at the node.
   const buyNode = (node) => {
+    if (dashGuide && !DASH_PATH.includes(node.id)) {
+      Audio?.skillDenied?.();
+      showToast('BUY SHADOW DASH FIRST');
+      frameDashPath();
+      return;
+    }
     if (!isUnlocked(node.id, skills)) { Audio?.skillDenied?.(); return; }
     const lvl = skills[node.id] || 0;
     if (lvl >= node.max) return;
@@ -643,17 +699,23 @@ export default function SkillTree({ save, setSave, onClose }) {
 
     const nextLvl = lvl + 1;
     const willMax = nextLvl >= node.max;
-    const next = { ...save, sp: save.sp - node.c, skills: { ...save.skills, [node.id]: nextLvl } };
-    // A node carrying `unlockSkill` hands the player an ACTIVE_SKILL —
-    // something you learn and then press, not another passive number.
-    // Written into the SAME `save.unlockedActives` map the card shop uses
-    // (CampPanels.jsx reads it to build the equip list), so the ability
-    // shows up in the existing loadout UI with no parallel system.
-    if (node.unlockSkill) {
-      next.unlockedActives = { ...(save.unlockedActives || {}), [node.unlockSkill]: true };
-    }
-    setSave(next);
+    const move = lvl === 0 ? skillMoveOf(node.id) : null;
+    setSave(prev => {
+      const prevSkills = prev.skills || {};
+      const next = {
+        ...prev,
+        sp: (prev.sp || 0) - node.c,
+        skills: { ...prevSkills, [node.id]: nextLvl },
+      };
+      if (node.id === DASH_NODE_ID) next.skillTreeDashSeen = true;
+      if (node.unlockSkill) {
+        next.unlockedActives = { ...(prev.unlockedActives || {}), [node.unlockSkill]: true };
+      }
+      return next;
+    });
+    if (node.id === DASH_NODE_ID) setDashGuide(false);
     Audio?.skillBuy?.(node.type, willMax);
+    if (move) onMoveUnlock?.(move);
 
     // `key` (not just the id) so buying the same node twice in a row
     // re-triggers the CSS animation — React reuses the element otherwise and
@@ -742,8 +804,10 @@ export default function SkillTree({ save, setSave, onClose }) {
   const selNode = selected ? lookupNode(selected.id) : null;
   const selLvl  = selNode ? (skills[selNode.id] || 0) : 0;
   const selBranch = selNode ? branchOf(selNode) : null;
-  const selCanBuy = selNode && isUnlocked(selNode.id, skills) && selLvl < selNode.max && save.sp >= selNode.c;
+  const selCanBuy = selNode && isUnlocked(selNode.id, skills) && selLvl < selNode.max && save.sp >= selNode.c
+    && !(dashGuide && !DASH_PATH.includes(selNode.id));
   const selLocked = selNode && !isUnlocked(selNode.id, skills);
+  const selMove = selNode ? skillMoveOf(selNode.id) : null;
   // Every node in the main tree is at max level — the H2O cluster reveals.
   const h2oUnlocked = isTreeFullyMaxed(skills);
 
@@ -755,11 +819,11 @@ export default function SkillTree({ save, setSave, onClose }) {
         <div className="poe-topbar">
           <div className="poe-topbar-left">
             <span className="poe-title">SKILL TREE</span>
-            <span className="poe-sp">◆ {save.sp} SP</span>
+            <span className="poe-sp"><GameIcon name="ui_gem" size={14} tone="#4dffd4" /> {save.sp} SP</span>
             <span className="poe-hint">Drag to pan · Scroll to zoom · Click to inspect</span>
           </div>
           <div className="poe-topbar-right">
-            <button className="poe-close-btn" onClick={closeTree} data-testid="st-close">✕</button>
+            <button className="poe-close-btn" onClick={closeTree} data-testid="st-close">CLOSE</button>
           </div>
         </div>
 
@@ -838,10 +902,10 @@ export default function SkillTree({ save, setSave, onClose }) {
                         iron rings, and the previous near-black fill at 0.4
                         group opacity made half the wheel disappear. */}
                     <radialGradient id={`orbdead-${k}`} cx="33%" cy="27%" r="76%">
-                      <stop offset="0%"   stopColor={shade(color, 0.42)} />
-                      <stop offset="40%"  stopColor={shade(color, 0.66)} />
-                      <stop offset="82%"  stopColor={shade(color, 0.87)} />
-                      <stop offset="100%" stopColor={shade(color, 0.58)} />
+                      <stop offset="0%"   stopColor={shade(color, 0.18)} />
+                      <stop offset="40%"  stopColor={shade(color, 0.78)} />
+                      <stop offset="82%"  stopColor={shade(color, 0.94)} />
+                      <stop offset="100%" stopColor={shade(color, 0.72)} />
                     </radialGradient>
                     {/* Halo — the filter-free replacement for poe-glow. */}
                     <radialGradient id={`halo-${k}`} cx="50%" cy="50%" r="50%">
@@ -1069,8 +1133,8 @@ export default function SkillTree({ save, setSave, onClose }) {
                   return (
                     <g key={`wedge-${key}`}>
                       <path d={d} fill={b.color} opacity={0.16} />
-                      <path d={d} fill="none" stroke={b.color} strokeWidth={2}
-                        opacity={0.8} filter="url(#poe-glow)" />
+                      <path d={d} fill="none" stroke={b.color} strokeWidth={9} opacity={0.18} />
+                      <path d={d} fill="none" stroke={b.color} strokeWidth={2.2} opacity={0.9} />
                     </g>
                   );
                 })}
@@ -1392,8 +1456,9 @@ export default function SkillTree({ save, setSave, onClose }) {
                   const bCol = br === 'h2o' ? POE_H2O_BRANCH.color : (POE_BRANCHES[br]?.color || '#3a2a6e');
                   const ownedFrom = (skills[from] || 0) >= 1;
                   const ownedTo   = (skills[to]   || 0) >= 1;
+                  const onDash = dashGuide && DASH_PATH.includes(from) && DASH_PATH.includes(to);
                   const active    = ownedFrom && ownedTo;
-                  const partial   = ownedFrom && !ownedTo;
+                  const partial   = (ownedFrom && !ownedTo) || (onDash && !active);
                   return (
                     <g key={`ln-${from}-${to}`}>
                       {/* Glow underlay for active connections — pulses
@@ -1404,8 +1469,17 @@ export default function SkillTree({ save, setSave, onClose }) {
                           opacity — read as barely-lit next to the
                           reference's saturated beams). */}
                       {active && (
-                        <line className="poe-vein-pulse" x1={fnNode.rx} y1={fnNode.ry} x2={toNode.rx} y2={toNode.ry}
-                          stroke={bCol} strokeWidth={16} strokeLinecap="round" filter="url(#poe-glow)" />
+                        <>
+                          <line className="poe-vein-pulse" x1={fnNode.rx} y1={fnNode.ry} x2={toNode.rx} y2={toNode.ry}
+                            stroke={bCol} strokeWidth={22} strokeLinecap="round" opacity={0.22} />
+                          <line className="poe-vein-pulse" x1={fnNode.rx} y1={fnNode.ry} x2={toNode.rx} y2={toNode.ry}
+                            stroke={bCol} strokeWidth={12} strokeLinecap="round" opacity={0.5} />
+                        </>
+                      )}
+                      {onDash && !active && (
+                        <line x1={fnNode.rx} y1={fnNode.ry} x2={toNode.rx} y2={toNode.ry}
+                          stroke="#4dffd4" strokeWidth={14} strokeLinecap="round"
+                          opacity={0.28} className="poe-dash-beam" />
                       )}
                       {/* A dark groove under every line — even the faint,
                           unowned ones — so it reads as a channel cut into the
@@ -1488,7 +1562,9 @@ export default function SkillTree({ save, setSave, onClose }) {
                   const br = r + bw / 2;                        // bezel centreline radius
                   const lit = purd || maxd;                     // orb is powered
                   const rivets = node.type === 'keystone' ? 8 : node.type === 'notable' ? 6 : 0;
-                  const groupOpacity = unlk ? 1 : 0.78;
+                  const offPath = dashGuide && !DASH_PATH.includes(node.id);
+                  const takeable = unlk && !lit && !offPath;
+                  const groupOpacity = offPath ? 0.2 : unlk ? 1 : 0.34;
 
                   // The seat animation. Including the fx key in React's `key`
                   // remounts this one node, which is what actually restarts
@@ -1535,10 +1611,10 @@ export default function SkillTree({ save, setSave, onClose }) {
                           which is the "size = how much this matters"
                           signal Timmy asked for, carried by the LIGHT and
                           not just the radius. ── */}
-                      {(lit || isSel) && (
-                        <circle cx={nx} cy={ny} r={br * (maxd ? 2.9 : isSel ? 2.7 : 2.3)}
+                      {(lit || isSel || takeable) && (
+                        <circle cx={nx} cy={ny} r={br * (maxd ? 2.9 : isSel ? 2.7 : takeable ? 2.6 : 2.3)}
                           fill={`url(#halo-${pk})`}
-                          opacity={maxd ? 0.95 : isSel ? 0.9 : 0.7}
+                          opacity={maxd ? 0.95 : isSel ? 0.9 : takeable ? 0.78 : 0.7}
                           style={{ pointerEvents: 'none' }} />
                       )}
 
@@ -1549,10 +1625,16 @@ export default function SkillTree({ save, setSave, onClose }) {
                           something you cannot actually purchase is a lie,
                           and this screen has ~80 nodes, so lighting all the
                           unreachable ones would be pure noise. ── */}
-                      {unlk && !lit && save.sp >= node.c && (
+                      {takeable && save.sp >= node.c && (
                         <circle cx={nx} cy={ny} r={br + bw * 0.8} fill="none"
                           stroke={tint(b.color, 0.4)} strokeWidth={2.4}
                           className="poe-node-ready"
+                          style={{ pointerEvents: 'none', transformOrigin: `${nx}px ${ny}px` }} />
+                      )}
+                      {dashGuide && DASH_PATH.includes(node.id) && (
+                        <circle cx={nx} cy={ny} r={br + bw * 1.4} fill="none"
+                          stroke="#4dffd4" strokeWidth={2.2}
+                          className="poe-dash-ring"
                           style={{ pointerEvents: 'none', transformOrigin: `${nx}px ${ny}px` }} />
                       )}
 
@@ -1572,7 +1654,7 @@ export default function SkillTree({ save, setSave, onClose }) {
                           unlit — a dim ghost of its live colour so the
                           player can see what they're buying. */}
                       {unlk && !lit && (
-                        <circle cx={nx} cy={ny} r={r} fill={`url(#orb-${pk})`} opacity={0.3}
+                        <circle cx={nx} cy={ny} r={r} fill={`url(#orb-${pk})`} opacity={takeable ? 0.58 : 0.28}
                           style={{ pointerEvents: 'none' }} />
                       )}
 
@@ -1685,8 +1767,10 @@ export default function SkillTree({ save, setSave, onClose }) {
                         );
                       })()}
 
-                      {/* "START" pulse on unlocked start-nodes (no req) */}
-                      {!node.req?.length && !purd && (
+                      {/* START pulse — during the dash lesson only Mobility's
+                          root is labelled, so ten "START" tags don't drown
+                          the one path the storyline is pointing at. */}
+                      {!node.req?.length && !purd && (!dashGuide || node.id === 'poe_mob0') && (
                         <>
                           <circle cx={nx} cy={ny} r={r + 6}
                             fill="none" stroke={b.color} strokeWidth={1.5} opacity={0.4}
@@ -1694,7 +1778,7 @@ export default function SkillTree({ save, setSave, onClose }) {
                           <text x={nx} y={ny + r + 18} textAnchor="middle"
                             fontSize={11} fill={b.color} fontFamily="VT323" opacity={0.8}
                             style={{ pointerEvents: 'none' }}>
-                            ▼ START
+                            START
                           </text>
                         </>
                       )}
@@ -1804,6 +1888,24 @@ export default function SkillTree({ save, setSave, onClose }) {
               <GameIcon name="ui_eye" size={15} tone="#b9a8e8" />
               <span>FIT</span>
             </button>
+            {!hasDash && (
+              <button className="poe-dash-btn" onClick={frameDashPath} title="Show dash path"
+                data-testid="st-dash-path">
+                <GameIcon name="pQuick" size={15} tone="#4dffd4" />
+                <span>DASH</span>
+              </button>
+            )}
+            {dashGuide && (
+              <div className="poe-dash-comic" data-testid="st-dash-guide">
+                <div className="poe-dash-comic-kicker">STORY MISSION</div>
+                <div className="poe-dash-comic-title">UNLOCK SHADOW DASH</div>
+                <p>
+                  Check out the Skill Tree. Buy the three teal Mobility nodes until Shadow Dash is yours.
+                  Then: <b>SHIFT</b> on PC, swipe the left stick on phone. You slide with i-frames.
+                </p>
+                <button type="button" onClick={frameDashPath}>SHOW THE PATH</button>
+              </div>
+            )}
           </div>
 
           {/* ── Preview Panel ── */}
@@ -1842,7 +1944,7 @@ export default function SkillTree({ save, setSave, onClose }) {
                         <circle cx={C} cy={C} r={HALO} fill={`url(#halo-${pk})`} opacity={0.75} />
                         <circle cx={C} cy={C} r={BR + 9} fill="url(#poe-crater)" />
                         <circle cx={C} cy={C} r={R} fill={`url(#orb${selLvl > 0 ? '' : 'dead'}-${pk})`} />
-                        {selLvl === 0 && <circle cx={C} cy={C} r={R} fill={`url(#orb-${pk})`} opacity={0.3} />}
+                        {selLvl === 0 && <circle cx={C} cy={C} r={R} fill={`url(#orb-${pk})`} opacity={0.55} />}
                         <circle cx={C} cy={C} r={BR} fill="none" stroke="#000" strokeOpacity={0.85} strokeWidth={BW + 2.5} />
                         <circle cx={C} cy={C} r={BR} fill="none"
                           stroke={`url(#poe-bezel${selLvl >= selNode.max ? '-gold' : selLocked ? '-dead' : ''})`} strokeWidth={BW} />
@@ -1880,6 +1982,7 @@ export default function SkillTree({ save, setSave, onClose }) {
                 })()}
 
                 <div className="poe-prev-desc"><StatText text={selNode.desc} /></div>
+                {selMove && <div className="poe-prev-move">{selMove.how}</div>}
 
                 {/* Levels as a segmented bar. Pips alone stopped scaling
                     once nodes could hold three levels and the row started
@@ -1908,7 +2011,7 @@ export default function SkillTree({ save, setSave, onClose }) {
                 })()}
 
                 {!selLocked && selLvl >= selNode.max && (
-                  <div className="poe-prev-maxed">MAXED ✓</div>
+                  <div className="poe-prev-maxed">MAXED</div>
                 )}
 
                 {!selLocked && selLvl < selNode.max && (
@@ -1918,7 +2021,13 @@ export default function SkillTree({ save, setSave, onClose }) {
                     disabled={!selCanBuy}
                     data-testid={`buy-poe-${selNode.id}`}
                   >
-                    {selCanBuy ? `BUY — ◆ ${selNode.c} SP` : save.sp < selNode.c ? `NEED ◆ ${selNode.c} SP` : 'UNLOCK TREE FIRST'}
+                    {selCanBuy
+                      ? <>BUY — <GameIcon name="ui_gem" size={13} tone="#4dffd4" /> {selNode.c} SP</>
+                      : (dashGuide && !DASH_PATH.includes(selNode.id))
+                        ? 'BUY SHADOW DASH FIRST'
+                        : save.sp < selNode.c
+                          ? `NEED ${selNode.c} SP`
+                          : 'UNLOCK TREE FIRST'}
                   </button>
                 )}
 

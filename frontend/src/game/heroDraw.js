@@ -31,12 +31,43 @@ export function rotPoly(cx, cy, ang, localPts) {
   return out;
 }
 
+/** Wind-up → whip-through → settle. The held blade used to sit locked to
+ *  aim while only a slash particle moved, which read as "he just holds it". */
+export function katanaSwingAngle(p, aimAng) {
+  const max = p && p._katanaSwingMax;
+  const t = p && p._katanaSwingT;
+  if (!p || !max || t <= 0) return aimAng;
+  const u = 1 - Math.max(0, Math.min(1, t / max));
+  const dir = p._katanaSwingDir || 1;
+  let k = 0;
+  if (u < 0.2) {
+    const w = u / 0.2;
+    k = -1.18 * w * w;
+  } else if (u < 0.55) {
+    const w = (u - 0.2) / 0.35;
+    const ease = 1 - (1 - w) ** 3;
+    k = -1.18 + 2.62 * ease;
+  } else {
+    const w = (u - 0.55) / 0.45;
+    k = 1.44 * (1 - w) * (1 - w);
+  }
+  const lean = Math.min(1.55, p._ribLean || 1);
+  return aimAng + k * dir * lean;
+}
+
 export function drawHeldWeapon(gf, model, gx, gy, ang, rl, p, game) {
   const box = (lx, ly, lw, lh, color, alpha) => {
     const shape = gf.poly(rotPoly(gx, gy, ang, [lx, ly, lx + lw, ly, lx + lw, ly + lh, lx, ly + lh]));
     shape.fill(alpha != null ? { color, alpha } : color);
   };
   for (const [lx, ly, lw, lh, col, alpha] of model.parts) box(lx, ly, lw, lh, col, alpha);
+
+  if (model.kind === 'katana' && game && game._bladeBlood > 0.03) {
+    const wet = Math.min(1, game._bladeBlood);
+    box(5.0, -1.25, 30 * (0.35 + wet * 0.65), 2.2, '#b51d28', 0.22 + wet * 0.5);
+    box(7.5, 0.35, 26 * wet, 1.15, '#6e0c12', 0.30 + wet * 0.45);
+    if (wet > 0.4) box(34.5, 0.5, 2.6, 1.8 + wet * 2.4, '#8a1018', 0.55 + wet * 0.3);
+  }
 
   if (model.kind === 'bow') {
     // A bow is a curve and a string, not a box stack. The string draws back

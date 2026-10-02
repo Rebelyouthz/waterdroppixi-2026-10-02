@@ -564,3 +564,116 @@ export function mergeItems(inventory, ids, flux = 0, bonus = 0) {
   const newItem = generateGearItem(base.slot, result.targetRarity);
   return { inventory: kept.concat(newItem), newItem, result };
 }
+
+// ---- Panel operations ------------------------------------------------------
+// GearPanel used to re-derive these with a closed-over `save`. That is the
+// same stale-snapshot class as introSeen / shop collect: two fast clicks
+// dropped the second write. These stay pure so the button, the spend, and
+// the test cannot disagree.
+
+export function gearCanLevel(save, item) {
+  if (!item) return false;
+  const lvl = item.level || 1;
+  if (lvl >= GEAR_MAX_LEVEL) return false;
+  return !!gearLevelPayment(save, item.slot, gearLevelCost(lvl, item.rarity));
+}
+
+export function applyGearLevel(save, itemId) {
+  const inv = save.gearInventory || [];
+  const item = inv.find((x) => x.id === itemId);
+  if (!gearCanLevel(save, item)) return save;
+  const lvl = item.level || 1;
+  const pay = gearLevelPayment(save, item.slot, gearLevelCost(lvl, item.rarity));
+  return {
+    ...save,
+    gearSlotParts: {
+      ...(save.gearSlotParts || {}),
+      [item.slot]: slotPartsOf(save, item.slot) - pay.useSlot,
+    },
+    gearParts: (save.gearParts || 0) - pay.useWild,
+    gearInventory: inv.map((x) => (x.id === itemId ? { ...x, level: lvl + 1 } : x)),
+  };
+}
+
+export function applyEquipGear(save, itemId) {
+  const item = (save.gearInventory || []).find((x) => x.id === itemId);
+  if (!item) return save;
+  return { ...save, gearEquipped: { ...(save.gearEquipped || {}), [item.slot]: item.id } };
+}
+
+export function applyUnequipGear(save, slot) {
+  const eq = { ...(save.gearEquipped || {}) };
+  delete eq[slot];
+  return { ...save, gearEquipped: eq };
+}
+
+// Break a wreck-piece back into the slot scrap that levels the next one.
+// Level and rarity both pay — a maxed epic is not worth the same handful as
+// a cracked common. Floor of 1 so a discard is never a silent delete.
+export function salvageYield(item) {
+  if (!item) return 0;
+  const lvl = item.level || 1;
+  const r = Math.max(0, GEAR_RARITIES.indexOf(item.rarity));
+  return Math.max(1, lvl + r);
+}
+
+export function applySalvageGear(save, itemId) {
+  const inv = save.gearInventory || [];
+  const item = inv.find((x) => x.id === itemId);
+  if (!item) return save;
+  const yieldN = salvageYield(item);
+  const eq = { ...(save.gearEquipped || {}) };
+  for (const k of Object.keys(eq)) if (eq[k] === itemId) delete eq[k];
+  const runes = { ...(save.gearRunes || {}) };
+  delete runes[itemId];
+  return {
+    ...save,
+    gearInventory: inv.filter((x) => x.id !== itemId),
+    gearEquipped: eq,
+    gearRunes: runes,
+    gearSlotParts: addParts(save, item.slot, yieldN),
+  };
+}
+
+export function gearScore(item) {
+  if (!item) return 0;
+  const r = Math.max(0, GEAR_RARITIES.indexOf(item.rarity));
+  return r * 10000 + (item.level || 1) * 100 + gearStatValue(item);
+}
+
+export function sortGearInventory(inv) {
+  return [...(inv || [])].sort((a, b) => gearScore(b) - gearScore(a));
+}
+
+// Diablo-style compare: same-stat deltas, or a swap when the primary changes.
+// `upgrade`/`downgrade` are only claimed when the primary stat is the same
+// number getting bigger or smaller — mixed stats are a SWAP, not a lie.
+export function compareToWorn(candidate, worn) {
+  const lines = [];
+  if (!candidate) return { lines, upgrade: false, downgrade: false, wornName: null };
+  if (!worn) {
+    lines.push({ stat: candidate.stat, delta: gearStatValue(candidate), kind: 'gain' });
+    const sec = gearSecondaryValue(candidate);
+    if (sec) lines.push({ stat: 'armor', delta: sec, kind: 'gain' });
+    return { lines, upgrade: true, downgrade: false, wornName: null };
+  }
+  if (candidate.stat === worn.stat) {
+    const d = gearStatValue(candidate) - gearStatValue(worn);
+    const kind = d > 1e-9 ? 'gain' : d < -1e-9 ? 'loss' : 'same';
+    lines.push({ stat: candidate.stat, delta: d, kind });
+  } else {
+    lines.push({ stat: worn.stat, delta: -gearStatValue(worn), kind: 'loss' });
+    lines.push({ stat: candidate.stat, delta: gearStatValue(candidate), kind: 'gain' });
+  }
+  const dSec = gearSecondaryValue(candidate) - gearSecondaryValue(worn);
+  if (Math.abs(dSec) > 1e-9) {
+    lines.push({ stat: 'armor', delta: dSec, kind: dSec > 0 ? 'gain' : 'loss' });
+  }
+  const same = candidate.stat === worn.stat;
+  return {
+    lines,
+    upgrade: same && gearStatValue(candidate) > gearStatValue(worn) + 1e-9,
+    downgrade: same && gearStatValue(candidate) < gearStatValue(worn) - 1e-9,
+    wornName: worn.name || null,
+  };
+}

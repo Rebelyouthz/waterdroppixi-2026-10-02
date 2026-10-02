@@ -18,7 +18,7 @@ import { HeroAnim } from './heroAnim';
 // giving it a HeroGait and re-tuning the walk against live input, and that is a
 // gameplay-feel change that has to be played, not screenshotted. The station
 // room is where the gait is being reviewed first.
-import { rot, rotPoly, drawHeldWeapon, drawArms, drawHeroFace, drawHeadband } from './heroDraw';
+import { rot, rotPoly, drawHeldWeapon, drawArms, drawHeroFace, drawHeadband, katanaSwingAngle } from './heroDraw';
 // The ONE approved lighting technique — the baked normal maps, the shared
 // per-pixel GLSL shader, and the uniform feed. Lifted out of this file so the
 // walkable station room renders through exactly the same code path; see
@@ -115,26 +115,32 @@ const WEAPON_MODELS = {
   //
   // `muzzle` is the blade TIP rather than a barrel, so the recoil glow at the
   // call site reads as light catching the edge mid-swing. Costs nothing extra.
-  katana: {
-    accent: '#dce8f2', muzzle: 36,
+    katana: {
+    kind: 'katana',
+    accent: '#c8d4de', muzzle: 40,
     parts: [
-      // Wrapped hilt (tsuka): dark cord over dark wood.
-      [-11, -1.7, 11, 3.4, '#17110c'],
-      [-9.5, -1.9, 2, 3.8, '#3b2f22'], [-6, -1.9, 2, 3.8, '#3b2f22'],
-      [-2.5, -1.9, 2, 3.8, '#3b2f22'],
-      // Pommel cap.
-      [-12.5, -2.2, 1.8, 4.4, '#6b5a2e'],
-      // Guard (tsuba) — the one wide element, and what makes the silhouette
-      // read as a sword rather than as a stick at a glance.
-      [0.6, -4.6, 2.6, 9.2, '#6b5a2e'],
-      [0.6, -4.6, 2.6, 2.0, '#a08a4a'],
-      // Blade: body, bright spine, and a hot edge along the bottom.
-      [3.4, -1.6, 29, 3.2, '#aebecd'],
-      [3.4, -1.6, 29, 1.1, '#eef6ff'],
-      [3.4, 0.9, 29, 0.7, '#f8fdff', 0.75],
-      // Tip, stepped down twice so it tapers inside a box-only model.
-      [32.2, -1.2, 3.0, 2.4, '#c6d6e4'],
-      [35.0, -0.8, 2.2, 1.6, '#eef6ff'],
+      // Torn socket wrap — scorched cloth over metal, not a tsuka.
+      [-10.5, -2.1, 10.2, 4.2, '#1a1612'],
+      [-9.2, -2.4, 1.6, 4.8, '#3a2c22'],
+      [-6.4, -2.3, 1.8, 4.6, '#2a2218'],
+      [-3.6, -2.4, 1.5, 4.8, '#3a2c22'],
+      // Jagged break at the grip — this is a snapped ship rib, not a guard.
+      [-0.6, -3.6, 3.4, 2.2, '#6a7480'],
+      [-0.4, 1.2, 3.8, 2.8, '#4a545c'],
+      [1.2, -4.4, 2.0, 2.4, '#8a96a2'],
+      // Twisted titanium body, stepped so it reads torn not milled.
+      [3.0, -1.9, 18, 3.8, '#8a96a4'],
+      [3.0, -2.1, 18, 1.0, '#d4dee8'],
+      [3.0, 1.4, 16, 0.9, '#e8f0f6', 0.7],
+      [21.0, -2.6, 10, 4.4, '#7a8692'],
+      [21.0, -2.8, 10, 1.1, '#c8d4de'],
+      [31.0, -3.4, 5.2, 3.2, '#6a7682'],
+      [31.0, -0.4, 4.4, 2.6, '#5a666e'],
+      [36.0, -2.2, 3.4, 2.4, '#b8c4ce'],
+      [39.0, -1.6, 2.6, 1.6, '#e4eef6'],
+      [8.0, -0.2, 2.2, 1.4, '#3a2820', 0.85],
+      [14.5, 0.4, 1.8, 1.1, '#2a1c16', 0.8],
+      [26.0, -1.0, 1.6, 1.2, '#241810', 0.75],
     ],
   },
   hydropistol: {
@@ -596,7 +602,7 @@ export class PixiRenderer {
     // Enemy tier tags ("T2", "T3"...) â€” tiny label under each tier>=2 enemy.
     this.tierTagContainer = new Container(); this.world.addChild(this.tierTagContainer);
     this._tierTagPool = [];
-    this.levelUpText = new Text({ text: 'LEVEL UP!', style: this._textStyle(24, '#9fd8ff', '#06121e', 5, 'LEVEL UP!') });
+    this.levelUpText = new Text({ text: 'LVL UP', style: this._textStyle(18, '#6ecbff', '#06121e', 4, 'LVL UP') });
     this.levelUpText.anchor.set(0.5); this.levelUpText.visible = false; this.world.addChild(this.levelUpText);
 
     // Screen-space overlays (outside the camera-translated world)
@@ -2120,51 +2126,39 @@ void main() {
   }
 
   // ---------------------------- GROUND / BG ------------------------------
-  // pond_1 ("First Drops") only — a weathered steel sign near spawn reading
-  // "WATERDROP CAMP", so the mission reads as the camp's own backyard
-  // without touching the actual map (Timmy explicitly asked to keep the
-  // Rain Pool's Earth setting — "jorden är bra å se då de är där man kom
-  // ifrån nyss"). Built ONCE (gated by `_campSignBuilt`) and added directly
-  // to `this.world`, the camera-following container every other world-space
-  // object lives in — unlike `_drawGround`'s cached Graphics repaint, a
-  // static sign needs no per-frame redraw at all.
+  // Approach / first-run landmark — a small derelict station in the black,
+  // not a "WATERDROP CAMP" billboard. No people. Built ONCE (gated by
+  // `_campSignBuilt`) and added directly to `this.world`.
   _buildCampSign(game) {
     this._campSignBuilt = true;
-    const wx = game.player.x, wy = game.player.y - 260;
+    const wx = game.player.x, wy = game.player.y - 280;
     const c = new Container();
     c.position.set(wx, wy);
 
-    const postH = 92, postW = 13, boardW = 226, boardH = 58;
     const g = new Graphics();
-    // Two weathered steel posts.
-    g.rect(-104, 0, postW, postH).fill({ color: 0x33373f }).stroke({ width: 2, color: 0x0a0a0c });
-    g.rect(91, 0, postW, postH).fill({ color: 0x33373f }).stroke({ width: 2, color: 0x0a0a0c });
-    // The board itself, hung near the top of the posts.
-    g.roundRect(-boardW / 2, -boardH + 14, boardW, boardH, 5)
-      .fill({ color: 0x21242a })
+    // Docking struts.
+    g.rect(-78, 36, 10, 70).fill({ color: 0x2a3038 }).stroke({ width: 2, color: 0x0a0a0c });
+    g.rect(68, 36, 10, 70).fill({ color: 0x2a3038 }).stroke({ width: 2, color: 0x0a0a0c });
+    // Ring hull — dead metal, not a finished home.
+    g.roundRect(-108, -28, 216, 72, 10)
+      .fill({ color: 0x1a1e24 })
       .stroke({ width: 3, color: 0x0a0a0c });
-    g.roundRect(-boardW / 2 + 7, -boardH + 21, boardW - 14, boardH - 14, 3)
-      .stroke({ width: 1, color: 0x4dffd4, alpha: 0.32 });
-    // Rivets at the panel corners — the same "machined metal" language the
-    // level-up card frame and base-building bezels use elsewhere.
-    for (const [rx, ry] of [[-boardW / 2 + 12, -boardH + 22], [boardW / 2 - 12, -boardH + 22], [-boardW / 2 + 12, -boardH + boardH - 12], [boardW / 2 - 12, -boardH + boardH - 12]]) {
-      g.circle(rx, ry, 2.6).fill({ color: 0x6c7078 });
+    g.roundRect(-98, -20, 196, 56, 7)
+      .stroke({ width: 1, color: 0x3d4a52, alpha: 0.55 });
+    // Dark windows. Shut. Nobody home.
+    for (const ox of [-62, -20, 22, 64]) {
+      g.roundRect(ox - 12, -8, 24, 16, 2).fill({ color: 0x07090c });
+      g.roundRect(ox - 12, -8, 24, 16, 2).stroke({ width: 1, color: 0x2a333a, alpha: 0.7 });
     }
-    // A faint teal ground-glow under the sign, matching the --rune accent.
-    g.ellipse(0, postH * 0.35, 120, 30).fill({ color: 0x4dffd4, alpha: 0.05 });
+    // Core socket glow — faint, unpowered.
+    g.circle(0, 8, 7).fill({ color: 0x0c1820 });
+    g.circle(0, 8, 4).fill({ color: 0x4dffd4, alpha: 0.18 });
+    // Antenna, bent.
+    g.rect(-2, -44, 4, 18).fill({ color: 0x33373f });
+    g.moveTo(0, -44).lineTo(14, -58).stroke({ width: 2, color: 0x4a5158 });
+    // Ground wash so it reads as a place, not a sticker.
+    g.ellipse(0, 78, 90, 18).fill({ color: 0x4dffd4, alpha: 0.05 });
     c.addChild(g);
-
-    const label = new Text({
-      text: 'WATERDROP CAMP',
-      style: {
-        fontFamily: 'JetBrains Mono, monospace', fontSize: 18, fontWeight: 'bold',
-        fill: 0x9dffe8, letterSpacing: 1.5,
-        dropShadow: { color: 0x000000, blur: 3, distance: 2, alpha: 0.85 },
-      },
-    });
-    label.anchor.set(0.5);
-    label.position.set(0, -boardH / 2 + 5);
-    c.addChild(label);
 
     this.world.addChild(c);
   }
@@ -2464,12 +2458,21 @@ void main() {
   _drawGems(game) {
     const g = this.gGems; g.clear();
     game.gems.forEach(gm => {
-      const wobble = Math.sin(gm.t * 6 + gm.x * 0.05) * 3;
-      const spin = Math.cos(gm.t * 4.8 + gm.x * 0.1);
+      const z = gm._z || 0;
+      const wobble = Math.sin(gm.t * 6 + gm.x * 0.05) * 2.5;
+      const spin = gm._spin !== undefined ? Math.cos(gm._spin) : Math.cos(gm.t * 4.8 + gm.x * 0.1);
       const absSpin = Math.abs(spin);
+      const cy = gm.y - z + wobble;
+      const shadowScale = 1 / (1 + z / 35);
+      const shadowAlpha = Math.max(0.12, 0.45 * shadowScale);
+
       if (gm.xp > 0) {
         const s = gm.xp <= 2 ? 3.5 : gm.xp <= 6 ? 5.5 : gm.xp <= 15 ? 8 : 12;
-        const cy = gm.y + wobble;
+        
+        // 3D ground shadow underneath the gem
+        g.ellipse(gm.x, gm.y + s * 0.45, s * 0.85 * shadowScale, s * 0.35 * shadowScale)
+          .fill({ color: 0x000000, alpha: shadowAlpha });
+
         // 3D perspective spin: width scales with cosine of rotation
         const hw = Math.max(1.2, s * 0.75 * (0.28 + 0.72 * absSpin));
         const spinSign = spin >= 0 ? 1 : -1;
@@ -2483,7 +2486,7 @@ void main() {
         g.poly([gm.x, cy - s, gm.x + hw * spinSign, cy, gm.x, cy + s]).fill({ color: litFacet, alpha: 0.96 });
 
         // Specular glint on 3D facet edge
-        if (absSpin > 0.4) {
+        if (absSpin > 0.35) {
           g.poly([gm.x, cy - s, gm.x - hw * spinSign * 0.4, cy - s * 0.35, gm.x, cy - s * 0.15])
             .fill({ color: '#ffffff', alpha: 0.95 });
         }
@@ -2502,8 +2505,11 @@ void main() {
         }
       } else if (gm.heart > 0) {
         const hs = 6 + Math.sin(gm.t * 8) * 1.2;
-        glow(g, gm.x, gm.y + wobble, hs * 1.2, '#ff3146', 0.85);
-        const cx = gm.x, cy = gm.y + wobble;
+        // Heart shadow
+        g.ellipse(gm.x, gm.y + hs * 0.4, hs * 0.9 * shadowScale, hs * 0.35 * shadowScale)
+          .fill({ color: 0x000000, alpha: shadowAlpha });
+        glow(g, gm.x, cy, hs * 1.2, '#ff3146', 0.85);
+        const cx = gm.x;
         g.moveTo(cx, cy + hs * 0.3)
           .bezierCurveTo(cx - hs * 1.1, cy - hs * 0.5, cx - hs * 1.4, cy + hs * 0.8, cx, cy + hs * 1.2)
           .bezierCurveTo(cx + hs * 1.4, cy + hs * 0.8, cx + hs * 1.1, cy - hs * 0.5, cx, cy + hs * 0.3)
@@ -2513,14 +2519,19 @@ void main() {
         // Gold coin with 3D spinning aspect rotation
         const s = gm.gold <= 2 ? 3.5 : gm.gold <= 5 ? 5 : gm.gold <= 12 ? 7 : 9.5;
         const gc = gm.gold >= 13 ? '#fff7a0' : '#ffd166';
-        const coinSpin = Math.cos(gm.t * 5.2 + (gm.y || 0) * 0.1);
+        const coinSpin = gm._spin !== undefined ? Math.cos(gm._spin) : Math.cos(gm.t * 5.2 + (gm.y || 0) * 0.1);
         const gw = Math.max(1, s * (0.2 + 0.8 * Math.abs(coinSpin)));
-        if (gm.gold > 2) glow(g, gm.x, gm.y + wobble, s * 1.3, gc, 0.55);
+        
+        // Coin shadow
+        g.ellipse(gm.x, gm.y + s * 0.4, s * 0.85 * shadowScale, s * 0.32 * shadowScale)
+          .fill({ color: 0x000000, alpha: shadowAlpha });
+
+        if (gm.gold > 2) glow(g, gm.x, cy, s * 1.3, gc, 0.55);
         // 3D coin face + embossed inner rim
-        g.ellipse(gm.x, gm.y + wobble, gw, s).fill(gc);
-        g.ellipse(gm.x, gm.y + wobble, gw * 0.72, s * 0.72).stroke({ width: 1, color: '#fff4b0', alpha: 0.75 });
+        g.ellipse(gm.x, cy, gw, s).fill(gc);
+        g.ellipse(gm.x, cy, gw * 0.72, s * 0.72).stroke({ width: 1, color: '#fff4b0', alpha: 0.75 });
         if (gm.gold >= 6 && Math.abs(coinSpin) > 0.4) {
-          g.ellipse(gm.x - gw * 0.25, gm.y - s * 0.25 + wobble, gw * 0.28, s * 0.28).fill({ color: '#ffffff', alpha: 0.75 });
+          g.ellipse(gm.x - gw * 0.25, cy - s * 0.25, gw * 0.28, s * 0.28).fill({ color: '#ffffff', alpha: 0.75 });
         }
       }
     });
@@ -2679,7 +2690,8 @@ void main() {
         this._paintShape(g, shape, bodyColor, { width: 2, color: '#000000' });
 
         // Expressive 3D tracking eyes on enemies with live biological state animations
-        if (!t.boss && t.id !== 'slime') {
+        if (!t.boss) {
+          const isSlime = (t.id === 'slime' || t.id === 'sludgeling');
           let edx = 0, edy = 1;
           if (game.player) {
             const ex = game.player.x - e.x, ey = game.player.y - e.y, el = Math.hypot(ex, ey) || 1;
@@ -2690,14 +2702,20 @@ void main() {
           const isAttacking = (e._windup > 0 || e._strikeT > 0);
           const isBlinking = !isHit && !isAttacking && (Math.sin(game.time * 2.6 + e.x * 0.15 + (e.y || 0) * 0.08) > 0.965);
 
-          const eyeOff = s * 0.23;
-          const eyeR = Math.max(2.0, s * (isHit ? 0.15 : isAttacking ? 0.14 : 0.125));
-          const eyeX = e.x + edx * s * 0.20 + (isHit ? (Math.random() * 2.4 - 1.2) : 0);
-          const eyeY = e.y + edy * s * 0.20 - s * 0.05 + (isHit ? (Math.random() * 2.4 - 1.2) : 0);
+          const eyeOff = s * (isSlime ? 0.28 : 0.23);
+          const eyeR = Math.max(2.2, s * (isSlime ? (isHit ? 0.20 : 0.17) : (isHit ? 0.15 : isAttacking ? 0.14 : 0.125)));
+          const eyeX = e.x + edx * s * (isSlime ? 0.16 : 0.20) + (isHit ? (Math.random() * 2.4 - 1.2) : 0);
+          const eyeY = e.y + edy * s * (isSlime ? 0.12 : 0.20) - s * (isSlime ? 0.08 : 0.05) + (isHit ? (Math.random() * 2.4 - 1.2) : 0);
           const perpX = -edy * eyeOff, perpY = edx * eyeOff;
 
-          const pupilColor = isHit ? '#ffffff' : isAttacking ? '#ffe680' : isHurt ? '#ff1a2a' : '#ff3b4b';
-          const scleraColor = isHit ? '#ff3b4b' : isAttacking ? '#ff5a1a' : isHurt ? '#40080e' : '#1e0508';
+          let pupilColor, scleraColor;
+          if (isSlime) {
+            pupilColor = isHit ? '#ffffff' : isAttacking ? '#124818' : '#0a2a0e';
+            scleraColor = isHit ? '#a8ffbc' : isAttacking ? '#70ff90' : isHurt ? '#2ed464' : '#45f07a';
+          } else {
+            pupilColor = isHit ? '#ffffff' : isAttacking ? '#ffe680' : isHurt ? '#ff1a2a' : '#ff3b4b';
+            scleraColor = isHit ? '#ff3b4b' : isAttacking ? '#ff5a1a' : isHurt ? '#40080e' : '#1e0508';
+          }
 
           // Left and right eye sockets
           for (const side of [-1, 1]) {
@@ -2711,17 +2729,20 @@ void main() {
             } else {
               // Sclera socket with depth
               g.circle(ex2, ey2, eyeR).fill({ color: scleraColor, alpha: 0.95 });
-              if (isHurt) {
+              if (isSlime) {
+                // Jelly dark socket rim
+                g.circle(ex2, ey2, eyeR).stroke({ width: 1.2, color: '#166828', alpha: 0.85 });
+              } else if (isHurt) {
                 // Bloodshot socket rim
                 g.circle(ex2, ey2, eyeR * 1.15).stroke({ width: 0.9, color: '#8a0a14', alpha: 0.75 });
               }
 
               // Dynamic pupil tracking with focus & dilation
-              const pSize = isHit ? eyeR * 0.75 : isAttacking ? eyeR * 0.65 : isHurt ? eyeR * 0.45 : eyeR * 0.55;
+              const pSize = eyeR * (isSlime ? (isHit ? 0.7 : 0.58) : (isHit ? 0.75 : isAttacking ? 0.65 : isHurt ? 0.45 : 0.55));
               const px = ex2 + edx * (eyeR * 0.38);
               const py = ey2 + edy * (eyeR * 0.38);
 
-              if (isAttacking) {
+              if (isAttacking && !isSlime) {
                 // Predatory vertical slit pupil
                 g.ellipse(px, py, pSize * 0.35, pSize).fill({ color: pupilColor, alpha: 1.0 });
                 g.circle(px, py, pSize * 1.3).fill({ color: '#ffaa33', alpha: 0.3 });
@@ -2730,7 +2751,11 @@ void main() {
               }
 
               // Specular glint
-              g.circle(ex2 - eyeR * 0.28, ey2 - eyeR * 0.28, Math.max(0.6, eyeR * 0.24)).fill({ color: '#ffffff', alpha: 0.9 });
+              g.circle(ex2 - eyeR * 0.28, ey2 - eyeR * 0.28, Math.max(0.6, eyeR * (isSlime ? 0.32 : 0.24))).fill({ color: '#ffffff', alpha: 0.95 });
+              if (isSlime) {
+                // Secondary smaller glint for juicy wet reflection
+                g.circle(ex2 + eyeR * 0.22, ey2 + eyeR * 0.22, Math.max(0.4, eyeR * 0.16)).fill({ color: '#ffffff', alpha: 0.75 });
+              }
             }
           }
         }
@@ -2854,6 +2879,15 @@ void main() {
                   a2 += (Math.sin(seed + br * 7.1 + s2 * 3.7)) * 0.9;
                 }
               }
+            } else if (m.kind === 'spatter') {
+              // Blood from a neighbour landing ON this body. Liquid stays red
+              // even when the host is green/blue — that is the standing rule.
+              g.circle(mx, my, m.r * 1.45).fill({ color: '#b51d28', alpha: 0.55 });
+              g.circle(
+                mx + Math.cos(m.ang || 0) * m.r * 1.1,
+                my + Math.sin(m.ang || 0) * m.r * 1.1,
+                m.r * 0.7,
+              ).fill({ color: '#7a1218', alpha: 0.5 });
             } else if (m.kind === 'blunt') {
               // Concussive: no puncture at all. A bruise that darkens toward
               // the centre, with the skin split in a couple of short tears.
@@ -2879,6 +2913,20 @@ void main() {
               g.circle(mx - Math.cos(a) * m.r * 0.45, my - Math.sin(a) * m.r * 0.45, m.r * 0.42)
                 .fill({ color: '#c9424f', alpha: 0.5 });
             }
+          }
+        }
+
+        // Dragging viscera: a flesh-coloured rope that follows a badly wounded
+        // body, with a wet red sheen so it reads as guts not a trail decal.
+        if (e._gutTrail && e._gutTrail.length > 1) {
+          const trail = e._gutTrail;
+          for (let i = 1; i < trail.length; i++) {
+            const a = trail[i - 1], b = trail[i];
+            const w = Math.max(1.6, s * 0.16 * (i / trail.length));
+            g.moveTo(a.x, a.y).lineTo(b.x, b.y)
+              .stroke({ width: w, color: e.t.color, alpha: 0.72, cap: 'round' });
+            g.moveTo(a.x, a.y).lineTo(b.x, b.y)
+              .stroke({ width: w * 0.45, color: '#b51d28', alpha: 0.4, cap: 'round' });
           }
         }
 
@@ -3279,11 +3327,23 @@ void main() {
     // A backpedal (gait < 0) leans him away from the aim, which is what makes
     // "walking backwards while shooting" read as reluctance rather than as
     // sliding on ice.
+    // The body used to stay still while only a slash particle moved, which
+    // is why the katana read as "he just holds it". Lean with the cut.
+    let katanaLean = 0;
+    if ((p._katanaSwingT || 0) > 0 && (p._katanaSwingMax || 0) > 0) {
+      const u = 1 - p._katanaSwingT / p._katanaSwingMax;
+      const dir = p._katanaSwingDir || 1;
+      const lean = Math.min(1.55, p._ribLean || 1);
+      if (u < 0.2) katanaLean = -0.22 * dir * (u / 0.2) * lean;
+      else if (u < 0.55) katanaLean = (-0.22 + 0.62 * ((u - 0.2) / 0.35)) * dir * lean;
+      else katanaLean = 0.40 * dir * (1 - (u - 0.55) / 0.45) * lean;
+    }
     const bodyAng = (p.tilt || 0)
       + A.strafe * 0.30
       - A.gait * 0.10
       + A.turn * 0.22
       - A.slide * 0.34 * Math.sign(A.slideX || 1)
+      + katanaLean
       + (idleT ? Math.sin((p.bob || 0) * 0.4) * 0.05 : 0);
     // Outline comes from game/heroShape.js, which the equipment paperdoll
     // also reads — the two used to be unrelated drawings and looked like
@@ -3517,32 +3577,38 @@ void main() {
     // with him. Anchoring it to p.x/p.y made the body kick out from under a
     // gun that stayed perfectly still, which read as the drop flinching away
     // from its own weapon.
-    const recoil = -p.recoil * 4;
-    const gx = bx + Math.cos(aimDrawAng) * (recoil + rl.pull + sw.pull) + rl.offX;
+    const model = WEAPON_MODELS[sw.wid] || WEAPON_MODELS._default;
+    const gunAng = model.kind === 'katana' ? katanaSwingAngle(p, aimDrawAng) : aimDrawAng;
+    let extraReach = 0;
+    if (model.kind === 'katana' && (p._katanaSwingMax || 0) > 0 && (p._katanaSwingT || 0) > 0) {
+      const u = 1 - p._katanaSwingT / p._katanaSwingMax;
+      extraReach = (u > 0.2 && u < 0.7) ? Math.sin((u - 0.2) / 0.5 * Math.PI) * 8 * Math.min(1.55, p._ribLean || 1) : 0;
+    }
+    const recoil = model.kind === 'katana' ? -(p.recoil || 0) * 2.2 : -p.recoil * 4;
+    const gx = bx + Math.cos(gunAng) * (recoil + extraReach + rl.pull + sw.pull) + rl.offX;
     // +3.5 rather than +1: the weapon sat high enough to cross the face, and
     // the face is the thing the player looks at for an entire run — six
     // expressions, blinking and the reload reaction are all wasted if a gun
     // barrel is parked across them. Deliberately a small nudge: any further
     // and the hands stop reading as holding it at the shoulder.
-    const gy = by + 3.5 + Math.sin(aimDrawAng) * (recoil + rl.pull + sw.pull) + rl.offY + sw.drop;
+    const gy = by + 3.5 + Math.sin(gunAng) * (recoil + extraReach + rl.pull + sw.pull) + rl.offY + sw.drop;
     // Arms go down BEFORE the gun so the hands read as gripping it, not
     // hovering in front of it.
-    this._drawArms(gf, p, bodyAng, r, gx, gy, aimDrawAng, rl.hand, bx, by);
+    this._drawArms(gf, p, bodyAng, r, gx, gy, gunAng, rl.hand, bx, by);
 
     // Every manual weapon draws its own model — the player used to hold one
     // generic pistol whichever weapon was equipped, which made switching
     // weapons invisible.
-    const model = WEAPON_MODELS[sw.wid] || WEAPON_MODELS._default;
-    const accentColor = this._drawHeldWeapon(gf, model, gx, gy, aimDrawAng, rl, p, game);
+    const accentColor = this._drawHeldWeapon(gf, model, gx, gy, gunAng, rl, p, game);
 
     if (p.recoil > 0.05) {
-      const [mx, my] = rot(model.muzzle, 0, aimDrawAng);
+      const [mx, my] = rot(model.muzzle, 0, gunAng);
       // Small hot-tip glow at the barrel end (the real flash burst itself is
       // drawn additively in _drawLights as a baked starburst sprite).
       const muzzleR = 2 + p.recoil * 2.4;
       gf.circle(gx + mx, gy + my, muzzleR).fill(accentColor);
     }
-    if (p.reloading) {
+    if (p.reloading && model.kind !== 'katana') {
       const headX = bx, headY = by - r * 1.55 - 8; // above the character's head, not on the gun
       const isRevolver = p._reloadWid === 'hydropistol' || p._reloadWid === 'hydropistol_evo';
       const prog = p.reloadTotal ? Math.min(1, Math.max(0, 1 - p.reloadT / p.reloadTotal)) : 0;
@@ -3643,6 +3709,16 @@ void main() {
         } else {
           gf.circle(ox, oy, 8).fill(orbitColor);
         }
+      }
+    }
+
+    const tOrbs = game._talentOrbitPos;
+    if (tOrbs && tOrbs.length) {
+      for (let i = 0; i < tOrbs.length; i++) {
+        const o = tOrbs[i];
+        glow(gf, o.x, o.y, 10, '#4dc4ff', 0.95);
+        gf.circle(o.x, o.y, 7).fill('#4dc4ff');
+        gf.circle(o.x, o.y, 3).fill({ color: '#ffffff', alpha: 0.7 });
       }
     }
 
@@ -4029,6 +4105,48 @@ void main() {
         // Wet underside — the face that was against the body.
         g.moveTo(pts[0], pts[1]).lineTo(pts[6], pts[7])
           .stroke({ width: 0.9, color: 0x5a0a12, alpha: (1 - t01) * 0.8 });
+      } else if (p.type === 'organ') {
+        // Identifiable pieces, not extra dots. Eye / gut / lobe / shard, all
+        // tinted with the enemy's own flesh colour, wet-rimmed in blood-red.
+        const t01 = 1 - p.life / p.max;
+        const fade = 1 - t01 * 0.45;
+        const rot = p._rot || 0;
+        const ca = Math.cos(rot), sa = Math.sin(rot);
+        const R = p.size;
+        const kind = p._kind || 'lobe';
+        if (kind === 'eye') {
+          g.ellipse(p.x, p.y, R * 0.95, R * 0.72).fill({ color: p.color, alpha: 0.95 * fade });
+          g.circle(p.x + ca * R * 0.15, p.y + sa * R * 0.1, R * 0.38).fill({ color: '#1a0508', alpha: 0.9 * fade });
+          g.circle(p.x + ca * R * 0.08, p.y - sa * R * 0.18, R * 0.14).fill({ color: '#ffffff', alpha: 0.7 * fade });
+        } else if (kind === 'gut') {
+          const pts2 = [];
+          for (let k = 0; k <= 8; k++) {
+            const f = k / 8;
+            const wob = Math.sin(f * Math.PI * 3 + rot) * R * 0.35;
+            pts2.push(
+              p.x + ca * (f - 0.5) * R * 3.2 - sa * wob,
+              p.y + sa * (f - 0.5) * R * 3.2 + ca * wob,
+            );
+          }
+          g.moveTo(pts2[0], pts2[1]);
+          for (let k = 2; k < pts2.length; k += 2) g.lineTo(pts2[k], pts2[k + 1]);
+          g.stroke({ width: R * 0.7, color: p.color, alpha: 0.92 * fade, cap: 'round' });
+          g.moveTo(pts2[0], pts2[1]);
+          for (let k = 2; k < pts2.length; k += 2) g.lineTo(pts2[k], pts2[k + 1]);
+          g.stroke({ width: R * 0.28, color: '#b51d28', alpha: 0.5 * fade, cap: 'round' });
+        } else if (kind === 'shard') {
+          g.poly([
+            p.x + ca * R * 1.4, p.y + sa * R * 1.4,
+            p.x - sa * R * 0.55, p.y + ca * R * 0.55,
+            p.x - ca * R * 0.9, p.y - sa * R * 0.9,
+            p.x + sa * R * 0.4, p.y - ca * R * 0.4,
+          ]).fill({ color: p.color, alpha: 0.95 * fade });
+          g.circle(p.x, p.y, R * 0.22).fill({ color: '#b51d28', alpha: 0.55 * fade });
+        } else {
+          g.ellipse(p.x, p.y, R * 1.15, R * 0.7).fill({ color: p.color, alpha: 0.95 * fade });
+          g.ellipse(p.x - ca * R * 0.2, p.y - sa * R * 0.15, R * 0.45, R * 0.28)
+            .fill({ color: '#b51d28', alpha: 0.4 * fade });
+        }
       } else if (p.type === 'spikeTrap') {
         // Armed trap on the ground: a ring of teeth that glints while live and
         // snaps shut when it fires. Drawn flat (squashed) so it reads as lying
@@ -4050,56 +4168,85 @@ void main() {
         }
         }
       } else if (p.type === 'katanaSlash') {
-        // A blade arc, not a puff. Drawn as a crescent that sweeps through the
-        // aim direction, thin at the tips and wide in the middle, with a white
-        // leading edge — the edge is what reads as "sharp".
+        // A razor-sharp blade streak, not a chunky fan. Drawn as an aerodynamic,
+        // luminous blade motion trail that tapers smoothly at both ends, with
+        // an intensely bright silver-white leading edge stroke.
         const t01 = 1 - p.life / p.max;
-        // Span comes from the swing STYLE now (engine's KATANA_STYLES) rather
-        // than being a fixed 78-degree fan on every strike. Defaults keep the
-        // old shape for any caller that has not been updated.
-        // `_span` is the FULL sweep in radians, not a half-angle — doubling it
-        // here once made the "level cut" 120 degrees, wider than the single
-        // fixed arc it was meant to tighten.
         const swSpan = p._span != null ? p._span : 1.36;
         const a0 = p._ang - (swSpan / 2) * p._dir;
         const span = swSpan * p._dir;
-        const lead = a0 + span * Math.min(1, t01 * 1.5);   // where the tip is now
+        const lead = a0 + span * Math.min(1, t01 * 1.55);   // where the blade tip is
+        const tail = a0 + span * Math.max(0, (t01 - 0.22) * 1.3);
         const fade = 1 - t01;
         const R = p.size;
-        const SEG = 10;
-        // Trailing body of the arc, fading behind the tip.
-        for (let s2 = 0; s2 < SEG; s2++) {
-          const f0 = s2 / SEG, f1 = (s2 + 1) / SEG;
-          const swept = Math.min(1, t01 * 1.5);
-          if (f1 > swept) break;
-          const aa = a0 + span * f0, ab = a0 + span * f1;
-          // Thickness peaks mid-swing so the crescent has a belly.
-          const th = Math.sin(f0 * Math.PI) * (p._th != null ? p._th : 0.22) + 0.05;
-          g.poly([
-            p.x + Math.cos(aa) * R, p.y + Math.sin(aa) * R,
-            p.x + Math.cos(ab) * R, p.y + Math.sin(ab) * R,
-            p.x + Math.cos(ab) * R * (1 - th), p.y + Math.sin(ab) * R * (1 - th),
-            p.x + Math.cos(aa) * R * (1 - th), p.y + Math.sin(aa) * R * (1 - th),
-          ]).fill({ color: p.color, alpha: 0.42 * fade * (0.35 + f0 * 0.65) });
+        const SEG = 18;
+
+        const activeSpan = lead - tail;
+        if (Math.abs(activeSpan) > 0.02) {
+          const outer = [];
+          const inner = [];
+          for (let s2 = 0; s2 <= SEG; s2++) {
+            const f = s2 / SEG;
+            const a = tail + activeSpan * f;
+            // Tapered crescent thickness: zero at tail, peak near leading tip
+            const taper = Math.sin(f * Math.PI * 0.95);
+            const thickness = Math.max(1.2, R * (p._th != null ? p._th : 0.16) * taper);
+            const ro = R;
+            const ri = Math.max(R * 0.35, R - thickness);
+            outer.push(p.x + Math.cos(a) * ro, p.y + Math.sin(a) * ro);
+            inner.unshift(p.y + Math.sin(a) * ri);
+            inner.unshift(p.x + Math.cos(a) * ri);
+          }
+          // Glowing blade trail body
+          g.poly(outer.concat(inner)).fill({ color: p.color || '#dff4ff', alpha: 0.50 * fade });
+
+          // Core bright silver sheen strip inside the blade path
+          const coreOuter = [];
+          const coreInner = [];
+          for (let s2 = 0; s2 <= SEG; s2++) {
+            const f = s2 / SEG;
+            const a = tail + activeSpan * f;
+            const taper = Math.sin(f * Math.PI * 0.95);
+            const thickness = Math.max(0.6, R * 0.07 * taper);
+            coreOuter.push(p.x + Math.cos(a) * R, p.y + Math.sin(a) * R);
+            coreInner.unshift(p.y + Math.sin(a) * (R - thickness));
+            coreInner.unshift(p.x + Math.cos(a) * (R - thickness));
+          }
+          g.poly(coreOuter.concat(coreInner)).fill({ color: 0xffffff, alpha: 0.82 * fade });
+
+          // Crisp sharp outer cutting edge stroke
+          g.moveTo(outer[0], outer[1]);
+          for (let s2 = 1; s2 <= SEG; s2++) {
+            g.lineTo(outer[s2 * 2], outer[s2 * 2 + 1]);
+          }
+          g.stroke({ width: 1.6, color: 0xffffff, alpha: 0.95 * fade });
         }
-        // The edge itself: a hot white line at the leading tip.
-        g.moveTo(p.x + Math.cos(lead) * R * 0.35, p.y + Math.sin(lead) * R * 0.35)
-          .lineTo(p.x + Math.cos(lead) * R, p.y + Math.sin(lead) * R)
-          .stroke({ width: p._lead != null ? p._lead : 2.4, color: 0xffffff, alpha: 0.9 * fade });
+
+        // Razor hot leading tip line
+        const tipX = p.x + Math.cos(lead) * R;
+        const tipY = p.y + Math.sin(lead) * R;
+        const innerTipX = p.x + Math.cos(lead) * R * 0.55;
+        const innerTipY = p.y + Math.sin(lead) * R * 0.55;
+        g.moveTo(innerTipX, innerTipY).lineTo(tipX, tipY)
+          .stroke({ width: p._lead != null ? p._lead : 2.6, color: 0xffffff, alpha: Math.min(1, 1.2 * fade) });
+
+        // Blade tip glint spark
+        g.circle(tipX, tipY, Math.max(1.2, 2.4 * fade)).fill({ color: 0xffffff, alpha: 0.95 * fade });
+
         // Dynamic blade light emission
-        if (fade > 0.1) {
-          this._emitLight(p.x + Math.cos(lead) * R * 0.7, p.y + Math.sin(lead) * R * 0.7, R * 1.5, p.color || '#dff4ff', 0.45 * fade);
+        if (fade > 0.08) {
+          this._emitLight(tipX, tipY, R * 1.3, p.color || '#dff4ff', 0.45 * fade);
         }
       } else if (p.type === 'cutLine') {
-        // The instant of the cut: a white line straight through where the body
-        // was, blooming and vanishing.
+        // The instant of the cut: a razor-sharp blooming slice line straight
+        // through where the body was.
         const t01 = 1 - p.life / p.max;
-        const L = p.size * (0.6 + t01 * 0.9);
+        const L = p.size * (0.7 + t01 * 0.8);
         const ca = Math.cos(p._ang), sa = Math.sin(p._ang);
         g.moveTo(p.x - ca * L, p.y - sa * L).lineTo(p.x + ca * L, p.y + sa * L)
-          .stroke({ width: 5 * (1 - t01), color: 0xffffff, alpha: 0.85 * (1 - t01) });
+          .stroke({ width: 4.5 * (1 - t01), color: 0xffffff, alpha: 0.9 * (1 - t01) });
         g.moveTo(p.x - ca * L, p.y - sa * L).lineTo(p.x + ca * L, p.y + sa * L)
-          .stroke({ width: 1.4, color: 0xdff4ff, alpha: 1 - t01 });
+          .stroke({ width: 1.5, color: 0xdff4ff, alpha: 1 - t01 });
         if (t01 < 0.85) {
           this._emitLight(p.x, p.y, L * 1.8, '#ffffff', 0.65 * (1 - t01));
         }
@@ -4537,6 +4684,11 @@ void main() {
         const t01 = 1 - a;
         const col = t01 < 0.45 ? '#9fd8ff' : (t01 < 0.75 ? '#c9c9c9' : '#7a7a7a');
         g.rect(p.x - p.size * 0.5, p.y - p.size * 0.5, p.size, p.size).fill({ color: col, alpha: a * 0.85 });
+      } else if (p.type === 'luPixel') {
+        // Detached banner pixels. Square on purpose — they have to read as
+        // the text breaking into tiles, not as another spark burst.
+        g.rect(p.x - p.size * 0.5, p.y - p.size * 0.5, p.size, p.size)
+          .fill({ color: p.color, alpha: Math.min(1, a + 0.15) });
       } else {
         g.circle(p.x, p.y, p.size).fill({ color: p.color, alpha: Math.min(1, a + 0.2) });
       }
@@ -4586,18 +4738,36 @@ void main() {
   _drawLevelUpText(game) {
     const timer = game._levelUpTextTimer || 0;
     if (timer <= 0 || !game._levelUpTextPos) { this.levelUpText.visible = false; return; }
-    const total = 1.4;
+    const total = 1.85;
     const t01 = 1 - timer / total; // 0 -> 1 over the animation
+    // Water launches it. Hide until the spray has left the head, and hide
+    // again the moment pixels detach so the banner does not sit under them.
+    if (t01 < 0.08 || timer <= (game._levelUpShatterAt || 0.7)) {
+      this.levelUpText.visible = false;
+      return;
+    }
     const pos = game._levelUpTextPos;
     this.levelUpText.visible = true;
-    this.levelUpText.position.set(pos.x, pos.y - t01 * 46);
-    this.levelUpText.alpha = timer > 0.3 ? 1 : (timer / 0.3);
-    // Water blue -> ash grey color drift
-    const c1 = [0x9f, 0xd8, 0xff], c2 = [0x8a, 0x84, 0x7a];
-    const mix = (a, b, f) => Math.round(a + (b - a) * f);
-    this.levelUpText.style.fill = `rgb(${mix(c1[0], c2[0], t01)},${mix(c1[1], c2[1], t01)},${mix(c1[2], c2[2], t01)})`;
-    this.levelUpText.scale.set(1 + Math.sin(Math.min(1, t01) * Math.PI) * 0.18);
-    this.levelUpText.rotation = t01 > 0.55 ? (Math.random() - 0.5) * (t01 - 0.55) * 0.14 : 0;
+    this.levelUpText.text = 'LVL UP';
+    const launch = Math.min(1, (t01 - 0.08) / 0.14);
+    const pop = 0.62 + launch * 0.48 + Math.sin(Math.min(1, launch) * Math.PI) * 0.28;
+    const rise = Math.min(1, (t01 - 0.08) / 0.52);
+    this.levelUpText.position.set(pos.x, pos.y - rise * 54);
+    this.levelUpText.alpha = 1;
+    this.levelUpText.scale.set(pop);
+    this.levelUpText.rotation = 0;
+    // Blue -> yellow -> red, the cycle he named. Mix, don't snap.
+    const u = Math.max(0, Math.min(1, (t01 - 0.08) / 0.62));
+    const lerp = (a, b, t) => a + (b - a) * t;
+    let r, g, b;
+    if (u < 0.45) {
+      const t = u / 0.45;
+      r = lerp(0x6e, 0xff, t); g = lerp(0xcb, 0xd1, t); b = lerp(0xff, 0x66, t);
+    } else {
+      const t = (u - 0.45) / 0.55;
+      r = lerp(0xff, 0xff, t); g = lerp(0xd1, 0x31, t); b = lerp(0x66, 0x46, t);
+    }
+    this.levelUpText.style.fill = `rgb(${r | 0},${g | 0},${b | 0})`;
   }
 
   // ------------------------------ BOSS ARROW --------------------------------
@@ -4695,6 +4865,26 @@ void main() {
       const a = Math.min(1, game._critPunch);
       g.circle(W / 2, H / 2, Math.max(W, H) * 0.5).stroke({ width: 40, color: '#ff3146', alpha: a * 0.2 });
       if (a > 0.6) g.circle(W / 2, H / 2, 12 * a).fill({ color: '#ffffff', alpha: (a - 0.6) * 0.25 });
+    }
+
+    // Screen-hitting gibs. Spawned at the EDGES, slide down and off in under
+    // half a second — never a body in the middle of the fight. Flesh colour
+    // follows the enemy; the wet rim is blood-red.
+    const gibs = game._screenGibs;
+    if (gibs && gibs.length) {
+      for (const sg of gibs) {
+        const gx = sg.x * W, gy = sg.y * H;
+        const fade = Math.max(0, sg.life / (sg.max || 0.48));
+        const ca = Math.cos(sg.rot || 0), sa = Math.sin(sg.rot || 0);
+        const R = sg.size;
+        g.poly([
+          gx + ca * R, gy + sa * R * 0.7,
+          gx - sa * R * 0.7, gy + ca * R * 0.55,
+          gx - ca * R * 0.85, gy - sa * R * 0.6,
+          gx + sa * R * 0.6, gy - ca * R * 0.5,
+        ]).fill({ color: sg.color, alpha: 0.88 * fade });
+        g.circle(gx, gy, R * 0.22).fill({ color: '#b51d28', alpha: 0.5 * fade });
+      }
     }
   }
 }

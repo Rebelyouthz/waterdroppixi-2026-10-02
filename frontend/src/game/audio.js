@@ -22,12 +22,15 @@ let _muted = false;
 let _sfxVol = 1.0;
 let _musicVol = 0.28;
 let _musicNode = null;
+let _activeAudioElements = new Set();
+let _currentUrl = null;
 // Which of the three track sets is currently playing ('menu' | 'game' | 'atlas'),
 // so a swap to the track that is already on can be skipped instead of restarting
 // it. Null means nothing is playing.
 let _musicTrack = null;
 let _xpPingLastT = 0;
 let _impactLastT = 0;
+let _shotSampleT = 0;
 let _noiseBufCache = new Map();
 
 function ctx() {
@@ -41,6 +44,113 @@ function ctx() {
   }
   if (_ctx && _ctx.state === 'suspended') _ctx.resume();
   return _ctx;
+}
+
+// ============================================================
+// SAMPLE LAYER — Timmy's own recordings
+// ============================================================
+// Everything above this point is SYNTHESISED: oscillators, noise buffers, a
+// waveshaper. That is why the game sounded like a chiptune of itself. Timmy put
+// 38 real recordings in `Sounds/` and asked for them to be used — water drops,
+// bubbles, a UI click, and ten sci-fi weapon takes.
+//
+// They play through `_master`, NOT through their own output, so the existing
+// SFX slider already controls them and there is one gain stage rather than two
+// that disagree. (The music path deliberately still uses HTMLAudio elements —
+// streaming a 9MB track through WebAudio would decode the whole thing into
+// memory first.)
+//
+// Three rules from the audio-design skill, all of which this project needed:
+//   · rotate through a POOL, never replay one file — that is the "machine gun"
+//     repeat that makes a click sound like a rattle after ten presses
+//   · never pick the same take twice in a row, which random alone will do
+//   · wobble the pitch a few percent, so even a repeat is not identical
+//
+// Loading is LAZY and failure is SILENT-BUT-SAFE: if a file is missing the
+// caller falls back to the synth it used before, so a bad path degrades to the
+// old sound rather than to nothing.
+const SOUND_BASE = (process.env.PUBLIC_URL || '') + '/sounds/';
+const SAMPLE_POOLS = {
+  ui:     ['ui-1.mp3'],
+  drop:   ['drop-1.mp3', 'drop-2.wav', 'drop-3.wav', 'drop-4.wav', 'drop-5.wav',
+           'drop-6.wav', 'drop-7.wav', 'drop-8.wav', 'drop-9.wav', 'drop-10.wav',
+           'drop-11.wav', 'drop-12.wav', 'drop-13.wav', 'drop-14.wav', 'drop-15.wav',
+           'drop-16.wav', 'drop-17.wav', 'drop-18.wav'],
+  bubble: ['bubble-1.wav', 'bubble-2.wav', 'bubble-3.wav'],
+  weapon: ['weapon-1.wav', 'weapon-2.wav', 'weapon-3.wav', 'weapon-4.wav',
+           'weapon-5.wav', 'weapon-6.wav', 'weapon-7.wav', 'weapon-8.wav',
+           'weapon-9.wav', 'weapon-10.wav', 'weapon-11.wav', 'weapon-12.wav'],
+  misc:   ['misc-1.wav', 'misc-2.wav', 'misc-3.wav'],
+  campStep: ['camp-step-1.wav', 'camp-step-2.wav', 'camp-step-3.wav', 'camp-step-4.wav'],
+  campNav:  ['camp-nav-radar.wav'],
+  campForge:['camp-forge-strike.wav'],
+  campAida: ['camp-aida-chime.wav'],
+  campBio:  ['camp-biolab-bubble.wav'],
+  campWell: ['camp-well-splash.wav'],
+  campHangar:['camp-hangar-door.wav'],
+  campDef:  ['camp-defense-lock.wav'],
+  campPortal:['camp-portal-warp.wav'],
+  campRelay:['camp-power-relay-1.wav', 'camp-power-relay-2.wav', 'camp-power-relay-3.wav'],
+  campAidaVoice: ['camp-aida-voice-1.wav', 'camp-aida-voice-2.wav', 'camp-aida-voice-3.wav'],
+  campShutter: ['camp-shutter-open.wav'],
+  campBuild: ['camp-build-complete.wav'],
+  campSparks: ['camp-sparks.wav'],
+  campSteam: ['camp-steam-release.wav'],
+};
+const _buf = new Map();      // filename -> AudioBuffer | 'loading' | 'failed'
+const _lastPick = new Map(); // pool -> last index played
+
+function loadSample(name) {
+  if (_buf.has(name)) return;
+  const c = ctx();
+  if (!c) return;
+  _buf.set(name, 'loading');
+  fetch(SOUND_BASE + name)
+    .then(r => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
+    .then(ab => c.decodeAudioData(ab))
+    .then(b => _buf.set(name, b))
+    .catch(() => _buf.set(name, 'failed'));
+}
+
+/** Play one take from a pool. Returns false if nothing was ready, so the caller
+ *  can fall back to its synth voice rather than going silent. */
+function sample(pool, opts = {}) {
+  const list = SAMPLE_POOLS[pool];
+  if (!list || !list.length) return false;
+  const c = ctx();
+  if (!c) return false;
+  // Warm the whole pool on first touch — one fetch each, then never again.
+  for (const n of list) loadSample(n);
+
+  // `pick` forces a specific take. Weapons use it so one gun always has one
+  // voice — a rifle that draws a different sample every shot has no identity,
+  // which is the opposite of what the per-weapon synth recipes are for.
+  let idx;
+  if (opts.pick != null) {
+    idx = Math.abs(Math.round(opts.pick)) % list.length;
+  } else {
+    // Otherwise: random, but never the same take twice running. Pure random
+    // repeats often enough to be heard as a stutter.
+    idx = Math.floor(Math.random() * list.length);
+    if (list.length > 1 && idx === _lastPick.get(pool)) idx = (idx + 1) % list.length;
+    _lastPick.set(pool, idx);
+  }
+
+  const b = _buf.get(list[idx]);
+  if (!b || b === 'loading' || b === 'failed') return false;
+
+  const src = c.createBufferSource();
+  src.buffer = b;
+  const { vol = 0.5, pitch = 0.06, rate = 1 } = opts;
+  src.playbackRate.value = rate * (1 + (Math.random() * 2 - 1) * pitch);
+  const g = c.createGain();
+  g.gain.value = vol;
+  src.connect(g).connect(_master);
+  src.start();
+  // One-shots are freed by the graph once they end; disconnecting explicitly
+  // stops the node hanging around if the tab is backgrounded mid-play.
+  src.onended = () => { try { g.disconnect(); } catch (e) {} };
+  return true;
 }
 
 // Deterministic 0..1 from a string — gives every weapon id a stable little
@@ -243,10 +353,24 @@ const BEHAVIOUR_FALLBACK = {
   orbit: crystalPing, drone: droneBlip,
 };
 
-export const Audio = {
-  setMuted(m) { _muted = m; },
-  setSfxVol(v) { _sfxVol = v; if (_master) _master.gain.value = v; },
-  setMusicVol(v) { _musicVol = v; if (_musicNode) _musicNode.gain.value = v * 0.4; },
+const rawAudio = {
+  setMuted(m) {
+    _muted = m;
+    const vol = m ? 0 : Math.max(0, Math.min(1, (_musicVol || 0.15) * 1.6));
+    for (const a of _activeAudioElements) {
+      try { a.volume = vol; } catch (e) {}
+    }
+    if (_master) _master.gain.value = m ? 0 : _sfxVol;
+  },
+  setSfxVol(v) { _sfxVol = v; if (_master) _master.gain.value = _muted ? 0 : v; },
+  setMusicVol(v) {
+    _musicVol = v;
+    const vol = _muted ? 0 : Math.max(0, Math.min(1, (v || 0.15) * 1.6));
+    for (const a of _activeAudioElements) {
+      try { a.volume = vol; } catch (e) {}
+    }
+    if (_musicNode && _musicNode.gain) _musicNode.gain.value = vol;
+  },
 
   // ---- weapons ----
   // wid picks the exact recipe; behaviour is only the fallback for an
@@ -255,6 +379,22 @@ export const Audio = {
     const c = ctx(); if (!c || _muted) return;
     const fn = (wid && WID_RECIPE[wid]) || BEHAVIOUR_FALLBACK[behaviour] || pistolCrack;
     fn(wid ? hashUnit(wid) : 0.5);
+    // A real recording layered UNDER the synth, not instead of it. The synth
+    // recipe is what gives each of the 39 weapons its own voice; the sample is
+    // what gives it a body. `pick` is derived from the weapon id, so one gun
+    // keeps one take forever while the pitch still wobbles per shot.
+    //
+    // RATE LIMITED, and it has to be: an SMG fires nine times a second and
+    // nine overlapping recordings is a wall, not a weapon.
+    const now = c.currentTime;
+    if (now - _shotSampleT > 0.055) {
+      _shotSampleT = now;
+      sample('weapon', {
+        vol: 0.20,
+        pitch: 0.07,
+        pick: wid ? Math.floor(hashUnit(wid) * 997) : 0,
+      });
+    }
   },
   // Beam weapons don't "fire" once — they tick many times a second while
   // attached to a target, so playing a sound every tick would be a wall of
@@ -390,7 +530,22 @@ export const Audio = {
   pickup(){ osc({ type: 'sine', freq: 1320, dur: 0.06, vol: 0.08, sweepTo: 1760 }); },
 
   // ---- UI ----
-  click() { osc({ type: 'square', freq: 880, dur: 0.05, vol: 0.08 }); },
+  // Timmy's own bubbly UI take, with the synth blip as the fallback for the
+  // first press or two while it decodes. Every button in the game goes through
+  // here, so this one line is most of "ljud på varje meny".
+  click(kind) {
+    const K = {
+      buy:     { rate: 1.18, freq: 1040, vol: 0.46 },
+      back:    { rate: 0.82, freq: 620,  vol: 0.38 },
+      danger:  { rate: 0.62, freq: 280,  vol: 0.50 },
+      confirm: { rate: 1.08, freq: 980,  vol: 0.44 },
+      heavy:   { rate: 0.70, freq: 360,  vol: 0.48 },
+    };
+    const k = K[kind] || { rate: 1, freq: 880, vol: 0.42 };
+    if (!sample('ui', { vol: k.vol, pitch: 0.04, rate: k.rate })) {
+      osc({ type: kind === 'danger' ? 'sawtooth' : 'square', freq: k.freq, dur: 0.05, vol: 0.08 });
+    }
+  },
   // Level-up card hover. Deliberately much quieter and shorter than click():
   // it fires every time the pointer crosses a card, so anything with body to
   // it turns into a rattle while you compare three of them. `rank` (0..1) is
@@ -577,9 +732,10 @@ export const Audio = {
   // payouts in a row form a rising run instead of the same thud five times.
   rewardLand(t = 0) {
     osc({ type: 'triangle', freq: 520 + t * 520, dur: 0.09, vol: 0.13, attack: 0.002 });
-    // The impact under it — short, low, no pitch content, so it reads as
-    // weight rather than as a second note.
     osc({ type: 'sine', freq: 150, dur: 0.10, vol: 0.16, sweepTo: 60 });
+  },
+  reelTick() {
+    osc({ type: 'square', freq: 220 + Math.random() * 80, dur: 0.028, vol: 0.03, attack: 0.001 });
   },
   levelUp(){ chord([523, 659, 784], 0.20, 'triangle', 0.16); },
   claimPing() {
@@ -596,8 +752,16 @@ export const Audio = {
     g.gain.linearRampToValueAtTime(_sfxVol * 0.5, now + 0.12);
     g.gain.exponentialRampToValueAtTime(0.001, now + 0.30);
     o.start(now); o.stop(now + 0.32);
+    // A real drop UNDER the synth arc rather than instead of it: the rising
+    // tone is what carries "you were paid", and the sample is what makes it
+    // sound like this game. Layering beats replacing here.
+    sample('drop', { vol: 0.30, pitch: 0.12, rate: 1.15 });
   },
   waterDrop() {
+    // Nineteen real takes. A drop is the one sound in this game that a listener
+    // has heard ten thousand times in real life, so a synthesised one is
+    // obvious in a way a synthesised laser never is.
+    if (sample('drop', { vol: 0.5, pitch: 0.10 })) return;
     osc({ type: 'sine', freq: 1800, dur: 0.22, vol: 0.16, sweepTo: 600, attack: 0.004 });
     setTimeout(() => osc({ type: 'sine', freq: 900, dur: 0.14, vol: 0.07, sweepTo: 400 }), 40);
   },
@@ -809,16 +973,94 @@ export const Audio = {
   },
   cardFlip() { noiseBurst({ dur: 0.05, vol: 0.06, filterType: 'highpass', freq: 2000, sweepTo: 3500 }); },
 
-  // ---- Clicker ----
-  clickerTap() {
-    osc({ type: 'sine', freq: 900, dur: 0.07, vol: 0.10, sweepTo: 500, attack: 0.002 });
-    noiseBurst({ dur: 0.04, vol: 0.03, filterType: 'highpass', freq: 3000 });
+  // ---- Walkable Camp SFX ----------------------------------------------------
+  campFootstep() {
+    if (sample('campStep', { vol: 0.28, pitch: 0.12 })) return;
+    const p = 0.85 + Math.random() * 0.4;
+    noiseBurst({ dur: 0.025, vol: 0.035, filterType: 'bandpass', freq: 3200 * p, Q: 4 });
   },
 
-  // ---- Astro Prospector ----
-  dig() { noiseBurst({ dur: 0.14, vol: 0.10, filterType: 'lowpass', freq: 800, sweepTo: 300 }); osc({ type: 'sawtooth', freq: 90, dur: 0.1, vol: 0.05, sweepTo: 50 }); },
-  oreFound() { chord([700, 1050], 0.14, 'triangle', 0.12); },
-  hazardAlarm() { osc({ type: 'square', freq: 220, dur: 0.16, vol: 0.13, sweepTo: 140 }); noiseBurst({ dur: 0.12, vol: 0.08, filterType: 'lowpass', freq: 500 }); },
+  stationInteract(id) {
+    if (id === 'nav' || id === 'patrolPost') sample('campNav', { vol: 0.45 });
+    else if (id === 'fab' || id === 'forge') sample('campForge', { vol: 0.50 });
+    else if (id === 'core') sample('campAida', { vol: 0.50 });
+    else if (id === 'bio' || id === 'incubator') sample('campBio', { vol: 0.45 });
+    else if (id === 'recl' || id === 'well') sample('campWell', { vol: 0.45 });
+    else if (id === 'hangar' || id === 'ship' || id === 'hatch' || id === 'drain') sample('campHangar', { vol: 0.50 });
+    else if (id === 'def' || id === 'rampart') sample('campDef', { vol: 0.45 });
+    else if (id === 'exit' || id === 'portal') sample('campPortal', { vol: 0.55 });
+    else this.menuOpen();
+  },
+
+  aidaVoice(mood = 'calm') {
+    const idx = mood === 'proud' || mood === 'happy' ? 1 : mood === 'sarcastic' || mood === 'alarmed' ? 2 : 0;
+    if (sample('campAidaVoice', { vol: 0.45, index: idx })) return;
+    chord([587, 880], 0.12, 'sine', 0.10);
+  },
+
+  powerRelay(stage = 0) {
+    if (sample('campRelay', { vol: 0.55, index: stage % 3 })) return;
+    drivenTone({ type: 'sawtooth', freq: 65 + stage * 20, sweepTo: 30, dur: 0.4, vol: 0.18, drive: 0.4 });
+  },
+
+  shutterSlide() {
+    if (sample('campShutter', { vol: 0.50 })) return;
+    noiseBurst({ dur: 0.6, vol: 0.12, filterType: 'lowpass', freq: 600, sweepTo: 180 });
+  },
+
+  stationBuild() {
+    if (sample('campBuild', { vol: 0.55 })) return;
+    chord([392, 523, 659, 784], 0.35, 'triangle', 0.18);
+  },
+
+  campSparks() {
+    if (sample('campSparks', { vol: 0.35 })) return;
+    noiseBurst({ dur: 0.08, vol: 0.06, filterType: 'highpass', freq: 3500 });
+  },
+
+  campSteam() {
+    if (sample('campSteam', { vol: 0.40 })) return;
+    noiseBurst({ dur: 0.25, vol: 0.07, filterType: 'bandpass', freq: 1200, Q: 2 });
+  },
+
+  // ---- Master Action & Combat SFX -------------------------------------------
+  heroDash() {
+    noiseBurst({ dur: 0.18, vol: 0.14, filterType: 'bandpass', freq: 1800, sweepTo: 350, Q: 1.5 });
+    osc({ type: 'sine', freq: 280, dur: 0.15, vol: 0.10, sweepTo: 90, attack: 0.005 });
+  },
+
+  katanaSlash() {
+    const p = 0.95 + Math.random() * 0.15;
+    noiseBurst({ dur: 0.12, vol: 0.16, filterType: 'bandpass', freq: 3600 * p, sweepTo: 900, Q: 3.5 });
+    osc({ type: 'sawtooth', freq: 880 * p, dur: 0.08, vol: 0.08, sweepTo: 220 });
+  },
+
+  katanaFinisher() {
+    drivenTone({ type: 'sawtooth', freq: 140, sweepTo: 40, dur: 0.35, vol: 0.22, drive: 0.5 });
+    noiseBurst({ dur: 0.22, vol: 0.24, filterType: 'highpass', freq: 2800, sweepTo: 600 });
+    setTimeout(() => chord([587, 880, 1174], 0.38, 'triangle', 0.14), 60);
+  },
+
+  scytheSpin() {
+    noiseBurst({ dur: 0.32, vol: 0.16, filterType: 'bandpass', freq: 1400, sweepTo: 2800, Q: 2.0 });
+    osc({ type: 'sawtooth', freq: 220, dur: 0.28, vol: 0.09, sweepTo: 440 });
+  },
+
+  bowShoot() {
+    osc({ type: 'triangle', freq: 660, dur: 0.06, vol: 0.12, sweepTo: 180, attack: 0.002 });
+    noiseBurst({ dur: 0.08, vol: 0.10, filterType: 'highpass', freq: 4000 });
+  },
+
+  rageAwaken() {
+    drivenTone({ type: 'sawtooth', freq: 80, sweepTo: 520, dur: 0.65, vol: 0.25, drive: 0.6, attack: 0.04 });
+    noiseBurst({ dur: 0.55, vol: 0.18, filterType: 'lowpass', freq: 800, sweepTo: 4000 });
+    setTimeout(() => chord([440, 554, 659, 880], 0.6, 'sawtooth', 0.15), 200);
+  },
+
+  clickerCrit() {
+    chord([784, 1046, 1318], 0.22, 'sine', 0.14);
+    setTimeout(() => osc({ type: 'triangle', freq: 1568, dur: 0.18, vol: 0.10, sweepTo: 2093 }), 50);
+  },
 
   // ---- big dopamine moments ----
   // Profile/rank level-up: low, dips, then rises with real grit — the
@@ -840,54 +1082,128 @@ export const Audio = {
   },
   achievement() { chord([660, 880, 990], 0.28, 'triangle', 0.14); setTimeout(() => osc({ type: 'sine', freq: 1320, dur: 0.14, vol: 0.08, sweepTo: 1760 }), 140); },
 
-  // ---- music (real tracks, not synthesis) ----
+  // ---- New minigame and feedback sounds ----
+  clickerTap() {
+    if (_muted) return;
+    if (sample('drop', { vol: 0.35, pitch: 0.12 })) return;
+    osc({ type: 'sine', freq: 700 + Math.random() * 200, dur: 0.04, vol: 0.08, sweepTo: 300 });
+  },
+  alert() {
+    if (_muted) return;
+    osc({ type: 'square', freq: 880, dur: 0.08, vol: 0.12 });
+    setTimeout(() => osc({ type: 'square', freq: 880, dur: 0.08, vol: 0.12 }), 100);
+  },
+  dig() {
+    if (_muted) return;
+    noiseBurst({ dur: 0.09, vol: 0.15, filterType: 'bandpass', freq: 400, q: 2 });
+    osc({ type: 'triangle', freq: 180, dur: 0.07, vol: 0.12, sweepTo: 60 });
+  },
+  hazardAlarm() {
+    if (_muted) return;
+    osc({ type: 'sawtooth', freq: 350, dur: 0.18, vol: 0.16, sweepTo: 220 });
+  },
+  oreFound() {
+    if (_muted) return;
+    chord([523, 659, 784, 1046], 0.22, 'triangle', 0.12);
+  },
+  dodgeRoll() {
+    if (_muted) return;
+    this.heroDash();
+  },
+  uiClick() {
+    this.click();
+  },
+
+  // ---- music (real tracks, single-instance singleton) ----
   _stopMusicNode() {
     if (_musicNode) {
       try { _musicNode.disconnect && _musicNode.disconnect(); } catch (e) {}
       _musicNode = null;
     }
+    for (const a of _activeAudioElements) {
+      try {
+        a.onended = null;
+        a.onerror = null;
+        a.pause();
+        a.currentTime = 0;
+        a.src = '';
+      } catch (e) {}
+    }
+    _activeAudioElements.clear();
+    _currentUrl = null;
   },
   _playUrl(url) {
+    if (_currentUrl === url && _activeAudioElements.size > 0) {
+      return; // Already playing this exact track cleanly
+    }
+    this._stopMusicNode();
+    _currentUrl = url;
     try {
       const a = new window.Audio(url);
       a.loop = true;
-      a.volume = Math.max(0, Math.min(1, (_musicVol || 0.15) * 1.6));
-      a.play().catch(() => {});
-      _musicNode = { disconnect: () => { try { a.pause(); a.currentTime = 0; } catch (e) {} }, _mp3: a, gain: { value: a.volume } };
-    } catch (e) { console.warn('[Audio] play failed', e); }
+      a.volume = _muted ? 0 : Math.max(0, Math.min(1, (_musicVol || 0.15) * 1.6));
+      _activeAudioElements.add(a);
+      const p = a.play();
+      if (p && p.catch) p.catch(() => {});
+      _musicNode = {
+        disconnect: () => {
+          try {
+            a.pause();
+            a.currentTime = 0;
+            a.src = '';
+            _activeAudioElements.delete(a);
+          } catch (e) {}
+        },
+        _mp3: a,
+        gain: { value: a.volume },
+      };
+    } catch (e) {
+      console.warn('[Audio] play failed', e);
+    }
   },
-  // A sequenced playlist rather than one looping track: each track plays
-  // once and hands off to the next on `ended`, and the whole sequence loops
-  // back to the start once it reaches the end. Used for in-game/Star Atlas
-  // music — the guitar-bagpipe track first, then the two uplifting tracks,
-  // same tempo, meant to follow it rather than interrupt it.
   _playPlaylist(urls) {
-    if (!urls.length) return;
+    if (!urls || !urls.length) return;
+    this._stopMusicNode();
     let i = 0;
+    let cancelled = false;
     const playNext = () => {
+      if (cancelled) return;
       try {
-        const a = new window.Audio(urls[i]);
-        a.volume = Math.max(0, Math.min(1, (_musicVol || 0.15) * 1.6));
-        a.onended = () => { i = (i + 1) % urls.length; playNext(); };
-        a.play().catch(() => {});
-        _musicNode = {
-          disconnect: () => { try { a.onended = null; a.pause(); a.currentTime = 0; } catch (e) {} },
-          _mp3: a, gain: { value: a.volume },
+        const nextUrl = urls[i];
+        _currentUrl = nextUrl;
+        const a = new window.Audio(nextUrl);
+        a.volume = _muted ? 0 : Math.max(0, Math.min(1, (_musicVol || 0.15) * 1.6));
+        _activeAudioElements.add(a);
+        a.onended = () => {
+          _activeAudioElements.delete(a);
+          if (!cancelled) {
+            i = (i + 1) % urls.length;
+            playNext();
+          }
         };
-      } catch (e) { console.warn('[Audio] playlist failed', e); }
+        const p = a.play();
+        if (p && p.catch) p.catch(() => {});
+        _musicNode = {
+          disconnect: () => {
+            cancelled = true;
+            try {
+              a.onended = null;
+              a.pause();
+              a.currentTime = 0;
+              a.src = '';
+              _activeAudioElements.delete(a);
+            } catch (e) {}
+          },
+          _mp3: a,
+          gain: { value: a.volume },
+        };
+      } catch (e) {
+        console.warn('[Audio] playlist failed', e);
+      }
     };
     playNext();
   },
   // ---- Track assignments ----------------------------------------------------
-  // Three distinct places, three distinct moods:
-  //   menus     -> waterdrop.mp3, looped. Calm, and it is the game's own
-  //                signature track, so the place you spend the most time
-  //                sounds like the game rather than like a menu.
-  //   in-game   -> a 3-track playlist. The guitar-bagpipe piece leads, then
-  //                the two uplifting tracks at the same tempo follow it
-  //                rather than interrupt it, and the sequence loops.
-  //   Star Atlas-> menu-music.mp3, which is wide and synthetic and suits a
-  //                star map far better than it suited a menu.
   MUSIC: {
     menu:  '/waterdrop.mp3',
     atlas: '/menu-music.mp3',
@@ -898,39 +1214,39 @@ export const Audio = {
     ],
   },
   startMusic() {
-    const c = ctx(); if (!c || _musicNode) return;
+    if (_musicTrack === 'menu' && _activeAudioElements.size > 0) return;
+    const c = ctx(); if (!c) return;
     _musicTrack = 'menu';
     this._playUrl(this.MUSIC.menu);
   },
   swapToGameMusic() {
-    if (_musicTrack === 'game' && _musicNode) return;
+    if (_musicTrack === 'game' && _activeAudioElements.size > 0) return;
     _musicTrack = 'game';
-    this._stopMusicNode();
     this._playPlaylist(this.MUSIC.game);
   },
-  // Idempotent on purpose. The side games call this on mount so the track they
-  // want is guaranteed, but they are almost always entered straight from the
-  // camp where waterdrop.mp3 is already playing -- restarting it from zero on
-  // every screen change made the menu music stutter back to the top constantly.
-  // Guarding on the current track means "make sure this is playing" instead of
-  // "start this again".
   swapToMenuMusic() {
-    if (_musicTrack === 'menu' && _musicNode) return;
+    if (_musicTrack === 'menu' && _activeAudioElements.size > 0) return;
     _musicTrack = 'menu';
-    this._stopMusicNode();
     this._playUrl(this.MUSIC.menu);
   },
-  // Star Atlas gets its own call rather than borrowing the game playlist, so
-  // the map has a fixed identity instead of whatever track the run happened
-  // to leave playing.
   swapToAtlasMusic() {
-    if (_musicTrack === 'atlas' && _musicNode) return;
+    if (_musicTrack === 'atlas' && _activeAudioElements.size > 0) return;
     _musicTrack = 'atlas';
-    this._stopMusicNode();
     this._playUrl(this.MUSIC.atlas);
   },
   stopMusic() {
     _musicTrack = null;
-    if (_musicNode) { try { _musicNode.disconnect(); } catch (e) {} _musicNode = null; }
+    this._stopMusicNode();
   },
 };
+
+// Safe Proxy export so no unknown sound call will ever throw or crash
+export const Audio = new Proxy(rawAudio, {
+  get(target, prop) {
+    if (prop in target) {
+      return target[prop];
+    }
+    // Safe fallback no-op
+    return () => {};
+  },
+});

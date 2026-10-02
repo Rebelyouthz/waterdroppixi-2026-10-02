@@ -271,6 +271,95 @@ check('nothing that hangs outside its parent has a clipping parent', () => {
   return bad.length ? bad.join('; ') : null;
 });
 
+check('talent plates are not clip-pathed', () => {
+  // Same defect class as `.lu-tile-check`: a clip-path on the tile ate the
+  // name, the cost pip and the owned tick, which is why the ladder read as
+  // "missing talents". Names hang below the plate; they have to paint.
+  const tile = bodiesOf('.tt3-tile');
+  const plate = bodiesOf('.tt3-plate');
+  if (!tile) return '.tt3-tile has no rule';
+  if (!plate) return '.tt3-plate has no rule';
+  if (/clip-path/.test(tile) || /clip-path/.test(plate)) {
+    return '.tt3-tile/.tt3-plate clip-path eats names, costs and the check';
+  }
+  return null;
+});
+
+/* ── THE ONE THAT KEEPS overhaul.css HONEST ──────────────────────────
+ *
+ * On 2026-08-25 this file had 251 selectors declared two or more times, some
+ * of them seven times across six thousand lines. The browser was assembling
+ * each element from several generations at once — the shape from one, the
+ * material from another, the colour from a third — so what shipped was a
+ * hybrid nobody had drawn. That is the measured reason a screen never came
+ * out looking like the reference image it was written against.
+ *
+ * They were merged, and the merge was verified behaviour-preserving. This
+ * check is what stops it happening a fifth time: the moment a second
+ * top-level rule appears for a selector that already has one, the build
+ * fails and names it.
+ *
+ * MEDIA QUERIES AND DESCENDANTS ARE NOT DUPLICATES. A rule inside
+ * `@media (max-width: 720px)` is a deliberate variant, and
+ * `.a .b { }` is a different selector from `.b { }`. Counting either of those
+ * made an earlier version of this check fail perfectly correct code, which is
+ * worse than not checking at all.
+ */
+check('no selector in overhaul.css is declared twice at top level', () => {
+  const counts = new Map();
+  let depth = 0, selStart = 0;
+  for (let i = 0; i < overhaul.length; i++) {
+    const c = overhaul[i];
+    if (c === '{') {
+      if (depth === 0) {
+        const sel = overhaul.slice(selStart, i).replace(/\/\*[\s\S]*?\*\//g, '').trim();
+        if (sel && !sel.startsWith('@')) {
+          for (const part of sel.split(',').map(s => s.trim()).filter(Boolean)) {
+            counts.set(part, (counts.get(part) || 0) + 1);
+          }
+        }
+      }
+      depth++;
+      continue;
+    }
+    if (c === '}') {
+      depth = Math.max(0, depth - 1);
+      if (depth === 0) selStart = i + 1;
+    }
+  }
+  const dupes = new Map([...counts.entries()].filter(([, n]) => n > 1));
+
+  // A RATCHET, not a wall.
+  //
+  // 251 selectors were merged on 2026-08-25. The 37 still listed in the
+  // baseline all have a @media override interleaved between their
+  // declarations, so merging them automatically moves the merged rule PAST the
+  // override and silently kills it — that regression was actually produced
+  // once, on `.camp-shell-space .camp`'s phone padding, and caught by
+  // comparing the file's media-context order before and after. They need doing
+  // by hand, one at a time.
+  //
+  // So the check is: nothing NEW, and nothing gets WORSE. The baseline may only
+  // shrink. Failing the build on the 37 that are already known would just get
+  // the whole check deleted by the next person in a hurry.
+  const baseline = JSON.parse(read('../test/css-duplicate-baseline.json')).selectors;
+  const bad = [];
+  for (const [sel, n] of dupes) {
+    const was = baseline[sel] || 0;
+    if (!was) bad.push(`${sel} is NEW (${n}x)`);
+    else if (n > was) bad.push(`${sel} got worse: ${was}x -> ${n}x`);
+  }
+  if (bad.length) {
+    return `${bad.length} regression(s): ${bad.slice(0, 6).join(', ')}`
+      + '\n    Edit the rule that already exists. A second one does not replace it —'
+      + '\n    the browser merges them and ships a hybrid nobody designed.';
+  }
+  // And record progress, so shrinking the list is visible rather than silent.
+  const fixed = Object.keys(baseline).filter(s => !dupes.has(s));
+  if (fixed.length) console.log(`    (${fixed.length} av ${Object.keys(baseline).length} kvarvarande dubbletter ar atgardade — uppdatera baslinjen)`);
+  return null;
+});
+
 check('no selector this file guards is defined twice', () => {
   // A duplicate definition is not just a style problem here — it is what
   // blinded the check above. overhaul.css already carries 164 selectors
@@ -316,6 +405,30 @@ check('the claimed tick is actually revealed', () => {
   // matching loosely let a renamed selector pass on the strength of THAT rule.
   if (!/\.lu-rwd-in\s+\.lu-tile-check\s*\{[^}]*animation\s*:\s*luCheckStamp/.test(overhaul))
     return 'nothing reveals the tick after its tile lands — every one stays hidden';
+  return null;
+});
+
+check('index.css does not redeclare .menu-actions at top level', () => {
+  // Gemini dumped a second .menu-actions at the bottom of index.css. The
+  // overhaul.css ratchet never saw it. Count standalone top-level rules only.
+  let depth = 0, selStart = 0, n = 0;
+  for (let i = 0; i < index.length; i++) {
+    const c = index[i];
+    if (c === '{') {
+      if (depth === 0) {
+        const sel = index.slice(selStart, i).replace(/\/\*[\s\S]*?\*\//g, '').trim();
+        if (sel === '.menu-actions') n++;
+      }
+      depth++;
+      continue;
+    }
+    if (c === '}') {
+      depth = Math.max(0, depth - 1);
+      if (depth === 0) selStart = i + 1;
+    }
+  }
+  if (n === 0) return '.menu-actions is missing from index.css';
+  if (n > 1) return `.menu-actions is defined ${n} times — edit the rule that already exists`;
   return null;
 });
 

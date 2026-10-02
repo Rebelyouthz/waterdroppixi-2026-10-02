@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AVATARS, getRank, RANK_TITLES, MAX_RANK, PROFILE_FRAMES, HEADBANDS, NAME_COLORS, SHIP_COLORS, CIGAR_UNLOCK_RANK } from '../game/data_ext';
+import { AVATARS, getRank, RANK_TITLES, MAX_RANK, PROFILE_FRAMES, HEADBANDS, NAME_COLORS, SHIP_COLORS, CIGAR_UNLOCK_RANK, STATION_VISTAS } from '../game/data_ext';
 import { Audio } from '../game/audio';
 import BadgeIcon from './BadgeIcon';
 import GameIcon from './GameIcon';
@@ -128,6 +128,48 @@ export default function ProfilePanel({ save, setSave, onClose, onBadges }) {
         <Row title="NAME COLOR" items={NAME_COLORS} current={save.profile.nameColor} onPick={(id) => pick('nameColor', id)} />
         <Row title="HEADBAND" items={HEADBANDS} current={save.profile.headband} onPick={(id) => pick('headband', id)} />
         <Row title="SHIP COLOR (Star Raid)" items={SHIP_COLORS} current={save.profile.shipColor} onPick={(id) => pick('shipColor', id)} />
+
+        {/* 5 Choosable Station Bay Window Panoramic Vistas */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontFamily: 'VT323', fontSize: 13, color: 'var(--accent-2)', letterSpacing: '0.15em', marginBottom: 6 }}>
+            ORBITAL VISTA BAY WINDOW (5 THEMES)
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 6 }}>
+            {STATION_VISTAS.map(v => {
+              const active = (save.profile.stationVista || 'earth') === v.id;
+              return (
+                <div
+                  key={v.id}
+                  onClick={() => pick('stationVista', v.id)}
+                  style={{
+                    cursor: 'pointer',
+                    borderRadius: 6,
+                    overflow: 'hidden',
+                    border: active ? `2px solid ${v.color}` : '1px solid #2a1a4e',
+                    boxShadow: active ? `0 0 10px ${v.color}88` : 'none',
+                    background: '#0a0420',
+                    transition: 'all 0.15s ease',
+                    position: 'relative'
+                  }}
+                >
+                  <div
+                    aria-hidden="true"
+                    style={{
+                      width: '100%',
+                      height: 48,
+                      background: `radial-gradient(circle at 50% 70%, ${v.color}66, #05020e 70%)`,
+                    }}
+                  />
+                  <div style={{ padding: '3px 4px', textAlign: 'center', background: 'rgba(5,2,14,0.9)' }}>
+                    <div style={{ fontFamily: 'VT323', fontSize: 12, color: active ? v.color : '#e0d8c0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {v.name} {active && '✓'}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
         <div style={{ marginBottom: 8 }}>
           <div style={{ fontFamily: 'VT323', fontSize: 13, color: 'var(--accent-2)', letterSpacing: '0.15em', marginBottom: 6 }}>IDLE CIGAR</div>

@@ -1,0 +1,347 @@
+{
+  "format": "WaterdropSurvivorSpritesheetCatalog_v3",
+  "frameWidth": 256,
+  "frameHeight": 256,
+  "categories": {
+    "intro_and_origin": {
+      "awakening": {
+        "file": "intro/waterdrop-origin-awakening-16.png",
+        "frames": 16,
+        "fps": 12,
+        "desc": "How the game begins: Peaceful puddle in lake -> Mutation -> Rising up -> Tying red headband -> Battle ready combat stance"
+      }
+    },
+    "character": {
+      "idle": {
+        "file": "character/waterdrop-idle-16.png",
+        "frames": 16,
+        "fps": 12,
+        "loop": true,
+        "desc": "Natural breathing cycle, subtle liquid sway, and eye blinking with grounded paddle feet"
+      },
+      "walk": {
+        "file": "character/waterdrop-walk-16.png",
+        "frames": 16,
+        "fps": 16,
+        "loop": true,
+        "desc": "3/4 perspective hydrodynamic walking momentum"
+      },
+      "run": {
+        "file": "character/waterdrop-run-16.png",
+        "frames": 16,
+        "fps": 20,
+        "loop": true,
+        "desc": "Forward leaning sprint cycle with foot wake particles"
+      },
+      "roll": {
+        "file": "character/waterdrop-roll-16.png",
+        "frames": 16,
+        "fps": 24,
+        "loop": false,
+        "desc": "Tactical tuck, 360\u00c2\u00b0 fluid roll, and recovery"
+      },
+      "turnaround": {
+        "file": "character/waterdrop-turnaround-16.png",
+        "frames": 16,
+        "angles": 16,
+        "fps": 10,
+        "loop": true,
+        "desc": "Full 360\u00c2\u00b0 turnaround across 16 cardinal/ordinal angles directly from canonical model sheet"
+      },
+      "hurt": {
+        "file": "character/waterdrop-hurt-16.png",
+        "frames": 16,
+        "fps": 18,
+        "loop": false,
+        "desc": "Impact flinch, drop splash particles, knockback knee stumble, and recovery"
+      },
+      "levelup": {
+        "file": "character/waterdrop-levelup-16.png",
+        "frames": 16,
+        "fps": 16,
+        "loop": false,
+        "desc": "Powerup flex, aura ignition, and victory cheer"
+      }
+    },
+    "walkable_camp": {
+      "earth_window_loop": {
+        "file": "camp/station-earth-window-loop-16.png",
+        "frames": 16,
+        "fps": 10,
+        "desc": "Animated planet Earth slowly rotating in orbit outside the station window"
+      },
+      "ambient_lights": {
+        "file": "camp/station-ambient-lights-16.png",
+        "frames": 16,
+        "fps": 16,
+        "desc": "Animated ceiling lamps, soft light cones, and blinking terminal status LEDs"
+      },
+      "aida_core": {
+        "file": "camp/camp-core-aida-16.png",
+        "frames": 16,
+        "fps": 18,
+        "desc": "A.I.D.A. Data Core with floating holographic waterdrop & spinning telemetry rings"
+      },
+      "station_forge": {
+        "file": "camp/camp-station-forge-16.png",
+        "frames": 16,
+        "fps": 20,
+        "desc": "Fabrication & Weapon Forge with thermal magma crucible & sparks"
+      },
+      "station_navigation": {
+        "file": "camp/camp-station-navigation-16.png",
+        "frames": 16,
+        "fps": 16,
+        "desc": "Navigation star chart console with rotating hologram planet"
+      },
+      "station_biolab": {
+        "file": "camp/camp-station-biolab-16.png",
+        "frames": 16,
+        "fps": 16,
+        "desc": "Bio Lab Cryo Incubator with pulsing mutation embryo & nutrient bubbles"
+      },
+      "station_well": {
+        "file": "camp/camp-station-well-16.png",
+        "frames": 16,
+        "fps": 18,
+        "desc": "Reclamation Well with bioluminescent hydro pool & concentric ripples"
+      },
+      "station_hangar": {
+        "file": "camp/camp-station-hangar-16.png",
+        "frames": 16,
+        "fps": 16,
+        "desc": "Hangar blast doors with hazard stripes & flashing warning beacons"
+      },
+      "station_defense": {
+        "file": "camp/camp-station-defense-16.png",
+        "frames": 16,
+        "fps": 16,
+        "desc": "Defense console with CRT screen & rotating green radar sweep"
+      },
+      "floor_emblem": {
+        "file": "camp/camp-floor-emblem-16.png",
+        "frames": 16,
+        "fps": 16,
+        "desc": "Inlaid titanium floor emblem with pulsing cyan circuit traces"
+      },
+      "mainhall_shell": {
+        "file": "camp/station-mainhall-shell-2x.png",
+        "desc": "Full 2X Retina HD space station architecture shell with titanium bulkheads, panoramic Earth window, and circular dais"
+      },
+      "portal_exit": {
+        "file": "camp/camp-station-portal-exit-16.png",
+        "frames": 16,
+        "fps": 16,
+        "desc": "Departure teleport pad with swirling cyan energy vortex and warp particles"
+      },
+      "floor_tileset": {
+        "file": "camp/station-floor-tileset-2x.png",
+        "desc": "Modular brushed titanium floor tileset with embedded neon power conduits"
+      }
+    },
+    "walkable_camp_8dir": {
+      "walk_down": {
+        "file": "camp/camp-hero-walk-down-16.png",
+        "frames": 16,
+        "fps": 16,
+        "facing": "South (Facing Camera)",
+        "desc": "Canonical Aqua Rage model walking down towards camera"
+      },
+      "walk_up": {
+        "file": "camp/camp-hero-walk-up-16.png",
+        "frames": 16,
+        "fps": 16,
+        "facing": "North (Facing Away / Back View)",
+        "desc": "Walking up into the station room with back view and flowing headband ribbons"
+      },
+      "walk_right": {
+        "file": "camp/camp-hero-walk-right-16.png",
+        "frames": 16,
+        "fps": 16,
+        "facing": "East (Right Profile)",
+        "desc": "Walking right with side-profile liquid crest and swinging arms"
+      },
+      "walk_left": {
+        "file": "camp/camp-hero-walk-left-16.png",
+        "frames": 16,
+        "fps": 16,
+        "facing": "West (Left Profile)",
+        "desc": "Walking left with side-profile liquid crest and swinging arms"
+      },
+      "walk_downright": {
+        "file": "camp/camp-hero-walk-downright-16.png",
+        "frames": 16,
+        "fps": 16,
+        "facing": "South-East (3/4 Front)",
+        "desc": "Walking diagonally down-right"
+      },
+      "walk_downleft": {
+        "file": "camp/camp-hero-walk-downleft-16.png",
+        "frames": 16,
+        "fps": 16,
+        "facing": "South-West (3/4 Front)",
+        "desc": "Walking diagonally down-left"
+      },
+      "walk_upright": {
+        "file": "camp/camp-hero-walk-upright-16.png",
+        "frames": 16,
+        "fps": 16,
+        "facing": "North-East (3/4 Rear)",
+        "desc": "Walking diagonally up-right"
+      },
+      "walk_upleft": {
+        "file": "camp/camp-hero-walk-upleft-16.png",
+        "frames": 16,
+        "fps": 16,
+        "facing": "North-West (3/4 Rear)",
+        "desc": "Walking diagonally up-left"
+      }
+    },
+    "combat": {
+      "rapid_attacks": {
+        "file": "combat/waterdrop-rapid-attacks-16.png",
+        "frames": 16,
+        "fps": 20,
+        "desc": "16-frame rapid attack burst directly from canonical model artwork"
+      },
+      "katana_slash": {
+        "file": "combat/waterdrop-katana-slash-16.png",
+        "frames": 16,
+        "fps": 22,
+        "weapon": "katana",
+        "desc": "Snapped Rib station girder blade strike and glowing hydro slash arc"
+      },
+      "katana_finisher": {
+        "file": "combat/waterdrop-katana-finisher-16.png",
+        "frames": 16,
+        "fps": 18,
+        "weapon": "katana",
+        "finisher": true,
+        "desc": "Scripted execution: airborne leap, two-handed overhead cleave, ground shatter"
+      },
+      "hydropistol_shoot": {
+        "file": "combat/waterdrop-hydropistol-shoot-16.png",
+        "frames": 16,
+        "fps": 20,
+        "weapon": "hydropistol",
+        "desc": "Hydro pistol point, rapid discharge, muzzle blast, and kickback"
+      },
+      "bow_shoot": {
+        "file": "combat/waterdrop-bow-shoot-16.png",
+        "frames": 16,
+        "fps": 18,
+        "weapon": "bow",
+        "desc": "Tidewood Bow string pull, charge, and piercing arrow release"
+      },
+      "boneshards_shoot": {
+        "file": "combat/waterdrop-boneshards-shoot-16.png",
+        "frames": 16,
+        "fps": 18,
+        "weapon": "boneshards",
+        "desc": "Bone shards shotgun eruption"
+      },
+      "daggers_throw": {
+        "file": "combat/waterdrop-daggers-throw-16.png",
+        "frames": 16,
+        "fps": 22,
+        "weapon": "daggers",
+        "desc": "Dagger fan 3-blade spread throw"
+      },
+      "flameburst_shoot": {
+        "file": "combat/waterdrop-flameburst-shoot-16.png",
+        "frames": 16,
+        "fps": 16,
+        "weapon": "flameburst",
+        "desc": "Close range conical flame burst"
+      },
+      "icespike_shoot": {
+        "file": "combat/waterdrop-icespike-shoot-16.png",
+        "frames": 16,
+        "fps": 16,
+        "weapon": "icespike",
+        "desc": "Glacial ice spike lance"
+      },
+      "sniper_shoot": {
+        "file": "combat/waterdrop-sniper-shoot-16.png",
+        "frames": 16,
+        "fps": 14,
+        "weapon": "sniperDrop",
+        "desc": "Sniper Drop high-caliber shot with pinpoint laser trace"
+      },
+      "tidal_harpoon": {
+        "file": "combat/waterdrop-tidal-harpoon-16.png",
+        "frames": 16,
+        "fps": 18,
+        "weapon": "tidalHarpoon",
+        "desc": "Tidal Harpoon aquatic golden trident thrust & release"
+      },
+      "twin_revolvers": {
+        "file": "combat/waterdrop-twin-revolvers-16.png",
+        "frames": 16,
+        "fps": 22,
+        "weapon": "twinRevolvers",
+        "desc": "Twin Revolvers rapid alternating fire with spinning cylinders"
+      },
+      "void_scatter": {
+        "file": "combat/waterdrop-void-scatter-16.png",
+        "frames": 16,
+        "fps": 18,
+        "weapon": "voidScatter",
+        "desc": "Void Scattergun dark matter shard burst"
+      },
+      "arc_caster": {
+        "file": "combat/waterdrop-arc-caster-16.png",
+        "frames": 16,
+        "fps": 20,
+        "weapon": "arcCaster",
+        "desc": "Arc Caster ball lightning charge and release"
+      },
+      "comet_launcher": {
+        "file": "combat/waterdrop-comet-launcher-16.png",
+        "frames": 16,
+        "fps": 18,
+        "weapon": "cometLauncher",
+        "desc": "Comet Launcher launching celestial ice comet with shimmering blue tail"
+      },
+      "acid_sprayer": {
+        "file": "combat/waterdrop-acid-sprayer-16.png",
+        "frames": 16,
+        "fps": 20,
+        "weapon": "acidSprayer",
+        "desc": "Acid Sprayer bio-toxic corrosive green liquid stream"
+      },
+      "scythe_whirlwind": {
+        "file": "combat/waterdrop-scythe-spin-16.png",
+        "frames": 16,
+        "fps": 24,
+        "weapon": "bloodscythe",
+        "desc": "Blood Scythe 360\u00c2\u00b0 vortex whirlwind sweep"
+      },
+      "hydro_drill_finisher": {
+        "file": "combat/waterdrop-hydro-drill-finisher-16.png",
+        "frames": 16,
+        "fps": 24,
+        "desc": "Hydro Drill Execution: Piercing water vortex drill charge"
+      }
+    },
+    "star_ships": {
+      "interceptor_16angles": {
+        "file": "star_ships/star-ship-interceptor-16angles.png",
+        "angles": 16,
+        "desc": "Star Atlas / Star Raid Player Interceptor Starship across 16 rotation angles"
+      },
+      "flight_thruster": {
+        "file": "star_ships/star-ship-flight-thruster-16.png",
+        "frames": 16,
+        "fps": 20,
+        "desc": "Spacecraft flight with pulsing plasma engine flare & warp speed stars"
+      },
+      "shield_barrier": {
+        "file": "star_ships/star-ship-shield-barrier-16.png",
+        "frames": 16,
+        "fps": 18,
+        "desc": "Hexagonal energy shield defense bubble"
+      }
+    }
+  }
+}

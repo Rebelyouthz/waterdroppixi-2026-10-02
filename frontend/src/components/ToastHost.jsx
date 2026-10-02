@@ -134,6 +134,7 @@ export default function ToastHost() {
                   : <ToastEmblem kind={kind} color={tone.c} />}
               </span>
               <div className="toast-body">
+                {t.kicker && <div className="toast-kicker">{t.kicker}</div>}
                 <div className="toast-title">{t.title}</div>
                 {rarityLabel && <div className="toast-rarity">{rarityLabel}</div>}
                 {/* Suppressed when it would just repeat the rarity line — loot

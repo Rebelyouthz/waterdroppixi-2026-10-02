@@ -43,7 +43,7 @@ export const POE_TREE_NODES = [
   { id:'poe_mob0', branch:'mobility', type:'minor',    x:320, y:2380, req:[],                     max:3, c:1, stat:'mspd',  val:0.02,  name:'Shadow Glide',    icon:'boot',  desc:'+2% move speed per level.' },
   { id:'poe_mob1', branch:'mobility', type:'minor',    x:320, y:2080, req:['poe_mob0'],            max:3, c:1, stat:'mspd',  val:0.02,  name:'Tempest Agility', icon:'pQuick',  desc:'+2% speed per level. The wind accelerates your step.' },
   { id:'poe_mob2', branch:'mobility', type:'minor',    x:260, y:1780, req:['poe_mob1'],            max:3, c:2, stat:'dodge', val:0.03,  name:'Mirage Drift',    icon:'ui_ghost',  desc:'+3% dodge per level. Evade incoming death.' },
-  { id:'poe_mob3', branch:'mobility', type:'notable',  x:380, y:1780, req:['poe_mob1'],            max:1, c:3, stat:'dash',  val:1,     name:'Shadow Dash',     icon:'pQuick',  desc:'ACTIVE: SHIFT to dash with invincibility frames.', active:true },
+  { id:'poe_mob3', branch:'mobility', type:'notable',  x:380, y:1780, req:['poe_mob1'],            max:1, c:3, stat:'dash',  val:1,     name:'Shadow Dash',     icon:'pQuick',  desc:'ACTIVE MOVE. SHIFT on PC. Swipe the left stick on phone. You slide through a pack with i-frames. Buy this first.', active:true },
   { id:'poe_mob3b',branch:'mobility', type:'notable',  x:460, y:1630, req:['poe_mob3'],            max:1, c:4, stat:'swipeAttack', val:1, name:'Execution Swipe', icon:'ui_blade', desc:'ACTIVE: a fast swipe executes a nearby enemy instantly in a burst of gore.', active:true },
   { id:'poe_mob4', branch:'mobility', type:'minor',    x:320, y:1480, req:['poe_mob2','poe_mob3'], max:3, c:2, stat:'dashcd',val:0.10,  name:'Quickstep Recall',icon:'ui_clock',  desc:'-10% dash cooldown per level. Unlocks Meta: Dash CD.' },
   { id:'poe_mob5', branch:'mobility', type:'notable',  x:320, y:1180, req:['poe_mob4'],            max:1, c:4, stat:'mspd',  val:0.10,  name:'Ghoststep',       icon:'ui_ghost',  desc:'+10% speed. Unlocks Meta: Eagle Eye.' },
@@ -314,6 +314,15 @@ export function isTreeFullyMaxed(skills) {
   return POE_TREE_NODES.every(n => (skills?.[n.id] || 0) >= n.max);
 }
 
+// Combat dash is this three-node Mobility walk, not a talent and not a
+// default. One level on each minor is enough: Shadow Glide (1) → Tempest
+// Agility (1) → Shadow Dash (3). The first Skill Tree visit frames this
+// path, and story quest `s_dash` checks DASH_NODE_ID.
+export const DASH_PATH = ['poe_mob0', 'poe_mob1', 'poe_mob3'];
+export const DASH_NODE_ID = 'poe_mob3';
+export const dashPathMinCost = () =>
+  DASH_PATH.reduce((n, id) => n + (POE_INDEX[id]?.c || 0), 0);
+
 // ── Attribute system ────────────────────────────
 // Each profile level grants 1 attribute point.
 // Stored in save.attrs: { atk, dex, vit, mob, int, ele, mag, aim, luck }
@@ -335,3 +344,29 @@ export const POE_ATTRS = [
   { id:'mag',  name:'Magic',        icon:'ui_orb',  color:'#b362ff', stat:'atks',  perPoint:0.005, desc:'+0.5% attack speed per point' },
   { id:'luck', name:'Luck',         icon:'ui_leaf',  color:'#4dff91', stat:'luck',  perPoint:0.15,  desc:'+0.15 luck per point (better card/loot rarity rolls)' },
 ];
+
+export function attrSpent(attrs) {
+  return Object.values(attrs || {}).reduce((a, b) => a + (Number(b) || 0), 0);
+}
+
+export function attrFree(save) {
+  return Math.max(0, ((save && save.profile && save.profile.level) || 1) - 1 - attrSpent(save && save.attrs));
+}
+
+export function attrCanAdd(save, def) {
+  if (!def || attrFree(save) <= 0) return false;
+  const cur = ((save && save.attrs) || {})[def.id] || 0;
+  if (def.curve && def.max && cur >= def.max) return false;
+  return true;
+}
+
+export function attrNextLine(def, cur) {
+  if (!def) return '';
+  if (def.curve) return cur >= def.max ? 'MAXED' : `Next ${cur + 1} / ${def.max}`;
+  const now = (cur * def.perPoint);
+  const nxt = ((cur + 1) * def.perPoint);
+  if (def.stat === 'maxHp') return `Now +${now} HP · next +${nxt}`;
+  if (def.stat === 'luck') return `Now +${now.toFixed(2)} · next +${nxt.toFixed(2)}`;
+  const pct = (v) => `${(v * 100).toFixed(1)}%`;
+  return `Now +${pct(now)} · next +${pct(nxt)}`;
+}

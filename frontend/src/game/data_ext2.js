@@ -12,9 +12,9 @@ export const STARTER_WEAPONS = {
   // in WEAPONS (data.js) like the pistol's -- this entry only puts it on the
   // starter shelf. `blueprint: null` means no shards are needed.
   katana: {
-    id: 'katana', name: 'Tidecutter Katana', icon: 'katana',
+    id: 'katana', name: 'Snapped Rib', icon: 'katana',
     blueprint: null,
-    desc: 'A single clean arc. Kills split the body in two.',
+    desc: 'Not a blade. A torn piece of the station, sharp where it broke.',
   },
   twinSMG: {
     id: 'twinSMG', name: 'Twin SMG', icon: 'revolvers',
@@ -227,6 +227,7 @@ export function rollMissionRewards(reward, weapons) {
 
 // ---------- ACHIEVEMENTS ----------
 export const ACHIEVEMENTS = [
+  { id: 'a_first_timer',  name: '1st Timer',         icon: 'ui_star', desc: 'Found Sanctuary — held the wreck for two minutes.', metric: 'orbitFindCleared', goal: 1, rwd: { gold: 50 } },
   { id: 'a_first_kill',   name: 'First Blood',       icon: 'vampire', desc: 'Kill 1 enemy', metric: 'totalKills', goal: 1,    rwd: { gold: 25 } },
   { id: 'a_kills_100',    name: 'Hundred',           icon: 'ui_blade', desc: '100 total kills',  metric: 'totalKills', goal: 100,  rwd: { gold: 100, sp: 1 } },
   { id: 'a_kills_1k',     name: 'Massacre',          icon: 'ui_void', desc: '1000 total kills', metric: 'totalKills', goal: 1000, rwd: { gold: 600, sp: 3 } },
@@ -236,10 +237,10 @@ export const ACHIEVEMENTS = [
   { id: 'a_time_5m',      name: 'Endurance',         icon: 'ui_clock', desc: 'Survive 5 min',     metric: 'bestRunTime', goal: 300, rwd: { gold: 400, sp: 1 } },
   { id: 'a_time_10m',     name: 'Eternal',           icon: 'ui_infinity', desc: 'Survive 10 min',    metric: 'bestRunTime', goal: 600, rwd: { gold: 1200, sp: 3 } },
   { id: 'a_aida',         name: 'Bossfall',          icon: 'ui_eye', desc: 'Defeat A.I.D.A.',   metric: 'aidaSlain', goal: 1, rwd: { gold: 2000, sp: 5 } },
-  { id: 'a_lvl_30',       name: 'Apex',              icon: 'ui_star', desc: 'Reach run level 30',metric: 'bestKills', goal: 30, rwd: { gold: 400 } },
+  { id: 'a_lvl_30',       name: 'Apex',              icon: 'ui_star', desc: 'Reach run level 30',metric: 'bestLevel', goal: 30, rwd: { gold: 400 } },
   { id: 'a_gold_10k',     name: 'Wealthy',           icon: 'ui_moneybag', desc: 'Earn 10000 gold',   metric: 'lifetimeGold', goal: 10000, rwd: { sp: 5 } },
   { id: 'a_blueprint',    name: 'Gunsmith',          icon: 'ui_smith', desc: 'Craft a starter weapon', metric: 'weaponsCrafted', goal: 1, rwd: { gold: 200 } },
-  { id: 'a_all_weapons',  name: 'Arsenal',           icon: 'ui_daggers', desc: 'Craft all 4 weapons', metric: 'weaponsCrafted', goal: 4, rwd: { gold: 2000, sp: 5 } },
+  { id: 'a_all_weapons',  name: 'Arsenal',           icon: 'ui_daggers', desc: 'Craft the four blueprint starters', metric: 'weaponsCrafted', goal: 4, rwd: { gold: 2000, sp: 5 } },
   { id: 'a_part_leg',     name: 'Legendary Smith',   icon: 'starBurst', desc: 'Find a legendary part', metric: 'legendaryPartsFound', goal: 1, rwd: { gold: 500, sp: 2 } },
   { id: 'a_skill_25',     name: 'Awakened',          icon: 'ui_skills', desc: 'Learn 25 skill levels', metric: 'skillsLearned', goal: 25, rwd: { gold: 600, sp: 3 } },
   { id: 'a_active_4',     name: 'Hot Bar',           icon: 'ui_flame', desc: 'Equip 4 active skills', metric: 'activeSkillsCount', goal: 4, rwd: { gold: 400 } },
@@ -253,17 +254,61 @@ export const ACHIEVEMENTS = [
   { id: 'a_horus',        name: 'Eye Closer',        icon: 'ui_eye', desc: 'Defeat the Eye of Horus',  metric: 'horusSlain', goal: 1, rwd: { gold: 300, sp: 1 } },
   { id: 'a_endless',      name: 'Void Walker',       icon: 'ui_infinity', desc: 'Reach Endless Mode',        metric: 'endlessReached', goal: 1, rwd: { gold: 2000, sp: 8 } },
   // Progression milestones
-  { id: 'a_lvl_50',       name: 'Transcendent',      icon: 'ui_star', desc: 'Reach level 50 in a run',  metric: 'bestKills', goal: 50, rwd: { gold: 3000, sp: 10 } },
+  { id: 'a_lvl_50',       name: 'Transcendent',      icon: 'ui_star', desc: 'Reach level 50 in a run',  metric: 'bestLevel', goal: 50, rwd: { gold: 3000, sp: 10 } },
   { id: 'a_kills_50k',    name: 'Reaper',            icon: 'bloodscythe', desc: '50,000 total kills',        metric: 'totalKills', goal: 50000, rwd: { gold: 10000, sp: 20 } },
   { id: 'a_runs_100',     name: 'Centurion',         icon: 'ui_medal', desc: '100 runs completed',        metric: 'runsCompleted', goal: 100, rwd: { gold: 5000, sp: 15 } },
   { id: 'a_gold_50k',     name: 'Dragon Hoard',      icon: 'ui_gem', desc: 'Earn 50k lifetime gold',   metric: 'lifetimeGold', goal: 50000, rwd: { sp: 10 } },
   { id: 'a_nohit_5',      name: 'Phantom',           icon: 'ui_ghost', desc: 'Complete 5 no-hit runs',   metric: 'noHitRuns', goal: 5, rwd: { gold: 2500, sp: 8 } },
-  { id: 'a_maps_all',     name: 'Cartographer',      icon: 'ui_map', desc: 'Complete all map stages',  metric: 'mapsCompleted', goal: 4, rwd: { gold: 5000, sp: 15 } },
+  { id: 'a_maps_all',     name: 'Cartographer',      icon: 'ui_map', desc: 'Clear four maps',  metric: 'mapsCompleted', goal: 4, rwd: { gold: 5000, sp: 15 } },
+  {
+    id: 'a_hull', name: 'Hold air', icon: 'ui_base',
+    desc: 'Seal The Hull so the station takes a bolt',
+    metric: 'hullSealed', goal: 1, rwd: { gold: 250, gearParts: 6 },
+  },
+  {
+    id: 'a_hangar', name: 'A ship, finally', icon: 'drone',
+    desc: 'Raise the Hangar — the first hour is over',
+    metric: 'hangarBuilt', goal: 1, rwd: { gold: 800, sp: 2 },
+  },
+  {
+    id: 'a_patrol', name: 'Send someone else', icon: 'ui_map',
+    desc: 'Claim one patrol when it comes back',
+    metric: 'patrolsClaimed', goal: 1, rwd: { gold: 300 },
+  },
+  {
+    id: 'a_codex', name: 'Name them', icon: 'ui_codex',
+    desc: 'Claim five Codex discoveries',
+    metric: 'codexClaimed', goal: 5, rwd: { gems: 3 },
+  },
 ];
+
+const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+
+// Same metric, ranked by goal — First Blood → Hundred → Massacre is one
+// family. The first toast says UNLOCKED; the next one has to SAY it is the
+// next tier, or it reads as the same achievement firing twice.
+export function achievementFamily(a) {
+  if (!a) return [];
+  return ACHIEVEMENTS.filter(x => x.metric === a.metric).sort((p, q) => p.goal - q.goal);
+}
+
+export function achievementToastCopy(a) {
+  const family = achievementFamily(a);
+  const n = family.findIndex(x => x.id === a.id) + 1;
+  if (family.length <= 1 || n <= 1) {
+    return { kicker: 'ACHIEVEMENT UNLOCKED', title: a.name, text: a.desc };
+  }
+  return {
+    kicker: `ACHIEVEMENT ${ROMAN[n] || n} · NEXT TIER`,
+    title: a.name,
+    text: `${a.desc}  ·  ${n} of ${family.length}`,
+  };
+}
 
 // ---------- STAGES (visual themes + spawn mods) ----------
 export const STAGES = {
   lake:    { id: 'lake',    name: 'The Lake',         icon: 'ui_waterdrop', desc: 'The shallows. Where it all begins.',     bg: '#0c0a16', accent: '#4dc4ff', enemyMix: ['slime', 'bat', 'ghoul'],     spawnMult: 1.0, unlock: { kind: 'default' } },
+  gobekli: { id: 'gobekli', name: 'Göbekli Tepe',     icon: 'ui_base',      desc: 'Megalithic T-pillars & celestial conduits.', bg: '#140c06', accent: '#e59866', enemyMix: ['ghoul', 'charger', 'necron', 'bonewalker'], spawnMult: 1.25, unlock: { kind: 'kills', goal: 500 } },
   ruins:   { id: 'ruins',   name: 'Sunken Ruins',     icon: 'ui_base',  desc: 'Forgotten halls. Ranged threats lurk.',  bg: '#1a1208', accent: '#ffd166', enemyMix: ['ghoul', 'ranger', 'brute'],   spawnMult: 1.1, unlock: { kind: 'kills',  goal: 200 } },
   void:    { id: 'void',    name: 'Void Lab',         icon: 'voidPulse', desc: 'A.I.D.A.\'s old chambers. Eldritch fiends.', bg: '#0a081a', accent: '#b362ff', enemyMix: ['bat', 'charger', 'necron'],  spawnMult: 1.2, unlock: { kind: 'runs',   goal: 5 } },
   ship:    { id: 'ship',    name: 'Annunaki Ship',    icon: 'ui_rocket', desc: 'The final outpost. A.I.D.A. waits.',     bg: '#1a0a08', accent: '#ff7a1a', enemyMix: ['brute', 'charger', 'necron', 'ranger'], spawnMult: 1.4, unlock: { kind: 'boss',   goal: 1 } },
@@ -515,6 +560,42 @@ export function shopCardCost(pullCount) {
   return Math.floor(150 * Math.pow(1.45, pullCount));
 }
 
+export const SHOP_PITY_AFTER = 8;
+export const SHOP_COMPLETE_GOLD = 250;
+
+export function activesMap(save) {
+  const raw = save && save.unlockedActives;
+  if (!raw) return {};
+  if (Array.isArray(raw)) {
+    const o = {};
+    for (const id of raw) if (id) o[id] = true;
+    return o;
+  }
+  return { ...raw };
+}
+
+export function isShopEntryOwned(save, card) {
+  const e = (card && card.effect) || {};
+  if (e.unlockCard) return (save.shopCards || []).includes(e.unlockCard);
+  if (e.unlockSkill) return !!activesMap(save)[e.unlockSkill];
+  if (e.unlockWeapon) return (save.unlockedWeapons || []).includes(e.unlockWeapon);
+  if (e.unlockEvo) return (save.unlockedEvos || []).includes(e.unlockEvo);
+  return false;
+}
+
+export function shopSectionStats(save, section) {
+  const pool = SHOP_CARD_POOL.filter((c) => !section || c.category === section);
+  let owned = 0;
+  for (const c of pool) if (isShopEntryOwned(save, c)) owned++;
+  return { total: pool.length, owned, left: pool.length - owned };
+}
+
+export function nextShopDry(prev, winner) {
+  if (winner && winner.complete) return 0;
+  const rare = winner && ['rare', 'epic', 'legendary', 'mythical'].includes(winner.rarity);
+  return rare ? 0 : (prev || 0) + 1;
+}
+
 const RARITY_ORDER = ['common','uncommon','rare','epic','legendary','mythical'];
 export function bumpRarity(rar, steps = 1) {
   const idx = RARITY_ORDER.indexOf(rar);
@@ -523,9 +604,18 @@ export function bumpRarity(rar, steps = 1) {
 
 // Only used internally by rollShopPull3 below — not exported (was public
 // with no external caller, per a code review pass).
-function rollShopPull(luck = 0, section = null) {
-  const pool = section ? SHOP_CARD_POOL.filter(c => c.category === section) : SHOP_CARD_POOL;
-  const safePool = pool.length ? pool : SHOP_CARD_POOL;
+function rollShopPull(luck = 0, section = null, save = null) {
+  const pool = (section ? SHOP_CARD_POOL.filter(c => c.category === section) : SHOP_CARD_POOL)
+    .filter((c) => !save || !isShopEntryOwned(save, c));
+  const safePool = pool.length ? pool : null;
+  if (!safePool) {
+    return {
+      id: 'section_complete', icon: 'cur_gold', name: 'Section Complete',
+      category: section || 'passive', rarity: 'rare', mult: 1,
+      complete: true, effect: { gold: SHOP_COMPLETE_GOLD },
+      finalEffect: { gold: SHOP_COMPLETE_GOLD },
+    };
+  }
   const card = safePool[Math.floor(Math.random() * safePool.length)];
   // Rarity affects amount scaling (for stat cards)
   const rarityRoll = Math.random() - (luck * 0.05);
@@ -534,16 +624,23 @@ function rollShopPull(luck = 0, section = null) {
   else if (rarityRoll < 0.04) rarity = 'epic';
   else if (rarityRoll < 0.16) rarity = 'rare';
   else if (rarityRoll < 0.45) rarity = 'uncommon';
+  const dry = (save && save.shopDry) || 0;
+  if (dry >= SHOP_PITY_AFTER && RARITY_ORDER.indexOf(rarity) < RARITY_ORDER.indexOf('rare')) {
+    rarity = 'rare';
+  }
   const mult = { common: 1.0, uncommon: 1.5, rare: 2.0, epic: 2.8, legendary: 4.0, mythical: 6.5 }[rarity];
   return { ...card, rarity, mult, finalEffect: card.effect.amount ? { ...card.effect, amount: card.effect.amount * mult } : card.effect };
 }
 
 // Roll 3 reels and detect jackpot (3 matching) or 2-match bonus
-export function rollShopPull3(luck = 0, section = null) {
-  const r1 = rollShopPull(luck, section);
-  const r2 = rollShopPull(luck, section);
-  const r3 = rollShopPull(luck, section);
+export function rollShopPull3(luck = 0, section = null, save = null) {
+  const r1 = rollShopPull(luck, section, save);
+  const r2 = rollShopPull(luck, section, save);
+  const r3 = rollShopPull(luck, section, save);
   const reels = [r1, r2, r3];
+  if (r1.complete) {
+    return { reels: [r1, r1, r1], winner: r1, jackpot: false, twoMatch: false, complete: true };
+  }
   const allMatch = r1.id === r2.id && r2.id === r3.id;
   const twoMatch = !allMatch && (r1.id === r2.id || r2.id === r3.id || r1.id === r3.id);
   let winner = r1;
@@ -554,6 +651,39 @@ export function rollShopPull3(luck = 0, section = null) {
   }
   winner = { ...winner, finalEffect: winner.effect?.amount ? { ...winner.effect, amount: winner.effect.amount * winner.mult } : winner.effect };
   return { reels, winner, jackpot: allMatch, twoMatch };
+}
+
+export function applyShopPull(save, winner, pay) {
+  if (winner && winner.complete) {
+    return {
+      ...save,
+      gold: (save.gold || 0) + (winner.effect?.gold || SHOP_COMPLETE_GOLD),
+      shopDry: 0,
+    };
+  }
+  const goldCost = pay && pay.goldCost != null ? pay.goldCost : shopCardCost(save.shopPulls || 0);
+  const ns = { ...save, shopPulls: (save.shopPulls || 0) + 1 };
+  if (pay && pay.isFree) ns.freeShopSpins = Math.max(0, (save.freeShopSpins || 0) - 1);
+  else if (pay && pay.hasCoin) ns.slotCoins = Math.max(0, (save.slotCoins || 0) - 1);
+  else ns.gold = (save.gold || 0) - goldCost;
+
+  const e = (winner && winner.effect) || {};
+  if (winner && (winner.complete || e.gold)) {
+    ns.gold = (ns.gold || 0) + (e.gold || SHOP_COMPLETE_GOLD);
+  } else if (e.unlockSkill) {
+    ns.unlockedActives = { ...activesMap(save), [e.unlockSkill]: true };
+  } else if (e.unlockWeapon) {
+    ns.unlockedWeapons = [...new Set([...(save.unlockedWeapons || []), e.unlockWeapon])];
+  } else if (e.unlockEvo) {
+    ns.unlockedEvos = [...new Set([...(save.unlockedEvos || []), e.unlockEvo])];
+  } else if (e.unlockCard) {
+    ns.shopCards = [...new Set([...(save.shopCards || []), e.unlockCard])];
+  } else if (e.stat) {
+    ns.shopBonuses = { ...(save.shopBonuses || {}) };
+    ns.shopBonuses[e.stat] = (ns.shopBonuses[e.stat] || 0) + ((winner.finalEffect && winner.finalEffect.amount) || 0);
+  }
+  ns.shopDry = nextShopDry(save.shopDry, winner);
+  return ns;
 }
 
 // ---------- MILESTONE REWARD BAR (account level) ----------
@@ -615,6 +745,12 @@ export const WEAPON_FORK_TEMPLATES = {
     { id: 'widerReach', name: 'Wider Reach', icon: 'projRangeMult', desc: '+55% chain range, but -20% damage — bounces to targets far apart.', apply: (s) => { s.chainRange = (s.chainRange || 200) * 1.55; s.damage = (s.damage || 0) * 0.8; } },
     { id: 'overcharged', name: 'Overcharged', icon: 'overcharge', desc: '+80% damage, but -30% fire rate — a punishing single strike.', apply: (s) => { s.damage = (s.damage || 0) * 1.8; s.fireRate = (s.fireRate || 1) * 0.7; } },
     { id: 'rapidDischargeC', name: 'Rapid Discharge', icon: 'fireRateMult', desc: '+55% fire rate, but -1 chain jump — fires much faster, jumps less far.', apply: (s) => { s.fireRate = (s.fireRate || 1) * 1.55; s.chainCount = Math.max(1, (s.chainCount || 3) - 1); } },
+  ],
+  melee: [
+    { id: 'razorEdge', name: 'Razor Edge', icon: 'damageMult', desc: '+70% damage, +25% crit chance, +15% reach — a lethal razor-sharp executioner blade.', apply: (s) => { s.damage = (s.damage || 88) * 1.70; s.crit = (s.crit || 0.16) + 0.25; s.area = (s.area || 96) * 1.15; } },
+    { id: 'whirlwindTempo', name: 'Whirlwind Tempo', icon: 'fireRateMult', desc: '+65% attack speed, +20% reach, -15% damage — a blinding flurry of rapid slashes.', apply: (s) => { s.fireRate = (s.fireRate || 2.1) * 1.65; s.area = (s.area || 96) * 1.20; s.damage = (s.damage || 88) * 0.85; } },
+    { id: 'grandCleave', name: 'Grand Cleave', icon: 'knockbackWave', desc: '+110% damage, +40% reach, +100% knockback, but -25% attack speed — one colossal cleave.', apply: (s) => { s.damage = (s.damage || 88) * 2.10; s.area = (s.area || 96) * 1.40; s.knockback = (s.knockback || 40) * 2.0; s.fireRate = (s.fireRate || 2.1) * 0.75; } },
+    { id: 'bloodSiphon', name: 'Blood Siphon', icon: 'bloodrush', desc: '+35% damage, and attacks bleed and siphon vitality from wounded foes.', apply: (s) => { s.damage = (s.damage || 88) * 1.35; s.bleedDot = true; s.lifesteal = 0.08; } },
   ],
 };
 
@@ -731,6 +867,7 @@ export const ELEMENTS = [
 export const KILL_FX = {
   projectile:  'pierceKinetic',      // bullets punch through with kinetic exit mist & chunks
   shotgun:     'shotgunObliterate',  // massive V-cone blast tearing torso backward into heavy meat & bone
+  melee:       'bisect',             // camp-rib / blade: body comes apart along the cut
   aoe:         'bisect',             // 5 dynamic slicing executions with arterial fountains
   beam:        'voidImplode',        // singular collapse into void shards & shockwave
   orbit:       'cremation',          // incinerated into drifting cinders & charred marks
@@ -827,6 +964,31 @@ export const STORY_BEATS = [
 // because the global curve in data.js now supplies density that these used to
 // have to add on top.
 export const MAP_STAGES = [
+  // ---- Approach ------------------------------------------------------------
+  // The first thing after the intro film. You are in orbit, the wreck is
+  // visible, and you have two minutes to hold it. No guardian — dying pulls
+  // you inside with nothing, because you still have no home to bank loot in.
+  {
+    id: 'orbit', name: 'Approach', icon: 'ui_rocket', color: '#7cd6ff',
+    desc: 'Empty black. A wrecked ring hanging where the charts said nothing was.',
+    unlock: null,
+    nodes: [
+      {
+        id: 'orbit_find', name: 'Sanctuary',
+        diff: 0, duration: 120, spawnMult: 0.32,
+        enemyMix: ['slime'],
+        rwd: { gold: 650 },
+        unlockGoal: null,
+        forceBaseline: true,
+        startWeapons: ['katana'],
+        noBoss: true,
+        cannotDie: true,
+        campExterior: true,
+        harderAfter: 60,
+        harderMult: 1.75,
+      },
+    ],
+  },
   // ---- The Rain Pool -------------------------------------------------------
   // The onramp, and it exists because the campaign used to open on The Lake,
   // which a fresh 70 HP player with no cards could not get meaningfully into.
@@ -855,12 +1017,7 @@ export const MAP_STAGES = [
       // a clear can ALWAYS afford the cheapest base building (The Well,
       // 600g) on its own, no chest RNG required — that purchase is what
       // fires the camp's first unlock batch (Meta/Skilltree/Talents).
-      { id: 'pond_1', name: 'First Drops',  diff: 0, duration: 250, spawnMult: 0.45, enemyMix: ['slime','sludgeling'], rwd: { gold: 700 }, unlockGoal: null, forceBaseline: true, startWeapons: ['katana'], bossId: 'sludgeWarden' },
-      // Same scripted shape as pond_1, one notch harder — 'briner'/'bogHusk'/
-      // 'theDredger' (data.js) die in 2/4/12 katana hits at this same forced
-      // baseline. Duration bumped 200->420 so bossGateTime lands near 300s
-      // (5 minutes), per Timmy's "5 min sen boss". Gold bumped 240->900 so a
-      // clear can afford a second building purchase on its own.
+      { id: 'pond_1', name: 'First Drops',  diff: 0, duration: 250, spawnMult: 0.45, enemyMix: ['slime','sludgeling'], rwd: { gold: 700 }, unlockGoal: 'orbit_find', forceBaseline: true, startWeapons: ['katana'], bossId: 'sludgeWarden' },
       { id: 'pond_2', name: 'Ripples',      diff: 0, duration: 420, spawnMult: 0.55, enemyMix: ['briner','bogHusk'], rwd: { gold: 900 }, unlockGoal: 'pond_1', forceBaseline: true, startWeapons: ['katana'], bossId: 'theDredger' },
       { id: 'pond_3', name: 'The Overflow', diff: 1, duration: 250, spawnMult: 0.85, enemyMix: ['slime','bat'],   rwd: { gold: 420, sp: 1 },   unlockGoal: 'pond_2' },
     ],
@@ -870,7 +1027,7 @@ export const MAP_STAGES = [
     desc: 'Where it all began. Corrupted slimes and bats swarm the shallows.',
     unlock: null,
     nodes: [
-      { id: 'lake_1', name: 'Shallows',  diff: 1, duration: 210, spawnMult: 0.95, enemyMix: ['slime','bat'],             rwd: { gold: 200 },         unlockGoal: null },
+      { id: 'lake_1', name: 'Shallows',  diff: 1, duration: 210, spawnMult: 0.95, enemyMix: ['slime','bat'],             rwd: { gold: 200 },         unlockGoal: 'pond_3' },
       { id: 'lake_2', name: 'Undertow',  diff: 2, duration: 290, spawnMult: 1.15, enemyMix: ['slime','bat','ghoul'],     rwd: { gold: 450, sp: 1 },  unlockGoal: 'lake_1' },
       { id: 'lake_3', name: 'The Abyss', diff: 3, duration: 370, spawnMult: 1.40, enemyMix: ['bat','ghoul','ranger'],    rwd: { gold: 900, sp: 2 },  unlockGoal: 'lake_2' },
     ],
@@ -880,9 +1037,19 @@ export const MAP_STAGES = [
     desc: 'Forgotten halls where ranged threats lurk behind crumbling pillars.',
     unlock: { metric: 'totalKills', goal: 200, label: '200 kills' },
     nodes: [
-      { id: 'ruins_1', name: 'Outer Hall',    diff: 1, duration: 260, spawnMult: 1.10, enemyMix: ['ghoul','ranger'],          rwd: { gold: 350, sp: 1 }, unlockGoal: null },
+      { id: 'ruins_1', name: 'Outer Hall',    diff: 1, duration: 260, spawnMult: 1.10, enemyMix: ['ghoul','ranger'],          rwd: { gold: 350, sp: 1 }, unlockGoal: 'lake_3' },
       { id: 'ruins_2', name: 'Inner Chamber', diff: 2, duration: 340, spawnMult: 1.30, enemyMix: ['ghoul','ranger','brute'],   rwd: { gold: 700, sp: 2 }, unlockGoal: 'ruins_1' },
       { id: 'ruins_3', name: 'Throne Room',   diff: 3, duration: 430, spawnMult: 1.60, enemyMix: ['ranger','brute','charger'], rwd: { gold: 1400, sp: 4 }, unlockGoal: 'ruins_2' },
+    ],
+  },
+  {
+    id: 'gobekli', name: 'Göbekli Tepe', icon: 'ui_base', color: '#e59866',
+    desc: "Ancient Anatolian megalithic circles. Colossal T-pillars carved with predatory totems beneath cosmic celestial conduits.",
+    unlock: { metric: 'totalKills', goal: 350, label: '350 kills' },
+    nodes: [
+      { id: 'gobekli_1', name: 'Enclosure D (The Vulture Stone)', diff: 1, duration: 285, spawnMult: 1.18, enemyMix: ['ghoul','charger','ranger'], rwd: { gold: 420, sp: 1 }, unlockGoal: 'ruins_3', bossId: 'bossNecromancer' },
+      { id: 'gobekli_2', name: 'The Totemic Gateway',             diff: 2, duration: 375, spawnMult: 1.40, enemyMix: ['ghoul','charger','necron','brute'], rwd: { gold: 850, sp: 2 }, unlockGoal: 'gobekli_1', bossId: 'bossVoidTitan' },
+      { id: 'gobekli_3', name: 'The Primordial Megalith',         diff: 3, duration: 465, spawnMult: 1.70, enemyMix: ['ranger','brute','charger','necron'], rwd: { gold: 1800, sp: 5 }, unlockGoal: 'gobekli_2', bossId: 'bossAnnunaki' },
     ],
   },
   {
@@ -1058,6 +1225,11 @@ export function achMetric(save, k) {
   if (k === 'horusSlain') return save.horusSlain || 0;
   if (k === 'endlessReached') return save.endlessReached || 0;
   if (k === 'mapsCompleted') return MAP_STAGES.filter(s => s.nodes.every(n => (save.mapProgress || {})[n.id])).length;
+  if (k === 'orbitFindCleared') return (save.mapProgress || {}).orbit_find ? 1 : 0;
+  if (k === 'hullSealed') return (save.base?.hull || 0) >= 1 ? 1 : 0;
+  if (k === 'hangarBuilt') return (save.base?.hangar || 0) >= 1 ? 1 : 0;
+  if (k === 'patrolsClaimed') return (save.patrol?.missions || []).filter((m) => m.status === 'claimed').length;
+  if (k === 'codexClaimed') return (save.codex?.claimedDiscoveries || []).length;
   return save[k] || 0;
 }
 

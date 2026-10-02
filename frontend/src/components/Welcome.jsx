@@ -1,26 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { AVATARS, DAILY_REWARDS, accountXpToNext, dailyQuests, CHESTS, rollChest, weeklyQuests, weekIdx, rollSpinWheel, SPIN_WHEEL_SLICES } from '../game/data_ext';
+import React, { useState } from 'react';
+import { AVATARS, DAILY_REWARDS } from '../game/data_ext';
 import { todayIdx, applyReward, campHasClaimable } from '../store';
 import { useAuth } from '../auth';
 import LeaderboardPanel from './LeaderboardPanel';
 import GameIcon from './GameIcon';
 import { ClaimBadge } from './MetaFeatures';
 import { Audio } from '../game/audio';
-import QuestTracker from './QuestTracker';
-import BadgeSlots, { BadgePicker } from './BadgeSlots';
-import ClaimFx, { fireClaimFx } from './ClaimFx';
-import MasteryTrack from './MasteryTrack';
-// The SAME deep-space backdrop the camp uses (CampFrame.jsx). Timmy asked
-// for stars and nebulae behind this screen and for it to go darker; reusing
-// the existing layer rather than writing a second one is what keeps the two
-// screens on one theme - and building a parallel copy of an existing system
-// is this project's most expensive recurring mistake.
+import { fireClaimFx } from './ClaimFx';
 import { CampCosmos } from './CampFrame';
-
-const openChest = (chestId) => {
-  const chest = CHESTS.find(c => c.id === chestId);
-  return chest ? rollChest(chest, 0.5) : [];
-};
+import { SettingsPanel } from './CampPanels';
+import StartVista from './StartVista';
+import { isCampUnlocked } from '../game/campaign';
 
 function AccountWidget({ openLb }) {
   const { user, paid, login, logout, loading } = useAuth();
@@ -55,101 +45,19 @@ function AccountWidget({ openLb }) {
   );
 }
 
-export default function Welcome({ save, setSave, onContinue, onCamp }) {
+export default function Welcome({ save, setSave, onContinue, onCamp, onReset, onReplayIntro }) {
   const [step, setStep] = useState(save.profile.name ? 'home' : 'create');
   const [name, setName] = useState(save.profile.name || '');
   const [avatar, setAvatar] = useState(save.profile.avatar || 'drop');
   const [showLb, setShowLb] = useState(false);
-  const [badgesOpen, setBadgesOpen] = useState(false);
-
-  // Custom avatar photo.
-  //
-  // The image is DOWNSCALED to 128x128 and re-encoded before it is stored, and
-  // that is not a nicety — the save lives in localStorage, which is a ~5MB
-  // budget for the entire profile. A modern phone photo is 3-8MB, and as a
-  // base64 data URL it grows another third. Storing one raw would blow the
-  // quota and every subsequent save would silently fail: the player would lose
-  // their whole run history because they picked a picture.
-  //
-  // 128px square at JPEG 0.82 lands around 6-10KB, which is nothing, and the
-  // avatar is never displayed larger than 80px so nothing is lost visually.
-  const onPickPhoto = (file, ev) => {
-    if (!file) return;
-    if (!/^image\//.test(file.type)) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        const S = 128;
-        const c = document.createElement('canvas');
-        c.width = S; c.height = S;
-        const ctx = c.getContext('2d');
-        // Cover-crop to a square: scale by the LARGER ratio and centre, so a
-        // portrait photo is cropped rather than squashed.
-        const scale = Math.max(S / img.width, S / img.height);
-        const w = img.width * scale, h = img.height * scale;
-        ctx.drawImage(img, (S - w) / 2, (S - h) / 2, w, h);
-        let url;
-        try { url = c.toDataURL('image/jpeg', 0.82); } catch (e) { return; }
-        // Refuse anything still unreasonably large rather than risk the quota.
-        if (url.length > 120000) return;
-        setSave(cur => ({ ...cur, profile: { ...cur.profile, photo: url } }));
-        Audio.click();
-      };
-      img.src = reader.result;
-    };
-    reader.readAsDataURL(file);
-    // Let the same file be picked again after a change of mind.
-    if (ev && ev.target) ev.target.value = '';
-  };
-  const [spinning, setSpinning] = useState(false);
-  const [spinResult, setSpinResult] = useState(null);
-  const [spinAngle, setSpinAngle] = useState(0);
-  const [winIdx, setWinIdx] = useState(null);
-
-  const today = todayIdx();
-  // Daily/weekly quest progress is keyed by quest id and never expired —
-  // since the quest pool is small (5 of 8 daily, 3 of 5 weekly), the same
-  // id reliably reappears on a later day/week and, without this reset,
-  // would show up permanently "already claimed" from the first time it was
-  // ever completed. Reset completed/claimed the moment the day/week index
-  // actually changes (checked once, not on every render).
-  useEffect(() => {
-    const day = todayIdx(); const wk = weekIdx();
-    let changed = false;
-    const ns = { ...save };
-    if (save.quests.day !== day) { ns.quests = { day, completed: {}, claimed: {} }; changed = true; }
-    if (save.weeklyQuests.week !== wk) { ns.weeklyQuests = { week: wk, completed: {}, claimed: {} }; changed = true; }
-    if (changed) setSave(ns);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  const canClaim = save.daily.lastClaim !== today;
-  const streakDay = (canClaim ? (save.daily.streak || 0) % 7 : ((save.daily.streak || 1) - 1) % 7) + 1;
-  const claimableReward = DAILY_REWARDS[(streakDay - 1) % 7];
-  // Aggregate across every claimable surface inside Camp (Codex, Achievements,
-  // Milestones, Season Pass, Patrol, the Path, Campaign quests) — this is the
-  // one place a player decides whether to even open Camp, so it needs to know
-  // if there's a reason to.
-  const campClaimable = campHasClaimable(save);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [creditsOpen, setCreditsOpen] = useState(false);
 
   const create = () => {
     if (!name.trim()) return;
     const ns = { ...save, profile: { ...save.profile, name: name.trim(), avatar } };
     setSave(ns);
     setStep('home');
-  };
-
-  const claimDaily = (anchor) => {
-    if (!canClaim) return;
-    const ns = {
-      ...save,
-      daily: { ...save.daily, lastClaim: today, streak: (save.daily.streak || 0) + 1 },
-    };
-    applyReward(ns, claimableReward, openChest);
-    setSave(ns);
-    // Show the payout. No `flyTo` here on purpose — Timmy: "inte på start
-    // skärmen dock". The chips rise and fade instead of homing on a counter.
-    fireClaimFx(anchor, claimableReward);
   };
 
   if (step === 'create') {
@@ -188,375 +96,74 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
     );
   }
 
-  // home/welcome screen with profile, daily, quests
-  const xpNext = accountXpToNext(save.profile.level);
-  const xpPct = (save.profile.xp / xpNext) * 100;
-  const quests = dailyQuests(today);
-  const week = weekIdx();
-  const wquests = weeklyQuests(week);
-  const canSpin = save.dailySpin?.day !== today;
-  const SLICE_N = SPIN_WHEEL_SLICES.length;
-  const SLICE_DEG = 360 / SLICE_N;
+  const today = todayIdx();
+  const canClaim = save.daily.lastClaim !== today;
+  const streakDay = (canClaim ? (save.daily.streak || 0) % 7 : ((save.daily.streak || 1) - 1) % 7) + 1;
+  const claimableReward = DAILY_REWARDS[(streakDay - 1) % 7];
+  const campOpen = isCampUnlocked(save);
+  const campClaimable = campOpen && campHasClaimable(save);
 
-  // The prize used to be decided independently of where the wheel stopped,
-  // so the pointer routinely came to rest on a slice that was not the one
-  // awarded. Roll first, then drive the rotation to land that exact slice
-  // under the pointer.
-  const doSpin = (anchor) => {
-    if (!canSpin || spinning) return;
-    const { index, slice } = rollSpinWheel();
-    // Slice i is centred at (i + 0.5) * SLICE_DEG clockwise from the top, so
-    // bringing it under the top pointer means rotating by the negative of
-    // that. Always add whole turns on top of the current angle so the wheel
-    // only ever accelerates forward, never snaps backwards.
-    const target = -((index + 0.5) * SLICE_DEG);
-    const turns = 5 + Math.floor(Math.random() * 2);
-    const next = spinAngle + turns * 360 + (((target - spinAngle) % 360) + 360) % 360;
-    setSpinAngle(next);
-    setSpinResult(null);
-    setSpinning(true);
-    setWinIdx(index);
-
-    // Award only once the wheel has actually stopped — matches the animation
-    // duration in .spin-wheel-face.
-    setTimeout(() => {
-      const ns = { ...save, dailySpin: { day: today, spun: true } };
-      if (slice.type === 'jackpot') { ns.gold = (ns.gold || 0) + 1500; ns.gems = (ns.gems || 0) + 10; }
-      else if (slice.type === 'gold') ns.gold = (ns.gold || 0) + slice.amount;
-      else if (slice.type === 'gems') ns.gems = (ns.gems || 0) + slice.amount;
-      else if (slice.type === 'slotCoins') ns.slotCoins = (ns.slotCoins || 0) + slice.amount;
-      else if (slice.type === 'petFood') ns.petFood = (ns.petFood || 0) + slice.amount;
-      else if (slice.type === 'sp') ns.sp = (ns.sp || 0) + slice.amount;
-      setSave(ns);
-      setSpinResult(slice);
-      setSpinning(false);
-      // The wheel is a claim like any other — same burst, so a spin payout and
-      // a daily payout speak the same language. Built from the slice because a
-      // slice is not a reward bag; jackpot pays two currencies at once.
-      const bag = slice.type === 'jackpot'
-        ? { gold: 1500, gems: 10 }
-        : { [slice.type]: slice.amount };
-      fireClaimFx(anchor, bag);
-    }, 3400);
+  const claimDaily = (anchor) => {
+    if (!canClaim) return;
+    const ns = {
+      ...save,
+      daily: { ...save.daily, lastClaim: today, streak: (save.daily.streak || 0) + 1 },
+    };
+    applyReward(ns, claimableReward);
+    setSave(ns);
+    fireClaimFx(anchor, claimableReward);
   };
 
   return (
-    <div className="app-shell welcome-shell-space" style={{ alignItems: 'flex-start' }}>
+    <div className="app-shell welcome-shell-space" data-testid="welcome-home">
       <CampCosmos />
+      <StartVista />
       <AccountWidget openLb={() => setShowLb(true)} />
-      <div className="welcome" data-testid="welcome-home">
-        <div className="welcome-header">
-          <div className="profile-card" data-testid="profile-card">
-            {/* Your own photo, or the chosen glyph. The frame is a real frame
-                now — see .profile-avatar: the flat square with a hard black
-                border read as a placeholder box rather than as a portrait. */}
-            <label className="profile-avatar" title="Tap to use your own picture">
-              {save.profile.photo
-                ? <img className="profile-avatar-img" src={save.profile.photo} alt="" />
-                : <span className="profile-avatar-glyph"><GameIcon name={AVATARS.find(a => a.id === save.profile.avatar)?.icon || 'ui_waterdrop'} size={26} /></span>}
-              <span className="profile-avatar-ring" aria-hidden />
-              <span className="profile-avatar-edit" aria-hidden><GameIcon name="ui_camera" size={13} /></span>
-              <input
-                type="file"
-                accept="image/*"
-                className="profile-avatar-input"
-                data-testid="avatar-upload"
-                onChange={(e) => onPickPhoto(e.target.files && e.target.files[0], e)}
-              />
-            </label>
-            <div style={{ flex: 1 }}>
-              <div className="profile-name">{save.profile.name || 'Wanderer'}</div>
-              <div className="profile-level">RANK {save.profile.level}</div>
-              <div className="profile-xp">
-                <div className="profile-xp-fill" style={{ width: xpPct + '%' }} />
-              </div>
-              <div className="profile-xp-text">{save.profile.xp} / {xpNext} XP</div>
-            </div>
-            <div className="profile-curr">
-              <div><span style={{ color: 'var(--accent-2)' }}>★</span> {save.gold}</div>
-              <div><span style={{ color: 'var(--rune)' }}>◆</span> {save.sp} SP</div>
-            </div>
-            {/* The badges you chose to display, right on the profile card —
-                this is the screen a player lands on, so it is the screen the
-                trophy case has to be visible from. */}
-            <BadgeSlots save={save} size={24} onOpen={() => setBadgesOpen(true)} />
-          </div>
-        </div>
 
-        {/* Master Milestone Reward Track — The new HERO section */}
-        <div className="welcome-hero-panel">
-          <MasteryTrack save={save} setSave={setSave} />
-        </div>
+      {canClaim && (
+        <button
+          className="start-daily"
+          data-testid="start-daily"
+          onClick={(e) => { Audio.click(); claimDaily(e.currentTarget); }}
+        >
+          <GameIcon name="ui_calendar" size={14} /> DAILY · DAY {streakDay}
+        </button>
+      )}
 
-        {/* Guidance follows the player out of the camp. The home screen is
-            exactly where "what was I doing?" gets asked, so the same two open
-            steps are here, tapping through to the camp rather than nowhere. */}
-        <QuestTracker save={save} onGo={() => onCamp && onCamp()} />
-
-        <div className="welcome-grid">
-          {/* Daily Reward */}
-          <div className="panel panel-daily">
-            <div className="panel-title">
-              <span className="panel-title-mark" aria-hidden><GameIcon name="ui_calendar" size={15} /></span>
-              DAILY REWARD
-              <span className="panel-title-rule" aria-hidden />
-            </div>
-            {/* SEVEN days, one row. The table in data_ext.js holds 14 entries,
-                but `streakDay` and `claimableReward` above are both `% 7` — so
-                D8-D14 rendered as cells that could never become `current` and
-                could never be claimed. Half the track was decoration.
-                Timmy's reference for this screen ("här e mer färdig första
-                skärm") shows a single row of DAG 1-7, so seven is the intended
-                length and the 14-entry table is what drifted. Sliced here rather
-                than cut from the data, because no consumer of entries 8-14 has
-                been traced yet.
-                This also fixes the layout complaint: 14 cells forced a 4-column
-                grid on a phone, wrapping into four rows with a ragged two-cell
-                tail — the "ihoptryckt" he reported. */}
-            {/* Day 7 is the week's PAYOFF and is built as a taller hero cell
-                rather than a seventh identical tile — a reward track whose last
-                step looks exactly like its first gives the player no reason to
-                come back on day 6. Matches Timmy's reference, where DAG 7 sits
-                in its own lit frame with arrows pointing at it. */}
-            <div className="daily-row">
-              {DAILY_REWARDS.slice(0, 7).map((r, i) => {
-                const claimed = i + 1 < streakDay;
-                const current = i + 1 === streakDay && canClaim;
-                const finale = i === 6;
-                return (
-                  <div
-                    key={r.day}
-                    className={`daily-cell${claimed ? ' claimed' : ''}${current ? ' current' : ''}${finale ? ' finale' : ''}`}
-                  >
-                    <span className="daily-cell-face" aria-hidden />
-                    <div className="daily-day">D{r.day}</div>
-                    <div className="daily-icon"><GameIcon name={r.icon} size={finale ? 32 : 26} /></div>
-                    <div className="daily-label">{r.label}</div>
-                    {claimed && <span className="daily-tick" aria-hidden>✓</span>}
-                    {finale && <span className="daily-finale-arrow daily-finale-arrow-l" aria-hidden />}
-                    {finale && <span className="daily-finale-arrow daily-finale-arrow-r" aria-hidden />}
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* How far this week has run, ending at a lock that opens on day 7.
-                The row alone only ever says "today"; this says "how close". */}
-            <div className="daily-track" aria-hidden>
-              <div className="daily-track-bar">
-                <div
-                  className="daily-track-fill"
-                  style={{ width: Math.max(0, Math.min(100, ((streakDay - 1) / 6) * 100)) + '%' }}
-                />
-              </div>
-              <span className={`daily-track-lock${streakDay >= 7 ? ' open' : ''}`}>
-                <GameIcon name="ui_lock" size={13} />
-              </span>
-            </div>
-
-            <button
-              onClick={(e) => claimDaily(e.currentTarget)}
-              disabled={!canClaim}
-              data-testid="claim-daily"
-              className="daily-claim-btn"
-            >
-              {canClaim ? `▸ CLAIM DAY ${streakDay}` : '✓ Already Claimed'}
-            </button>
-          </div>
-
-          {/* Daily Quests */}
-          <div className="panel">
-            <div className="panel-title">
-              <span className="panel-title-mark" aria-hidden><GameIcon name="ui_clock" size={15} /></span>
-              DAILY QUESTS
-              <span className="panel-title-rule" aria-hidden />
-            </div>
-            <div className="quest-list">
-              {quests.map(q => {
-                const prog = save.quests.completed[q.id] || 0;
-                const claimed = save.quests.claimed[q.id];
-                const done = prog >= q.goal;
-                return (
-                  <div key={q.id} className={`quest-row ${done ? 'done' : ''}`} data-testid={`quest-${q.id}`}>
-                    <div className="quest-icon"><GameIcon name={q.icon} size={22} /></div>
-                    <div className="quest-body">
-                      <div className="quest-name">{q.name}</div>
-                      <div className="quest-desc">{q.desc}</div>
-                      <div className="quest-bar">
-                        <div className="quest-bar-fill" style={{ width: Math.min(100, (prog / q.goal) * 100) + '%' }} />
-                      </div>
-                      <div className="quest-prog">{Math.min(prog, q.goal)} / {q.goal}</div>
-                    </div>
-                    <div className="quest-reward">
-                      {q.reward.gold && <div>★ {q.reward.gold}</div>}
-                      {q.reward.sp && <div>◆ {q.reward.sp} SP</div>}
-                      {q.reward.gems && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><GameIcon name="cur_gems" size={12} /> {q.reward.gems}</div>}
-                      {q.reward.slotCoins && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><GameIcon name="cur_slot" size={12} /> {q.reward.slotCoins}</div>}
-                      {q.reward.petFood && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><GameIcon name="petFood" size={12} /> {q.reward.petFood}</div>}
-                      {done && !claimed && (
-            <button
-              onClick={(e) => {
-                const anchor = e.currentTarget;
-                const ns = {
-                  ...save,
-                  quests: {
-                    ...save.quests,
-                    claimed: { ...save.quests.claimed, [q.id]: true },
-                  },
-                };
-                applyReward(ns, q.reward, openChest);
-                setSave(ns);
-                fireClaimFx(anchor, q.reward);
-              }}
-              data-testid={`claim-${q.id}`}
-              className="claim-burst"
-              style={{ padding: '4px 10px', fontSize: 11, marginTop: 4, background: 'linear-gradient(180deg,#1a2b1a,#0e1a0e)', borderColor: '#4dffd4', color: '#4dffd4' }}
-            >
-              ★ CLAIM
-            </button>
-                      )}
-                      {claimed && <div style={{ color: 'var(--accent-2)' }}>✓</div>}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Weekly Quests */}
-          <div className="panel">
-            <div className="panel-title">
-              <span className="panel-title-mark" aria-hidden><GameIcon name="ui_medal" size={15} /></span>
-              WEEKLY QUESTS
-              <span className="panel-title-rule" aria-hidden />
-            </div>
-            <div className="quest-list">
-              {wquests.map(q => {
-                const prog = save.weeklyQuests.completed[q.id] || 0;
-                const claimed = save.weeklyQuests.claimed[q.id];
-                const done = prog >= q.goal;
-                return (
-                  <div key={q.id} className={`quest-row ${done ? 'done' : ''}`} data-testid={`wquest-${q.id}`}>
-                    <div className="quest-icon"><GameIcon name={q.icon} size={22} /></div>
-                    <div className="quest-body">
-                      <div className="quest-name">{q.name}</div>
-                      <div className="quest-desc">{q.desc}</div>
-                      <div className="quest-bar">
-                        <div className="quest-bar-fill" style={{ width: Math.min(100, (prog / q.goal) * 100) + '%' }} />
-                      </div>
-                      <div className="quest-prog">{Math.min(prog, q.goal)} / {q.goal}</div>
-                    </div>
-                    <div className="quest-reward">
-                      {q.reward.gold && <div>★ {q.reward.gold}</div>}
-                      {q.reward.gems && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><GameIcon name="cur_gems" size={12} /> {q.reward.gems}</div>}
-                      {q.reward.slotCoins && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><GameIcon name="cur_slot" size={12} /> {q.reward.slotCoins}</div>}
-                      {q.reward.talentPoints && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><GameIcon name="ui_leaf" size={12} /> {q.reward.talentPoints} TP</div>}
-                      {q.reward.petFood && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><GameIcon name="petFood" size={12} /> {q.reward.petFood}</div>}
-                      {done && !claimed && (
-                        <button
-                          onClick={(e) => {
-                            const anchor = e.currentTarget;
-                            const ns = { ...save, weeklyQuests: { ...save.weeklyQuests, claimed: { ...save.weeklyQuests.claimed, [q.id]: true } } };
-                            applyReward(ns, q.reward, openChest);
-                            setSave(ns);
-                            fireClaimFx(anchor, q.reward);
-                          }}
-                          data-testid={`wclaim-${q.id}`}
-                          className="claim-burst"
-                          style={{ padding: '4px 10px', fontSize: 11, marginTop: 4, background: 'linear-gradient(180deg,#1a2b1a,#0e1a0e)', borderColor: '#4dffd4', color: '#4dffd4' }}
-                        >★ CLAIM</button>
-                      )}
-                      {claimed && <div style={{ color: 'var(--accent-2)' }}>✓</div>}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Daily Lucky Spin Wheel */}
-          <div className="panel">
-            <div className="panel-title">
-              <span className="panel-title-mark" aria-hidden><GameIcon name="ui_token" size={15} /></span>
-              DAILY SPIN
-              <span className="panel-title-rule" aria-hidden />
-            </div>
-            <div className="spin-stage" data-testid="spin-wheel">
-              <div className="spin-pointer" aria-hidden />
-              <div className="spin-wheel-rim">
-                {/* rim lamps */}
-                {Array.from({ length: SLICE_N * 2 }).map((_, i) => (
-                  <span key={i} className={`spin-lamp ${spinning ? 'lit' : ''}`}
-                        style={{ transform: `rotate(${(i / (SLICE_N * 2)) * 360}deg) translateY(-92px)`, animationDelay: `${i * 0.06}s` }} />
-                ))}
-                <div
-                  className="spin-wheel-face"
-                  style={{
-                    transform: `rotate(${spinAngle}deg)`,
-                    background: `conic-gradient(${SPIN_WHEEL_SLICES.map((s, i) => {
-                      const from = i * SLICE_DEG, to = (i + 1) * SLICE_DEG;
-                      const c = s.type === 'jackpot' ? '#4a2c00'
-                        : s.type === 'gems' ? '#0e3340'
-                        : s.type === 'gold' ? '#3a2a08'
-                        : s.type === 'sp' ? '#241a3a'
-                        : i % 2 ? '#1a1228' : '#120c1e';
-                      return `${c} ${from}deg ${to}deg`;
-                    }).join(', ')})`,
-                  }}
-                >
-                  {/* spokes */}
-                  {SPIN_WHEEL_SLICES.map((s, i) => (
-                    <span key={`sp-${s.id}`} className="spin-spoke" style={{ transform: `rotate(${i * SLICE_DEG}deg)` }} />
-                  ))}
-                  {/* slice contents, centred in each wedge and kept upright */}
-                  {SPIN_WHEEL_SLICES.map((s, i) => (
-                    <div
-                      key={s.id}
-                      className={`spin-slice ${winIdx === i && !spinning && spinResult ? 'won' : ''} ${s.type === 'jackpot' ? 'jackpot' : ''}`}
-                      style={{ transform: `rotate(${(i + 0.5) * SLICE_DEG}deg)` }}
-                    >
-                      <span className="spin-slice-inner" style={{ transform: `rotate(${-(i + 0.5) * SLICE_DEG}deg)` }}>
-                        <GameIcon name={s.type === 'jackpot' ? 'jackpot' : s.type} size={22} />
-                        <span className="spin-slice-amt">
-                          {s.type === 'jackpot' ? 'JACKPOT' : s.amount}
-                        </span>
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                <div className="spin-wheel-hub"><GameIcon name="ui_token" size={20} /></div>
-              </div>
-            </div>
-            <button
-              onClick={(e) => doSpin(e.currentTarget)}
-              disabled={!canSpin || spinning}
-              data-testid="spin-btn"
-              className="claim-burst"
-              style={{ width: '100%', marginTop: 8 }}
-            >
-              {spinning ? 'Spinning…' : canSpin ? '▸ SPIN THE WHEEL' : '✓ Spun Today'}
-            </button>
-            {spinResult && !spinning && (
-              <div className={`spin-result ${spinResult.type === 'jackpot' ? 'jackpot' : ''}`} data-testid="spin-result">
-                <span className="spin-result-icon">
-                  <GameIcon name={spinResult.type === 'jackpot' ? 'jackpot' : spinResult.type} size={30} />
-                </span>
-                <span className="spin-result-label">
-                  {spinResult.type === 'jackpot' ? 'JACKPOT — 1500★ + 10 Gems' : spinResult.label}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-
+      <div className="welcome start-menu">
+        <div className="start-title">WATERDROP SURVIVOR</div>
+        <div className="start-kicker">{save.profile.name || 'Wanderer'}</div>
         <div className="welcome-actions">
-          <button onClick={onCamp} data-testid="welcome-camp" style={{ position: 'relative' }}><GameIcon name="ui_base" size={15} /> The Camp {campClaimable && <ClaimBadge />}</button>
-          <button onClick={onContinue} data-testid="welcome-fight"
-            style={{ borderColor: '#ff7a1a', boxShadow: 'var(--pixel-edge), 0 6px 0 #000, 0 0 28px #ff7a1a66' }}>
-            ▸ ENTER THE LAKE
+          <button
+            onClick={() => { Audio.menuOpen?.(); onContinue(); }}
+            data-testid="welcome-fight"
+          >
+            ▸ START GAME
+          </button>
+          <button
+            onClick={() => { Audio.click(); setSettingsOpen(true); }}
+            data-testid="welcome-options"
+          >
+            <GameIcon name="ui_cog" size={15} /> OPTIONS
+          </button>
+          <button
+            onClick={() => { Audio.click(); setCreditsOpen(true); }}
+            data-testid="welcome-credits"
+          >
+            CREDITS
+          </button>
+          <button
+            onClick={() => { if (!campOpen) return; Audio.click(); onCamp(); }}
+            disabled={!campOpen}
+            data-testid="welcome-camp"
+            title={campOpen ? 'Enter the wreck' : 'Hold the wreck once to open the camp'}
+          >
+            <GameIcon name={campOpen ? 'ui_base' : 'ui_lock'} size={15} /> GO TO CAMP
+            {campClaimable && <ClaimBadge />}
           </button>
         </div>
       </div>
+
       {showLb && (
         <div className="modal-overlay" onClick={() => setShowLb(false)} data-testid="lb-overlay">
           <div className="lb-modal" onClick={(e) => e.stopPropagation()}>
@@ -565,10 +172,31 @@ export default function Welcome({ save, setSave, onContinue, onCamp }) {
           </div>
         </div>
       )}
-      {badgesOpen && <BadgePicker save={save} setSave={setSave} onClose={() => setBadgesOpen(false)} />}
-      {/* Mounted last so the burst layer sits above every panel and modal on
-          this screen. It renders null until something is actually claimed. */}
-      <ClaimFx />
+      {settingsOpen && (
+        <SettingsPanel
+          save={save}
+          setSave={setSave}
+          onClose={() => setSettingsOpen(false)}
+          onReset={onReset}
+          onReplayIntro={onReplayIntro}
+        />
+      )}
+      {creditsOpen && (
+        <div className="modal-overlay" data-testid="credits-overlay" onClick={() => setCreditsOpen(false)}>
+          <div className="forge-panel settings-panel" style={{ maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
+            <div className="forge-header">
+              <div className="forge-title">CREDITS</div>
+              <button onClick={() => setCreditsOpen(false)} style={{ padding: '6px 12px', fontSize: 12 }}>✕</button>
+            </div>
+            <div className="start-credits-body">
+              <p>WATERDROP SURVIVOR</p>
+              <p>A lake. A wreck. A chip that wants a socket.</p>
+              <p>Made by Timmy. Hand-built sprites, no stock packs.</p>
+              <p>A.I.D.A. watches. The Annunaki left the door open.</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

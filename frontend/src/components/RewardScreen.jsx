@@ -19,7 +19,7 @@ import GameIcon from './GameIcon';
 
 const NAMES = {
   gold: 'Gold', sp: 'SP', gems: 'Gems', slotCoins: 'Slot Coins',
-  talentPoints: 'Talent Points', petFood: 'Pet Food', gearParts: 'Gear Parts',
+  talentPoints: 'Talent Points', comboPoints: 'Combo Points', petFood: 'Pet Food', gearParts: 'Gear Parts',
   flux: 'Flux', cores: 'Cores', gachaTokens: 'Gacha Tokens',
 };
 
@@ -67,7 +67,7 @@ export default function RewardScreen({ entries, onClose }) {
                     <div className="reward-card-items">
                       {e.items.map((it, j) => (
                         <span key={j} className="reward-item" title={NAMES[it.key] || it.key} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                          <b style={{ display: 'inline-flex' }}><GameIcon name={it.icon} size={16} /></b> {it.amount.toLocaleString('sv-SE')}
+                          <b style={{ display: 'inline-flex' }}><GameIcon name={it.icon} size={16} /></b> {it.amount.toLocaleString('en-US')}
                         </span>
                       ))}
                     </div>

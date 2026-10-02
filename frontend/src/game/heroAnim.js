@@ -254,13 +254,13 @@ export class HeroAnim {
     // stopping one pancakes. Signed so the renderer can do both from one value.
     const spd = this.speed;
     const accelMag = Math.hypot(ax, ay);
-    const stretchTarget = spd * 0.16 - clamp(accelMag * 0.012, 0, 0.22);
+    const stretchTarget = spd * 0.22 - clamp(accelMag * 0.014, 0, 0.26);
     this.stretch = damp(this.stretch, stretchTarget, 10, dt);
 
     // Surface ripple. Frequency rises with speed so a sprint shimmers and a
     // standstill barely moves.
-    this.jigglePh += dt * (7 + spd * 16);
-    const jTarget = 0.35 + spd * 0.9 + Math.abs(this.wobVX) * 0.5 + Math.abs(this.wobVY) * 0.5;
+    this.jigglePh += dt * (7 + spd * 18);
+    const jTarget = 0.42 + spd * 1.05 + Math.abs(this.wobVX) * 0.55 + Math.abs(this.wobVY) * 0.55;
     this.jiggle = damp(this.jiggle, jTarget, 8, dt);
 
     // The idle settle: stand still and he gradually relaxes downward, the way
@@ -290,7 +290,7 @@ export class HeroAnim {
       opposition = clamp(-dot, 0, 1) * Math.min(momLen, 1) * mlen;
     }
 
-    if (opposition > 0.55 && this.slide < 0.25) {
+    if (opposition > 0.48 && this.slide < 0.25) {
       // Skid starts. Direction is the OLD momentum — he keeps travelling the
       // way he was going while his body has already turned to the new heading.
       this.slide = 1;

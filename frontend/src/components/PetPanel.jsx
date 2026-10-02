@@ -3,6 +3,7 @@ import { Audio } from '../game/audio';
 import { INCUBATOR_MS, incubatorRemaining, incubatorSpeedCost } from '../store';
 import { incubatorSlots, incubatorSpeedMult } from '../game/base';
 import GameIcon from './GameIcon';
+import { fireClaimFx, CAMP_CLAIM_FLY } from './ClaimFx';
 
 // ─── Pet Definitions ─────────────────────────────────────────────────────────
 export const PET_TYPES = [
@@ -105,6 +106,12 @@ export default function PetPanel({ save, setSave, onClose, onOpenTcg }) {
   // minute timers, and a faster tick would just re-render the panel for
   // nothing.
   const [now, setNow] = useState(Date.now());
+  const [gainLine, setGainLine] = useState('');
+  const showGain = (text, el, bag) => {
+    setGainLine(text);
+    setTimeout(() => setGainLine((cur) => (cur === text ? '' : cur)), 1100);
+    if (el && bag) fireClaimFx(el, bag, { flyTo: CAMP_CLAIM_FLY });
+  };
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
@@ -148,8 +155,12 @@ export default function PetPanel({ save, setSave, onClose, onOpenTcg }) {
     const readyAt = Date.now() + BREED_COOLDOWN_MS;
     const updPets = pets.map(p => (p.id === a.id || p.id === b.id) ? { ...p, breedReadyAt: readyAt } : p);
     const newEgg = { id: Date.now() + '_' + Math.random().toString(36).slice(2), type: a.type, rarity: resultRarity };
-    setSave({ ...save, gems: gems - cost, pets: updPets, petEggs: [...eggs, newEgg] });
+    setSave(cur => {
+      if ((cur.gems || 0) < cost) return cur;
+      return { ...cur, gems: (cur.gems || 0) - cost, pets: updPets, petEggs: [...(cur.petEggs || []), newEgg] };
+    });
     setBreedPair([]);
+    showGain(`${resultRarity} egg`, null, null);
     Audio.levelUp(); Audio.claimPing();
   };
 
@@ -170,11 +181,12 @@ export default function PetPanel({ save, setSave, onClose, onOpenTcg }) {
       eggId: egg.id, rarity: egg.rarity, type: egg.type,
       startMs: Date.now(), durMs, spentMs: 0, ready: false,
     };
-    setSave({
-      ...save,
-      petEggs: eggs.filter(e => e.id !== egg.id),
-      incubator: { ...save.incubator, slots: [...incSlots, slot] },
-    });
+    setSave(cur => ({
+      ...cur,
+      petEggs: (cur.petEggs || []).filter(e => e.id !== egg.id),
+      incubator: { ...(cur.incubator || {}), slots: [...((cur.incubator && cur.incubator.slots) || []), slot] },
+    }));
+    showGain('In the incubator');
     Audio.click();
   };
 
@@ -182,18 +194,22 @@ export default function PetPanel({ save, setSave, onClose, onOpenTcg }) {
     const cost = incubatorSpeedCost(slot, now);
     if (kind === 'gems' && (save.gems || 0) < cost.gems) return;
     if (kind === 'gold' && (save.gold || 0) < cost.gold) return;
-    const ns = { ...save };
-    if (kind === 'gems') ns.gems = (save.gems || 0) - cost.gems;
-    else ns.gold = (save.gold || 0) - cost.gold;
-    // Buying time is recorded as spentMs rather than by rewriting startMs, so
-    // a partial speed-up and simply waiting are the same thing to the timer.
-    ns.incubator = {
-      ...save.incubator,
-      slots: incSlots.map(s2 => s2.eggId === slot.eggId
-        ? { ...s2, spentMs: (s2.spentMs || 0) + incubatorRemaining(s2, now), ready: true }
-        : s2),
-    };
-    setSave(ns);
+    setSave(cur => {
+      if (kind === 'gems' && (cur.gems || 0) < cost.gems) return cur;
+      if (kind === 'gold' && (cur.gold || 0) < cost.gold) return cur;
+      const ns = { ...cur };
+      if (kind === 'gems') ns.gems = (cur.gems || 0) - cost.gems;
+      else ns.gold = (cur.gold || 0) - cost.gold;
+      const slots = (cur.incubator && cur.incubator.slots) || [];
+      ns.incubator = {
+        ...(cur.incubator || {}),
+        slots: slots.map(s2 => s2.eggId === slot.eggId
+          ? { ...s2, spentMs: (s2.spentMs || 0) + incubatorRemaining(s2, now), ready: true }
+          : s2),
+      };
+      return ns;
+    });
+    showGain('Ready to crack');
     Audio.claimPing();
   };
 
@@ -220,11 +236,15 @@ export default function PetPanel({ save, setSave, onClose, onOpenTcg }) {
       stage: 'Newborn', active: pets.length === 0,
       name: `${petDef.name} (${slot.rarity})`,
     };
-    setSave({
-      ...save,
-      pets: [...pets, newPet],
-      incubator: { ...save.incubator, slots: incSlots.filter(s2 => s2.eggId !== slot.eggId) },
-    });
+    setSave(cur => ({
+      ...cur,
+      pets: [...(cur.pets || []), newPet],
+      incubator: {
+        ...(cur.incubator || {}),
+        slots: ((cur.incubator && cur.incubator.slots) || []).filter(s2 => s2.eggId !== slot.eggId),
+      },
+    }));
+    showGain(`${newPet.name} hatched`);
     Audio.levelUp(); Audio.claimPing();
   };
 
@@ -243,15 +263,24 @@ export default function PetPanel({ save, setSave, onClose, onOpenTcg }) {
       Audio.claimPing();
     }
     const stage = getStage(newLevel);
-    const updPets = pets.map(p => p.id === pet.id ? { ...p, xp: newXp, level: newLevel, stage: stage.name } : p);
-    setSave({ ...save, pets: updPets, petFood: petFood - 1 });
+    setSave(cur => {
+      if ((cur.petFood || 0) <= 0) return cur;
+      return {
+        ...cur,
+        pets: (cur.pets || []).map(p => p.id === pet.id ? { ...p, xp: newXp, level: newLevel, stage: stage.name } : p),
+        petFood: (cur.petFood || 0) - 1,
+      };
+    });
+    showGain(newLevel > pet.level ? `Level ${newLevel} · +${xpGain} XP` : `+${xpGain} XP`);
     Audio.click();
   };
 
   // ----- Toggle active -----
   const toggleActive = (pet) => {
-    const updPets = pets.map(p => ({ ...p, active: p.id === pet.id ? !p.active : false }));
-    setSave({ ...save, pets: updPets });
+    setSave(cur => ({
+      ...cur,
+      pets: (cur.pets || []).map(p => ({ ...p, active: p.id === pet.id ? !p.active : false })),
+    }));
     Audio.click();
   };
 
@@ -262,21 +291,30 @@ export default function PetPanel({ save, setSave, onClose, onOpenTcg }) {
     const cost = def.eggCosts[rarity];
     if (gems < cost) return;
     const newEgg = { id: Date.now() + '', type, rarity };
-    setSave({ ...save, gems: gems - cost, petEggs: [...eggs, newEgg] });
+    setSave(cur => {
+      if ((cur.gems || 0) < cost) return cur;
+      return { ...cur, gems: (cur.gems || 0) - cost, petEggs: [...(cur.petEggs || []), newEgg] };
+    });
+    showGain(`${rarity} ${def.name} egg`);
     Audio.click();
   };
 
   // ----- Merge eggs -----
   const doMerge = (rarity, type) => {
     if (!canMergeEggs(eggs.filter(e => e.type === type), rarity)) return;
-    setSave({ ...save, petEggs: mergeEggs(eggs, rarity, type) });
+    setSave(cur => ({ ...cur, petEggs: mergeEggs(cur.petEggs || [], rarity, type) }));
+    showGain('Eggs merged');
     Audio.levelUp();
   };
 
   // ----- Buy pet food -----
   const buyFood = () => {
     if (gems < 50) return;
-    setSave({ ...save, gems: gems - 50, petFood: petFood + 5 });
+    setSave(cur => {
+      if ((cur.gems || 0) < 50) return cur;
+      return { ...cur, gems: (cur.gems || 0) - 50, petFood: (cur.petFood || 0) + 5 };
+    });
+    showGain('+5 pet food');
     Audio.click();
   };
 
@@ -296,7 +334,8 @@ export default function PetPanel({ save, setSave, onClose, onOpenTcg }) {
             <span style={{ color:'#4dffd4', display:'flex', alignItems:'center', gap:4 }}><GameIcon name="cur_gems" size={14} /> {gems}</span>
             <span style={{ color:'#ff9955', display:'flex', alignItems:'center', gap:4 }}><GameIcon name="petFood" size={14} /> {petFood}</span>
           </div>
-          <button onClick={onClose} style={{ padding:'6px 12px', fontSize:12 }}>✕</button>
+          <button onClick={onClose} style={{ padding:'6px 12px', fontSize:12 }}>CLOSE</button>
+          {gainLine && <div className="clk-gain" data-testid="pet-gain">{gainLine}</div>}
         </div>
 
         {/* Nav */}

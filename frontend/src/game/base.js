@@ -64,6 +64,16 @@ export const BUILDINGS = {
     effect: (l) => `+${l * 12} core, +${l * 15} scrap${l >= 4 ? `, ${l >= 8 ? 2 : 1} free tower` : ''}`,
     costGold: 1000, costParts: 14, growth: 1.43,
   },
+  // THE DRAIN — hangar floor hatch. max 1: buying it unscrews the grate.
+  // Not a camp tab. Banner is queued explicitly from HangarRoom
+  // (`queueUnlocks(['drain'])`), never CAMP_UNLOCK_BATCHES. Unique payout is
+  // mutations, not another gold track — see game/mutations.js / docs/THE-DRAIN.md.
+  drain: {
+    id: 'drain', name: 'The Drain', icon: 'ui_hatch', accent: '#5fd6ff', max: 1,
+    blurb: 'A bolted grate in the hangar floor. A.I.D.A. calls it a drain. She is not wrong.',
+    effect: () => 'Hatch open — descend THE DRAIN under the hangar',
+    costGold: 1200, costParts: 18, growth: 1,
+  },
 };
 
 export function buildingLevel(save, id) {
@@ -161,5 +171,59 @@ export function repairStation(save) {
 export function isModuleAvailable(save, id) {
   if (!isStationRepaired(save)) return false;
   if (id === 'hull') return true;
-  return buildingLevel(save, 'hull') >= 1 || hasLegacyModules(save);
+  if (buildingLevel(save, 'hull') < 1 && !hasLegacyModules(save)) return false;
+  // The grate lives in the hangar. Selling it from the hall while the bay
+  // is still a tarp is how a door opens onto a room that does not exist.
+  if (id === 'drain') return buildingLevel(save, 'hangar') >= 1;
+  return true;
+}
+
+// One buy path for the walkable hall AND any leftover console list.
+// Two copies of "subtract gold, bump the level, hope the unlock cascade
+// still fires" is how the room and the menu start disagreeing about what
+// is actually built. Callers compute campNewlyUnlocked themselves —
+// this file must not import campaign.js (campaign already imports us).
+export function tryBuyBuilding(save, id) {
+  const b = BUILDINGS[id];
+  if (!save || !b) {
+    return { ok: false, save, reason: 'missing', title: 'Unknown module', text: 'That wall is just a wall.' };
+  }
+  const lvl = buildingLevel(save, id);
+  if (lvl >= b.max) {
+    return { ok: false, save, reason: 'maxed', title: `${b.name} is sealed`, text: 'Nothing left to install.' };
+  }
+  if (!isModuleAvailable(save, id)) {
+    const needsHangar = id === 'drain' && buildingLevel(save, 'hangar') < 1
+      && (buildingLevel(save, 'hull') >= 1 || hasLegacyModules(save));
+    return {
+      ok: false, save, reason: 'sealed',
+      title: needsHangar ? 'Needs the hangar' : (isStationRepaired(save) ? 'Needs the hull' : 'Station is dark'),
+      text: needsHangar
+        ? 'The grate is under the hangar deck. Restore the hangar first.'
+        : isStationRepaired(save)
+          ? 'Seal the hull breaches first. Walk to them.'
+          : 'Insert the A.I.D.A. core in the middle of the hall.',
+    };
+  }
+  const cost = buildingCost(id, lvl);
+  if ((save.gold || 0) < cost.gold) {
+    return { ok: false, save, reason: 'gold', title: 'Not enough gold', text: `Need ${cost.gold} gold.` };
+  }
+  if ((save.gearParts || 0) < cost.parts) {
+    return { ok: false, save, reason: 'parts', title: 'Need gear parts', text: `${cost.parts} parts to fit this.` };
+  }
+  return {
+    ok: true,
+    save: {
+      ...save,
+      gold: save.gold - cost.gold,
+      gearParts: (save.gearParts || 0) - cost.parts,
+      base: { ...(save.base || {}), [id]: lvl + 1 },
+    },
+    reason: null,
+    title: b.name,
+    text: lvl === 0
+      ? (id === 'drain' ? 'The grate unscrews.' : 'Installed in the hall.')
+      : `Now level ${lvl + 1}.`,
+  };
 }

@@ -13,11 +13,15 @@
 import { MAP_STAGES } from './data_ext2';
 import { companionForNode } from './companions';
 import { progressFor, resolveDifficulty, difficultyMods, rewardMult } from './difficulty';
-import { BUILDINGS, buildingLevel } from './base';
+import { BUILDINGS, buildingLevel, isStationRepaired } from './base';
+import { cannotAffordStationQuest, getActiveBuildQuest } from './stationQuests';
 
 // Which boss closes each map. Ordered so a map's finale escalates with how
 // far into the story it sits.
 export const MAP_BOSS = {
+  // Wiring requires every map id to name a real enemy even when the node
+  // itself never spawns a guardian (orbit_find is a timed approach).
+  orbit: 'sludgeWarden',
   // The Rain Pool closes on the same guardian the Lake does. Deliberately not
   // a new, weaker boss: meeting the Eye here at diff 0/1 scaling and then
   // meeting it again in the Lake at diff 1-3 teaches the player that a
@@ -28,6 +32,7 @@ export const MAP_BOSS = {
   void:  'bossVoidTitan',
   ship:  'bossAida',
   sky:   'bossTidebreaker',
+  gobekli: 'bossAnnunaki',
   // The Deep Current is the last map and had NO entry here at all, so its
   // nodes' "put the guardian down" objective could never be satisfied — the
   // final map of the campaign was uncompletable. The Hollow Queen is the one
@@ -61,6 +66,14 @@ export function bossGateTime(node) {
 // three nodes each is fifteen hand-written lists to keep in sync with the
 // durations, and they would drift the first time a duration changed.
 export function nodeObjectives(node) {
+  if (node.noBoss) {
+    const hold = node.duration || 120;
+    const killGoal = 12;
+    return [
+      { id: 'clear',   icon: 'ui_blade', label: `Cut down ${killGoal} of them`, goal: killGoal, metric: 'kills' },
+      { id: 'survive', icon: 'ui_clock', label: `Hold the wreck ${Math.round(hold / 60)} minutes`, goal: hold, metric: 'time' },
+    ];
+  }
   const gate = bossGateTime(node);
   const killGoal = 40 + node.diff * 45;
   return [
@@ -83,6 +96,9 @@ export const REWARD_TIERS = [
 
 export function rewardTier(result, node) {
   if (!node) return 0;
+  // The approach node is binary: you find the wreck or you get pulled out
+  // with nothing. Partial chests would teach the opposite of the toast.
+  if (node.noBoss) return result.victory ? 3 : 0;
   const gate = bossGateTime(node);
   if (result.victory) return 3;
   if (result.time >= gate) return 2;
@@ -152,6 +168,11 @@ export function nextCampaignNode(save) {
 // gating it to the active tier would re-lock the whole camp the moment
 // someone switches to Hard, which is not the point of a Hard mode.
 const CAMP_UNLOCK_NODES = ['pond_1', 'pond_2', 'pond_3'];
+// The orbit approach sits in front of the Rain Pool. Clearing it is "you
+// found the wreck", not "you finished a later map" — treating it as
+// non-pond progress used to jump campUnlockStage straight to 3 and open
+// every tab after the two-minute hold.
+const APPROACH_NODES = ['orbit_find'];
 
 // 0 = fresh save, nothing but the story cleared yet. 1/2/3 = that many Rain
 // Pool nodes cleared. Stage 3 is "the camp is fully built" — normal play
@@ -165,8 +186,10 @@ const CAMP_UNLOCK_NODES = ['pond_1', 'pond_2', 'pond_3'];
 // cleared a campaign node at all.
 export function campUnlockStage(save) {
   const cleared = save.mapProgress || {};
-  const clearedNonPond = campaignNodes().some(n => !CAMP_UNLOCK_NODES.includes(n.id) && cleared[n.id]);
-  if (clearedNonPond || (save.profile?.level || 1) >= 3) return 3;
+  const clearedLater = campaignNodes().some(n =>
+    !CAMP_UNLOCK_NODES.includes(n.id) && !APPROACH_NODES.includes(n.id) && cleared[n.id]
+  );
+  if (clearedLater || (save.profile?.level || 1) >= 3) return 3;
   let n = 0;
   for (const id of CAMP_UNLOCK_NODES) { if (cleared[id]) n++; else break; }
   return n;
@@ -186,7 +209,12 @@ export function campUnlockStage(save) {
 // exakt de building, de kan låsa upp mer menyer än själva building." So the
 // gate is total levels bought across every building, not which one.
 export function totalBuildingLevels(save) {
-  return Object.keys(BUILDINGS).reduce((a, id) => a + buildingLevel(save, id), 0);
+  // THE DRAIN is a hangar fixture (max 1 grate). Counting it here would let
+  // unscrewing the hatch fire CAMP_UNLOCK_BATCHES as if it were a camp module.
+  // Its own banner is queued explicitly from HangarRoom.
+  return Object.keys(BUILDINGS).reduce((a, id) => (
+    id === 'drain' ? a : a + buildingLevel(save, id)
+  ), 0);
 }
 
 // Batch 1 is "the first 3 houses" Timmy names explicitly: Meta Upgrades,
@@ -262,7 +290,141 @@ export function isCampTabLocked(tabId, save) {
 // can disagree. Two levels = the player has been out twice and built twice.
 export function isCampSubTabLocked(subId, save) {
   if (subId === 'campaign') return false;          // STORY is always the one door
+  // MAPS is free-play node picking. The first hour is hall → build → gather
+  // runs via CONTINUE STORY. MAPS (and Endless) wait on the hangar, which is
+  // when the tutorial camp is a ship you can leave in.
+  if (subId === 'maps') {
+    if (buildingLevel(save, 'hangar') >= 1) return false;
+    if (campUnlockStage(save) >= 3) return false;
+    return true;
+  }
+  // Missions and Challenges are extra doors. They wait until the camp has
+  // two modules so the first hour stays Story → Base → gather.
   return totalBuildingLevels(save) < 2;
+}
+
+// Endless is the FIGHT button. It opens with the hangar — that is when the
+// tutorial (find wreck, insert AIDA, seal, build, gather) is a home with a
+// ship, and the real game can start. Hull-only used to light Endless and
+// skip the gather loop. Grandfather: anyone already past the Rain Pool's
+// on-ramp (later maps / rank 3 via campUnlockStage) keeps the button.
+export function isEndlessUnlocked(save) {
+  if (buildingLevel(save, 'hangar') >= 1) return true;
+  return campUnlockStage(save) >= 3;
+}
+
+/**
+ * What CONTINUE STORY / GO GATHER / WALK THE HALL should do right now.
+ *
+ * The first hour is one thread, not a menu: hold the wreck → walk in →
+ * insert AIDA → seal the hull → buy the next module if you can afford it,
+ * otherwise go back out. `nextCampaignNode` still names the next fight;
+ * this function decides whether that fight is allowed yet.
+ */
+export function storyBeat(save) {
+  const node = nextCampaignNode(save);
+  if (!node) {
+    return { kind: 'done', kicker: 'STORY COMPLETE', label: 'The maps are yours.' };
+  }
+  // The wreck is the first-hour classroom. Once they have been out once
+  // (win or lose), CONTINUE STORY is the hall socket — not another orbit
+  // attempt. Dying on Sanctuary used to keep this on HOLD THE WRECK, so
+  // the death screen said WALK THE HALL and the camp button sent them back
+  // into the node.
+  if (node.id === 'orbit_find' && (save.runsCompleted || 0) < 1) {
+    return {
+      kind: 'mission', node, why: 'approach',
+      kicker: 'HOLD THE WRECK',
+      label: `${node.mapName} — ${node.name}`,
+    };
+  }
+  if (!isStationRepaired(save)) {
+    return { kind: 'hall', why: 'insert', kicker: 'WALK THE HALL', label: 'Insert the A.I.D.A. core' };
+  }
+  if (buildingLevel(save, 'hull') < 1) {
+    return { kind: 'hall', why: 'hull', kicker: 'SEAL THE HULL', label: 'Patch the holes. Then you can go back out.' };
+  }
+  const quest = getActiveBuildQuest(save);
+  const short = cannotAffordStationQuest(save);
+  if (quest) {
+    if (short) {
+      return {
+        kind: 'mission', node, why: 'gather', short, quest,
+        kicker: 'GO GATHER',
+        label: `${node.mapName} — ${node.name}`,
+      };
+    }
+    return { kind: 'hall', why: 'build', quest, kicker: 'WALK THE HALL', label: quest.title };
+  }
+  return {
+    kind: 'mission', node, why: 'story',
+    kicker: 'CONTINUE STORY',
+    label: `${node.mapName} — ${node.name}`,
+  };
+}
+
+// Start-menu "Go to Camp" stays dark until the player has actually been out
+// (or already lives in the hall). Fresh saves must not dump into a furnished
+// hub before the wreck run.
+export function isCampUnlocked(save) {
+  return (save.runsCompleted || 0) >= 1
+    || isStationRepaired(save)
+    || campUnlockStage(save) >= 1;
+}
+
+// The wreck and the Rain Pool are the first-hour classroom. `mission.isTutorial`
+// is a retired flag — orbit_find / pond_* are campaign nodes, so the HUD used
+// to never coach them. Named ids, not campUnlockStage, so a later pond retry
+// still gets the hold-swing line and a Lake run does not.
+const FIRST_HOUR_NODE_IDS = new Set(['orbit_find', 'pond_1', 'pond_2', 'pond_3']);
+
+export function isFirstHourRun(mission) {
+  if (!mission) return false;
+  if (mission.isTutorial) return true;
+  const id = mission.node?.id;
+  return !!(id && FIRST_HOUR_NODE_IDS.has(id));
+}
+
+export function firstHourTips(mission) {
+  const id = mission?.node?.id;
+  if (id === 'orbit_find') {
+    return [
+      { at: 3,  text: 'HOLD attack to swing the girder. It chains 3–4 hits if you keep it down. Keep moving.' },
+      { at: 22, text: 'XP orbs are cards. Every level is a choice — that is the build, not the camp.' },
+      { at: 48, text: 'Gold goes home with you. Dying still pays. This wreck is the rent.' },
+      { at: 80, text: 'Twelve kills. Two minutes. Then you walk the hall and plug the chip in.' },
+    ];
+  }
+  if (id === 'pond_1' || id === 'pond_2' || id === 'pond_3' || mission?.isTutorial) {
+    return [
+      { at: 3,   text: 'HOLD to swing. Combos you land yourself make the hold-string hit harder. Never stand still.' },
+      { at: 25,  text: 'XP orbs level you up and every level is a card. Cards are the build.' },
+      { at: 55,  text: 'Gold is spent at CAMP between runs. When the stores are empty, CONTINUE STORY is a gather run.' },
+      { at: 95,  text: 'Level 4 opens a second weapon slot. Every fourth level after that opens another.' },
+      { at: 140, text: 'The guardian is stronger than you. Learn the pattern. Come back with the camp behind you.' },
+    ];
+  }
+  return [];
+}
+
+// Death-screen door while the first hour is still a hall / gather loop.
+// Returns null once CONTINUE STORY is a normal node — GameOver then uses its
+// own how-far-you-got copy.
+export function runDebrief(save) {
+  const beat = storyBeat(save);
+  if (!(beat.kind === 'hall' || beat.why === 'gather')) return null;
+  const body = {
+    insert: 'The chip in your gut wants the socket in the middle of the hall. Insert A.I.D.A. Then patch the hull.',
+    hull: 'Walk to a breach. Patch it. Until the hull holds air, nothing else in this ring will take a bolt.',
+    build: `${beat.label}. If you cannot pay, CONTINUE STORY is a gather run.`,
+    gather: 'CONTINUE STORY is a gather run now. Hold the Rain Pool. Bring the coins back. Install the next piece.',
+  }[beat.why] || beat.label;
+  return {
+    head: `▸ ${beat.kicker}`,
+    body,
+    campLabel: beat.kicker,
+    lockRetry: beat.why === 'insert',
+  };
 }
 
 export function campUnlockHint(tabId, save) {
@@ -295,23 +457,29 @@ export function resolvedRewardMult(save) {
 // how to start a run with.
 export function nodeToMission(node) {
   if (!node) return null;
+  const noBoss = !!node.noBoss;
   return {
     id: node.id,
     name: `${node.mapName} — ${node.name}`,
     isCampaign: true,
     mapId: node.mapId,
     diff: node.diff,
-    // No target duration: the node ends when the guardian dies, not when a
-    // clock runs out. The gate is what the timer is for.
-    duration: 999,
-    bossAt: bossGateTime(node),
+    // Timed approach nodes end on the clock. Every other node ends when the
+    // guardian dies — duration 999 keeps that path from ever firing.
+    duration: noBoss ? (node.duration || 120) : 999,
+    bossAt: noBoss ? 0 : bossGateTime(node),
     // A node can name its own guardian (pond_1's 'sludgeWarden' — a real
     // threat at a fresh-save baseline, not the shared bossOcular scaled for
     // a much later, geared-up fight) before falling back to the map's usual
     // boss.
-    bossId: node.bossId || MAP_BOSS[node.mapId] || 'bossOcular',
+    bossId: noBoss ? null : (node.bossId || MAP_BOSS[node.mapId] || 'bossOcular'),
     spawnMult: node.spawnMult || 1,
     enemyMix: node.enemyMix,
+    noBoss,
+    cannotDie: !!node.cannotDie,
+    campExterior: !!node.campExterior,
+    harderAfter: node.harderAfter || 0,
+    harderMult: node.harderMult || 1,
     // If this node is where a companion is found, the run spawns them as a
     // defendable second body — see engine.js's rescueCompanion.
     companion: companionForNode(node.id),

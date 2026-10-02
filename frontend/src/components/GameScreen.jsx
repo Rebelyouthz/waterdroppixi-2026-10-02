@@ -1,5 +1,7 @@
 import { META_UPGRADES } from '../game/data';
 import { buildTalentFlags } from '../game/talents';
+import { buildMutationFlags } from '../game/mutations';
+import { buildComboFormFlags } from '../game/comboSchool';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Game } from '../game/engine';
 import { SKILL_INDEX, WEAPON_PARTS } from '../game/data_ext';
@@ -16,12 +18,18 @@ import { pushToast } from '../game/toastBus';
 import { isRescued } from '../game/companions';
 import { DIFF_INDEX } from '../game/difficulty';
 import { resolvedDifficultyMods } from '../game/campaign';
+import { BUILDINGS } from '../game/base';
 import HUD from './Hud';
 import LevelUpModal from './LevelUpModal';
 import GameOver from './GameOverScreen';
 import MobileControls from './MobileControls';
 import HeroFigure from './HeroFigure';
 import GameIcon from './GameIcon';
+
+function fmtPause(t) {
+  const s = Math.max(0, t | 0);
+  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+}
 
 function buildMetaEffects(save) {
   const m = save.meta || {};
@@ -90,7 +98,7 @@ function buildMetaEffects(save) {
     // parallel `talentFlags` would be a second implementation of one concept —
     // this project's most expensive recurring bug — so there is deliberately
     // only one.
-    flags: { ...buildTalentFlags(save) },
+    flags: { ...buildTalentFlags(save), ...buildMutationFlags(save), ...buildComboFormFlags(save) },
     // Character system
     weaponSlots: slots,
     skillSlots,
@@ -295,9 +303,14 @@ export default function GameScreen({ save, setSave, onExit, onRunEnd, mission, p
       // Timmy asked to keep the Rain Pool's actual map (it's where the drop
       // just came from) and just mark it as the camp with signage, not
       // rebuild the whole map. See pixiRenderer.js's `_buildCampSign`.
-      campSign: mission?.node?.id === 'pond_1',
+      campSign: !!(mission?.campExterior || mission?.node?.id === 'orbit_find' || mission?.node?.id === 'pond_1'),
       missionDuration: mission ? mission.duration : null,
       spawnMult: mission ? (mission.spawnMult || 1.0) : 1.0,
+      enemyMix: (mission && mission.noBoss && mission.enemyMix) ? mission.enemyMix : null,
+      cannotDie: !!(mission && mission.cannotDie),
+      noBoss: !!(mission && mission.noBoss),
+      harderAfter: mission ? (mission.harderAfter || 0) : 0,
+      harderMult: mission ? (mission.harderMult || 1) : 1,
       // Difficulty tier. The tutorial is pinned to Normal regardless of what
       // the profile is set to — a returning player replaying the tutorial on
       // Nightmare would be taught the game by a fight they cannot win.
@@ -337,6 +350,35 @@ export default function GameScreen({ save, setSave, onExit, onRunEnd, mission, p
           }
         },
         onGameOver: (r) => {
+          if (r.evacHome) {
+            // Timmy 2026-08-17: you are meant to fail the first run once, and
+            // STILL walk out with enough to raise the first building. Zero gold
+            // on evac looks like the joke ("you earned nothing") and then traps
+            // you in a dark hall you cannot patch. The hull is 600g. That is
+            // rent, not loot — a clear still pays 650 plus the 1st Timer badge.
+            const salvage = BUILDINGS.hull.costGold;
+            r.gold = salvage;
+            const runOwned = initialSaveRef.current;
+            const buildEvac = (cur) => ({
+              ...cur,
+              gold: (cur.gold || 0) + salvage,
+              lifetimeGold: (cur.lifetimeGold || 0) + salvage,
+              runsCompleted: (cur.runsCompleted || 0) + 1,
+              totalKills: (cur.totalKills || 0) + (r.kills || 0),
+              pendingStationWalk: true,
+            });
+            setSave(buildEvac);
+            onRunEnd && onRunEnd(r, buildEvac(runOwned), mission);
+            pushToast({
+              tone: 'default',
+              icon: 'ui_base',
+              title: 'YOU EARNED NOTHING',
+              text: `A.I.D.A. pulled ${salvage}g of wet coins out of what used to be you. Rent. Walk in. Patch the hull. Then you keep what you take.`,
+            });
+            if (gameRef.current) gameRef.current.destroy();
+            onExit && onExit('camp');
+            return;
+          }
           setGameOverResult(r);
           // Calculate run rewards summary for death screen
           const isBest = r.time > (save.bestRunTime || 0);
@@ -403,6 +445,7 @@ export default function GameScreen({ save, setSave, onExit, onRunEnd, mission, p
               next.katanaRuns = (cur.katanaRuns || 0) + 1;
             }
             if (r.noHit) next.noHitRuns = (cur.noHitRuns || 0) + 1;
+            if (r.victory && mission?.node?.id === 'orbit_find') next.pendingStationWalk = true;
             return next;
           };
           setSave(buildSave);
@@ -411,7 +454,12 @@ export default function GameScreen({ save, setSave, onExit, onRunEnd, mission, p
           // write is the functional update above.
           onRunEnd && onRunEnd(r, buildSave(runOwned), mission);
         },
-        onPauseToggle: () => setPaused(p => { const np = !p; g.setPaused(np); return np; }),
+        onPauseToggle: () => setPaused(p => {
+          const np = !p;
+          g.setPaused(np);
+          if (np) Audio.menuOpen?.(); else Audio.click?.();
+          return np;
+        }),
       },
     };
     const g = new Game(canvas, opts);
@@ -469,8 +517,8 @@ export default function GameScreen({ save, setSave, onExit, onRunEnd, mission, p
   }, [snap, gameOverResult, levelUpChoices]);
 
   const pickCard = (c) => { gameRef.current.applyCardChoice(c); setLevelUpChoices(null); };
-  const onMobileUpdate = useCallback((joyMove, joyAim, firing) => {
-    if (gameRef.current) gameRef.current.setMobileInput(joyMove, joyAim, firing);
+  const onMobileUpdate = useCallback((joyMove, joyAim, firing, extra) => {
+    if (gameRef.current) gameRef.current.setMobileInput(joyMove, joyAim, firing, extra);
   }, []);
   const onMobileReload = () => gameRef.current && gameRef.current.tryReload();
   // `power` is the analog strength of the flick — speed AND length, 0..1.
@@ -506,9 +554,32 @@ export default function GameScreen({ save, setSave, onExit, onRunEnd, mission, p
         <div className="pause-overlay">
           <div className="pause-box">
             <h2>PAUSED</h2>
-            <button onClick={() => { setPaused(false); gameRef.current.setPaused(false); }} data-testid="resume">Resume</button>
-            <button onClick={() => { gameRef.current.destroy(); onExit('menu'); }} data-testid="quit-menu">Menu</button>
-            <button onClick={() => { gameRef.current.destroy(); onExit('camp'); }} data-testid="quit-camp"><GameIcon name="ui_base" size={16} /> Camp</button>
+            {snap && (
+              <div className="pause-sheet">
+                <div className="pause-kv">
+                  <b>{fmtPause(snap.time)}</b>
+                  {' · '}Lv {snap.level}
+                  {' · '}{snap.kills} kills
+                  {' · '}{snap.gold | 0} gold
+                </div>
+                <div className="pause-hp" aria-label="health">
+                  <i style={{ width: `${Math.max(0, Math.min(100, (snap.hp / Math.max(1, snap.maxHp)) * 100))}%` }} />
+                </div>
+                <div className="pause-loadout">
+                  {(snap.weapons || []).map(w => (
+                    <span key={w.id} className="pause-w">
+                      <GameIcon name={w.icon} size={16} /> {w.name} · {w.lvl}
+                    </span>
+                  ))}
+                </div>
+                {snap.passiveIcons && snap.passiveIcons.length > 0 && (
+                  <div className="pause-passives">{snap.passiveIcons.length} passives carried</div>
+                )}
+              </div>
+            )}
+            <button onClick={() => { Audio.click?.(); setPaused(false); gameRef.current.setPaused(false); }} data-testid="resume">Resume</button>
+            <button onClick={() => { Audio.menuBack?.(); gameRef.current.destroy(); onExit('menu'); }} data-testid="quit-menu">Menu</button>
+            <button onClick={() => { Audio.menuBack?.(); gameRef.current.destroy(); onExit('camp'); }} data-testid="quit-camp"><GameIcon name="ui_base" size={16} /> Camp</button>
           </div>
         </div>
       )}

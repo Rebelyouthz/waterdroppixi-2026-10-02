@@ -2754,3 +2754,605 @@ The Character menu, the ADVANCED STATISTICS diagrams, the main-menu rework, and
 the hardcoded idle animation inside those menus. Five reference sheets saved to
 `chat bilder/2026-08-25 REF *`. This is a multi-session build; only the named
 defect was closed.
+
+## 2026-08-25 — THE CONSOLIDATION: 251 duplicated selectors merged into one each
+
+Timmy, after a long run of menus not matching their reference images: *"varfor
+blir de inte typ exakt lika ... vara orginal menyer va fan battre ... allt va sa
+snyggt forut skulle va poleras lite a blev sa mycke varre"*, and then the real
+question: *"kan vi polera tills de blir bra tror du pa de?"*
+
+**He was right, and the honest answer was no — not by polishing.** Polishing was
+the mechanism that broke it.
+
+### The measurement
+`overhaul.css`: 14,638 lines, 1,760 unique top-level selectors, **251 declared
+two or more times**. 382 `!important`. Worst offenders, all buttons:
+
+| selector | times | span | !important |
+|---|---|---|---|
+| `.gear-tab` | 7 | 5,996 lines | 0 |
+| `.clk-buy` | 4 | 7,833 lines | **18** |
+| `.st-repair-btn` / `.base-btn` / `.camp-story-btn` | 4 each | ~1,500–2,100 | 0 |
+
+`.base-btn` is the whole disease in one element: four rules, and **the first
+contributes zero properties** — every declaration in it is overridden. The
+button that shipped took its GEOMETRY from generation 2, its MATERIAL from
+generation 3 and its COLOUR from generation 4. Nobody drew that button. The
+cascade assembled it. A new rule written against a reference image was only ever
+winning the properties the older generations had not already claimed.
+
+### The method — merge, do not restyle
+Three tools, all in the job's tmp dir:
+- `cssaudit.js` — lists duplicates, and for one selector shows which generation
+  wins which property.
+- `consolidate.js` — computes the merged rule the way a browser would (later
+  wins per property; `!important` beats order), strips the selector out of every
+  rule, and plants ONE rule **at the position of the last old declaration**.
+- `csssnap2.js` — the proof: snapshots the effective cascade for every selector
+  in every media context, plus the ORDER of those contexts, before and after.
+
+**Planting at the last position rather than appending is the whole safety.**
+Appending would silently move 251 selectors past every rule below them.
+
+### The regression this produced, and how it was caught
+The first run consolidated all 251 and the verifier reported **0 changes**. It
+was wrong: it only looked at top-level rules.
+
+`.camp-shell-space .camp` had three top-level declarations and three
+`@media (max-width: 720px)` overrides, interleaved. The merged rule landed at
+line 10575 — **past** the phone override at 8900. Same specificity, later in the
+file: **the camp's phone padding was dead.** A browser A/B on computed styles
+caught it (26px 30px where the old file gave 14px 12px).
+
+So the verifier was rebuilt to record media context and context ORDER, and the
+consolidator now **refuses** any selector with a media rule interleaved between
+its declarations. 218 were safe. 33 were not.
+
+### Result
+- **251 → 33 duplicated selectors.** Zero button duplicates among the safe set.
+- 416 rules deleted, 23 trimmed, 218 single rules replaced them.
+- Verified: **0 declarations changed, 0 context orders changed.** Behaviour-
+  preserving, not a restyle.
+- All 18 suites green.
+
+### The ratchet
+`test/layout.test.mjs` now fails the build if any selector gains a *new*
+top-level duplicate, or if one of the remaining 33 gets worse.
+`test/css-duplicate-baseline.json` records them; **the list may only shrink.**
+Failing outright on the 33 already known would just get the check deleted by the
+next person in a hurry. Proved red on a new duplicate and on a worsening one,
+and proved NOT to fire on a `@media` variant or a descendant selector.
+
+### Left
+The 33 interleaved selectors — including `.gear-tab` (7x) — need doing by hand,
+one at a time, because merging them mechanically kills a phone override. And the
+actual restyling: this pass only made it possible for one rule to win.
+
+## 2026-09-18 — THE SHAFT hook: hangar bay, hatch, mutation unique
+
+Timmy asked to plug in a Dead Cells-like side game he has been building beside
+the survivor loop ("the well" / under everything), with a story reason, SP/TP
+/ gear-shaped drip, **and one unique you can only get here**. Also: hangar as
+a real room next to the Main Hall, dusty ship, turret bay for Base Defence,
+floor hatch with the same big UNLOCKED banner.
+
+**Name collision, settled:** the idle clicker already owns **THE WELL**
+(building `well`, camp tab, Path step "Sink The Well"). The descent is
+**THE SHAFT** (building `shaft`, banner sub "THE WELL BENEATH THE HANGAR").
+If he later insists the descent is The Well, rename the **clicker** tab to
+RECLAMATION. Do not give both the same string.
+
+**What landed (the hook, not the Dead Cells loop):**
+- Hall hangar door no longer skips to Star Raid. It opens `HangarRoom.jsx`
+  (canvas 2d walk, hall unmounts — two Pixi apps is how the tab wedged).
+- Inside: THE SHIP → existing Star Raid; TURRET BAY → existing Base Defence
+  (#38, still unfinished, door only); THE SHAFT grate → buy `shaft`, banner,
+  then `ShaftScreen.jsx`; MAIN HALL → back.
+- Unique reward: mutations (`game/mutations.js`). First stub clear unlocks
+  Marrow Rush (`mutMarrow`) which stretches dash in `engine.js`. Gold/SP/TP
+  also drip. Do not pay mutations from chests or the tree.
+- Stub descent is three tap-floors so the hatch is not a dead door. Claude
+  replaces the run body in `ShaftScreen.jsx` / a new `game/shaftRun.js`.
+  Contract: `docs/THE-SHAFT.md`.
+
+**Do not:** put `shaft` in `CAMP_UNLOCK_BATCHES`; count it in
+`totalBuildingLevels` (excluded — would fire camp-tab banners); route hangar
+back to `onStarRaid`; mount Pixi in HangarRoom while the hall is live; start
+the Base Defence rewrite from the turret fixture.
+
+**Verify:** hall hangar → dusty bay; unscrew grate → THE SHAFT banner; stub
+clear → next survivor dash is longer. Clicker tab still says THE WELL.
+
+## 2026-09-18 — THE DRAIN rename + hangar/drain superpolish
+
+Timmy: the descent is **THE DRAIN**, not THE SHAFT. Hangar should be hall
+sprites + hardcode. Superpolish the new hangar + stub, then hand the real
+Dead Cells loop to Claude.
+
+**Name lock, corrected:** clicker still owns **THE WELL**. Descent is
+building `drain`, banner **THE DRAIN** / "THE GRATE UNDER THE HANGAR".
+Old `base.shaft` / `shaftRuns` / `useShaft` migrate on load.
+
+**Hangar draw method:** canvas 2d (hall unmounts). Same camp sheets as the
+Main Hall — `station-floor-tileset-2x.png` + `camp-station-hangar-16.png`
+— plus hardcoded bay lights, dusty tarp ship, turret rack, hatch ceremony
+(bolts pop, steam, cable to the hall), drop via `heroHalfPoints`. Not a
+second Pixi app. Hall lounge paintings stay in the hall.
+
+**Drain stub, bigger:** 6 coolant blobs × 3 pipes, smash juice, ClaimFx.
+Second clear unlocks Coolant Film (`.mutFilm` armor). First clear still
+Marrow Rush (`.mutMarrow` dash). Contract: `docs/THE-DRAIN.md`.
+
+**Do not:** put `drain` in `CAMP_UNLOCK_BATCHES`; count it in
+`totalBuildingLevels`; rename the clicker; start the Base Defence rewrite;
+replace DrainScreen's shell when dropping the real loop in.
+
+**Verify:** hall hangar → dusty tiled bay; unscrew grate → THE DRAIN banner;
+stub clear 1 → longer dash; stub clear 2 → armor film. Clicker tab still
+says THE WELL. Claude reads `docs/THE-DRAIN.md`.
+
+## 2026-09-18 — Superpolish slice: Base Defence + pause + stats bars
+
+Timmy: go through minigames, menus, ingame — `/superpolish` on all of it.
+Full 8-stage of every surface is multi-session. This slice is the first
+reviewable piece, not a paint of everything.
+
+**Named research (Base Defence):** Kingdom Rush / Frontiers. KR's depth is
+hero + Rain of Fire + Call Reinforcements + sell, NOT per-tower
+First/Last/Strong menus (KR always shoots furthest along the path). Bloons
+targeting menus are a different game. #38 Slime Castle merge is still
+"needs scoping" — not this pass.
+
+**Bugs found and fixed:** RAF loop used to remount on tower select
+(`[selected]`); canvas.width assigned every frame; finish() paid only
+`waveReward(held)` once; AGAIN after over wiped the payout before TAKE;
+towers picked nearest Euclidean (swarms over leaking brutes); silent deny
+and silent TAKE.
+
+**Bigger (not a repaint):** summed gold; 50% sell; wave preview from
+`buildWave`; Bram on the field if rescued; DUMP COOLANT (KR rain analog);
+VENT BLOCK (KR reinforcements analog); ClaimFx on TAKE; bankRef keeps the
+best hold across AGAIN. Pause is a Vampire Survivors loadout sheet (time /
+HP / weapons / passives), not three naked buttons. Stats boss bars use
+`aidaSlain` / `necroSlain` / `voidSlain` / `horusSlain` — no fake radar
+(those save fields still do not exist). Prospector BANK now fires ClaimFx.
+
+**Do not:** merge 2-to-1 towers; start Dead Cells in DrainScreen; rename
+the clicker; fake damage-type charts; rebuild Star Atlas; Chrome lock-poll.
+
+**Verify:** `test/basedefence.test.mjs` 12 checks, proved red when
+`goldForWavesHeld(2)` collapsed to last-wave gold. wiring 24, layout 11,
+juice 11, station 41. `logic.test.mjs` 180s still stale — not "fixed".
+
+## 2026-09-18 — Clicker / katana / blood / Star Atlas / hall spots
+
+Timmy: camp black spots; Star Atlas parallax + meteor polish; clicker
+unplayable (menus existed but did not work); katana no longer slings;
+more/smaller blood spray; character juice. Use skills. Keep going.
+
+**Named causes (read before writing):**
+- Two Pixi apps: Camp still mounted `StationRoom` while `ClickerScreen`
+  created ClickerWorld. Same hang class as hall+hangar.
+- Last `overhaul.css` `.clk-shop` was a 280px grid + manila `#dfd8c8`
+  folder restyle (duplicated twice) sitting on top of the working dark
+  shop. Paperclip `pointer-events:none` was already correct.
+- Clicker `FillGradient` had no `type` / `start` / `end` /
+  `textureSpace`. Pitfall #2: that is how a sky goes flat/black.
+- Hall wreck grime was up to 26 ellipses `0x000000` r 12–58. Hangar
+  letterbox `#07080c` against bay `#10131a`.
+- Held katana sat locked to aim; only a `katanaSlash` particle moved.
+  `weaponKatana` never set `p.recoil` or a swing timer.
+- `spawnBlood` used `fxCount` (PARTICLE_TRIM 0.5) and spawned 3–7 drops
+  on one pixel at size 2.4–3.6.
+
+**Fixes:** unmount hall when `clickerOpen`; restore last shop CSS to the
+dark flex column (no 4th duplicate); FillGradient type+local+hex;
+grime `#1c2830` smaller; hangar letterbox matches bay; `katanaSwingAngle`
+wind → whip → settle on the held blade + body lean + longer model;
+`spawnBlood` via `fxBlood` 16–26 small jittered drops; Star Atlas star
+speeds 6…185, 3-depth belt, meteor tails + pooled additive head lights
+(capped so ships keep the rest of the pool). Modest stretch/jiggle/slide.
+
+**Do not:** Chrome lock-poll; Dead Cells Drain; Slime Castle merge;
+rename the clicker; TCG-as-Gwent; commit.
+
+**Verify:** clicker / juice / gore / basedefence / wiring. `logic.test.mjs`
+180s still stale.
+
+## 2026-09-20 — Attack dead / rib combos / death + buttons + hall bars
+
+Timmy: attack stopped working; restore then upgrade the strike; combos;
+RMB / triangle / invisible phone heavy stick + LIGHT/HEAVY switch; teach
+forms in Talents; English always; prettier death screen; real-field
+diagrams in Deep Statistics; menu button corner clip; four black hall
+edges; Snapped Rib sling + realistic cuts. Then continue superpolish.
+
+**Named causes (read before writing):**
+- `_pollGamepad` wrote `shooting = rt > 0.4 || rb` every frame. A ROG
+  Ally always has a pad, so mouse/touch fire died on the next rAF.
+- Held model was still a finished katana (tsuba + milled blade).
+- Hall contain-fit letterbox was app clear `0x04080b` — four black bars.
+- Global `button { overflow: hidden }` plus clip-path chamfers sliced
+  corner ticks and outer glow.
+- CampPanels daily/reset still showed Swedish. CountTo used `sv-SE`.
+- No second attack, no light/heavy string. Pinball `comboCount` is a
+  different system and stayed untouched.
+
+**Fixes:** last-device-wins (`input._dev`); RMB + triangle heavy; skill 1
+on LB; `meleeCombo.js` Tear/Girder/Hook/Riposte + talent-gated Cyclone
+(Blur) / Rise (Chain Reaction); TalentTree teaching strip (still 45
+buyable talents); mobile LIGHT/HEAVY switch + ghost stick above the
+right dial; pistol heavy is slower + two extra pellets; torn-rib model
+and icon; hall bleed `0x1a242c`; buttons overflow visible, clip-path
+off the interactive slabs; death KILLS/TIME bar + en-US; stats share
+bars from runs/kills/gold/chests; `Audio.click(kind)`.
+
+**Do not:** add a 46th talent; Chrome lock-poll; Dead Cells Drain; Slime
+Castle merge; fake radar; commit; "fix" logic.test 180s.
+
+**Verify:** meleeCombo / juice / talents / wiring / layout / icons.
+`logic.test.mjs` 180s still stale.
+
+## 2026-09-20 — Cursor, English, Attributes (no stacked CSS)
+
+Timmy: English everywhere; waterdrop pointer is heavy, dies on scroll,
+occasional glitches; then menus — update existing polish, do not stack
+another layer; use skills; lighting stays custom.
+
+**Named cursor causes:** `FOLLOW = 0.34` (~50ms lag); `window pointerleave`
+parks the drop at -200 when Chrome fires leave during overflow-scroll;
+`classList.toggle` every rAF. Fixed with `followStep` (rate 88, catch-up
+on long jumps), document `mouseout` only when `relatedTarget` is null,
+hide over text fields so the I-beam can show.
+
+**English:** daily Gold Pack / Legendary Chest; all `MILESTONES` descs.
+
+**Attributes:** spend is a functional update, respects Agility/Aim max,
+shows next-point line + fill on the existing row. Edited the existing
+`.poe-attr-*` block — no fourth `.camp-attr-panel`.
+
+**Do not:** append another camp-tab/attr design; GlowFilter; Chrome
+lock-poll; 46th talent; commit.
+
+**Verify:** waterCursor / juice / layout / wiring. `logic.test.mjs` 180s
+still stale.
+
+## 2026-09-20 — Profile Level-Up + Character (in-place, no stacked CSS)
+
+Timmy: keep going through menus across sessions until they are done; then
+he will name the next thing. Annotate so the next agent is not lost.
+Fast/snabb that skips analysis is the expensive failure — keep quality.
+
+**Living TODO:** `docs/MENU-SUPERPOLISH-HANDOFF.md` (update every slice).
+
+**Named research (profile rank-up):** Genshin Adventure Rank (claimable
+rank table + "what the next rank opens") and Hades / VS reward-hold.
+Gap we actually closed: collect was a stale snapshot; unlocks listed only
+`rank === newRank` so a 19→25 jump skipped Bronze Ring; streak UI said 2×
+while `addAccountXp` pays 1.5×; CLAIM never fired ClaimFx; leftover
+crimson tile/card band vs the teal reference.
+
+**Fixes / deepen:** `game/profileLevelUp.js` (`collectPendingLevelUp`,
+`rankUnlocksBetween`, `nextRankPrize`, `rewardTiles`). `applyReward` now
+credits pieces/shards/freeSpin. Overlay: ClaimFx, Enter/Escape, next-rank
+tease, 1.5× copy, teal plates edited in the existing `.lu-tile` / `.lu-card`
+rules. Character: functional spend, ClaimFx, NOW→NEXT, bonus tracks.
+No fourth `.lu-card` or `.char-panel`.
+
+**Next:** Lucky wheel / shop spins, then Gear (edit existing `.gear-tab`,
+do not append), then Maps. Statistics charts stay last (no fake radar).
+
+**Do not:** stack CSS; GlowFilter; Chrome lock-poll; 46th talent; commit;
+Dead Cells Drain; TCG-as-Gwent; Slime Castle.
+
+**Verify:** profileLevelUp / juice / layout / wiring. Browser unverified.
+
+## 2026-09-20 — Lucky wheel + Card Shop (in-place)
+
+Timmy: keep going through menus. Next surface was shop spins.
+
+**Named research:** Hearthstone pack ritual + visible pity (players hate
+opaque 40-pack timers); skip-owned is the Waterdrop twist so the shop
+widens the run pool instead of reprinting Live Wire.
+
+**Named causes:**
+- `shopCardCost` was dead; UI charged a flat 500 gold.
+- Pulls could re-award owned unlocks. No pity. No section-complete state.
+- CardShop `setSave({...save})` after 2.1s was a stale snapshot.
+- Intervals leaked on unmount.
+- Welcome `doSpin` wrote currencies by hand; `.spinning` class never applied
+  so pointer-flap CSS was dead. Jackpot gold 1500 lived in two places.
+- `unlockedActives: []` vs object writers.
+
+**Fixes:** `rollShopPull` owned-filter + pity after 8 + complete gold;
+`applyShopPull`; Welcome `applyReward` + `SPIN_JACKPOT` + spinning class;
+`reelTick`; teal slices; CLOSE not ✕. Edited existing `.cs-status` — no
+third `.cs-jackpot-banner`.
+
+**Verify:** shopPull 5 / juice 20 then 21 / layout / wiring / logic 42.
+Browser unverified.
+
+## 2026-09-20 — Gear paperdoll (in-place, no 5th .gear-tab)
+
+**Named research:** Diablo 4 Advanced Tooltip Compare (gain/loss vs worn).
+Players still lose hours judging "item power" instead of the actual affix
+delta. Gap we closed: Waterdrop showed a number with no vs-worn, discarded
+into nothing, and the level button ignored slot parts.
+
+**Named causes:**
+- Level `disabled` keyed off generic `gearParts` while spend used
+  `gearLevelPayment` (slot parts first). The POLISH-PASS rule was already
+  written; the button never called it.
+- DISCARD left `gearEquipped` pointing at a missing id.
+- Inventory fallback rendered `GEAR_SLOT_ICONS[slot]` as text.
+- All writes used a closed-over `save`.
+- Slot-part piles were invisible in the UI.
+
+**Fixes / deepen:** `gearCanLevel`, `applyGearLevel`, `applySalvageGear`
+(scrap = level + rarity index), `compareToWorn` (UP only on same primary),
+`sortGearInventory`. ClaimFx on level/salvage/gacha. Per-slot counters.
+New CSS only in `index.css` beside `.gear-parts-bar`. Did **not** append
+`.gear-tab`.
+
+**Next:** Skill tree juice (`SkillTree.jsx`) — sound/light still open,
+SVG materials, not GlowFilter. Maps pulse/English is in; do not rebuild
+the route as parchment.
+
+**Do not:** stack CSS; GlowFilter; Chrome lock-poll; 46th talent; commit;
+Dead Cells Drain; TCG-as-Gwent; Slime Castle; fake radar.
+
+**Verify:** gear 32 / shopPull 5 / juice 21 / layout 11 / wiring 24 / icons 12.
+Browser unverified.
+
+## 2026-09-20 — Skill Tree (forced Dash walk + move banners)
+
+Timmy: tree is starting to look good; make Dash text clearer; force that
+path as a tutorial; story mission after Skill Tree unlocks in camp;
+darker locked / brighter takeable; Dash unlocked banner with a logo for
+every new in-game move; kill button clip; not Pixi GlowFilter.
+
+**Named research:** PoE2 new-player routing — stay in the starting cluster,
+first notable in three travel nodes. Players hate spreading and opaque
+first-power. Waterdrop already had `DASH_PATH` + `s_dash`; GOT IT skipped
+the lesson.
+
+**Named causes:**
+- `dismissDashGuide` wrote `skillTreeDashSeen` without buying Dash.
+- Off-path nodes at 0.78 opacity vs takeable 1.0 — not enough contrast.
+- `queueUnlocks` only understood camp tab ids, so Dash never got the
+  UNLOCKED plate.
+- Veins still hung `filter="url(#poe-glow)"` (SVG blur, not Pixi, still
+  the wrong light).
+- `.poe-buy-btn { overflow:hidden }` clipped corner ticks.
+
+**Fixes / deepen:** `game/skillMoves.js` explicit verb table (not
+`active:true`). Camp banner accepts `{type:'move'}`. After the skills
+tab cascade, auto-open the tree if Dash is missing. Comic is a story
+mission; SHOW THE PATH frames; off-path buy denied. Locked 0.34 / off-path
+0.2; takeable halo + ready ring. Vein light is a second stroke. Clip
+`overflow:visible` on tree buttons. Edited existing `.poe-node-ready` at
+the skul block — no third copy.
+
+**Next:** Talents visual. No 46th talent.
+
+**Do not:** stack CSS; GlowFilter; Chrome lock-poll; 46th talent; commit;
+Dead Cells Drain; TCG-as-Gwent; Slime Castle; fake radar; iPhone-grid tree.
+
+**Verify:** skillMoves 4 / juice 23 / logic 42 / layout 11 / wiring 24 /
+icons 12 / tree-audit OK. Browser unverified.
+
+## 2026-09-21 — Talents (taught combos, not a 46th node)
+
+Timmy: "no extra talent" sounded like a refusal. Clarify then continue.
+He wants combos **läras ut i talents** — in the screen, not sold. Also
+side numbers + meters, nodes and lines, darkened locked / brighter
+takeable, inspect-first box with text/colour/logo, small then bigger
+nodes, juice, light, shadow, 3D, sound, ElevenLabs if it actually helps,
+canvas clip gone.
+
+**Named research:** PoE2 inspect-then-allocate (click the node, spend
+from the panel). Hades talent meters / budget chips. Last Epoch small
+travel then notable. Waterdrop already had a 15×3 hay-fork and a COMBOS
+behaviour column; tiles were rounded squares that instant-bought.
+
+**Named causes:**
+- Instant `afford ? buy(t)` skipped the read — same skip class as GOT IT
+  on the Skill Tree.
+- Step numbers `display:none` on phone.
+- Rib strip was a manila text grid, not a school.
+- Locked vs takeable contrast was weak squares, not glass orbs.
+- Buy used a closed-over `save`.
+- A 46th buyable "you can combo" flag would be dead-config: `talents.test`
+  locks 45, every sold flag must already live in `engine.js`. Pinball
+  combo ≠ melee L/H. COMBOS already sells Blur / Chain Reaction / etc.
+
+**Fixes / deepen:** inspect-first sheet. `TALENT_CEREMONIES` + Camp
+`onMoveUnlock` for Hydro/Apex/UNBROKEN/Orbit/Rain/Flood. RIB_FORMS
+school strip (ids not `t_`). Cyclone gated on Blur, Rise on Chain
+Reaction. Side steps stay on phone. TP meter vs `TALENT_TOTAL_COST`.
+Glass circles 64/92/108. Functional `setSave`. Audio bank, not
+ElevenLabs speech (that MCP costs credits and is not UI SFX).
+In-place `.tt3-*`. No clip-path on tile/plate.
+
+**Next:** Pets shell (`PetPanel.jsx`). Do not block catch/breed.
+
+**Do not:** 46th talent; stack CSS; GlowFilter; Chrome lock-poll; commit;
+Dead Cells Drain; TCG-as-Gwent; Slime Castle; fake radar.
+
+**Verify:** talents 11 / meleeCombo 6 / juice 23 / layout 11 / wiring 24 /
+icons 12. Browser unverified.
+
+## 2026-09-21 — Combo school as large skippable nodes
+
+Timmy: combos in the tree as STORA nodes; Combo Point to unlock; points
+from minigames; walk past them (they do not gate talents); each node
+unlocks that string in the school; school shows only what you own;
+first is weakest then they climb; Drain after the first map even though
+Drain is unfinished; story at even intervals; 1 CP then 2 then 3…
+
+**Named research:** Sekiro prosthetic from mini-bosses (earn the tool
+elsewhere, spend it on the tree). Nioh samurai vs ninja skill pages
+(a second currency on the same screen). Monster Hunter Hunter Arts
+unlock pacing. Hades keeps attack+special always available so the
+player is never unarmed.
+
+**Named causes / decisions:**
+- A 46th talent flag is still forbidden. Combo nodes are `rib_*`, not
+  `t_*`, and `talents.test` still locks 45.
+- Gating TEAR/GIRDER combat behind the first Combo Point would brick
+  melee until the first minigame. L/H always swing. The school still
+  unlocks them first (cheapest, least cool).
+- Instant-grant on every Drain smash would farm the stub. Sources pay
+  **once** via `comboPointSources`.
+- `settleProgression` is the one grant site so a minigame that only
+  writes `defenceBest` / `drainBestDepth` / `tcgWins` cannot forget to
+  pay.
+
+**Fixes / deepen:** `comboSchool.js` nodes + sources + `buyComboNode` +
+`buildComboFormFlags`. TalentTree left rail. School starts empty.
+`applyReward` credits `comboPoints`. Drain records first-pipe depth.
+TCG/Exploration/Lootmine increment the counters settle reads.
+
+**Next:** Pets shell. Do not block catch/breed.
+
+**Do not:** 46th talent; stack CSS; GlowFilter; Chrome lock-poll; commit;
+Dead Cells Drain rebuild; TCG-as-Gwent; Slime Castle; fake radar.
+
+**Verify:** comboSchool 7 / talents 11 / meleeCombo 6 / juice 23 /
+layout 11 / wiring 24 / icons 12 / mutations 5. Browser unverified.
+
+## 2026-10-02 — First-hour start menu + wreck run
+
+Timmy: analyse, get it working, generate/connect the intro film so play
+starts IN-GAME not camp; a start menu (camp/moon/Stonehenge/Tesla/Annunaki/
+character); Start Game / Options / Credits / Go to Camp locked until
+unlocked; hall only 4 corners lit after AIDA; blood broken; artifacts in
+it; swings must look faster AND harder; hold-in is a 3–4 hit string that
+improves with real combos; first map as tutorial until camp is built;
+then polish (menus feel like stacked layers).
+
+**Named research:** Dead Cells intro → first biome not hub. Hades keeps
+attack always live. Vampire Survivors tutorial-by-playing. Hollow Knight
+title with darkened entries.
+
+**Named causes:**
+- Boot auto-played intro OR dumped Welcome hub (daily/wheel/mastery) so
+  "Start Game" was never a title screen. `startTutorialIfNeeded` dumped
+  fresh saves into camp.
+- Intro `AdvancedBloomFilter` had already crushed the lake to black once.
+- Hall `_syncHallMask` punched restored painting to lit rectangles. Missing
+  wreck sheet → four lit corners on a black void.
+- Katana hits spawned slash VFX but not blood. Hold already auto-fired on
+  CD but had no 3–4 string scaling with pinball combo.
+- Artifact stats applied in `applyArtifactsToStats` but paperdoll had no
+  slots, so nothing got equipped from the character view.
+- Menu "layers" = Welcome hub stacked on the title + duplicate
+  `.welcome-actions` rules. Edited existing blocks; no third copy.
+
+**Fixes:** Start menu (`StartVista.jsx` hardcoded SVG, no PNG). START GAME
+→ intro if unseen → `orbit_find`. GO TO CAMP dark until `isCampUnlocked`.
+Hall veil not punch-mask. Hold string `applyHoldString` in `meleeCombo.js`.
+Melee arterial spray + decals on hit. Artifact row on paperdoll. Intro
+grade-only (no community bloom).
+
+**Not this session:** full 10-beat film rewrite; superpolish of every camp
+tab; Pets shell; Drain-as-Dead-Cells. First-hour loop uses existing
+`storyBeat` (wreck → hall/AIDA → hull → gather/pond until batches open).
+
+**Do not:** commit; Chrome lock-poll; GlowFilter; stack CSS; fix logic.test
+180s; 46th talent.
+
+**Verify:** meleeCombo (hold string) / juice / layout / wiring / icons.
+Browser unverified (no lock-poll).
+
+## 2026-10-02 afternoon — First-hour guide (HUD + quests + doors)
+
+The loop shipped in the morning (start menu → intro → orbit). This slice
+makes it actually *guide* until the hangar: systems existed in parallel
+(`storyBeat`, QuestTracker, HUD tips, GameOver, CampaignPanel) and
+disagreed.
+
+**Named causes:**
+- HUD `TUTORIAL_TIPS` gated on `mission.isTutorial`. orbit_find / pond_*
+  are campaign nodes, so the wreck never coached. Help still said CLICK fire.
+  Last pistol tip was at 150s; the wreck is 120s.
+- After `s_first_run` the tracker said buy Dash. Skills stay locked until
+  The Hull. CAMP track opened on attributes; hall insert/hull were missing.
+- `storyBeat` stayed on HOLD THE WRECK while `orbit_find` was uncleared, so
+  dying on Sanctuary made the death screen say WALK THE HALL and CONTINUE
+  STORY relaunch the node.
+- GameOver only special-cased `orbitHome`. Hull / gather deaths were
+  generic SPEND WHAT YOU EARNED.
+- Campaign STORY tab was a wall of `STORY_BEATS` + `CAMPAIGN_QUESTS`.
+- `pathGo('daily')` dumped the player to the start menu.
+
+**Fixes:**
+- `isFirstHourRun` / `firstHourTips` / `runDebrief` in `campaign.js`.
+- `storyBeat`: after `runsCompleted >= 1`, insert AIDA even if the wreck
+  node is not marked cleared.
+- Story quests `s_insert` / `s_hull` before Dash. Camp `c_awaken` / `c_hull`
+  before attributes. `c_base` is now a *second* module.
+- CampaignPanel: NOW plate (`camp-story-btn`) + first-hour copy. Archive
+  waits on `isEndlessUnlocked` (hangar).
+- Briefings 2 (pond) and 3 (maps yours). Daily overlay = existing
+  `DailyRewardsWidget`.
+- No new CSS blocks. Reused `.camp-story-btn` / `.camp-header-sub`.
+
+**Verify:** logic 45 (quest + coaching + debrief), station 41, wiring 24,
+juice 23, layout 11, meleeCombo 7, icons 12. Browser unverified (no
+lock-poll). Do not treat the 180s pacing check as a thing to "fix".
+
+**Not this session:** Pets shell; 10-beat film; Drain/TCG/Slime Castle.
+
+## 2026-10-02 evening — Camp-tab claims (Achievements / Codex / Pass / Patrol)
+
+The four claim screens plus the camp board were four clocks. The season
+pass was dead: `addAccountXp` wraps leftover XP so `floor(xp/200)` is
+always 0, and badges read `claimed.length` on `{ free, premium }`. Codex
+polish never applied (`unknown` vs `undiscovered`). Patrol's shortest
+walk was 1h. Achievements were a Steam wall.
+
+**Named research:** Vampire Survivors Bestiary (yellow = unlock, Collection
+is the set) / Unlocks as the next plaque. Hades trophy proximity. Steam
+battle pass leftover XP is unrelated to rank.
+
+**Fixes / deepen:**
+- `game/campClaims.js` — one query site. Rank = node (`level - 1`, cap 39).
+  WHAT'S ON side row: ready ach → patrol → pass → codex → nearest family.
+- Achievements: OPEN / READY / CLAIMED, one tier per family, CLAIM ALL,
+  `applyReward`, hull/hangar/patrol/codex plaques.
+- Pass: header Rank N · node, CLAIM ALL, `bpRewardBag` → `applyReward`.
+- Codex: class `undiscovered`, pond lore, weapon catalog via `WEAPONS`,
+  CLAIM ALL gems, GameIcon not bullets.
+- Patrol: Shore Walk 3m (no card-battle), `applyReward`, ABORT.
+- Camp badges + `pathGo('codex'|'achievements')` + `WhatsOnStrip`.
+- CSS in place: `.unknown` aliases dashed undiscovered; `.claimable`
+  aliases the lit node; `.patrol-def.running` is dashed/drained, not
+  opacity. No third copies.
+
+**Next:** Pets shell (`PetPanel.jsx`). Do not block catch/breed.
+
+**Do not:** commit; Chrome lock-poll; GlowFilter; stack CSS; fix logic.test
+180s; 46th talent; Drain/TCG/Slime Castle.
+
+**Verify:** campClaims 7, logic 45, wiring 24, juice 23, layout 11, icons 12.
+Browser unverified (no lock-poll).
+
+## 2026-10-02 evening — THE WELL playable, hall lit, drain door
+
+**Named cause:** the clicker paid `dropsPerSec` and then paid building rates
+again every 100ms, and each payment called `setSave`. Camp re-rendered about
+ten times a second. The arena was capped at 250px under the chrome.
+
+**Fixes:** arena flexes to the top of the screen; shop scrolls underneath.
+Income is the one per-second tick. Taps batch into one save and still print
+`+N` on the picture. Buying shows `+/s` or `+1 per tap`. Header is THE WELL.
+`pathGo('drain')` opens the grate, not only the hangar. AIDA no longer lays
+black rectangles on the lounge. Pets print what you just got. The film's
+arrival line names the map. No shipped video — the hardcoded film is what
+plays into the first match.
+
+**Verify:** wiring 25, layout 11, clicker 31. Browser unverified (no lock-poll).
+
+

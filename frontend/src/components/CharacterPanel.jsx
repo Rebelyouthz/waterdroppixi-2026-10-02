@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import { CHAR_RARITIES, CHAR_RARITY_COLORS, CHAR_RARITY_NAMES, CHAR_SLOTS_BY_RARITY, CHAR_LEVEL_COST, CHAR_EVOLVE_COST, CHAR_MAX_LEVELS, charLevelStat, characterSlots } from '../game/data_ext2';
 import { Audio } from '../game/audio';
 import HeroFigure from './HeroFigure';
+import GameIcon from './GameIcon';
+import { fireClaimFx, CAMP_CLAIM_FLY } from './ClaimFx';
 
 /* Which portrait the Character screen shows: the 16-frame idle sprite, or the
  * hand-built SVG drop. One word, so switching back costs nothing and neither
  * version has to be deleted to try the other. */
-const PORTRAIT = 'sprite';   // 'sprite' | 'hardcoded'
-import GameIcon from './GameIcon';
+const PORTRAIT = 'hardcoded';   // 'sprite' | 'hardcoded' — character is never a sprite
 
 export default function CharacterPanel({ save, setSave, onClose }) {
   const [popAnim, setPopAnim] = useState(false);
@@ -26,28 +27,58 @@ export default function CharacterPanel({ save, setSave, onClose }) {
 
   const pop = () => { setPopAnim(true); setTimeout(() => setPopAnim(false), 600); };
 
-  const levelUp = () => {
-    if (!canLvl) return;
+  const levelUp = (e) => {
     const st = charLevelStat(char.level, char.rarity);
-    const newLevel = char.level + 1;
-    const ns = {
-      ...save,
-      gold: save.gold - levelCost.gold,
-      character: { ...char, level: newLevel, pieces: char.pieces - levelCost.pieces },
-      charBonuses: { ...(save.charBonuses || {}), [st.stat]: ((save.charBonuses || {})[st.stat] || 0) + st.val },
-    };
-    // At max level, auto-grant the shard needed for rarity upgrade
-    if (newLevel >= MAX_LVL && evolveReq) {
-      ns.character.shards = (char.shards || 0) + evolveReq.shards;
-    }
-    setSave(ns); Audio.levelUp(); pop();
+    let paid = false;
+    setSave((s) => {
+      const ch = s.character || { rarity: 'common', level: 0, pieces: 0, shards: 0 };
+      const max = CHAR_MAX_LEVELS[ch.rarity] || 5;
+      const cost = ch.level < max ? CHAR_LEVEL_COST(ch.rarity, ch.level) : null;
+      if (!cost || (s.gold || 0) < cost.gold || (ch.pieces || 0) < cost.pieces) return s;
+      const newLevel = ch.level + 1;
+      const evo = CHAR_RARITIES.indexOf(ch.rarity) < CHAR_RARITIES.length - 1
+        ? CHAR_EVOLVE_COST[ch.rarity] : null;
+      paid = true;
+      return {
+        ...s,
+        gold: (s.gold || 0) - cost.gold,
+        character: {
+          ...ch,
+          level: newLevel,
+          pieces: ch.pieces - cost.pieces,
+          shards: (newLevel >= max && evo) ? (ch.shards || 0) + evo.shards : ch.shards,
+        },
+        charBonuses: { ...(s.charBonuses || {}), [st.stat]: ((s.charBonuses || {})[st.stat] || 0) + st.val },
+      };
+    });
+    if (!paid) return;
+    fireClaimFx(e?.currentTarget, null, {
+      items: [{ key: st.stat, icon: st.icon, amount: st.isPct ? Math.round(st.val * 100) + '%' : st.val }],
+      flyTo: CAMP_CLAIM_FLY,
+    });
+    Audio.click('buy'); Audio.levelUp(); pop();
   };
 
-  const evolve = () => {
-    if (!canEvo) return;
-    const newRar = CHAR_RARITIES[rarIdx + 1];
-    setSave({ ...save, character: { ...char, rarity: newRar, level: 0, shards: char.shards - evolveReq.shards } });
-    Audio.levelUp(); Audio.claimPing(); pop();
+  const evolve = (e) => {
+    let paid = false;
+    let nextName = '';
+    setSave((s) => {
+      const ch = s.character || { rarity: 'common', level: 0, pieces: 0, shards: 0 };
+      const idx = CHAR_RARITIES.indexOf(ch.rarity);
+      const max = CHAR_MAX_LEVELS[ch.rarity] || 5;
+      const evo = idx < CHAR_RARITIES.length - 1 ? CHAR_EVOLVE_COST[ch.rarity] : null;
+      if (!evo || ch.level < max || (ch.shards || 0) < evo.shards) return s;
+      const newRar = CHAR_RARITIES[idx + 1];
+      nextName = CHAR_RARITY_NAMES[newRar];
+      paid = true;
+      return { ...s, character: { ...ch, rarity: newRar, level: 0, shards: ch.shards - evo.shards } };
+    });
+    if (!paid) return;
+    fireClaimFx(e?.currentTarget, null, {
+      items: [{ key: 'evo', icon: 'ui_star', amount: nextName }],
+      flyTo: CAMP_CLAIM_FLY,
+    });
+    Audio.click('confirm'); Audio.levelUp(); pop();
   };
 
   // Collect all bonuses gained so far
@@ -81,7 +112,7 @@ export default function CharacterPanel({ save, setSave, onClose }) {
       <div className={`forge-panel char-panel ${popAnim ? 'card-pop' : ''}`} style={{ maxWidth: 560 }}>
         <div className="forge-header">
           <div className="forge-title" style={{ color: rarColor }}>CHARACTER</div>
-          <button onClick={onClose} style={{ padding: '6px 12px', fontSize: 12 }}>✕</button>
+          <button type="button" onClick={onClose} style={{ padding: '6px 12px', fontSize: 12 }}>CLOSE</button>
         </div>
 
         {/* Hero portrait. The reference sheet makes the character the
@@ -106,7 +137,13 @@ export default function CharacterPanel({ save, setSave, onClose }) {
               That is the sharpest and cheapest way to run 16 frames in a DOM
               menu, and it cannot be clipped by anything. */}
           {PORTRAIT === 'sprite'
-            ? <span className="char-portrait-sprite" aria-hidden="true" />
+            ? <span
+                className="char-portrait-sprite"
+                aria-hidden="true"
+                /* From here and not from the stylesheet: CRA resolves CSS
+                   url() at build time and cannot see public/. */
+                style={{ backgroundImage: `url(${process.env.PUBLIC_URL || ''}/sprites/waterdrop-idle-16.png)` }}
+              />
             : <HeroFigure
                 className="char-portrait-drop"
                 rarColor={rarColor}
@@ -123,12 +160,12 @@ export default function CharacterPanel({ save, setSave, onClose }) {
         {/* Rarity evolution path */}
         <div className="char-rar-bar">
           {CHAR_RARITIES.map((r, i) => (
-            <div key={r} className="char-rar-step" style={{
+            <div key={r} className={`char-rar-step${i === rarIdx ? ' cur' : ''}${i < rarIdx ? ' is-done' : ''}`} style={{
               background: i < rarIdx ? CHAR_RARITY_COLORS[r] + '44' : i === rarIdx ? CHAR_RARITY_COLORS[r] : '#1a1226',
               border: i === rarIdx ? `2px solid ${CHAR_RARITY_COLORS[r]}` : '2px solid #ffffff11',
               boxShadow: i === rarIdx ? `0 0 14px ${CHAR_RARITY_COLORS[r]}88` : 'none',
             }} title={CHAR_RARITY_NAMES[r]}>
-              {i < rarIdx && '✓'}
+              {i < rarIdx && <span className="char-rar-tick" aria-hidden="true" />}
               {i === rarIdx && <span style={{ fontFamily: 'VT323', fontSize: 11, color: CHAR_RARITY_COLORS[r] }}>{CHAR_RARITY_NAMES[r].slice(0,3).toUpperCase()}</span>}
             </div>
           ))}
@@ -155,7 +192,7 @@ export default function CharacterPanel({ save, setSave, onClose }) {
         </div>
         {nextSlotUnlock && (
           <div className="char-slot-next" data-testid="char-slot-next">
-            ▲ Level {nextSlotUnlock.at} unlocks a {nextSlotUnlock.kind} slot
+            Level {nextSlotUnlock.at} unlocks a {nextSlotUnlock.kind} slot
             {nextSlotUnlock.at > MAX_LVL && ' — evolve first'}
           </div>
         )}
@@ -170,14 +207,24 @@ export default function CharacterPanel({ save, setSave, onClose }) {
         {char.level < MAX_LVL && (() => {
           const st = charLevelStat(char.level, char.rarity);
           const display = st.isPct ? `+${Math.round(st.val * 100)}%` : `+${st.val}`;
-          return <div className="char-next-stat">{st.icon} Next: {display} {st.label}</div>;
+          const nowVal = earned[st.stat] || 0;
+          const nowTxt = st.stat === 'maxHp' || st.stat === 'armor'
+            ? String(nowVal)
+            : `${Math.round(nowVal * 100)}%`;
+          return (
+            <div className="char-preview" data-testid="char-preview">
+              <span>NOW {st.label} {nowTxt}</span>
+              <span className="char-preview-arrow" aria-hidden="true" />
+              <span>NEXT {display} {st.label}</span>
+            </div>
+          );
         })()}
 
         {/* Level up button */}
         {char.level < MAX_LVL && levelCost && (
           <button className={`char-btn ${canLvl ? '' : 'disabled'}`} onClick={levelUp} disabled={!canLvl}
             style={{ borderColor: rarColor, boxShadow: canLvl ? `0 0 12px ${rarColor}44` : 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-            LEVEL UP — ★ {levelCost.gold} + <GameIcon name="cur_pieces" size={13} /> {levelCost.pieces}
+            LEVEL UP — <GameIcon name="cur_gold" size={13} /> {levelCost.gold} + <GameIcon name="cur_pieces" size={13} /> {levelCost.pieces}
           </button>
         )}
 
@@ -196,11 +243,17 @@ export default function CharacterPanel({ save, setSave, onClose }) {
         {Object.keys(earned).length > 0 && (
           <div className="char-bonuses">
             <div style={{ fontFamily: 'VT323', color: 'var(--ink-dim)', fontSize: 13, letterSpacing: '0.2em', marginBottom: 6 }}>BONUSES EARNED</div>
-            {Object.entries(earned).map(([k, v]) => (
-              <div key={k} style={{ fontFamily: 'VT323', color: 'var(--rune)', fontSize: 14, display: 'flex', alignItems: 'center', gap: 4 }}>
-                {k === 'maxHp' ? <><GameIcon name="maxHp" size={13} /> +{v} Max HP</> : `+${Math.round(v * 100)}% ${k}`}
-              </div>
-            ))}
+            {Object.entries(earned).map(([k, v]) => {
+              const pct = k === 'maxHp' || k === 'armor' ? Math.min(100, (v / 80) * 100) : Math.min(100, v * 100);
+              const icon = k === 'maxHp' ? 'maxHp' : k === 'dmg' ? 'damageMult' : k === 'mspd' ? 'moveMult' : k === 'gold' ? 'goldMult' : k === 'xp' ? 'xpMult' : 'armor';
+              return (
+                <div key={k} className="char-bonus-row">
+                  <GameIcon name={icon} size={13} />
+                  <span className="char-bonus-track"><i style={{ width: `${pct}%`, background: rarColor }} /></span>
+                  <span>{k === 'maxHp' || k === 'armor' ? `+${v}` : `+${Math.round(v * 100)}%`}</span>
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -212,7 +265,7 @@ export default function CharacterPanel({ save, setSave, onClose }) {
               style={{ borderLeftColor: i <= rarIdx ? CHAR_RARITY_COLORS[r] : '#ffffff11', opacity: i > rarIdx ? 0.5 : 1 }}>
               <span style={{ color: CHAR_RARITY_COLORS[r], width: 80 }}>{CHAR_RARITY_NAMES[r]}</span>
               <span style={{ color: 'var(--ink-dim)' }}>{CHAR_SLOTS_BY_RARITY[r]} weapons + {CHAR_SLOTS_BY_RARITY[r]} skills</span>
-              {i <= rarIdx && <span style={{ color: '#4dffd4', marginLeft: 'auto' }}>✓</span>}
+              {i <= rarIdx && <span className="char-rar-tick" style={{ marginLeft: 'auto' }} aria-hidden="true" />}
             </div>
           ))}
         </div>

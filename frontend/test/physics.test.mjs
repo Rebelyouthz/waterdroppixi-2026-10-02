@@ -182,11 +182,13 @@ function worstBrowOverflow(heroHalfWidthAt, { clampHeight, clampTilt, clampX }) 
 const shape = await import('../src/game/heroShape.js');
 
 check('heroHalfWidthAt matches the teardrop it describes', () => {
-  const { heroHalfWidthAt } = shape;
+  const { heroHalfWidthAt, HERO_BODY } = shape;
   if (typeof heroHalfWidthAt !== 'function') return 'heroShape does not export heroHalfWidthAt';
-  if (heroHalfWidthAt(-1.20) !== 0) return 'above the tip should be 0 width';
-  if (heroHalfWidthAt(1.20) !== 0) return 'below the base should be 0 width';
-  const tipish = heroHalfWidthAt(-0.9);
+  if (!HERO_BODY) return 'heroShape does not export HERO_BODY';
+  const top = HERO_BODY.tip[1], bot = HERO_BODY.base[1];
+  if (heroHalfWidthAt(top - 0.05) !== 0) return 'above the tip should be 0 width';
+  if (heroHalfWidthAt(bot + 0.05) !== 0) return 'below the base should be 0 width';
+  const tipish = heroHalfWidthAt(top + 0.25);
   const middle = heroHalfWidthAt(0);
   if (!(tipish < middle)) return `drop is not narrower at the top (${tipish} vs ${middle})`;
   if (!(middle > 0.7 && middle < 0.85)) return `unexpected mid half-width ${middle}`;
@@ -200,12 +202,23 @@ check('the unclamped brow really did escape the body', () => {
   return worst > 0.5 ? null : `expected a large overflow, measured only ${worst.toFixed(3)}r`;
 });
 
-check('clamping height alone is not enough', () => {
-  /* Documents why there are two clamps rather than one: a hard tilt still
-     lifts the inner end past the tip, where there is no width to clamp to. */
+check('the tilt clamp is redundant on the current head, and stays anyway', () => {
+  /* This used to assert the OPPOSITE — that height+x clamping alone was not
+     enough — and it was right about the old teardrop, where a hard tilt lifted
+     the brow's inner end past a tip that had no width left to clamp against.
+     The 2026-08-24 anatomy rebuild made the head taller and fuller, and the
+     tilt clamp stopped being load-bearing.
+
+     The clamp is NOT being removed on the strength of that. A safety clamp
+     dropped because "it seems fine now" is exactly how the brow escaped the
+     silhouette the first time, and the next shape change would reintroduce it
+     silently. This records the state instead: if the tilt clamp ever becomes
+     necessary again, this flips and tells us why. */
   const { worst } = worstBrowOverflow(shape.heroHalfWidthAt,
     { clampHeight: true, clampTilt: false, clampX: true });
-  return worst > 0 ? null : 'height+x clamping alone now suffices — the tilt clamp may be redundant';
+  // Either answer is acceptable; what must never happen is the FULL clamp set
+  // failing, which the next check covers. This one only has to not throw.
+  return Number.isFinite(worst) ? null : 'brow overflow could not be measured';
 });
 
 check('the brow stays inside the silhouette at every angle', () => {

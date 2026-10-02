@@ -2,8 +2,9 @@
 import axios from 'axios';
 import { META_UPGRADES } from './game/data';
 import { dailyQuests, accountXpToNext, weeklyQuests, weekIdx, MILESTONES } from './game/data_ext';
-import { ACHIEVEMENTS, CAMPAIGN_QUESTS, achMetric } from './game/data_ext2';
+import { CAMPAIGN_QUESTS } from './game/data_ext2';
 import { currentStep } from './game/path';
+import { battlePassUnclaimedCount, patrolReadyCount, codexUnclaimedCount, achievementsReady } from './game/campClaims';
 
 const KEY = 'wds.save.v1';
 const PID_KEY = 'wds.player_id';
@@ -24,6 +25,12 @@ export const DEFAULT_SAVE = {
   gems: 0,        // 💎 for chests, pet eggs
   slotCoins: 0,   // 🎰 for card shop spins
   talentPoints: 0, // 🌿 for talent tree
+  comboPoints: 0,  // Combo Points — large Snapped Rib nodes in Talents
+  comboForms: {},  // { L, H, LH, HL, LLL, LLH }
+  comboPointSources: {}, // { sourceId: true } — each source pays once
+  tcgWins: 0,
+  exploreClears: 0,
+  prospectorDives: 0,
   petFood: 0,     // 🍖 feed pets
   // profile. `badges` is the 3 equipped badge ids (see game/badges.js) —
   // fixed-length so the three carved slots in the camp frame always render,
@@ -93,6 +100,10 @@ export const DEFAULT_SAVE = {
   runStarts: 0,
   // tutorial
   tutorialDone: false,
+  // First Skill Tree visit frames Mobility → Shadow Dash until dismissed.
+  skillTreeDashSeen: false,
+  // One-time SP top-up so the three-node dash walk is actually buyable.
+  skillTreeDashGrant: false,
   // character system
   character: { rarity: 'common', level: 0, pieces: 0, shards: 0 },
   charBonuses: {},
@@ -138,6 +149,12 @@ export const DEFAULT_SAVE = {
   attachInventory: [],       // found weapon attachments (see game/attachments.js)
   weaponAttach: {},          // { weaponId: { barrel|optic|magazine|underbarrel|coating: attachId } }
   base: {},                  // building id -> level (see game/base.js)
+  // THE DRAIN (hangar hatch). Unique payout is mutations, not another
+  // talent/gear bag. See game/mutations.js and docs/THE-DRAIN.md.
+  mutationsUnlocked: [],
+  mutationLoadout: null,
+  drainRuns: 0,
+  drainBestDepth: 0,
   // Base Defence. The mode itself is one session, so nothing about a layout
   // is persisted — only the record and the buff it earned, which the next
   // run consumes.
@@ -178,12 +195,17 @@ export const DEFAULT_SAVE = {
   startWeapon: 'hydropistol',
   milestoneBar: 0,
   achClaimed: {},      // { achievementId: true }
+  // Milestone toasts that already fired. `null` on a loaded save means
+  // "not migrated yet" — settleProgression backfills currently-complete
+  // achievements so an old save does not dump twenty toasts on boot.
+  toastsSeen: null,
   challengesDone: {},
   chestsOpened: 0,
   legendaryPartsFound: 0,
   shopPulls: 0,
+  shopDry: 0,
   noHitRuns: 0,
-  unlockedActives: [], // ACTIVE_SKILLS ids unlocked via the card shop
+  unlockedActives: {}, // ACTIVE_SKILLS ids unlocked via the card shop / tree
   unlockedEvos: [],    // weapon ids with evolution unlocked
   lifetimeGold: 0,
   // Master Milestone reward system — accumulates points from ALL activities
@@ -207,6 +229,14 @@ export function loadSave() {
     s.inventory = s.inventory || [];
     s.equipped = s.equipped || {};
     s.mapProgress = s.mapProgress || {};
+    // orbit_find was inserted in front of pond_1. A save that already has
+    // later story progress must not be sent back to the two-minute approach.
+    if (!s.mapProgress.orbit_find) {
+      const later = Object.keys(s.mapProgress).some(id => id !== 'orbit_find');
+      if (later || s.stationRepaired || (s.profile?.level || 1) >= 3) {
+        s.mapProgress = { ...s.mapProgress, orbit_find: true };
+      }
+    }
     s.levelUpStreak = { ...DEFAULT_SAVE.levelUpStreak, ...(s.levelUpStreak || {}) };
     s.character = { ...DEFAULT_SAVE.character, ...(s.character || {}) };
     s.charBonuses = s.charBonuses || {};
@@ -217,6 +247,12 @@ export function loadSave() {
     s.gems = s.gems || 0;
     s.slotCoins = s.slotCoins || 0;
     s.talentPoints = s.talentPoints || 0;
+    s.comboPoints = s.comboPoints || 0;
+    s.comboForms = s.comboForms || {};
+    s.comboPointSources = s.comboPointSources || {};
+    s.tcgWins = s.tcgWins || 0;
+    s.exploreClears = s.exploreClears || 0;
+    s.prospectorDives = s.prospectorDives || 0;
 
     // META_RESHAPE clamp (2026-08-23). The meta tracks went from 1404 levels to
     // 166 with `max * amount` held CONSTANT, so each level is ~10x fatter. A save
@@ -293,6 +329,21 @@ export function loadSave() {
       s.equippedParts = {};
     }
     s.base = s.base || {};
+    // THE DRAIN rename (2026-09-18). One-session working title was THE SHAFT.
+    if (s.base.shaft && !s.base.drain) {
+      s.base.drain = s.base.shaft;
+      delete s.base.shaft;
+    }
+    s.drainRuns = Math.max(s.drainRuns || 0, s.shaftRuns || 0);
+    s.drainBestDepth = Math.max(s.drainBestDepth || 0, s.shaftBestDepth || 0);
+    if (s.pathClaimed && s.pathClaimed.useShaft && !s.pathClaimed.useDrain) {
+      s.pathClaimed = { ...s.pathClaimed, useDrain: true };
+      delete s.pathClaimed.useShaft;
+    }
+    if (s.stationQuestsClaimed && s.stationQuestsClaimed.quest_shaft && !s.stationQuestsClaimed.quest_drain) {
+      s.stationQuestsClaimed = { ...s.stationQuestsClaimed, quest_drain: s.stationQuestsClaimed.quest_shaft };
+      delete s.stationQuestsClaimed.quest_shaft;
+    }
     s.gearParts = s.gearParts || 0;
     // Gear predating the levelling system has no level. Treating a missing
     // level as 1 in the readers would work, but writing it once here means
@@ -312,6 +363,13 @@ export function loadSave() {
     // "?" and pressing it silently does nothing.
     if (Array.isArray(s.equippedActives)) {
       s.equippedActives = s.equippedActives.map(id => (id === 'decoy' ? 'steamvent' : id));
+    }
+    if (Array.isArray(s.unlockedActives)) {
+      const o = {};
+      for (const id of s.unlockedActives) if (id) o[id] = true;
+      s.unlockedActives = o;
+    } else {
+      s.unlockedActives = { ...(s.unlockedActives || {}) };
     }
     if (s.unlockedActives && s.unlockedActives.decoy) {
       s.unlockedActives.steamvent = s.unlockedActives.decoy;
@@ -605,7 +663,7 @@ export function addAccountXp(save, amount) {
       xpGained: amount,
       gold: scale(100 + lv * 40),
       sp: scale(Math.max(1, Math.floor(lv / 4))),
-      talentPoints: scale(2),
+      talentPoints: scale(1),
       gems: gemsBonus,
       slotCoins: slotBonus,
       freeSpin: lv % 10 === 0,
@@ -665,7 +723,20 @@ export function applyReward(save, reward, openChest) {
   // never arrived. Every currency this function can be handed a key for must
   // have a branch here; there is no fallback.
   if (reward.talentPoints) save.talentPoints = (save.talentPoints || 0) + reward.talentPoints;
+  if (reward.comboPoints) save.comboPoints = (save.comboPoints || 0) + reward.comboPoints;
   if (reward.gachaTokens)  save.gachaTokens  = (save.gachaTokens  || 0) + reward.gachaTokens;
+  // Profile level-up pays character pieces/shards and a shop spin. Those
+  // used to live only in Camp's overlay collect — a stale snapshot, and
+  // any other bag that carried them was silently dropped.
+  if (reward.pieces || reward.shards) {
+    const ch = { ...(save.character || { rarity: 'common', level: 0, pieces: 0, shards: 0 }) };
+    if (reward.pieces) ch.pieces = (ch.pieces || 0) + reward.pieces;
+    if (reward.shards) ch.shards = (ch.shards || 0) + reward.shards;
+    save.character = ch;
+  }
+  const extraSpins = (reward.freeShopSpins || 0)
+    + (reward.freeSpin === true ? 1 : (typeof reward.freeSpin === 'number' ? reward.freeSpin : 0));
+  if (extraSpins) save.freeShopSpins = (save.freeShopSpins || 0) + extraSpins;
   if (reward.type === 'gold')  save.gold      = (save.gold      || 0) + reward.amount;
   if (reward.type === 'sp')    save.sp        = (save.sp        || 0) + reward.amount;
   if (reward.type === 'gems')  save.gems      = (save.gems      || 0) + reward.amount;
@@ -698,17 +769,10 @@ export function bankReward(save, entry) {
 // Welcome/home screen's "The Camp" button) needs, so opening Camp is never
 // a surprise: if this is true, something in there has a waterdrop on it.
 export function campHasClaimable(save) {
-  const discovered = Object.keys(save.codex?.enemies || {}).length + Object.keys(save.codex?.weapons || {}).length;
-  if (discovered > (save.codex?.claimedDiscoveries || []).length) return true;
-
-  const passReached = Math.floor((save.profile?.xp || 0) / 200);
-  if (passReached > (save.battlePass?.claimed || []).length) return true;
-
-  const now = Date.now();
-  if ((save.patrol?.missions || []).some(m => m.status === 'complete' || (m.status === 'active' && now - m.startMs >= m.durationMs))) return true;
-
-  if (ACHIEVEMENTS.some(a => achMetric(save, a.metric) >= a.goal) &&
-      ACHIEVEMENTS.filter(a => achMetric(save, a.metric) >= a.goal).length > Object.keys(save.achClaimed || {}).length) return true;
+  if (codexUnclaimedCount(save) > 0) return true;
+  if (battlePassUnclaimedCount(save) > 0) return true;
+  if (patrolReadyCount(save) > 0) return true;
+  if (achievementsReady(save).length > 0) return true;
 
   if (MILESTONES.filter(m => (save[m.metric] || 0) >= m.goal).length > Object.keys(save.milestones?.claimed || {}).length) return true;
 

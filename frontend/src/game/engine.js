@@ -3,6 +3,7 @@ import { ACTIVE_SKILLS, KILL_FX, ENEMY_KILL_FX, ADVANCED_CARDS, ELEMENTS, getWea
 import { applyAttachments } from './attachments';
 import { Audio } from './audio';
 import { PixiRenderer } from './pixiRenderer';
+import { tickRibCombo, pushRibHit, ribStyle, wantsAttack, bumpHoldString, tickHoldString, applyHoldString } from './meleeCombo';
 
 const TAU = Math.PI * 2;
 // ── Which engine field holds each active skill's "still running" timer ──
@@ -254,7 +255,7 @@ export class Game {
     this.activePet = opts.activePet || null;
     this.pet = this.activePet ? { x: 0, y: 0, vx: 0, vy: 0, wobble: 0, attackCD: 0.5, healCD: 5, orbit: 0 } : null;
     this.W = 0; this.H = 0; this.dpr = Math.min(window.devicePixelRatio || 1, 2);
-    this.input = { x: 0, y: 0, mx: 0, my: 0, shooting: false, keys: {}, pause: false };
+    this.input = { x: 0, y: 0, mx: 0, my: 0, shooting: false, heavy: false, _dev: null, keys: {}, pause: false };
     this.cam = { x: 0, y: 0, shake: 0, slowmo: 0 };
     // The active finisher sequence, and the gap before another may start.
     // See tryFinisher / updateFinisher.
@@ -291,11 +292,19 @@ export class Game {
     this.dmgNums = new Pool(() => ({ alive: false, x: 0, y: 0, life: 0, text: '', color: '#fff', vy: 0, size: 14 }), 300);
     this.corpses = []; // simple corpse list (rendered floor decals)
     this.bloodDecals = []; // floor blood (capped)
+    this._bladeBlood = 0;
+    this._bladeWipeCD = 0;
+    this._bladeDripT = 0;
+    this._screenGibs = [];
     this.skyEvents = []; // passing meteors/UFOs — decorative + real light casters
     this._nextSkyEventAt = rand(5, 10);
-    // pond_1 only — pixiRenderer.js builds a "WATERDROP CAMP" sign near
-    // spawn when this is set. See GameScreen.jsx's opts.campSign.
+    // pond_1 / orbit_find — a landmark near spawn. See GameScreen.jsx's opts.campSign.
     this.campSign = !!opts.campSign;
+    this.cannotDie = !!opts.cannotDie;
+    this.noBoss = !!opts.noBoss;
+    this.enemyMix = Array.isArray(opts.enemyMix) && opts.enemyMix.length ? opts.enemyMix : null;
+    this.harderAfter = opts.harderAfter || 0;
+    this.harderMult = opts.harderMult || 1;
 
     // Player
     this.player = this.createPlayer();
@@ -418,6 +427,9 @@ export class Game {
       this.run.stats.damageMult *= 2.5;
       this.run.stats.maxHp = Math.floor(this.run.stats.maxHp * 0.5);
     }
+    // Coolant Film (THE DRAIN mutation). Same bag as talents. Do not invent
+    // a second armor field — engine already applies this.armor to hits.
+    if (this.run.stats.flags.mutFilm) this.run.stats.armor += 8;
     // No cap — see the maxHp branch in the level-up card handler for why the
     // old Math.min(100, …) had to go.
     this.player.maxHp = this.run.stats.maxHp;
@@ -451,6 +463,8 @@ export class Game {
     // level-up reads as the character visibly charging up, not just a
     // screen flash. See LEVEL_UP_SHIELD_DUR below.
     this._levelUpShieldT = 0;
+    this._levelUpShatterAt = 0;
+    this._luPixelsDone = false;
     this._lightningFlash = 0;
     // Boss-specific kill tracking
     this._necroKilled = false;
@@ -642,6 +656,7 @@ export class Game {
     window.removeEventListener('mousemove', this._mm); // window-level
     window.removeEventListener('mousedown', this._md);
     window.removeEventListener('mouseup', this._mu);
+    window.removeEventListener('contextmenu', this._cm);
     document.removeEventListener('visibilitychange', this._vis);
     this.canvas.removeEventListener('touchstart', this._ts);
     this.canvas.removeEventListener('touchmove', this._tm);
@@ -672,15 +687,25 @@ export class Game {
 
     // === Mouse: window-level so aim never gets stuck when leaving canvas ===
     this._mm = (e) => {
+      this.input._dev = 'mouse';
       const rect = this.canvas.getBoundingClientRect();
       this.input.mx = e.clientX - rect.left;
       this.input.my = e.clientY - rect.top;
     };
-    this._md = (e) => { if (e.button === 0) this.input.shooting = true; };
-    this._mu = (e) => { if (e.button === 0) this.input.shooting = false; };
+    this._lmb = false;
+    this._md = (e) => {
+      this.input._dev = 'mouse';
+      if (e.button === 0) { this._lmb = true; this.input.shooting = true; }
+      if (e.button === 2) { this.input.heavy = true; this.input.shooting = true; }
+    };
+    this._mu = (e) => {
+      if (e.button === 0) { this._lmb = false; this.input.shooting = this.input.heavy; }
+      if (e.button === 2) { this.input.heavy = false; this.input.shooting = this._lmb; }
+    };
+    this._cm = (e) => { e.preventDefault(); };
 
     // touch (mobile fallback)
-    this._ts = (e) => { this.input.shooting = true; this._tm(e); };
+    this._ts = (e) => { this.input._dev = 'touch'; this.input.shooting = true; this._tm(e); };
     this._tm = (e) => {
       if (e.touches.length) {
         const rect = this.canvas.getBoundingClientRect();
@@ -688,7 +713,7 @@ export class Game {
         this.input.my = e.touches[0].clientY - rect.top;
       }
     };
-    this._te = () => { this.input.shooting = false; };
+    this._te = () => { this.input.shooting = false; this.input.heavy = false; };
     this._rs = () => this.resize();
 
     window.addEventListener('keydown', this._kd);
@@ -696,6 +721,7 @@ export class Game {
     window.addEventListener('mousemove', this._mm);   // FIXED: window-level
     window.addEventListener('mousedown', this._md);   // FIXED: window-level
     window.addEventListener('mouseup', this._mu);     // FIXED: window-level
+    window.addEventListener('contextmenu', this._cm);
     this.canvas.addEventListener('touchstart', this._ts, { passive: true });
     this.canvas.addEventListener('touchmove', this._tm, { passive: true });
     this.canvas.addEventListener('touchend', this._te);
@@ -711,29 +737,47 @@ export class Game {
       const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
       for (const gp of gamepads) {
         if (!gp) continue;
-        // Left stick: movement
+        // Left stick: movement. Same last-device gate as fire — an idle Ally
+        // pad must not pin aim/move after the player has gone back to mouse.
         const lx = Math.abs(gp.axes[0]) > 0.12 ? gp.axes[0] : 0;
         const ly = Math.abs(gp.axes[1]) > 0.12 ? gp.axes[1] : 0;
-        if (lx || ly) this.input.joyMove = { x: lx, y: ly };
-        else if (this.input.joyMove) this.input.joyMove = { x: 0, y: 0 };
+        if (lx || ly) {
+          this.input._dev = 'gamepad';
+          this.input.joyMove = { x: lx, y: ly };
+        } else if (this.input._dev === 'gamepad') {
+          this.input.joyMove = { x: 0, y: 0 };
+        }
 
         // Right stick: aim
         const rx = Math.abs(gp.axes[2]) > 0.12 ? gp.axes[2] : 0;
         const ry = Math.abs(gp.axes[3]) > 0.12 ? gp.axes[3] : 0;
-        if (rx || ry) this.input.joyAim = { x: rx, y: ry };
-        else if (rx === 0 && ry === 0) this.input.joyAim = this.input.joyAim || { x: 0, y: 0 };
+        if (rx || ry) {
+          this.input._dev = 'gamepad';
+          this.input.joyAim = { x: rx, y: ry };
+        } else if (this.input._dev === 'gamepad') {
+          this.input.joyAim = { x: 0, y: 0 };
+        }
 
-        // Right trigger (RT / R2): shoot
+        // Right trigger (RT / R2) / RB: light fire. Triangle / Y: heavy.
+        // Last-device-wins. A ROG Ally always reports a pad; writing
+        // shooting=false every frame from an idle trigger is what killed
+        // mouse and touch fire.
         const rt = gp.buttons[7]?.value || 0;
         const rb = gp.buttons[5]?.pressed;
-        this.input.shooting = rt > 0.4 || rb;
+        const padFire = rt > 0.4 || rb;
+        const padHeavy = !!(gp.buttons[3]?.pressed);
+        if (padFire || padHeavy) this.input._dev = 'gamepad';
+        if (this.input._dev === 'gamepad') {
+          this.input.shooting = padFire || padHeavy;
+          this.input.heavy = padHeavy;
+        }
 
         // A button: dash
         if (gp.buttons[0]?.pressed) this.tryDash();
         // B: reload
         if (gp.buttons[1]?.pressed) this.tryReload();
-        // Y: skill 1
-        if (gp.buttons[3]?.pressed) this.tryActiveSkill(0);
+        // Triangle / Y is HEAVY. Skill 1 moved to LB so the face button is free.
+        if (gp.buttons[4]?.pressed) this.tryActiveSkill(0);
         // X: skill 2
         if (gp.buttons[2]?.pressed) this.tryActiveSkill(1);
         // Start: pause
@@ -899,10 +943,12 @@ export class Game {
     return [this.cam.x + sx * zoom, this.cam.y + sy * zoom];
   }
 
-  setMobileInput(joyMove, joyAim, firing) {
+  setMobileInput(joyMove, joyAim, firing, extra) {
+    this.input._dev = 'touch';
     this.input.joyMove = joyMove;
     this.input.joyAim = joyAim;
     if (firing !== undefined) this.input.shooting = firing;
+    this.input.heavy = !!(extra && extra.heavy);
   }
 
   // ====== UPDATE ======
@@ -967,6 +1013,7 @@ export class Game {
 
     this._updateFxBudget();
     this._updateProspectorFlags(dt);
+    this._updateTalentFx(dt);
     this._updateWeather(dt);
 
     // Rebuild the enemy broadphase before anything queries it this frame.
@@ -982,6 +1029,8 @@ export class Game {
     this.updateProjs(dt);
     this.updateEProjs(dt);
     this.updateParts(dt);
+    this._updateBladeBlood(dt);
+    this._updateScreenGibs(dt);
     // After updateParts, so the corpse actor's own ballistics run on the
     // same frame the pool advanced it.
     this.updateFinisher(dt);
@@ -1052,6 +1101,12 @@ export class Game {
     this._levelUpFlash   = Math.max(0, this._levelUpFlash - dt * 4);
     this._levelUpShieldT = Math.max(0, (this._levelUpShieldT || 0) - dt);
     this._levelUpTextTimer = Math.max(0, (this._levelUpTextTimer || 0) - dt);
+    if (this._levelUpShatterAt && !this._luPixelsDone
+        && this._levelUpTextTimer > 0
+        && this._levelUpTextTimer <= this._levelUpShatterAt) {
+      this._luPixelsDone = true;
+      this._spawnLevelUpPixels();
+    }
     this._lightningFlash = Math.max(0, (this._lightningFlash || 0) - dt * 6);
     this._tierBannerT = Math.max(0, (this._tierBannerT || 0) - dt);
 
@@ -1064,7 +1119,7 @@ export class Game {
     this.updateSkyEvents(dt);
 
     // Campaign gate: the guardian arrives once you have held out long enough.
-    if (this.campaignBossAt && !this._campaignBossSpawned && this.run.time >= this.campaignBossAt) {
+    if (!this.noBoss && this.campaignBossAt && !this._campaignBossSpawned && this.run.time >= this.campaignBossAt) {
       this._campaignBossSpawned = true;
       this.spawnBoss(this.campaignBossId);
       this._campaignBoss = this.bossActive;
@@ -1092,7 +1147,7 @@ export class Game {
     // rather than a timing fudge: a node's shape is "hold out, then the
     // guardian", and a second unrelated boss wandering in during the hold-out
     // is not part of that shape at any gate time.
-    if (!this.campaignBossAt && this.nextBoss && this.run.time >= this.nextBoss.t && !this.bossActive) {
+    if (!this.noBoss && !this.campaignBossAt && this.nextBoss && this.run.time >= this.nextBoss.t && !this.bossActive) {
       this.spawnBoss(this.nextBoss.event);
       this.nextBoss = nextBossEvent(this.run.time + 0.1);
     }
@@ -1117,7 +1172,14 @@ export class Game {
     }
 
     if (this.player.hp <= 0 && !this.over) {
-      if (this.run.stats.revive > 0) {
+      if (this.cannotDie) {
+        this.over = true;
+        this.victory = false;
+        this.player.hp = 1;
+        if (this.callbacks.onGameOver) {
+          this.callbacks.onGameOver({ ...this.snapshot(), victory: false, evacHome: true, gold: 0 });
+        }
+      } else if (this.run.stats.revive > 0) {
         this.run.stats.revive = 0;
         this.player.hp = this.player.maxHp * 0.5;
         this.player.iframes = 2;
@@ -1264,6 +1326,16 @@ export class Game {
         e._burn -= dt;
         e._burnAcc = (e._burnAcc || 0) + dt;
         if (e._burnAcc >= 0.5) { e._burnAcc = 0; this.dealDamage(e, 6 * s.damageMult, false, 0, e.x, e.y, true); if (Math.random() < 0.5) this.spawnSpark(e.x, e.y, '#ff7a1a'); }
+      }
+      if (e._bleedT > 0) {
+        e._bleedT -= dt;
+        e._bleedAcc = (e._bleedAcc || 0) + dt;
+        if (e._bleedAcc >= 0.4) {
+          e._bleedAcc = 0;
+          const stacks = e._bleed || 1;
+          this.dealDamage(e, 4 * stacks * s.damageMult, false, 0, e.x, e.y, true);
+          if (Math.random() < 0.4) this.spawnSpark(e.x, e.y, BLOOD_RED);
+        }
       }
       if (e._comboCD > 0) e._comboCD -= dt; // Elemental Combo Reactions cooldown, see checkElementalCombo
     });
@@ -1551,6 +1623,8 @@ export class Game {
       }
     }
     p.recoil = Math.max(0, (p.recoil || 0) - dt * 4);
+    p._katanaSwingT = Math.max(0, (p._katanaSwingT || 0) - dt);
+    tickRibCombo(p, dt);
     p._muzzleFlashT = Math.max(0, (p._muzzleFlashT || 0) - dt);
 
     // Dash motion
@@ -1665,6 +1739,10 @@ export class Game {
     p.dashVX = (vx / l) * speed;
     p.dashVY = (vy / l) * speed;
     p.dashing = 0.13 + 0.07 * pw;
+    // Marrow Rush (THE DRAIN mutation). Flag is merged into this same bag
+    // by GameScreen.buildMetaEffects. Stretch the dash, do not invent a
+    // second dash stat — a parallel dash length is how this goes dead.
+    if (s.flags && s.flags.mutMarrow) p.dashing *= 1.28;
     p.dashCD = (2.4 * (s.dashCDMult || 1)) / agi;
     p.dashMaxCD = p.dashCD;   // snapshot reports this so the dial can draw the fill
     // Phase Dash (poe_mob7) extends the dash's invulnerability rather than
@@ -2012,16 +2090,20 @@ export class Game {
   updateWeapons(dt) {
     const owned = this.run.ownedWeapons;
     this._heldWidSet = false;
+    // Resolve melee BEFORE the pistol pass. Hydropistol is first in
+    // ownedWeapons; if we let it claim _heldWid and only overwrite after the
+    // loop, anything that reads the field mid-tick (and the swap pose, if a
+    // future caller ever drew mid-update) still sees a gun in his hands.
+    const meleeHeld = owned.find(id => WEAPONS[id] && WEAPONS[id].behaviour === 'melee') || null;
     for (const wid of owned) {
       const w = WEAPONS[wid];
       const lvl = this.run.weaponLvls[wid] || 0;
       const stats = this.computeWeaponStats(w, lvl, wid);
       stats._wid = wid;
       stats._wlvl = lvl;
-      // Weapon-dependent gore: whichever weapon is about to deal damage
-      // "owns" this frame's blood/wound tint (read inside dealDamage) — e.g.
-      // hydropistol wounds run pale blue-white, flameburst runs ember-orange,
-      // icespike runs frosty cyan, instead of every kill bleeding plain red.
+      // Muzzle/spark accent only. Liquid blood is always BLOOD_RED; flesh
+      // chunks keep the enemy's own colour. This field used to leak into
+      // blood (and even 1-in-4 wound chunks), which read as coloured paint.
       this._curWeaponColor = stats.color || null;
       // What KIND of thing is about to hit, so the wound can match it. Without
       // this every hit that was not fire or ice stamped a bullet hole -- a
@@ -2040,7 +2122,7 @@ export class Game {
           // manual weapon runs through weaponManualPistol each frame, so
           // taking the last would make the held model flicker between them.
           if (w.type === 'manual') {
-            if (!this._heldWidSet) {
+            if (!meleeHeld && !this._heldWidSet) {
               if (wid !== this._heldWid) {
                 this._heldWid = wid;
                 // Resolved on change only — attachments cannot change during
@@ -2064,9 +2146,20 @@ export class Game {
         case 'meteor':  stats._behaviour = w.behaviour; this.weaponMeteor(stats, dt); break;
         case 'chain':   stats._behaviour = w.behaviour; this.weaponChain(stats, dt); break;
         case 'drone':   stats._behaviour = w.behaviour; this.weaponDrone(stats, dt); break;
-        case 'melee':   stats._behaviour = w.behaviour; this.weaponKatana(stats, dt); break;
+        case 'melee':
+          stats._behaviour = w.behaviour;
+          this.weaponKatana(stats, dt);
+          break;
         default: break;
       }
+    }
+    // Blade in the hands whenever a melee weapon is owned. First-manual used
+    // to win because hydropistol sits earlier in ownedWeapons than katana, so
+    // the model stayed a gun while the slash particle swung — the exact
+    // "håller i en pistol samtidigt" bug Timmy named.
+    if (meleeHeld && this._heldWid !== meleeHeld) {
+      this._heldWid = meleeHeld;
+      this._attachLooks = this.attachFor ? this.attachFor(meleeHeld) : null;
     }
   }
 
@@ -2171,8 +2264,9 @@ export class Game {
     if (overdrive) p.mag = mag;
     if (p.mag <= 0) { this.startReload(s); return; }
     if (this.input.shooting && p.shootCD <= 0) {
+      const heavy = !!this.input.heavy;
       const fr = s.fireRate * rs.fireRateMult * (overdrive ? 1.7 : 1);
-      p.shootCD = 1 / fr;
+      p.shootCD = (1 / fr) * (heavy ? 1.65 : 1);
       // Base aim imprecision (Aim attribute) stacks on top of the weapon's
       // own spread — even a "0 spread" precision weapon can clip a miss at
       // low Aim investment, per spec ("siktar rakt men missar ändå").
@@ -2213,8 +2307,12 @@ export class Game {
           this.spawnRing(p.x + p.aimX * 22, p.y + p.aimY * 22, 16, s.color || '#9fd8ff', 0.16);
         }
       }
+      if (heavy && !rs.dualGuns) {
+        this.fireProjectile(p.x + p.aimX * 12, p.y + p.aimY * 12, ang - 0.07, s, true);
+        this.fireProjectile(p.x + p.aimX * 12, p.y + p.aimY * 12, ang + 0.07, s, true);
+      }
       p.mag -= 1;
-      this.cam.shake = Math.max(this.cam.shake, 1.4);
+      this.cam.shake = Math.max(this.cam.shake, heavy ? 3.2 : 1.4);
       Audio.shoot(s._wid, s._behaviour);
       // Dual Guns already flashed at both barrels above; a third flash on
       // the centre line would give the pair a phantom middle gun.
@@ -2405,17 +2503,32 @@ export class Game {
     const pf = rs.flags || {};
     let fr = s.fireRate * rs.fireRateMult;
     if (pf.meleeSpeed) fr *= 1 + (rs.meleeSpeedAmt || 0.10);
+    const holding = wantsAttack(this.input);
+    tickHoldString(p, holding, dt);
+    if (!holding) return;
     if (p.katanaCD > 0) return;
-    p.katanaCD = 1 / fr;
+    bumpHoldString(p);
+    const seq = pushRibHit(p, !!this.input.heavy, pf);
+    let form = ribStyle(seq, pf);
+    form = applyHoldString(p, form, this.run.comboCount);
+    p.katanaCD = (1 / fr) * form.cd;
 
-    const reach = (s.area || 96) * rs.areaMult;
-    const baseDmg = s.damage * rs.damageMult;
+    const visReach = (s.area || 96) * rs.areaMult;
+    const reach = visReach * form.reach;
+    const baseDmg = s.damage * rs.damageMult * form.dmg;
     const aimAng = Math.atan2(p.aimY || 0, p.aimX || 1);
     // Alternate the swing direction so consecutive strikes read as a combo
     // rather than the same animation replayed.
     p._katanaSwing = -(p._katanaSwing || 1);
+    p._katanaSwingDir = p._katanaSwing;
+    p._katanaSwingMax = form.swing;
+    p._katanaSwingT = form.swing || 0.28;
+    p._ribLean = form.lean;
+    p.recoil = Math.min(1, (p.recoil || 0) + 0.55 * form.lean);
 
+    const halfArc = 0.68 * (form.span / 1.18);
     let anyHit = false;
+    let bestCrit = 0;
     this.enemies.forEach((e) => {
       const edx = e.x - p.x, edy = e.y - p.y;
       const ed = Math.hypot(edx, edy);
@@ -2423,14 +2536,28 @@ export class Game {
       let da = Math.atan2(edy, edx) - aimAng;
       while (da > Math.PI) da -= TAU;
       while (da < -Math.PI) da += TAU;
-      // ~78 degrees total, against the scythe's ~198. A katana is a line, not
-      // a circle.
-      if (Math.abs(da) > 0.68) return;
+      // Light Tear stays ~78 degrees. Cyclone opens almost full circle.
+      if (Math.abs(da) > halfArc) return;
       anyHit = true;
       const dmg = this.rollDamage(baseDmg);
+      if (dmg.crit) bestCrit = Math.max(bestCrit, dmg.critTier || 1);
       const wasAlive = e.alive;
       const hpBefore = e.hp;
-      this.dealDamage(e, dmg.dmg, dmg.crit, s.knockback || 40, p.x, p.y);
+      this.dealDamage(e, dmg.dmg, dmg.crit, (s.knockback || 40) * form.knock, p.x, p.y);
+      if (form.launch) {
+        e.kbX = (e.kbX || 0) + Math.cos(aimAng) * 50;
+        e.kbY = (e.kbY || 0) + Math.sin(aimAng) * 50 - 110;
+      }
+      this._cutFlash(e.x, e.y, aimAng + (Math.random() - 0.5) * 0.4, e.t.size * 1.5);
+      this.spawnArterialCone(e.x, e.y, aimAng, BLOOD_RED, 0.45 + form.lean * 0.22);
+      this.spawnBlood(e.x, e.y, BLOOD_RED);
+      this.pushBloodDecal({
+        x: e.x, y: e.y,
+        r: (e.t.size || 16) * 0.42,
+        a: 0.52,
+        bornAt: this.time,
+        color: BLOOD_RED,
+      });
       // Cleave on a clean kill -- only on a kill, because splitting something
       // that survives would look absurd. Every ordinary enemy is included;
       // bosses are excluded on purpose, since they run their own death
@@ -2442,13 +2569,12 @@ export class Game {
 
     // The blade always swings, hit or not -- a swing that only animates on
     // contact makes the weapon feel broken when you miss.
-    this.spawnKatanaSlash(p.x, p.y, reach, s.color || '#dff4ff', aimAng, p._katanaSwing);
+    this.spawnKatanaSlash(p.x, p.y, visReach, s.color || '#dff4ff', aimAng, p._katanaSwing, bestCrit, form);
     if (anyHit) {
-      this.cam.shake = Math.max(this.cam.shake, 5);
-      // A short step INTO the cut. Carried on knockback so it decays on its
-      // own rather than teleporting the player.
-      p.vx = (p.vx || 0) + Math.cos(aimAng) * 90;
-      p.vy = (p.vy || 0) + Math.sin(aimAng) * 90;
+      this.cam.shake = Math.max(this.cam.shake, 5 + form.lean * 2.4);
+      this.cam.slowmo = Math.max(this.cam.slowmo || 0, 0.045 * form.lean);
+      p.vx = (p.vx || 0) + Math.cos(aimAng) * form.step;
+      p.vy = (p.vy || 0) + Math.sin(aimAng) * form.step;
     }
     Audio.shoot(s._wid, s._behaviour);
   }
@@ -2480,15 +2606,27 @@ export class Game {
     { span: 1.40, reach: 0.62, life: 0.20, th: 0.25, lead: 3.0 },  // 9: Dual Shadow Helix (Jumonji-Giri)
   ];
 
-  spawnKatanaSlash(x, y, reach, color, ang, dir) {
+  spawnKatanaSlash(x, y, reach, color, ang, dir, comboTier, form) {
     const p = this.parts.acquire();
-    const idx = (this._katanaStyle = ((this._katanaStyle || 0) + 1) % Game.KATANA_STYLES.length);
+    // Crit / super / mega pick a named cut instead of the rotating catalogue,
+    // so a bigger number is a bigger swing you can see — the three combo
+    // animations Timmy asked for, gated on the three crit tiers that already
+    // exist as meta.
+    let idx;
+    if (comboTier >= 3) idx = 7;       // 360° Full Moon Dance
+    else if (comboTier >= 2) idx = 6;  // 180° Cyclone Arc
+    else if (comboTier >= 1) idx = 4;  // Rising Diagonal Uppercut
+    else idx = (this._katanaStyle = ((this._katanaStyle || 0) + 1) % Game.KATANA_STYLES.length);
+    if (form && form.key === 'LLL') idx = 7;
+    else if (form && form.key === 'LLH') idx = 4;
+    else if (form && form.key === 'H') idx = 2;
+    this._katanaStyle = idx;
     const st = Game.KATANA_STYLES[idx];
     p.x = x; p.y = y; p.vx = 0; p.vy = 0;
-    p.life = st.life; p.max = st.life;
-    p.color = color; p.size = reach * st.reach; p.type = 'katanaSlash';
+    p.life = (form ? form.life : st.life) * 1.35; p.max = p.life;
+    p.color = color; p.size = reach * (form ? form.reach * 0.92 : st.reach * 1.14); p.type = 'katanaSlash';
     p._ang = ang; p._dir = dir || 1;
-    p._span = st.span; p._th = st.th; p._lead = st.lead;
+    p._span = form ? form.span : st.span; p._th = (form ? form.th : st.th) * 1.18; p._lead = st.lead;
   }
 
   // A killing cut. Ten distinct gruesome ways a body comes apart, rolled per kill,
@@ -2731,6 +2869,9 @@ export class Game {
     }
     // Overkill Bounty (step 8).
     if (f.finGold) this._finGoldMult = f.finGold;
+    if (f.finPool) {
+      this._spawnWaterPool(e.x, e.y, 72, f.finPool, 10 * (this.run.stats.damageMult || 1), BLOOD_RED, false, true);
+    }
   }
 
   // Dev handle: fire a finisher on the nearest enemy, on demand.
@@ -2840,6 +2981,9 @@ export class Game {
           // not the clean 50/50 a normal bisect produces.
           this._spawnFinPiece(bx, by, bz, cut2, -1, 0.44, size, color, cut1);
           this._spawnFinPiece(bx, by, bz, cut2, 1, 0.62, size, color, cut1);
+          if ((this.run.stats.flags || {}).finThirds) {
+            this._spawnFinPiece(bx, by, bz, cut2 + 0.85, 0, 0.36, size, color, cut1);
+          }
           this._cutFlash(bx, by - bz, cut2, size * 2.6);
           this.spawnArterialCone(bx, by - bz * 0.5, cut2 + Math.PI / 2, BLOOD_RED, 1.5);
           this.spawnArterialCone(bx, by - bz * 0.5, cut2 - Math.PI / 2, BLOOD_RED, 1.5);
@@ -2875,8 +3019,10 @@ export class Game {
       Audio.shoot('hydropistol', 'manual');
     };
 
+    const fourth = !!(this.run.stats.flags || {}).finFourth;
+    const landAt = fourth ? 1.34 : 1.20;
     this.fin = {
-      kind: 'hydro', t: 0, beat: 0, dur: 1.55, body, ang, size, color,
+      kind: 'hydro', t: 0, beat: 0, dur: fourth ? 1.72 : 1.55, body, ang, size, color,
       sprayT: 0, split: false, zTarget: 0, side, shotAng,
       beats: [
         // --- 1. JUMP.
@@ -2896,8 +3042,9 @@ export class Game {
         { at: 0.46, run: shot(0.18, 11) },
         { at: 0.72, run: shot(0.21, 13) },
         { at: 0.98, run: shot(0.26, 16) },
+        ...(fourth ? [{ at: 1.12, run: shot(0.19, 18) }] : []),
         // --- 6. LAND ON HIM. The part he laughed about.
-        { at: 1.20, run: () => {
+        { at: landAt, run: () => {
           this.fin.zTarget = 0; p._finOx = 0; p._finOy = 0;
           this._spawnHydroSplat(body, Math.PI / 2, 0.30, 0, true);
           this.pushBloodDecal({ x: body.x, y: body.y, r: size * 1.15, a: 0.6, bornAt: this.time, color: body._ooze ? color : BLOOD_RED });
@@ -3128,6 +3275,7 @@ export class Game {
   // Blood also gets SMALLER, not fewer: "mindre alltsa smaller inte less".
   static PARTICLE_TRIM = 0.5;   // sparks, chunks, debris
   static BLOOD_TRIM = 1.6;      // blood only
+  static BLOOD_RED = BLOOD_RED;
 
   // Picked by what is actually around you, never at random: surrounded gets the
   // spin, a lone target ahead gets the leap. The move then reads as a RESPONSE.
@@ -3545,6 +3693,17 @@ export class Game {
     pr._baseDmg = (s.damage || 10) * this.run.stats.damageMult;
     pr._baseCrit = s.crit || 0;
     pr.pierce = (s.pierce || 0) + this.run.stats.pierceBonus;
+    const tf = (this.run.stats.flags || {});
+    if (friendly && tf.fxPierce) pr.pierce += 1;
+    if (friendly && tf.fxEcho && !s._echo) {
+      this._echoQ = this._echoQ || [];
+      if (this._echoQ.length < 20) {
+        this._echoQ.push({
+          t: 0.11, x, y, ang, homing,
+          s: { ...s, _echo: true, damage: (s.damage || 10) * (tf.fxEcho || 0.45), pierce: 0, explode: 0 },
+        });
+      }
+    }
     // Life is DIVIDED by the speed multiplier so that "range" means distance,
     // not time. A faster bolt covers more ground in the same 1.6s, so without
     // this a speed upgrade would silently be a range upgrade too and the two
@@ -3555,6 +3714,7 @@ export class Game {
     pr.homing = homing;
     pr.knockback = s.knockback || 0;
     pr.explode = s.explode || 0;
+    if (friendly && tf.fxExplode) pr.explode = Math.max(pr.explode || 0, tf.fxExplode);
     pr._weaponBehaviour = s._behaviour || 'projectile';
     pr._wid = s._wid || null;          // weapon id for custom render
     pr._wlvl = s._wlvl || 0;           // weapon level for visual scaling
@@ -3812,17 +3972,22 @@ export class Game {
     // player's own level — the same "your power buys the wave's power"
     // contract as the HP/damage menace terms in spawnEnemy.
     const levelDensity = Math.min(1.6, 1 + (this.run.level - 1) * 0.018);
+    const harder = (this.harderAfter && this.run.time >= this.harderAfter) ? (this.harderMult || 1) : 1;
     const rate = w.spawn
       * (this.spawnMultExtra || 1)
       * this.diff.spawnMult
       * levelDensity
+      * harder
       * (1 + this._stagnation * 0.8);
     const spawnInterval = 1 / rate;
     while (this.spawnTimer >= spawnInterval) {
       this.spawnTimer -= spawnInterval;
       const n = 1 + (Math.random() < (this.run.time / 600) ? 1 : 0);
       for (let i = 0; i < n; i++) {
-        const type = w.types[randi(0, w.types.length)];
+        const mix = this.enemyMix;
+        const type = (mix && mix.length)
+          ? mix[randi(0, mix.length)]
+          : w.types[randi(0, w.types.length)];
         this.spawnEnemy(type);
       }
     }
@@ -4657,7 +4822,7 @@ export class Game {
       //    a front instead of a file. Uses the existing broadphase, and only
       //    looks at close neighbours, so it stays cheap with hundreds alive.
       let sepX = 0, sepY = 0;
-      const sepR = t.size * 1.35;
+      const sepR = t.size * 1.55;
       this.enemyGrid.query(e.x, e.y, sepR, (o) => {
         if (o === e || !o.alive) return;
         const ox = e.x - o.x, oy = e.y - o.y;
@@ -4674,13 +4839,13 @@ export class Game {
       //    Identical lead would just move the queue; a spread of leads fans
       //    them across the player's path so you have to weave, which is what
       //    opens up the ground the orbs are lying on.
-      if (e._lead === undefined) e._lead = rand(0, 0.55);
+      if (e._lead === undefined) e._lead = rand(0.08, 0.78);
       const ix = nx + (p.vx || 0) * e._lead * 0.004;
       const iy = ny + (p.vy || 0) * e._lead * 0.004;
       const il = Math.hypot(ix, iy) || 1;
 
-      e.x += (ix / il) * spd * dt + sepX * 26 * dt + e.kbX * dt;
-      e.y += (iy / il) * spd * dt + sepY * 26 * dt + e.kbY * dt;
+      e.x += (ix / il) * spd * dt + sepX * 42 * dt + e.kbX * dt;
+      e.y += (iy / il) * spd * dt + sepY * 42 * dt + e.kbY * dt;
       e.x = clamp(e.x, 20, this.world.w - 20);
       e.y = clamp(e.y, 20, this.world.h - 20);
       e.kbX *= Math.pow(0.001, dt);
@@ -4763,6 +4928,10 @@ export class Game {
           if (f.thorns) {
             this.dealDamage(e, dmg * (this.run.stats.thornsAmt || 0.25), false, 30, p.x, p.y, true);
             this.spawnSpark(e.x, e.y, '#8fe36b');
+          }
+          if (f.fxThorns) {
+            this.dealDamage(e, dmg * (f.fxThorns || 2), false, 40, p.x, p.y, true);
+            this.spawnSpark(e.x, e.y, '#4dc4ff');
           }
           // Grit damage reduction
           const reduce = f.grit && (p._gritT || 0) > this.run.time ? 0.7 : 1.0;
@@ -4853,6 +5022,9 @@ export class Game {
             hitDmg = r.dmg; hitCrit = r.crit;
           }
           pr._hitCount = (pr._hitCount || 0) + 1;
+          if ((this.run.stats.flags || {}).fxPierce && pr._hitCount > 1) {
+            hitDmg *= 1 + ((this.run.stats.flags || {}).fxPierce || 0);
+          }
           this.dealDamage(e, hitDmg, hitCrit, pr.knockback, pr.x, pr.y, false, pr.color);
           this.spawnHitBurst(pr.x, pr.y, pr.color || e.t.color, 8);
           if (pr._element) {
@@ -4896,15 +5068,57 @@ export class Game {
           if (bounces > 0 && pr._weaponBehaviour === 'projectile') {
             this.applyConductiveBounce(e.x, e.y, pr.dmg, bounces, new Set([e]));
           }
+          const chainEvery = (this.run.stats.flags || {}).fxChain;
+          if (chainEvery) {
+            this._fxChainN = (this._fxChainN || 0) + 1;
+            if (this._fxChainN % chainEvery === 0) {
+              this.applyConductiveBounce(e.x, e.y, hitDmg, 2, new Set([e]));
+            }
+          }
+          if (!e.alive && (this.run.stats.flags || {}).fxSplit && !pr._fromSplit) {
+            const baseAng = Math.atan2(pr.vy, pr.vx);
+            const sp = Math.hypot(pr.vx, pr.vy) || 420;
+            for (const side of [-1, 1]) {
+              const sh = this.projs.acquire();
+              const a2 = baseAng + side * 0.38;
+              sh.x = e.x; sh.y = e.y;
+              sh.vx = Math.cos(a2) * sp; sh.vy = Math.sin(a2) * sp;
+              sh.dmg = pr.dmg * 0.5; sh.crit = false;
+              sh.pierce = 0; sh.life = 0.55; sh.size = Math.max(2, (pr.size || 5) * 0.7);
+              sh.color = pr.color; sh.friendly = true; sh.homing = 0;
+              sh.knockback = 0; sh.explode = 0;
+              sh._fromSplit = true; sh._split = true;
+              sh._element = pr._element; sh._wid = pr._wid;
+              sh._weaponBehaviour = pr._weaponBehaviour;
+              sh.hit.clear(); sh.hit.add(e);
+            }
+          }
           // Core Overload (Prospector unique): a critical hit is not stopped
           // by anything it touches.
           const critPierces = pr.crit && (this.run.stats.flags || {}).coreOverload;
           if (!critPierces) {
             if (pr.pierce <= 0) {
-              if (pr.explode > 0) this.explodeProjectile(pr);
-              this.projs.release(pr); return;
+              const bounceN = (this.run.stats.flags || {}).fxBounce || 0;
+              if (bounceN && (pr._bounces || 0) < bounceN) {
+                const nxt = this.nearestEnemyExcluding(pr.x, pr.y, 210, e);
+                if (nxt) {
+                  pr._bounces = (pr._bounces || 0) + 1;
+                  const sp = Math.hypot(pr.vx, pr.vy) || 400;
+                  const ang = Math.atan2(nxt.y - pr.y, nxt.x - pr.x);
+                  pr.vx = Math.cos(ang) * sp; pr.vy = Math.sin(ang) * sp;
+                  pr.life = Math.max(pr.life, 0.45);
+                  pr.hit.add(e);
+                } else {
+                  if (pr.explode > 0) this.explodeProjectile(pr);
+                  this.projs.release(pr); return;
+                }
+              } else {
+                if (pr.explode > 0) this.explodeProjectile(pr);
+                this.projs.release(pr); return;
+              }
+            } else {
+              pr.pierce -= 1;
             }
-            pr.pierce -= 1;
           }
         }
       });
@@ -5056,6 +5270,10 @@ export class Game {
         }
       }
       if (p.type === 'blood') p.vy += 200 * dt;
+      if (p.type === 'organ') {
+        p.vy += 280 * dt;
+        p._rot = (p._rot || 0) + (p._spin || 0) * dt;
+      }
       // Skin flakes fall, but flutter: light and broad, so they slow down fast
       // and drift rather than arcing like a chunk of meat.
       if (p.type === 'skinFlake') {
@@ -5067,6 +5285,8 @@ export class Game {
       // Blood running off the blade falls faster than a gib — it is liquid,
       // and a droplet that hangs reads as a floating dot.
       if (p.type === 'bladeDrip') p.vy += 520 * dt;
+      // LEVEL UP text shatter: pixels detach and FALL (not drift up like ash).
+      if (p.type === 'luPixel') p.vy += 480 * dt;
       if (p.type === 'finPiece') {
         // Half a body still in the air after the second cut. `_z` is height
         // above the ground, so it is drawn at y - _z while its x/y keep
@@ -5097,13 +5317,23 @@ export class Game {
       p.life -= dt;
       if (p.life <= 0) {
         if (p.type === 'blood') {
-          this.pushBloodDecal({ x: p.x, y: p.y, r: 2 + Math.random() * 3, a: 0.45, bornAt: this.time });
+          this.pushBloodDecal({
+            x: p.x, y: p.y,
+            r: (p._heavy ? 4 : 2) + Math.random() * (p._heavy ? 4 : 3),
+            a: p._heavy ? 0.58 : 0.45,
+            bornAt: this.time,
+            color: BLOOD_RED,
+          });
         } else if (p.type === 'finPiece') {
           this.pushBloodDecal({ x: p.x, y: p.y, r: p.size * 1.1, a: 0.6, bornAt: this.time, color: BLOOD_RED });
         } else if (p.type === 'bladeDrip') {
           this.pushBloodDecal({ x: p.x, y: p.y, r: 1.4 + Math.random() * 1.8, a: 0.5, bornAt: this.time, color: BLOOD_RED });
-        } else if (p.type === 'chunk') {
-          this.pushBloodDecal({ x: p.x, y: p.y, r: p.size * 0.9, a: 0.5, bornAt: this.time });
+        } else if (p.type === 'chunk' || p.type === 'organ') {
+          this.pushBloodDecal({ x: p.x, y: p.y, r: p.size * 0.9, a: 0.5, bornAt: this.time, color: BLOOD_RED });
+          this.pushBloodDecal({
+            x: p.x + rand(-6, 6), y: p.y + rand(-4, 4),
+            r: 1.4 + Math.random() * 2.2, a: 0.35, bornAt: this.time, color: BLOOD_RED,
+          });
         }
         this.parts.release(p);
       }
@@ -5124,13 +5354,44 @@ export class Game {
     const magnetR = streaking ? 2000 : pickupR * 2.2;
     this.gems.forEach(g => {
       if (!g.alive) return;
+      g.t += dt;
+
+      // 3D ballistic arc & ground bounce physics
+      if (g.vx || g.vy) {
+        g.x += g.vx * dt;
+        g.y += g.vy * dt;
+        g.vx *= Math.pow(0.15, dt);
+        g.vy *= Math.pow(0.15, dt);
+      }
+      if (g._vz !== undefined && g._z !== undefined) {
+        g._z += g._vz * dt;
+        g._vz -= 880 * dt; // gravity
+        if (g._z <= 0) {
+          g._z = 0;
+          if (g._bounces !== undefined && g._bounces < 2 && Math.abs(g._vz) > 40) {
+            g._vz = -g._vz * 0.42; // damping bounce
+            g.vx = (g.vx || 0) * 0.55;
+            g.vy = (g.vy || 0) * 0.55;
+            g._bounces++;
+          } else {
+            g._vz = 0;
+            g.vx = 0;
+            g.vy = 0;
+          }
+        }
+      }
+      if (g._spinSpeed) {
+        g._spin = ((g._spin || 0) + g._spinSpeed * dt) % TAU;
+        g._spinSpeed *= Math.pow(0.65, dt);
+      }
+
       const dx = p.x - g.x, dy = p.y - g.y;
       const d = Math.hypot(dx, dy);
-      g.t += dt;
       if (d < magnetR) {
         const pull = 240 + (magnetR - d) * 4;
         g.x += (dx / Math.max(d, 0.001)) * pull * dt;
         g.y += (dy / Math.max(d, 0.001)) * pull * dt;
+        if (g._z > 0) g._z = Math.max(0, g._z - dt * 60);
       }
       if (d < p.r + 6) {
         if (g.xp > 0) {
@@ -5195,7 +5456,20 @@ export class Game {
     let head = false;
     if (!e.t.boss && s.headshot > 0 && Math.random() < s.headshot) { dmg = e.hp + 1; head = true; }
     s._lastHitDmg = dmg; s._lastHitWeapon = s._behaviour || 'projectile';
-    if (crit) { Audio.crit(); this._critPunch = Math.min(0.22, this._critPunch + 0.18); }
+    if (crit) {
+      Audio.crit();
+      this._critPunch = Math.min(0.22, this._critPunch + 0.18);
+      if (!silent) {
+        // Hades-style 2–5 frame hit-stop, scaled by crit tier. Silent DoT
+        // ticks (orbit/beam) are excluded — those fire sixty times a second
+        // and would lock the sim. cam.slowmo is a remaining-seconds clock,
+        // not a multiplier; frame() already drops dt to 0.35 while it is up.
+        const tier = s._lastCritTier || 1;
+        const stop = tier >= 3 ? 0.085 : tier >= 2 ? 0.055 : 0.038;
+        this.cam.slowmo = Math.max(this.cam.slowmo, stop);
+        this.cam.shake = Math.max(this.cam.shake, 2.0 + tier * 1.3);
+      }
+    }
     else if (!silent) Audio.impact(s._behaviour); // silent hits are per-frame DoT ticks — see orbit/beam
     if ((s.flags || {}).burnDoT) e._burn = Math.max(e._burn || 0, 3);
 
@@ -5235,6 +5509,20 @@ export class Game {
     if (pf.executioner && !e.t.boss && e.maxHp > 0 && e.hp / e.maxHp <= 0.15) {
       dmg = e.hp + 1;
       if (!silent) this.spawnDamageNumber(e.x, e.y - e.t.size * 0.7, 'EXECUTE', '#ff3146');
+    }
+    if (pf.fxDrought && !e.t.boss && e.maxHp > 0 && e.hp / e.maxHp <= pf.fxDrought) {
+      dmg = e.hp + 1;
+      if (!silent) this.spawnDamageNumber(e.x, e.y - e.t.size * 0.7, 'EVAPORATE', '#4dc4ff');
+    }
+    if (!silent && pf.fxBleed) {
+      e._bleed = Math.min(6, (e._bleed || 0) + 1);
+      e._bleedT = 3;
+    }
+    if (!silent && pf.fxChill) {
+      e._chillN = (e._chillN || 0) + 1;
+      e._slowT = Math.max(e._slowT || 0, 1.1);
+      e._slowMult = e._chillN >= 4 ? 0 : 0.45;
+      if (e._chillN >= 4 && !silent) this.spawnDamageNumber(e.x, e.y - e.t.size * 0.55, 'FROZEN', '#bff0ff', 13);
     }
 
     // Electric Rounds / Live Wire: the hit arcs onward. `silent` hits are
@@ -5301,21 +5589,18 @@ export class Game {
     e.hit = 0.08;
     // Progressive gore: every 10% HP lost peels a new chunk of flesh off, right
     // at the point of impact — "Terminator-style" localized damage buildup.
-    // Blood/wounds are tinted by the ENEMY'S OWN color (a green enemy always
-    // bleeds green) — the projectile/weapon color is reserved for the actual
-    // light it casts (see _drawGroundIllum/_drawEnemies in pixiRenderer.js),
-    // not for recoloring gore. wcolor/_curWeaponColor kept only as a very
-    // minor accent inside spawnWoundBurst/spawnBrutalKill (alternating
-    // particles), never as the dominant blood color.
-    const bloodColor = e.t.color;
-    const impactAccent = wcolor || this._curWeaponColor || bloodColor;
-    e._lastHitColor = bloodColor;
+    // Liquid is ALWAYS BLOOD_RED. Solids (chunks / skin / organs) keep the
+    // enemy's own colour so a green brute still comes apart as green meat.
+    // Weapon colour is sparks and muzzle light only — never gore.
+    const fleshColor = e.t.color;
+    const impactAccent = wcolor || this._curWeaponColor || fleshColor;
+    e._lastHitColor = fleshColor;
     if (!e.t.boss || true) {
       const hpPct = Math.max(0, e.hp / e.maxHp);
       const stage = Math.min(9, Math.floor((1 - hpPct) * 10));
       if (stage > (e._woundStage || 0)) {
         e._woundStage = stage;
-        this.spawnWoundBurst(e, ox, oy, stage, bloodColor, impactAccent);
+        this.spawnWoundBurst(e, ox, oy, stage, fleshColor, impactAccent);
       }
     }
     if (kb > 0) {
@@ -5334,21 +5619,19 @@ export class Game {
         this.spawnDamageNumber(e.x + rand(-6, 6), e.y - 14, Math.floor(dmg).toString(), '#fff', 14);
       }
     }
-    if (Math.random() < 0.55) this.spawnBlood(e.x, e.y, bloodColor);
-    // Puncture hole + a short pumping spurt right at the exact impact point
-    // (ox,oy — the projectile's own position at collision, not the enemy
-    // center), so hits visibly "punch in" somewhere specific on the body
-    // rather than just tinting the whole silhouette.
     // Direction of travel of whatever hit them: from the impact point toward
-    // the body. spawnHitSparks below already derives this; blood now uses the
-    // same vector so spatter and sparks agree on where the shot came from.
+    // the body. Spatter and sparks have to agree on where the shot came from.
     const _hdx = e.x - (ox ?? e.x), _hdy = e.y - (oy ?? e.y);
     const _hl = Math.hypot(_hdx, _hdy) || 1;
-    this.spawnPunctureHit(ox, oy, bloodColor, _hdx / _hl, _hdy / _hl);
     this._addImpactMark(e, ox, oy, impactAccent);
+    // Per-weapon hit gore (slash / puncture / cone / floor splash). Silent
+    // hits are per-frame DoT ticks — spraying on those is a blood wall.
+    if (!silent) {
+      this._spawnHitGore(e, ox ?? e.x, oy ?? e.y, dmg, crit, _hdx / _hl, _hdy / _hl);
+    }
     // Hit sparks use the impact accent (weapon/muzzle light color) — small,
     // transient, additive-looking flash particles are the right place for
-    // "what hit me" color feedback; the blood itself stays enemy-colored.
+    // "what hit me" color feedback; the liquid stays BLOOD_RED.
     // Elemental flavor (embers/ice/etc) is inferred from that same accent
     // color so it reads correctly per-weapon without needing every weapon
     // tagged yet (see the Elemental system backlog item).
@@ -5440,6 +5723,9 @@ export class Game {
     if (kf.comboBoom && this.run.comboCount > 0 && this.run.comboCount % kf.comboBoom === 0) {
       this._delugeWave ? this._delugeWave() : this.spawnRing(this.player.x, this.player.y, 300, '#4dc4ff', 0.4);
       this.cam.shake = Math.max(this.cam.shake, 14);
+    }
+    if (kf.fxFlood) {
+      this._spawnWaterPool(e.x, e.y, 50, 2.8, 8 * (s.damageMult || 1), '#4dc4ff', true, false);
     }
     // VAMPIRE'S DREAM, second half: "if over 25 you get finishers every 25
     // Combo trigger 1 finisher auto 100% successrate". Forced, so it ignores
@@ -5614,11 +5900,16 @@ export class Game {
     const _finTook = this.tryFinisher(e, t, finalBlood, fx);
     const km = e._marks && e._marks.length ? e._marks[e._marks.length - 1] : null;
     const kAng = km && km.ang !== undefined ? km.ang : Math.random() * TAU;
-    if (!t.boss && !_finTook) {
-      this.spawnArterialCone(e.x, e.y, kAng, finalBlood, Math.min(1, 0.4 + t.size / 60));
-    }
+    // DECLARED BEFORE USE. These two sat BELOW the spawnDynamicGore call that
+    // reads `_isKatanaKill`, which is a temporal dead zone, not a style nit:
+    // `const` is not hoisted like `var`, so every kill threw
+    // "Cannot access '_isKatanaKill' before initialization" — a hard crash on
+    // the single most common event in the game.
     const _isKatanaKill = /katana/i.test(s._wid || '') || s._lastHitWeapon === 'katana';
     const effectiveFx = _isKatanaKill && !t.boss ? 'bisect' : fx;
+    if (!t.boss && !_finTook) {
+      this.spawnDynamicGore(e, t, finalBlood, fx, kAng, _isKatanaKill);
+    }
     if (!_finTook) {
       this.spawnBrutalKill(e.x, e.y, finalBlood, t.size, effectiveFx, kAng);
       Audio.kill(t.size, !!t.boss);
@@ -5636,14 +5927,32 @@ export class Game {
       // leaves an actual blood pool now.
       this.pushBloodDecal({ x: e.x, y: e.y, r: t.size * 0.3, a: 0.4, bornAt: this.time, color: fx === 'ooze' ? finalBlood : BLOOD_RED });
     }
-    // drop XP gem
+    // drop XP gem with 3D pop physics & angular spread
+    const kSpread = kAng + rand(-0.7, 0.7);
+    const popSpd = rand(60, 150) * (0.85 + Math.min(1.2, (s._lastHitDmg || 20) / (t.hp || 40)));
     const gm = this.gems.acquire();
-    gm.x = e.x; gm.y = e.y; gm.t = 0;
+    gm.x = e.x + rand(-10, 10); gm.y = e.y + rand(-10, 10); gm.t = 0;
+    gm.vx = Math.cos(kSpread) * popSpd;
+    gm.vy = Math.sin(kSpread) * popSpd;
+    gm._z = rand(4, 14);
+    gm._vz = rand(130, 280);
+    gm._spin = Math.random() * TAU;
+    gm._spinSpeed = rand(4, 10) * (Math.random() < 0.5 ? -1 : 1);
+    gm._bounces = 0;
     gm.xp = Math.max(1, Math.floor(t.xp * (Math.random() < 0.05 ? 3 : 1)));
     gm.gold = 0;
     if (Math.random() < 0.6) {
       const g = this.gems.acquire();
-      g.x = e.x + rand(-8, 8); g.y = e.y + rand(-8, 8); g.t = 0;
+      const goldAng = kSpread + rand(1.1, 2.5) * (Math.random() < 0.5 ? 1 : -1);
+      const goldSpd = rand(50, 130);
+      g.x = e.x + rand(-16, 16); g.y = e.y + rand(-16, 16); g.t = 0;
+      g.vx = Math.cos(goldAng) * goldSpd;
+      g.vy = Math.sin(goldAng) * goldSpd;
+      g._z = rand(4, 12);
+      g._vz = rand(110, 240);
+      g._spin = Math.random() * TAU;
+      g._spinSpeed = rand(5, 12) * (Math.random() < 0.5 ? -1 : 1);
+      g._bounces = 0;
       // Prospect (ability): doubled gold for its duration. Same reasoning
       // as the pickup radius above — transient, never written into the
       // run's accumulated goldMult.
@@ -5653,7 +5962,11 @@ export class Game {
     // Rare heart drop — heals 5 HP base (upgradeable via m_heal meta)
     if (Math.random() < 0.0165 && !t.boss) {
       const h = this.gems.acquire();
-      h.x = e.x + rand(-10, 10); h.y = e.y + rand(-10, 10); h.t = 0;
+      const heartAng = Math.random() * TAU;
+      h.x = e.x + rand(-12, 12); h.y = e.y + rand(-12, 12); h.t = 0;
+      h.vx = Math.cos(heartAng) * rand(40, 90);
+      h.vy = Math.sin(heartAng) * rand(40, 90);
+      h._z = 6; h._vz = 140; h._bounces = 0;
       h.xp = 0; h.gold = 0; h.heart = 1;
     }
     // Gear parts — the levelling currency. Far more common than a whole
@@ -5772,7 +6085,7 @@ export class Game {
       this.spawnRing(x, y, size * 1.2, '#ff7a1a', 0.25);
     } else if (fx === 'shotgunObliterate') {
       // Upper torso blasted backwards in chunks + massive V-cone blood wall + floor crater
-      for (let i = 0; i < Math.round(38 * cnt); i++) {
+      for (let i = 0; i < Math.round(18 * cnt); i++) {
         const pp = this.parts.acquire();
         pp.x = x + rand(-6, 6); pp.y = y + rand(-6, 6);
         const a = Math.random() * TAU; const sp = rand(180, 520);
@@ -5785,14 +6098,14 @@ export class Game {
         pp.x = x + rand(-4, 4); pp.y = y + rand(-4, 4);
         const a = (i / 6) * TAU + rand(-0.2, 0.2);
         pp.vx = Math.cos(a) * rand(240, 480); pp.vy = Math.sin(a) * rand(240, 480) - 160;
-        pp.life = rand(0.8, 1.4); pp.max = pp.life; pp.color = color;
+        pp.life = rand(0.8, 1.4); pp.max = pp.life;         pp.color = color;
         pp.size = size * (0.16 + Math.random() * 0.16); pp.type = 'chunk';
       }
       this.spawnRing(x, y, size * 1.6, '#ffffff', 0.25);
       this.pushBloodDecal({ x, y, r: size * 0.9, a: 0.75, bornAt: this.time, color: BLOOD_RED });
     } else if (fx === 'pierceKinetic') {
       // Rapid piercing rupture: fine exit mist + directional meat chunks
-      for (let i = 0; i < Math.round(28 * cnt); i++) {
+      for (let i = 0; i < Math.round(14 * cnt); i++) {
         const pp = this.parts.acquire();
         pp.x = x + rand(-3, 3); pp.y = y + rand(-3, 3);
         const a = Math.random() * TAU; const sp = rand(120, 360);
@@ -5858,7 +6171,7 @@ export class Game {
       }
     } else {
       // Enhanced standard death: blood spray + body chunks + spark ring
-      const bloodCnt = Math.round(32 * cnt);
+      const bloodCnt = Math.round(14 * cnt);
       for (let i = 0; i < bloodCnt; i++) {
         const pp = this.parts.acquire();
         pp.x = x + rand(-4,4); pp.y = y + rand(-4,4);
@@ -5878,6 +6191,7 @@ export class Game {
         pp.life = rand(0.6, 1.1); pp.max = pp.life;
         pp.color = color; pp.size = size * (0.14 + Math.random() * 0.13); pp.type = 'chunk';
       }
+      this._spawnOrgans(x, y, color, size, 2);
       // Spark burst (small combo of colored sparks)
       if (qualHi) {
         for (let i = 0; i < 8; i++) {
@@ -5962,7 +6276,7 @@ export class Game {
     // to stay the reason to use the katana. Not on every hit: a fan on every
     // bullet from a 9-per-second SMG would be a wall of red.
     if (hasDir && Math.random() < 0.35) {
-      this.spawnArterialCone(x, y, fwd, color, 0.25);
+      this.spawnArterialCone(x, y, fwd, BLOOD_RED, 0.25);
     }
 
     // Exit spatter: a cone of droplets thrown onward past the body, landing as
@@ -6041,47 +6355,523 @@ export class Game {
   // blood, and blood is always BLOOD_RED now (Timmy). Left in the signature
   // rather than touching every caller.
   spawnArterialCone(x, y, ang, color, power = 1) {
+    const sprayColor = BLOOD_RED;
     const c = this.parts.acquire();
     c.x = x; c.y = y; c.vx = 0; c.vy = 0;
     c.life = 0.34 + power * 0.1; c.max = c.life;
-    c.color = BLOOD_RED;
+    c.color = sprayColor;
     c.size = (58 + power * 46);      // reach of the fan
     c.type = 'bloodCone';
     c._ang = ang;
     c._spread = 0.5 + power * 0.35;  // how wide it opens
     c._seed = Math.random() * 1000;
 
-    // Long thin streaks riding the leading edge. These are what sell the
-    // ARC — a fan alone reads as a triangle, the streaks give it motion.
-    const n = this.fxCount(Math.round(4 + power * 5));
+    // Long thin streaks riding the leading edge.
+    const n = this.fxBlood(Math.round(4 + power * 5));
     for (let i = 0; i < n; i++) {
       const s = this.parts.acquire();
       const a = ang + rand(-c._spread, c._spread);
       const sp = rand(260, 620) * (0.6 + power * 0.6);
-      s.x = x; s.y = y;
+      s.x = x + Math.cos(a) * rand(1, 10);
+      s.y = y + Math.sin(a) * rand(1, 10);
       s.vx = Math.cos(a) * sp;
       s.vy = Math.sin(a) * sp - rand(20, 120);
       s.life = rand(0.25, 0.55); s.max = s.life;
-      s.color = BLOOD_RED;
-      s.size = rand(1.4, 3.6) * (0.7 + power * 0.5);
+      s.color = sprayColor;
+      s.size = rand(0.45, 1.35) * (0.7 + power * 0.4);
       s.type = 'blood';
-      s._mist = false; s._heavy = i % 4 === 0;
+      s._mist = i % 3 === 0; s._heavy = i % 7 === 0;
     }
-    // Airborne droplets thrown high out of the cut, arcing over and landing
-    // separately. This is the part that makes it read as ARTERIAL rather than
-    // as an impact puff.
-    const arcN = this.fxCount(Math.round(2 + power * 4));
+    // Airborne droplets thrown high out of the cut
+    const arcN = this.fxBlood(Math.round(2 + power * 4));
     for (let i = 0; i < arcN; i++) {
       const s = this.parts.acquire();
       const a = ang + rand(-0.7, 0.7);
-      s.x = x; s.y = y;
+      s.x = x + rand(-5, 5); s.y = y + rand(-4, 4);
       s.vx = Math.cos(a) * rand(60, 190);
       s.vy = Math.sin(a) * rand(60, 190) - rand(180, 340);   // thrown UP
       s.life = rand(0.6, 1.1); s.max = s.life;
-      s.color = BLOOD_RED;
-      s.size = rand(1.8, 3.8);
+      s.color = sprayColor;
+      s.size = rand(0.7, 1.8);
       s.type = 'blood';
-      s._heavy = true;
+      s._heavy = i % 5 === 0;
+    }
+    this.spawnSlashSplatter(x, y, ang, sprayColor, power * 1.2);
+    this.spawnMistBurst(x, y, sprayColor, power * 0.8);
+    this.pushBloodDecal({ x: x + Math.cos(ang) * 20, y: y + Math.sin(ang) * 20, r: rand(14, 28) * power, a: 0.75, bornAt: this.time, color: sprayColor });
+  }
+
+  // 1. Neck Spray Cone: arterial V-fountain from top of the body
+  spawnNeckSpray(x, y, ang, color = BLOOD_RED, power = 1) {
+    const sprayColor = BLOOD_RED;
+    const n = this.fxBlood(Math.round(6 + power * 8));
+    for (let i = 0; i < n; i++) {
+      const p = this.parts.acquire();
+      const a = ang - Math.PI / 2 + rand(-0.35, 0.35);
+      const sp = rand(220, 520) * (0.8 + power * 0.5);
+      p.x = x + rand(-4, 4); p.y = y - 6;
+      p.vx = Math.cos(a) * sp;
+      p.vy = Math.sin(a) * sp - rand(60, 160);
+      p.life = rand(0.35, 0.7); p.max = p.life;
+      p.color = sprayColor;
+      p.size = rand(0.55, 1.45);
+      p.type = 'blood';
+      p._heavy = i % 3 === 0;
+      p._mist = i % 5 === 0;
+    }
+  }
+
+  // 2. Aerial Sprout: violent high vertical geyser arcing down with gravity
+  spawnAerialSprout(x, y, color = BLOOD_RED, power = 1) {
+    const sprayColor = BLOOD_RED;
+    const n = this.fxBlood(Math.round(8 + power * 10));
+    for (let i = 0; i < n; i++) {
+      const p = this.parts.acquire();
+      const a = -Math.PI / 2 + rand(-0.45, 0.45);
+      const sp = rand(300, 680) * (0.9 + power * 0.6);
+      p.x = x + rand(-3, 3); p.y = y;
+      p.vx = Math.cos(a) * sp * 0.4 + rand(-60, 60);
+      p.vy = Math.sin(a) * sp;
+      p.life = rand(0.5, 1.1); p.max = p.life;
+      p.color = sprayColor;
+      p.size = rand(0.55, 1.55);
+      p.type = 'blood';
+      p._heavy = true;
+    }
+    this.spawnMistBurst(x, y - 10, sprayColor, power * 0.8);
+  }
+
+  // 3. Slash Splatter: razor fan flung along blade cutting vector
+  spawnSlashSplatter(x, y, slashAng, color = BLOOD_RED, power = 1) {
+    const sprayColor = BLOOD_RED;
+    const n = this.fxBlood(Math.round(10 + power * 12));
+    for (let i = 0; i < n; i++) {
+      const p = this.parts.acquire();
+      const a = slashAng + rand(-0.25, 0.25);
+      const sp = rand(280, 720) * (0.8 + power * 0.6);
+      p.x = x + rand(-6, 6); p.y = y + rand(-6, 6);
+      p.vx = Math.cos(a) * sp;
+      p.vy = Math.sin(a) * sp;
+      p.life = rand(0.2, 0.55); p.max = p.life;
+      p.color = sprayColor;
+      p.size = rand(0.4, 1.2);
+      p.type = 'blood';
+      p._mist = i % 3 !== 0;
+    }
+  }
+
+  // 4. Side Gush: asymmetrical high velocity side arterial spurt
+  spawnSideGush(x, y, ang, color = BLOOD_RED, power = 1) {
+    const sprayColor = BLOOD_RED;
+    const side = Math.random() < 0.5 ? 1 : -1;
+    const gushAng = ang + (Math.PI / 2) * side + rand(-0.3, 0.3);
+    const n = this.fxBlood(Math.round(7 + power * 8));
+    for (let i = 0; i < n; i++) {
+      const p = this.parts.acquire();
+      const a = gushAng + rand(-0.3, 0.3);
+      const sp = rand(200, 480) * (0.7 + power * 0.5);
+      p.x = x + rand(-5, 5); p.y = y + rand(-4, 4);
+      p.vx = Math.cos(a) * sp;
+      p.vy = Math.sin(a) * sp - rand(20, 80);
+      p.life = rand(0.3, 0.65); p.max = p.life;
+      p.color = sprayColor;
+      p.size = rand(0.5, 1.4);
+      p.type = 'blood';
+      p._heavy = i % 2 === 0;
+    }
+  }
+
+  // 5. Mist Burst: fine cloud of micro droplets that billows and floats
+  spawnMistBurst(x, y, color = BLOOD_RED, power = 1) {
+    const sprayColor = BLOOD_RED;
+    const n = this.fxBlood(Math.round(8 + power * 10));
+    for (let i = 0; i < n; i++) {
+      const p = this.parts.acquire();
+      const a = Math.random() * TAU;
+      const sp = rand(40, 180) * (0.8 + power * 0.4);
+      p.x = x + rand(-8, 8); p.y = y + rand(-8, 8);
+      p.vx = Math.cos(a) * sp;
+      p.vy = Math.sin(a) * sp - rand(10, 40);
+      p.life = rand(0.4, 0.9); p.max = p.life;
+      p.color = sprayColor;
+      p.size = rand(0.28, 0.72);
+      p.type = 'blood';
+      p._mist = true;
+    }
+  }
+
+  // 6. Floor Splash: radial splatter on impact with floor
+  spawnFloorSplash(x, y, color = BLOOD_RED, power = 1) {
+    const sprayColor = BLOOD_RED;
+    const n = this.fxBlood(Math.round(6 + power * 8));
+    for (let i = 0; i < n; i++) {
+      const p = this.parts.acquire();
+      const a = (i / n) * TAU + rand(-0.2, 0.2);
+      const sp = rand(90, 260) * (0.7 + power * 0.5);
+      p.x = x; p.y = y;
+      p.vx = Math.cos(a) * sp;
+      p.vy = Math.sin(a) * sp * 0.4 + rand(10, 50);
+      p.life = rand(0.25, 0.5); p.max = p.life;
+      p.color = sprayColor;
+      p.size = rand(1.4, 3.2);
+      p.type = 'blood';
+    }
+  }
+
+  // 7. Blood Drips: slow dripping drops from wound
+  spawnBloodDrips(x, y, color = BLOOD_RED, count = 4) {
+    const sprayColor = BLOOD_RED;
+    const n = this.fxBlood(count);
+    for (let i = 0; i < n; i++) {
+      const p = this.parts.acquire();
+      p.x = x + rand(-6, 6); p.y = y + rand(-4, 4);
+      p.vx = rand(-15, 15);
+      p.vy = rand(30, 90);
+      p.life = rand(0.4, 0.85); p.max = p.life;
+      p.color = sprayColor;
+      p.size = rand(1.8, 3.6);
+      p.type = 'bladeDrip';
+    }
+  }
+
+  // 8. Puncture Jet: high velocity needle jet through bullet exit wound
+  spawnPunctureJet(x, y, shotAng, color = BLOOD_RED, power = 1) {
+    const sprayColor = BLOOD_RED;
+    const n = this.fxBlood(Math.round(7 + power * 8));
+    for (let i = 0; i < n; i++) {
+      const p = this.parts.acquire();
+      const a = shotAng + rand(-0.18, 0.18);
+      const sp = rand(360, 850) * (0.8 + power * 0.5);
+      p.x = x; p.y = y;
+      p.vx = Math.cos(a) * sp;
+      p.vy = Math.sin(a) * sp;
+      p.life = rand(0.18, 0.45); p.max = p.life;
+      p.color = sprayColor;
+      p.size = rand(1.2, 3.0);
+      p.type = 'blood';
+      p._mist = i % 2 === 0;
+    }
+  }
+
+  // Master varied gore orchestrator. Liquid is always BLOOD_RED. Style is
+  // picked by the killing weapon (and scales with its level), then a single
+  // random accent so two pistol kills still differ. Named elemental deaths
+  // (ooze / shatter / vaporize / void) keep their own branch in spawnBrutalKill
+  // and must not also get a blood fan on top.
+  spawnDynamicGore(e, t, color, fx, kAng, isKatanaKill) {
+    if (fx === 'crystallize' || fx === 'decay' || fx === 'sparkExplode' || fx === 'ooze'
+        || fx === 'voidImplode' || fx === 'overchargeVaporize' || fx === 'shatterFrost'
+        || fx === 'ash') return;
+    const mul = this._goreMul();
+    const power = Math.min(2.15, (0.5 + (t.size || 20) / 45) * mul);
+    const bloodColor = BLOOD_RED;
+    const flesh = (t && t.color) || color;
+    const lvl = (this.run && this.run.stats && this.run.stats._wlvl) || 0;
+
+    this._spatterNearby(e, e.x, e.y, power);
+    if (Math.random() < 0.14 + lvl * 0.05) this._spawnScreenGib(flesh, 'chunk');
+
+    if (isKatanaKill || fx === 'bisect') {
+      this.spawnSlashSplatter(e.x, e.y, kAng, bloodColor, power * 1.2);
+      this.spawnNeckSpray(e.x, e.y, kAng, bloodColor, power);
+      if (Math.random() < 0.62) this.spawnAerialSprout(e.x, e.y, bloodColor, power * 0.9);
+      if (Math.random() < 0.55) this.spawnSideGush(e.x, e.y, kAng, bloodColor, power);
+      this.spawnMistBurst(e.x, e.y, bloodColor, power * 0.7);
+      this.spawnBloodDrips(e.x, e.y, bloodColor, 3 + Math.min(3, lvl));
+      this._spawnOrgans(e.x, e.y, flesh, t.size, 2 + (lvl >= 3 ? 1 : 0));
+      this._accumulateBladeBlood(0.18 + lvl * 0.03);
+      if (e._gutTrail && e._gutTrail.length) this._dropViscera(e, flesh);
+      return;
+    }
+
+    if (fx === 'shotgunObliterate') {
+      this.spawnArterialCone(e.x, e.y, kAng, bloodColor, power * 1.2);
+      if (lvl >= 2) this.spawnArterialCone(e.x, e.y, kAng + 0.42, bloodColor, power * 0.55);
+      if (lvl >= 2) this.spawnArterialCone(e.x, e.y, kAng - 0.42, bloodColor, power * 0.55);
+      this.spawnFloorSplash(e.x, e.y, bloodColor, power * 1.15);
+      this.spawnMistBurst(e.x, e.y, bloodColor, power * 0.8);
+      this._spawnOrgans(e.x, e.y, flesh, t.size, 3 + Math.min(2, lvl));
+      if (e._gutTrail && e._gutTrail.length) this._dropViscera(e, flesh);
+      return;
+    }
+
+    if (fx === 'pierceKinetic') {
+      this.spawnPunctureJet(e.x, e.y, kAng, bloodColor, power * 1.2);
+      this.spawnArterialCone(e.x, e.y, kAng, bloodColor, power * (0.35 + lvl * 0.08));
+      this.spawnMistBurst(e.x, e.y, bloodColor, power * 0.75);
+      if (lvl >= 2) this.spawnSideGush(e.x, e.y, kAng, bloodColor, power * 0.65);
+      if (lvl >= 4 && Math.random() < 0.45) this.spawnAerialSprout(e.x, e.y, bloodColor, power * 0.5);
+      if (e._gutTrail && e._gutTrail.length) this._dropViscera(e, flesh);
+      return;
+    }
+
+    if (fx === 'cremation') {
+      this.spawnMistBurst(e.x, e.y, bloodColor, power * 0.3);
+      this.spawnFloorSplash(e.x, e.y, bloodColor, power * 0.35);
+      return;
+    }
+
+    // Generic death: weapon behaviour picks the pair, then one random accent
+    // so a horde of pistol kills is not a copy-paste of the same burst.
+    const beh = this._curWeaponBehaviour || (this.run && this.run.stats && this.run.stats._behaviour) || 'projectile';
+    const table = {
+      projectile: ['jet', 'mist', 'floor'],
+      shotgun:    ['cone', 'floor', 'side'],
+      melee:      ['slash', 'neck', 'aerial'],
+      beam:       ['mist', 'drip'],
+      aura:       ['mist', 'floor'],
+      aoe:        ['floor', 'mist', 'aerial'],
+      meteor:     ['floor', 'mist', 'cone'],
+      chain:      ['mist', 'jet'],
+      frost:      ['mist', 'floor'],
+      orbit:      ['slash', 'side', 'drip'],
+    };
+    const picks = table[beh] || ['cone', 'floor', 'mist'];
+    const extra = ['neck', 'aerial', 'side', 'jet'][Math.floor(Math.random() * 4)];
+    const set = new Set(picks.slice(0, 2 + (lvl >= 2 ? 1 : 0)));
+    set.add(extra);
+    for (const k of set) {
+      if (k === 'cone')   this.spawnArterialCone(e.x, e.y, kAng, bloodColor, power);
+      if (k === 'slash')  this.spawnSlashSplatter(e.x, e.y, kAng, bloodColor, power);
+      if (k === 'neck')   this.spawnNeckSpray(e.x, e.y, kAng, bloodColor, power);
+      if (k === 'aerial') this.spawnAerialSprout(e.x, e.y, bloodColor, power);
+      if (k === 'side')   this.spawnSideGush(e.x, e.y, kAng, bloodColor, power);
+      if (k === 'mist')   this.spawnMistBurst(e.x, e.y, bloodColor, power * 0.85);
+      if (k === 'floor')  this.spawnFloorSplash(e.x, e.y, bloodColor, power);
+      if (k === 'jet')    this.spawnPunctureJet(e.x, e.y, kAng, bloodColor, power);
+      if (k === 'drip')   this.spawnBloodDrips(e.x, e.y, bloodColor, 3 + lvl);
+    }
+    if (lvl >= 3) this._spawnOrgans(e.x, e.y, flesh, t.size, 2);
+    if (e._gutTrail && e._gutTrail.length) this._dropViscera(e, flesh);
+  }
+
+  _goreMul() {
+    const lvl = (this.run && this.run.stats && this.run.stats._wlvl) || 0;
+    return 1 + Math.min(5, lvl) * 0.16;
+  }
+
+  _spawnHitGore(e, ox, oy, dmg, crit, dirX, dirY) {
+    const beh = this._curWeaponBehaviour || (this.run && this.run.stats && this.run.stats._behaviour) || 'projectile';
+    const mul = this._goreMul();
+    const ang = Math.atan2(dirY, dirX);
+    const flesh = e.t.color;
+    const power = (0.28 + Math.min(0.7, dmg / Math.max(24, e.maxHp)) * 0.5) * mul;
+    const lvl = (this.run && this.run.stats && this.run.stats._wlvl) || 0;
+
+    if (beh === 'melee' || beh === 'orbit') {
+      this.spawnSlashSplatter(ox, oy, ang, BLOOD_RED, power);
+      e._cutRunnelT = 0.08;
+      this._accumulateBladeBlood(0.045 + (crit ? 0.05 : 0) + lvl * 0.01);
+      const frac = dmg / Math.max(1, e.maxHp);
+      if (!e.t.boss && (crit || frac > 0.22 - lvl * 0.025) && Math.random() < 0.55 + lvl * 0.08) {
+        this._spawnPartialCleave(e, ang, flesh);
+      }
+    } else if (beh === 'shotgun') {
+      this.spawnPunctureHit(ox, oy, BLOOD_RED, dirX, dirY);
+      e._sgHits = (e._sgHits || 0) + 1;
+      if (e._sgHits === 1) {
+        this.spawnArterialCone(ox, oy, ang, BLOOD_RED, 0.4 * mul);
+        this.spawnFloorSplash(ox, oy, BLOOD_RED, 0.45 * mul);
+      } else {
+        this.spawnFloorSplash(ox, oy, BLOOD_RED, 0.55 * mul);
+        this._spawnSkidSmear(e.x, e.y, ang, 2 + Math.min(3, lvl));
+      }
+    } else if (beh === 'beam' || beh === 'aura') {
+      this.spawnMistBurst(ox, oy, BLOOD_RED, 0.22 * mul);
+    } else if (beh === 'aoe' || beh === 'meteor') {
+      this.spawnFloorSplash(ox, oy, BLOOD_RED, 0.5 * mul);
+      this.spawnMistBurst(ox, oy, BLOOD_RED, 0.3 * mul);
+    } else if (beh === 'chain' || beh === 'frost') {
+      this.spawnPunctureHit(ox, oy, BLOOD_RED, dirX, dirY);
+    } else {
+      this.spawnPunctureHit(ox, oy, BLOOD_RED, dirX, dirY);
+      if (lvl >= 2 && Math.random() < 0.28 + lvl * 0.08) {
+        this.spawnPunctureJet(ox, oy, ang, BLOOD_RED, 0.35 * mul);
+      }
+      if (lvl >= 4 && Math.random() < 0.22) this.spawnAerialSprout(ox, oy, BLOOD_RED, 0.35 * mul);
+    }
+    if (crit && lvl >= 1) this.spawnMistBurst(ox, oy, BLOOD_RED, 0.25 * mul);
+    this._spatterNearby(e, ox, oy, power);
+  }
+
+  _spatterNearby(src, x, y, power) {
+    if (!this.enemyGrid || !this.enemyGrid.query) return;
+    const R = 32 + power * 26;
+    this.enemyGrid.query(x, y, R + (this._maxEnemyR || 24), e => {
+      if (e === src || !e.alive || !e.t) return;
+      if (dist2(e.x, e.y, x, y) > R * R) return;
+      if (Math.random() > 0.5 + Math.min(0.35, power * 0.2)) return;
+      if (!e._marks) e._marks = [];
+      const ang = Math.atan2(e.y - y, e.x - x);
+      const rr = e.t.size * 0.5;
+      e._marks.push({
+        lx: Math.cos(ang) * rr * 0.55,
+        ly: Math.sin(ang) * rr * 0.55,
+        r: rand(1.2, 2.2),
+        kind: 'spatter',
+        ang,
+        t: this.time,
+        len: 1,
+      });
+      if (e._marks.length > 16) e._marks.shift();
+    });
+  }
+
+  _spawnPartialCleave(e, ang, flesh) {
+    if (!e || e._cleaved || (e.t && e.t.boss)) return;
+    e._cleaved = true;
+    const S = (e.t.size || 18) * 0.28;
+    const h = this.parts.acquire();
+    h.x = e.x; h.y = e.y;
+    h.vx = Math.cos(ang) * rand(50, 110);
+    h.vy = Math.sin(ang) * rand(50, 110) - rand(30, 80);
+    h.life = 1.15; h.max = 1.15;
+    h.color = flesh; h.size = S;
+    h.type = 'bisectHalf';
+    h._ang = ang; h._side = 1;
+    h._spin = rand(2, 4.5) * (Math.random() < 0.5 ? -1 : 1);
+    const flakes = this.fxCount(3);
+    for (let i = 0; i < flakes; i++) {
+      const fp = this.parts.acquire();
+      fp.x = e.x; fp.y = e.y;
+      const a = ang + rand(-0.7, 0.7);
+      const sp = rand(80, 180);
+      fp.vx = Math.cos(a) * sp; fp.vy = Math.sin(a) * sp - rand(20, 70);
+      fp.life = rand(0.4, 0.8); fp.max = fp.life;
+      fp.color = flesh; fp.size = rand(1.6, 3.4);
+      fp.type = 'skinFlake';
+      fp._spin = rand(-9, 9); fp._rot = Math.random() * TAU;
+    }
+    this.spawnSlashSplatter(e.x, e.y, ang, BLOOD_RED, 0.4);
+    if (!e._wounds) e._wounds = [];
+    e._wounds.push({ lx: Math.cos(ang) * (e.t.size * 0.2), ly: Math.sin(ang) * (e.t.size * 0.2), size: e.t.size * 0.22 });
+    if (e._wounds.length > 24) e._wounds.shift();
+  }
+
+  _spawnOrgans(x, y, flesh, size, n) {
+    const kinds = ['eye', 'gut', 'lobe', 'shard'];
+    const count = this.fxCount(n);
+    for (let i = 0; i < count; i++) {
+      const p = this.parts.acquire();
+      const a = Math.random() * TAU;
+      const sp = rand(70, 220);
+      p.x = x; p.y = y;
+      p.vx = Math.cos(a) * sp; p.vy = Math.sin(a) * sp - rand(40, 120);
+      p.life = rand(0.7, 1.35); p.max = p.life;
+      p.color = flesh;
+      p.size = (size || 20) * rand(0.10, 0.20);
+      p.type = 'organ';
+      p._kind = kinds[i % kinds.length];
+      p._spin = rand(-6, 6);
+      p._rot = Math.random() * TAU;
+    }
+  }
+
+  _spawnSkidSmear(x, y, ang, n) {
+    const count = this.fxCount(n);
+    for (let i = 0; i < count; i++) {
+      const sm = this.parts.acquire();
+      const a = ang + rand(-0.35, 0.35);
+      sm.x = x + Math.cos(a) * (i * 7);
+      sm.y = y + Math.sin(a) * (i * 7);
+      sm.vx = 0; sm.vy = 0;
+      sm.life = rand(0.7, 1.2); sm.max = sm.life;
+      sm.color = BLOOD_RED;
+      sm.size = 4 + i * 1.4;
+      sm.type = 'groundSmear';
+      sm._ang = a;
+      sm._long = rand(1.6, 2.8);
+    }
+  }
+
+  _spawnScreenGib(flesh, kind) {
+    if (!this._screenGibs) this._screenGibs = [];
+    if (this._screenGibs.length >= 3) return;
+    const left = Math.random() < 0.5;
+    this._screenGibs.push({
+      x: left ? rand(0.05, 0.18) : rand(0.82, 0.95),
+      y: rand(0.08, 0.26),
+      vy: rand(1.15, 2.0),
+      vx: left ? rand(0.04, 0.16) : rand(-0.16, -0.04),
+      rot: rand(0, TAU),
+      spin: rand(-8, 8),
+      life: 0.48, max: 0.48,
+      color: flesh,
+      kind: kind || 'chunk',
+      size: rand(14, 22),
+    });
+  }
+
+  _updateScreenGibs(dt) {
+    const arr = this._screenGibs;
+    if (!arr || !arr.length) return;
+    for (let i = arr.length - 1; i >= 0; i--) {
+      const g = arr[i];
+      g.life -= dt;
+      g.y += g.vy * dt;
+      g.x += (g.vx || 0) * dt;
+      g.rot += (g.spin || 0) * dt;
+      if (g.life <= 0 || g.y > 1.18) arr.splice(i, 1);
+    }
+  }
+
+  _dropViscera(e, flesh) {
+    const trail = e._gutTrail;
+    if (!trail || trail.length < 2) return;
+    const n = Math.min(4, trail.length);
+    for (let i = 0; i < n; i++) {
+      const t = trail[i];
+      const p = this.parts.acquire();
+      p.x = t.x; p.y = t.y;
+      p.vx = rand(-40, 40); p.vy = rand(20, 80);
+      p.life = rand(0.6, 1.1); p.max = p.life;
+      p.color = flesh; p.size = rand(3.2, 5.6);
+      p.type = 'organ'; p._kind = 'gut';
+      p._spin = rand(-4, 4); p._rot = Math.random() * TAU;
+    }
+    e._gutTrail = null;
+  }
+
+  _accumulateBladeBlood(amount) {
+    const wid = (this.run && this.run.stats && this.run.stats._wid) || this._heldWid || '';
+    if (!/katana/i.test(wid)) return;
+    this._bladeBlood = Math.min(1, (this._bladeBlood || 0) + amount);
+  }
+
+  _updateBladeBlood(dt) {
+    const wid = (this.run && this.run.stats && this.run.stats._wid) || this._heldWid || '';
+    const katana = /katana/i.test(wid);
+    if (!katana) {
+      this._bladeBlood = Math.max(0, (this._bladeBlood || 0) - dt * 0.18);
+      return;
+    }
+    this._bladeWipeCD = Math.max(0, (this._bladeWipeCD || 0) - dt);
+    this._bladeDripT = (this._bladeDripT || 0) - dt;
+    const wet = this._bladeBlood || 0;
+    if (wet > 0.18 && this._bladeDripT <= 0) {
+      this._bladeDripT = 0.22 / Math.max(0.35, wet);
+      const p = this.player;
+      if (p) this._spawnBladeDrip(p, Math.atan2(p.aimY || 0, p.aimX || 1), wet > 0.7 ? 2 : 1);
+    }
+    if (wet > 0.62 && this._bladeWipeCD <= 0 && Math.random() < dt * 0.55) {
+      this._doBladeWipe();
+    }
+  }
+
+  _doBladeWipe() {
+    const p = this.player;
+    if (!p) return;
+    const ang = Math.atan2(p.aimY || 0, p.aimX || 1);
+    const style = this._wipeStyle = ((this._wipeStyle || 0) + 1) % 2;
+    this._bladeWipeCD = 2.4;
+    if (style === 0) {
+      this.spawnSlashSplatter(p.x + Math.cos(ang) * 22, p.y + Math.sin(ang) * 22, ang + Math.PI / 2, BLOOD_RED, 0.55);
+      this.spawnFloorSplash(p.x + Math.cos(ang) * 28, p.y + Math.sin(ang) * 28, BLOOD_RED, 0.4);
+      this._bladeBlood *= 0.12;
+    } else {
+      this.spawnBloodDrips(p.x, p.y + 8, BLOOD_RED, 5);
+      this.pushBloodDecal({ x: p.x, y: p.y + 10, r: 4, a: 0.45, bornAt: this.time, color: BLOOD_RED });
+      this._bladeBlood *= 0.22;
     }
   }
 
@@ -6092,9 +6882,24 @@ export class Game {
   // Called from updateEnemies. Cheap: one timer per enemy, and it only runs on
   // enemies that are actually hurt.
   _updateBleed(e, dt) {
-    if (!e._marks || !e._marks.length) return;
+    if (e._cutRunnelT > 0) {
+      e._cutRunnelT -= dt;
+      if (e._cutRunnelT <= 0 && e._marks && e._marks.length) {
+        const m = e._marks[e._marks.length - 1];
+        this.spawnBloodDrips(e.x + m.lx, e.y + m.ly, BLOOD_RED, 3);
+      }
+    }
     const hurt = 1 - e.hp / Math.max(1, e.maxHp);
-    if (hurt < 0.35) return;                  // only real wounds pump
+    if (hurt > 0.55) {
+      if (!e._gutTrail) e._gutTrail = [];
+      const last = e._gutTrail[e._gutTrail.length - 1];
+      if (!last || dist2(last.x, last.y, e.x, e.y) > 80) {
+        e._gutTrail.push({ x: e.x, y: e.y });
+        if (e._gutTrail.length > 7) e._gutTrail.shift();
+      }
+    }
+    if (!e._marks || !e._marks.length) return;
+    if (hurt < 0.18) return;                  // even a first serious gash pumps
     e._bleedT = (e._bleedT || 0) - dt;
     if (e._bleedT > 0) return;
     // Faster pulse the worse they are: roughly 1.1s down to 0.35s.
@@ -6181,17 +6986,20 @@ export class Game {
     this.cam.shake = 10;
     this._levelUpFlash = 1.0;
     this._levelUpShieldT = 0.85; // must match the duration read in pixiRenderer's _drawPlayer
-    this._levelUpTextTimer = 1.4;
+    this._levelUpTextTimer = 1.85;
+    this._levelUpShatterAt = 0.70;
+    this._luPixelsDone = false;
     Audio.levelUp();
     // BIG level-up blast — visual + KNOCKBACK + small damage
     const p = this.player;
-    this._levelUpTextPos = { x: p.x, y: p.y - 40 };
+    this._levelUpTextPos = { x: p.x, y: p.y - 28 };
+    this._spawnLevelUpSpray(p);
     // Timmy: a second, smaller "LEVEL UP!" ping used to spawn here through the
     // shared damage-number pool, on top of the big banner (_drawLevelUpText)
     // driven by _levelUpTextTimer above — same text, two systems, a few px
     // apart, reading as a broken double-exposure instead of two effects. One
     // banner only now.
-    const blastR = 180 * (r.stats.areaMult || 1);
+    const blastR = 180 * (r.stats.areaMult || 1) * ((r.stats.flags || {}).fxLevelNova || 1);
     const blastR2 = blastR * blastR;
     const blastKB  = r.stats.levelUpKB  || 150;
     const blastDmg = r.stats.levelUpDmg || 20;
@@ -6281,6 +7089,56 @@ export class Game {
     }
     // brief iframes for safety
     p.iframes = Math.max(p.iframes, 0.6);
+  }
+
+  // Water out of the head is what LAUNCHES the LVL UP text. Spray first,
+  // text pops a beat later (see _drawLevelUpText). Bubbles ride the same
+  // burst so it reads as the drop overflowing, not as confetti.
+  _spawnLevelUpSpray(p) {
+    const n = this.fxCount(26);
+    for (let i = 0; i < n; i++) {
+      const a = -Math.PI / 2 + rand(-0.85, 0.85);
+      const sp = rand(90, 260);
+      const pp = this.parts.acquire();
+      pp.x = p.x + rand(-5, 5);
+      pp.y = p.y - 16;
+      pp.vx = Math.cos(a) * sp;
+      pp.vy = Math.sin(a) * sp;
+      pp.life = rand(0.32, 0.58); pp.max = pp.life;
+      pp.color = i % 3 === 0 ? '#e8fbff' : (i % 3 === 1 ? '#4fc9ff' : '#1fb6ff');
+      pp.size = rand(1.6, 3.4); pp.type = 'spark';
+    }
+    const bubbles = this.fxCount(10);
+    for (let i = 0; i < bubbles; i++) {
+      const pp = this.parts.acquire();
+      pp.x = p.x + rand(-10, 10);
+      pp.y = p.y - rand(4, 18);
+      pp.vx = rand(-18, 18);
+      pp.vy = -rand(40, 90);
+      pp.life = rand(0.5, 0.9); pp.max = pp.life;
+      pp.color = '#bfeeff';
+      pp.size = rand(2.4, 4.6); pp.type = 'spark';
+    }
+  }
+
+  // Pixels detach from the banner and FALL. Spawned once when the timer
+  // crosses _levelUpShatterAt, not per frame — otherwise this is a second
+  // particle wall on top of the spray.
+  _spawnLevelUpPixels() {
+    const pos = this._levelUpTextPos;
+    if (!pos) return;
+    const n = this.fxCount(36);
+    const cols = ['#6ecbff', '#ffd166', '#ff3146'];
+    for (let i = 0; i < n; i++) {
+      const pp = this.parts.acquire();
+      pp.x = pos.x + rand(-28, 28);
+      pp.y = pos.y - 36 + rand(-8, 8);
+      pp.vx = rand(-70, 70);
+      pp.vy = rand(20, 90);
+      pp.life = rand(0.35, 0.7); pp.max = pp.life;
+      pp.color = cols[i % 3];
+      pp.size = rand(2, 3.6); pp.type = 'luPixel';
+    }
   }
 
   // ---- Player damage mitigation ------------------------------------------
@@ -6389,20 +7247,24 @@ export class Game {
   // are always BLOOD_RED now regardless of what's passed (Timmy: blood is
   // always blood-red).
   spawnBlood(x, y, color) {
-    const n = this.fxCount(3 + randi(0, 4));
+    const n = this.fxBlood(16 + randi(0, 10));
     for (let i = 0; i < n; i++) {
       const p = this.parts.acquire();
-      p.x = x; p.y = y;
+      // Origin jitter so a spray is a cloud, not a stack of dots on one pixel.
+      const jitter = rand(0, 9);
+      const ja = Math.random() * TAU;
+      p.x = x + Math.cos(ja) * jitter;
+      p.y = y + Math.sin(ja) * jitter;
       const a = Math.random() * TAU;
-      const sp = rand(80, 260);
-      p.vx = Math.cos(a) * sp; p.vy = Math.sin(a) * sp - rand(30, 120);
-      p.life = rand(0.4, 0.9); p.max = p.life;
-      // Droplets vary in size within a single spray. A spray of identically
-      // sized dots is the tell that gore is procedural; real spatter is a few
-      // fat drops among a lot of fine mist.
+      const sp = rand(50, 340);
+      p.vx = Math.cos(a) * sp; p.vy = Math.sin(a) * sp - rand(40, 180);
+      p.life = rand(0.28, 0.85); p.max = p.life;
       p.color = BLOOD_RED;
-      p.size = i === 0 ? rand(2.4, 3.6) : rand(0.7, 1.9);
+      // A few slightly fatter drops, the rest mist. Same-size flecks on one
+      // origin is what made gore look like a stamp.
+      p.size = i < 2 ? rand(1.15, 1.85) : (i % 6 === 0 ? rand(0.7, 1.15) : rand(0.28, 0.72));
       p.type = 'blood';
+      p._mist = i % 4 === 0;
     }
   }
 
@@ -6419,13 +7281,11 @@ export class Game {
     const nx = dx / d, ny = dy / d;
     const wx = e.x - nx * t.size * 0.22, wy = e.y - ny * t.size * 0.22;
     const n = this.fxCount(3 + Math.floor(stage * 0.45));
-    // Chunks are mostly enemy-colored flesh; one in four flashes the weapon's
-    // impact-accent color instead of duplicating the enemy color, so the
-    // gore still reads as "this weapon just hit" without turning blue/etc.
-    // Chunks fly along the hit direction in a cone rather than in a full
-    // circle. A piece torn off by an impact travels roughly the way the
-    // impact was going — spraying them evenly in every direction is what made
-    // gore read as a generic puff instead of something being torn away.
+    // Chunks are the enemy's own flesh colour, always. Weapon colour used to
+    // flash on one in four of these and read as coloured paint; sparks carry
+    // the impact accent instead. Chunks fly along the hit direction in a cone
+    // rather than in a full circle.
+    void impactAccent;
     const away = Math.atan2(ny, nx);
     for (let i = 0; i < n; i++) {
       const p = this.parts.acquire();
@@ -6434,7 +7294,7 @@ export class Game {
       const sp = rand(90, 260);
       p.vx = Math.cos(a) * sp; p.vy = Math.sin(a) * sp - rand(20, 100);
       p.life = rand(0.4, 0.85); p.max = p.life;
-      p.color = i % 4 === 0 ? (impactAccent || bc) : bc;
+      p.color = bc;
       p.size = rand(1.2, 2.6); p.type = 'chunk';
     }
     // A heavier hit tears off one genuinely large piece that tumbles and
@@ -6448,9 +7308,10 @@ export class Game {
       big.life = rand(0.8, 1.3); big.max = big.life;
       big.color = bc; big.size = rand(3.2, 5.4); big.type = 'chunk';
     }
-    this.spawnBlood(wx, wy, bc);
+    this.spawnBlood(wx, wy, BLOOD_RED);
     const localAng = Math.atan2(ny, nx) + rand(-0.35, 0.35);
     const localR = t.size * rand(0.12, 0.4);
+    if (!e._wounds) e._wounds = [];
     e._wounds.push({ lx: Math.cos(localAng) * localR, ly: Math.sin(localAng) * localR, size: t.size * rand(0.13, 0.21) });
     // Capped like bloodDecals — an unbounded per-enemy wound list during a
     // very long boss fight would otherwise keep growing for the fight's
@@ -6512,6 +7373,116 @@ export class Game {
   // Per-frame upkeep for the Astro Prospector unique cards that need it.
   // Kept in one place rather than scattered through update(), so the set of
   // things these cards touch stays obvious.
+  // EFFECTS branch + leftover finisher flags. One place so a new talent has
+  // somewhere obvious to live, and so talents.test can see `.flagName` reads.
+  _updateTalentFx(dt) {
+    const f = (this.run.stats && this.run.stats.flags) || {};
+    const p = this.player;
+    const dmgM = this.run.stats.damageMult || 1;
+
+    if (this._echoQ && this._echoQ.length) {
+      for (let i = this._echoQ.length - 1; i >= 0; i--) {
+        const q = this._echoQ[i];
+        q.t -= dt;
+        if (q.t <= 0) {
+          this.fireProjectile(q.x, q.y, q.ang, q.s, true, q.homing || 0);
+          this._echoQ.splice(i, 1);
+        }
+      }
+    }
+
+    if (f.fxOrbit) {
+      const n = typeof f.fxOrbit === 'number' ? f.fxOrbit : 2;
+      const radius = 56;
+      const angBase = this.time * 2.35;
+      this._talentOrbitPos = [];
+      const tick = 16 * dmgM * dt;
+      for (let i = 0; i < n; i++) {
+        const a = angBase + (i / n) * TAU;
+        const ox = p.x + Math.cos(a) * radius;
+        const oy = p.y + Math.sin(a) * radius;
+        this._talentOrbitPos.push({ x: ox, y: oy });
+        this.enemies.forEach(e => {
+          if (e.alive && dist2(e.x, e.y, ox, oy) <= 22 * 22) {
+            this.dealDamage(e, tick, false, 0, ox, oy, true);
+          }
+        });
+      }
+    } else {
+      this._talentOrbitPos = null;
+    }
+
+    if (f.fxRain) {
+      this._fxRainT = (this._fxRainT || 0) + dt;
+      if (this._fxRainT >= 1.15) {
+        this._fxRainT = 0;
+        this._talentRainStrike();
+      }
+    }
+
+    const pools = this._waterPools;
+    if (pools && pools.length) {
+      for (let i = pools.length - 1; i >= 0; i--) {
+        const w = pools[i];
+        w.life -= dt;
+        w.acc = (w.acc || 0) + dt;
+        if (w.acc >= 0.35) {
+          w.acc = 0;
+          this.spawnRing(w.x, w.y, w.r, w.color, 0.22);
+          this.enemies.forEach(e => {
+            if (!e.alive) return;
+            if (dist2(e.x, e.y, w.x, w.y) > w.r * w.r) return;
+            this.dealDamage(e, w.dps, false, 12, w.x, w.y, true);
+            if (w.burn) e._burn = Math.max(e._burn || 0, 1.2);
+          });
+          if (w.flood && (w.gen || 0) < 2 && pools.length < 12 && Math.random() < 0.18) {
+            const a = Math.random() * TAU;
+            pools.push({
+              x: w.x + Math.cos(a) * w.r * 0.9,
+              y: w.y + Math.sin(a) * w.r * 0.9,
+              r: w.r * 0.72, life: w.life * 0.55, acc: 0,
+              dps: w.dps * 0.7, color: w.color, flood: true, gen: (w.gen || 0) + 1, burn: false,
+            });
+          }
+        }
+        if (w.life <= 0) pools.splice(i, 1);
+      }
+    }
+  }
+
+  _spawnWaterPool(x, y, r, life, dps, color, flood, burn) {
+    this._waterPools = this._waterPools || [];
+    if (this._waterPools.length >= 14) this._waterPools.shift();
+    this._waterPools.push({ x, y, r, life, acc: 0, dps, color, flood: !!flood, burn: !!burn, gen: 0 });
+    this.spawnRing(x, y, r, color, 0.45);
+  }
+
+  _talentRainStrike() {
+    let best = null, bestN = -1;
+    this.enemies.forEach(e => {
+      if (!e.alive) return;
+      let n = 0;
+      this.enemies.forEach(o => {
+        if (o.alive && dist2(o.x, o.y, e.x, e.y) <= 90 * 90) n++;
+      });
+      if (n > bestN) { bestN = n; best = e; }
+    });
+    const p = this.player;
+    const tx = best ? best.x : p.x + rand(-80, 80);
+    const ty = best ? best.y : p.y + rand(-80, 80);
+    const dmg = 22 * (this.run.stats.damageMult || 1);
+    for (let i = 0; i < 3; i++) {
+      const warn = this.parts.acquire();
+      warn.x = tx + rand(-28, 28); warn.y = ty + rand(-28, 28);
+      warn.vx = 0; warn.vy = 0;
+      warn.life = 0.45 + i * 0.08; warn.max = warn.life;
+      warn.color = '#4dc4ff'; warn.size = 38;
+      warn.type = 'meteorMark';
+      warn._dmg = dmg; warn._radius = 42;
+      warn._fallFrom = -280; warn._fallOffX = rand(-40, 40);
+    }
+  }
+
   _updateProspectorFlags(dt) {
     if (this._tempoT > 0) {
       this._tempoT -= dt;

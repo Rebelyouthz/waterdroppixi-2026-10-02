@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { activeQuests } from '../game/storyQuests';
+import { whatsOnSide } from '../game/campClaims';
 import GameIcon from './GameIcon';
 
 // =============================================
@@ -146,5 +147,40 @@ export default function QuestTracker({ save, onGo, compact = false, className = 
         </div>
       )}
     </>
+  );
+}
+
+// Camp-IA "nearest achievement / claimable" row. Same visual grammar as the
+// two quest tracks so a claimable pass/codex/patrol is not a different language.
+export function WhatsOnStrip({ save, onGo }) {
+  const side = whatsOnSide(save);
+  if (!side) return null;
+  return (
+    <div className="quest-tracker" data-testid="whats-on-side">
+      <div
+        className={`qt-row${side.ready ? ' qt-ready' : ''}`}
+        style={{ '--qt-color': '#ffd166' }}
+        data-testid="whats-on-go"
+        onClick={() => onGo && onGo(side.go)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onGo && onGo(side.go); } }}
+      >
+        <span className={`qt-check${side.ready ? ' checked' : ''}`} aria-hidden="true">
+          <svg viewBox="0 0 20 20" width="14" height="14">
+            <path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" strokeWidth="3"
+              strokeLinecap="round" strokeLinejoin="round" className="qt-tick" />
+          </svg>
+        </span>
+        <span className="qt-icon"><GameIcon name={side.icon} size={20} /></span>
+        <span className="qt-body">
+          <span className="qt-track">NEAR</span>
+          <span className="qt-goal">{side.goal}</span>
+          {side.why && <span className="qt-why">{side.title} — {side.why}</span>}
+          {!side.why && <span className="qt-why">{side.title}</span>}
+        </span>
+        <span className="qt-go" aria-hidden="true">▸</span>
+      </div>
+    </div>
   );
 }
