@@ -1,0 +1,1284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Waterdrop Survivor — Complete Master Theme & Asset Studio (25 Systems × 10 Options = 250 Curated Styles)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=VT323&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #06030c;
+      --bg-panel: #0d0718;
+      --bg-card: #130a24;
+      --bg-card-hover: #1c1033;
+      --border: #2b174d;
+      --border-highlight: #7038d1;
+      --accent-cyan: #4dffd4;
+      --accent-gold: #ffd166;
+      --accent-purple: #b362ff;
+      --accent-red: #ff3355;
+      --accent-blue: #4dc4ff;
+      --accent-green: #39ff14;
+      --text-main: #f0eaf8;
+      --text-dim: #988bb0;
+      --text-muted: #62557a;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      font-family: 'Inter', -apple-system, sans-serif;
+      overflow: hidden;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      height: 60px;
+      background: linear-gradient(90deg, #100624 0%, #080314 100%);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      flex-shrink: 0;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+      z-index: 10;
+    }
+
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-icon {
+      width: 36px; height: 36px; border-radius: 8px;
+      background: radial-gradient(circle, var(--accent-cyan) 0%, #0e2a36 100%);
+      border: 1px solid var(--accent-cyan);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; box-shadow: 0 0 12px rgba(77, 255, 212, 0.4);
+    }
+    .brand-title {
+      font-family: 'VT323', monospace; font-size: 22px;
+      color: var(--accent-gold); letter-spacing: 0.12em; line-height: 1;
+    }
+    .brand-subtitle { font-size: 11px; color: var(--text-dim); text-transform: uppercase; }
+
+    .header-actions { display: flex; align-items: center; gap: 10px; }
+    .badge-status {
+      font-family: 'VT323', monospace; font-size: 15px;
+      padding: 4px 10px; border-radius: 6px;
+      background: rgba(77, 255, 212, 0.1);
+      border: 1px solid var(--accent-cyan); color: var(--accent-cyan);
+    }
+
+    .btn {
+      font-family: 'VT323', monospace; font-size: 15px;
+      padding: 5px 14px; border-radius: 6px; cursor: pointer;
+      border: 1px solid transparent; transition: all 0.2s ease;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .btn-gold {
+      background: linear-gradient(180deg, #ffd700 0%, #d49b00 100%);
+      color: #06030c; font-weight: bold;
+      box-shadow: 0 0 12px rgba(255, 215, 0, 0.3);
+    }
+    .btn-gold:hover {
+      box-shadow: 0 0 20px rgba(255, 215, 0, 0.6); transform: translateY(-1px);
+    }
+    .btn-purple {
+      background: #231242; border-color: var(--border-highlight); color: var(--text-main);
+    }
+    .btn-purple:hover { background: #321a5e; border-color: var(--accent-purple); }
+
+    .stepper-nav {
+      background: #090412; border-bottom: 1px solid var(--border);
+      padding: 6px 16px; display: flex; align-items: center; gap: 6px;
+      overflow-x: auto; flex-shrink: 0;
+    }
+    .step-item {
+      display: flex; align-items: center; gap: 6px; padding: 5px 10px;
+      border-radius: 6px; background: #110822; border: 1px solid var(--border);
+      font-family: 'VT323', monospace; font-size: 14px; color: var(--text-dim);
+      cursor: pointer; white-space: nowrap; transition: all 0.15s ease;
+    }
+    .step-item:hover { border-color: var(--accent-purple); color: var(--text-main); }
+    .step-item.active {
+      background: #241344; border-color: var(--accent-gold); color: var(--accent-gold);
+      box-shadow: 0 0 10px rgba(255, 209, 102, 0.3);
+    }
+    .step-item.completed { border-color: var(--accent-cyan); color: var(--accent-cyan); }
+
+    .app-body { display: flex; flex: 1; min-height: 0; }
+    main {
+      flex: 1; display: flex; flex-direction: column;
+      overflow-y: auto; background: #090412; padding: 18px 24px; gap: 18px;
+    }
+
+    .live-sim-banner {
+      background: linear-gradient(135deg, #160a2e 0%, #0b0517 100%);
+      border: 1px solid var(--border-highlight); border-radius: 12px;
+      padding: 16px 20px; display: flex; flex-direction: column;
+      gap: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+    }
+    .live-sim-top {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    }
+    .live-sim-info h2 {
+      font-family: 'VT323', monospace; font-size: 24px;
+      color: var(--accent-cyan); letter-spacing: 0.08em;
+    }
+    .live-sim-info p { font-size: 12.5px; color: var(--text-dim); margin-top: 3px; line-height: 1.35; }
+
+    .live-action-bar {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      background: #080312; border: 1px solid var(--border); border-radius: 8px;
+      padding: 8px 12px;
+    }
+
+    .action-btn {
+      font-family: 'VT323', monospace; font-size: 15px;
+      padding: 4px 10px; border-radius: 5px; background: #1a0f33;
+      border: 1px solid var(--border-highlight); color: var(--accent-cyan);
+      cursor: pointer; transition: all 0.15s ease;
+    }
+    .action-btn:hover {
+      background: #2b174d; color: var(--accent-gold); border-color: var(--accent-gold);
+      box-shadow: 0 0 10px rgba(255, 209, 102, 0.4);
+    }
+    .action-btn.active {
+      background: var(--accent-cyan); color: #06030c; font-weight: bold;
+    }
+
+    .preview-sandbox {
+      width: 100%; height: 140px; background: #040208;
+      border: 1px solid var(--border); border-radius: 8px;
+      position: relative; overflow: hidden; display: flex;
+      align-items: center; justify-content: center;
+      box-shadow: inset 0 0 20px rgba(0,0,0,0.8); cursor: pointer;
+    }
+
+    .section-header { display: flex; align-items: center; justify-content: space-between; }
+    .section-title {
+      font-family: 'VT323', monospace; font-size: 20px;
+      color: var(--accent-gold); letter-spacing: 0.1em;
+    }
+
+    .options-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 14px;
+    }
+    .opt-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 10px; overflow: hidden; cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+      display: flex; flex-direction: column; position: relative;
+    }
+    .opt-card:hover {
+      background: var(--bg-card-hover); border-color: var(--border-highlight);
+      transform: translateY(-2px); box-shadow: 0 8px 24px rgba(112, 56, 209, 0.25);
+    }
+    .opt-card.selected {
+      border: 2px solid var(--card-color, var(--accent-cyan));
+      box-shadow: 0 0 24px rgba(77, 255, 212, 0.35); background: #1a0f33;
+    }
+
+    .opt-card-thumb {
+      height: 100px; background: #070310; position: relative;
+      overflow: hidden; display: flex; align-items: center;
+      justify-content: center; border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .opt-badge-num {
+      position: absolute; top: 6px; left: 6px;
+      font-family: 'VT323', monospace; font-size: 14px;
+      padding: 1px 6px; border-radius: 4px; background: rgba(0,0,0,0.85);
+      border: 1px solid var(--card-color, var(--accent-cyan));
+      color: var(--card-color, var(--accent-cyan)); font-weight: bold; z-index: 2;
+    }
+    .opt-active-tag {
+      position: absolute; top: 6px; right: 6px;
+      font-family: 'VT323', monospace; font-size: 12px;
+      padding: 1px 6px; border-radius: 4px;
+      background: var(--card-color, var(--accent-cyan));
+      color: #06030c; font-weight: bold; display: none; z-index: 2;
+    }
+    .opt-card.selected .opt-active-tag { display: block; }
+
+    .opt-card-body { padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
+    .opt-name { font-size: 13.5px; font-weight: 700; color: var(--text-main); }
+    .opt-desc { font-size: 11px; color: var(--text-dim); line-height: 1.3; }
+
+    .opt-palette { display: flex; gap: 4px; margin-top: 4px; }
+    .palette-dot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); }
+
+    .wizard-footer {
+      height: 56px; background: #0d0718; border-top: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 20px; flex-shrink: 0;
+    }
+
+    .review-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 10px; max-height: 58vh; overflow-y: auto; padding-right: 6px;
+    }
+    .review-item {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 12px; display: flex;
+      align-items: center; justify-content: space-between; gap: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Header -->
+  <header>
+    <div class="brand">
+      <div class="brand-icon">💧</div>
+      <div>
+        <div class="brand-title">WATERDROP MASTER THEME & ASSET STUDIO</div>
+        <div class="brand-subtitle">Complete 25-System Step-by-Step Chooser (250 Curated Visual Styles)</div>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <div class="badge-status" id="progressBadge">STEP 1 OF 25</div>
+      <button class="btn btn-purple" onclick="applyPreset('cyber')">PRESET: CYBER</button>
+      <button class="btn btn-purple" onclick="applyPreset('solstice')">PRESET: SOLSTICE</button>
+      <button class="btn btn-purple" onclick="applyPreset('blood')">PRESET: BLOOD</button>
+      <button class="btn btn-gold" onclick="goToReviewStep()">🚀 REVIEW & SUBMIT</button>
+    </div>
+  </header>
+
+  <!-- Stepper Nav Strip -->
+  <div class="stepper-nav" id="stepperNav"></div>
+
+  <!-- Workspace Body -->
+  <div class="app-body">
+    <main id="mainWorkspace"></main>
+  </div>
+
+  <!-- Footer Navigation -->
+  <div class="wizard-footer">
+    <button class="btn btn-purple" id="btnPrev" onclick="prevStep()">◂ PREVIOUS STEP</button>
+    <div style="font-family:'VT323',monospace; font-size:16px; color:var(--text-dim);" id="footerStepIndicator">
+      STEP 1: HERO CHARACTER & SKINS
+    </div>
+    <button class="btn btn-gold" id="btnNext" onclick="nextStep()">NEXT STEP ▸</button>
+  </div>
+
+  <script>
+    // ── Complete Master Inventory: 25 Categories × 10 Options = 250 Styles ──
+    const CATEGORIES = [
+      {
+        id: 'hero_skins', name: 'Hero Character & Skins', icon: '💧',
+        desc: 'Protagonist sprite design, elemental body form, bandana gear, and idle animations.',
+        options: [
+          { id: 1, name: 'Classic Pure Hydro', color: '#5fd6ff', desc: 'Translucent crystalline cyan water droplet with classic crimson ninja bandana.' },
+          { id: 2, name: 'Dark Void Phantom', color: '#b362ff', desc: 'Ethereal shadow phantom with internal galaxy stardust, horns & dark tendrils.' },
+          { id: 3, name: 'Cyber Augmented Cyborg', color: '#39ff14', desc: 'Cyborg droplet with red laser visor, hydraulic leg struts & neon nano-pipes.' },
+          { id: 4, name: 'Solar Dawn Radiance', color: '#ffd166', desc: 'Blazing golden spirit droplet holding a sun staff and surrounded by solar flares.' },
+          { id: 5, name: 'Blood Moon Berserker', color: '#ff3355', desc: 'Demon droplet with spiked dark pauldrons and blood-serrated crimson katana.' },
+          { id: 6, name: 'Toxic Acid Slime', color: '#7ad96b', desc: 'Bioluminescent green radioactive acid droplet with bubbling toxic motes.' },
+          { id: 7, name: 'Imperial Royal Sovereign', color: '#ffcc00', desc: 'Gilded droplet wearing a crowned tiara, imperial sash & jeweled rapier.' },
+          { id: 8, name: 'Retro 8-Bit Arcade Pixel', color: '#ff9033', desc: 'Chunky nostalgic low-res arcade droplet with high-contrast outlines.' },
+          { id: 9, name: 'Glitched Hologram Phantom', color: '#00f0ff', desc: 'Scanline-projected cyan hologram that flickers and shifts RGB channels.' },
+          { id: 10, name: 'Cryo Glacial Frost', color: '#9fe8ff', desc: 'Diamond-hard frozen droplet with sharp ice crystal horns and snowy mist.' }
+        ]
+      },
+      {
+        id: 'hero_slashes', name: 'Hero Combat Animations & Slashes', icon: '⚡',
+        desc: 'Melee slash sweeps, blade arcs, attack animations, and hit-spark bursts.',
+        options: [
+          { id: 1, name: 'Tidal Water Wave Arcs', color: '#5fd6ff', desc: 'Sweeping crystalline water arcs with splashing foam droplets.' },
+          { id: 2, name: 'Emerald Cyber Laser Blades', color: '#39ff14', desc: 'Neon green energy slashes leaving digital matrix trail lines.' },
+          { id: 3, name: 'Dark Void Gravity Vortex', color: '#b362ff', desc: 'Purple singularity slashes that pull nearby dust particles inwards.' },
+          { id: 4, name: 'Solar Ray Flare Cleave', color: '#ffd166', desc: 'Golden sunlight beams with radiating solar flame bursts.' },
+          { id: 5, name: 'Crimson Blood Moon Slice', color: '#ff3355', desc: 'Deep red blood trail slashes with dripping gore embers.' },
+          { id: 6, name: 'High-Voltage Lightning Arc', color: '#ffff33', desc: 'Crackling blue-white electrical arcs jumping along the blade edge.' },
+          { id: 7, name: 'Prismatic Crystal Shatter', color: '#ff66cc', desc: 'Multi-colored glass blade swings shattering into rainbow spark clusters.' },
+          { id: 8, name: 'Corrosive Acid Spray Cleave', color: '#77ff33', desc: 'Bioluminescent green acid waves that leave sizzling burn marks.' },
+          { id: 9, name: 'Kinetic Shockwave Impact', color: '#ff8800', desc: 'Heavy acoustic distortion rings that concuss the surrounding air.' },
+          { id: 10, name: 'Shuriken Phantom Cyclone', color: '#888888', desc: 'Twin shadow blades spinning in a high-speed reflective spiral.' }
+        ]
+      },
+      {
+        id: 'xp_drops', name: 'Collectible XP Drops & Pickups', icon: '✨',
+        desc: 'In-game experience and energy orbs dropped by slain enemies in combat.',
+        options: [
+          { id: 1, name: 'Hydro Liquid Bubble', color: '#5fd6ff', desc: 'Glossy water droplet with inner swirling flow and white specular gleam.' },
+          { id: 2, name: 'Nanite Data Cube', color: '#39ff14', desc: 'Rotating neon green cyber cube with glowing circuit traces.' },
+          { id: 3, name: 'Cosmic Stardust Shard', color: '#b362ff', desc: 'Facet-cut celestial purple crystal with swirling galaxy dust.' },
+          { id: 4, name: 'Bloodstone Occult Tear', color: '#ff3355', desc: 'Crimson teardrop with pulsing dark rune and eerie red mist.' },
+          { id: 5, name: 'Solar Amber Orb', color: '#ffd166', desc: 'Blazing golden sphere with dancing flame core and radiating light spikes.' },
+          { id: 6, name: 'Prismatic Floating Pyramid', color: '#4dffd4', desc: 'Floating miniature glass tetrahedron refracting multi-colored rainbow light.' },
+          { id: 7, name: 'High-Voltage Electric Spark', color: '#ffff44', desc: 'Crackling blue-yellow lightning spark that jumps across the ground.' },
+          { id: 8, name: 'Radioactive Waste Droplet', color: '#00ff66', desc: 'Glowing toxic green blob with skull hazard warning reflection.' },
+          { id: 9, name: 'Antique Golden Sovereign Coin', color: '#d4af37', desc: 'Heavy engraved gold coin that spins vertically with a metallic chime.' },
+          { id: 10, name: 'Dark Void Graviton Mote', color: '#9933ff', desc: 'Tiny black hole sphere bending the space around it with gravity rings.' }
+        ]
+      },
+      {
+        id: 'gems', name: 'Gems & Premium Crystals', icon: '💎',
+        desc: 'Precious upgrade currency used for blacksmithing, talent unlocks, and meta perks.',
+        options: [
+          { id: 1, name: 'Prismatic Cyan Diamond', color: '#5fd6ff', desc: 'Sharp brilliant-cut diamond with multi-faceted cyan and white sparkles.' },
+          { id: 2, name: 'Emerald Cyber Matrix Core', color: '#39ff14', desc: 'Hexagonal green cyber crystal with digital wireframe layers.' },
+          { id: 3, name: 'Amethyst Nebula Cluster', color: '#b362ff', desc: 'Multi-spike purple crystal cluster emitting cosmic stardust swirls.' },
+          { id: 4, name: 'Crimson Blood Ruby', color: '#ff3355', desc: 'Dark crimson carved obelisk with glowing occult blood rune.' },
+          { id: 5, name: 'Radiant Golden Solar Topaz', color: '#ffd166', desc: 'Imperial topaz surrounded by warm eight-point solar rays.' },
+          { id: 6, name: 'Sapphire Star Core', color: '#0066ff', desc: 'Deep royal blue spherical gem with glowing plasma core.' },
+          { id: 7, name: 'Obsidian Void Geode', color: '#7733cc', desc: 'Pitch black volcanic rock cracked open to reveal glowing purple crystals.' },
+          { id: 8, name: 'Rainbow Prismatic Quartz', color: '#ff66cc', desc: 'Iridescent crystalline pillar refracting dynamic rainbow chromatic flares.' },
+          { id: 9, name: 'Fire Opal Dragon Heart', color: '#ff5500', desc: 'Translucent orange opal with shifting lava currents sealed within.' },
+          { id: 10, name: 'Pure Platinum Hex Ingot', color: '#e0e8f0', desc: 'Precision-machined high-tech platinum ingot with laser-engraved serials.' }
+        ]
+      },
+      {
+        id: 'chests', name: 'Loot Chests & Milestone Pods', icon: '📦',
+        desc: 'Reward containers, milestone loot boxes, and discovery caches.',
+        options: [
+          { id: 1, name: 'Cyberpunk Biometric Crate', color: '#4dffd4', desc: 'Reinforced alloy box with cyan biometric holographic display & cables.' },
+          { id: 2, name: 'Ancient Monolith Stone Sarcophagus', color: '#7ad96b', desc: 'Moss-covered stone chest with luminous green celtic runes.' },
+          { id: 3, name: 'Deep Space Titanium Cargo Capsule', color: '#c8ccd4', desc: 'Weathered industrial metal container with hazard stripes & heavy latches.' },
+          { id: 4, name: 'Occult Bloodstone Reliquary', color: '#ff3355', desc: 'Spiked dark obsidian chest bound in chains with blood-red runes.' },
+          { id: 5, name: 'Royal Gilded Solstice Chest', color: '#ffd166', desc: 'Ornate mahogany & polished gold treasure coffer with radiant sun emblem.' },
+          { id: 6, name: 'Alien Xenotech Bio-Vault', color: '#9900ff', desc: 'Living chitinous alien cocoon with bioluminescent pulsing veins.' },
+          { id: 7, name: 'Deep Sea Barnacle Locker', color: '#0099cc', desc: 'Rusted nautical brass trunk covered in glowing sea anemones & coral.' },
+          { id: 8, name: 'Crystal Geode Coffer', color: '#ff33bb', desc: 'Hollow amethyst boulder lined with glowing mineral spikes.' },
+          { id: 9, name: 'Holographic Hard-Light Safe', color: '#00ffff', desc: 'Pure cyan laser grid that de-materializes when unlocked.' },
+          { id: 10, name: 'Gothic Iron Maiden Vault', color: '#888888', desc: 'Towering cast-iron reliquary with gargoyle carvings and red velvet interior.' }
+        ]
+      },
+      {
+        id: 'weapons', name: 'Main Weapons & Projectiles', icon: '⚔️',
+        desc: 'Primary weapon models, trajectory trails, and shot impacts.',
+        options: [
+          { id: 1, name: 'Hydro Katana Wave Blade', color: '#5fd6ff', desc: 'Liquid tempered steel katana firing slicing water projectile blades.' },
+          { id: 2, name: 'Plasma Particle Blaster', color: '#39ff14', desc: 'Rapid-fire emerald particle rifle launching ionized energy balls.' },
+          { id: 3, name: 'Void Scythe of Oblivion', color: '#b362ff', desc: 'Dark matter scythe creating black hole vortexes on impact.' },
+          { id: 4, name: 'Solstice Golden Sun Bow', color: '#ffd166', desc: 'Celestial gold greatbow launching blazing solar energy arrows.' },
+          { id: 5, name: 'Blood Moon Serrated Daggers', color: '#ff3355', desc: 'Twin daggers that fling crimson bleed spikes.' },
+          { id: 6, name: 'Tesla Coil Arc Gun', color: '#4dffd4', desc: 'High-voltage lightning gun chaining electricity across targets.' },
+          { id: 7, name: 'Starlight Crystal Wand', color: '#ff66cc', desc: 'Jeweled wand casting sparkling cosmic stardust novas.' },
+          { id: 8, name: 'Corrosive Chemical Sprayer', color: '#88ff00', desc: 'Industrial sprayer blanketing the arena in toxic green acid.' },
+          { id: 9, name: 'Heavy Kinetic Gauss Cannon', color: '#ff8800', desc: 'Shoulder artillery cannon firing concussive armor-piercing shells.' },
+          { id: 10, name: 'Ninja Shuriken Storm', color: '#999999', desc: 'Rapid-fire spinning titanium throwing stars with bounce physics.' }
+        ]
+      },
+      {
+        id: 'skills_orbitals', name: 'Secondary Skills & Orbitals', icon: '🛡️',
+        desc: 'Autonomous orbital drones, elemental shields, and deployed turrets.',
+        options: [
+          { id: 1, name: 'Hydro Barrier & Orbital Drops', color: '#5fd6ff', desc: 'Spinning shield of protective water drops that reflect enemy projectiles.' },
+          { id: 2, name: 'Cyber Recon Drone Turret', color: '#39ff14', desc: 'Hovering quadcopter targeting enemies with continuous laser beams.' },
+          { id: 3, name: 'Orbiting Stardust Meteors', color: '#b362ff', desc: 'Three glowing cosmic meteorites circling the hero in an elliptical orbit.' },
+          { id: 4, name: 'Solstice Solar Flare Aura', color: '#ffd166', desc: 'Radiating ring of golden sunlight burning enemies that step near.' },
+          { id: 5, name: 'Blood Thorn Ring', color: '#ff3355', desc: 'Spiked bone wreath that lacerates approaching monsters.' },
+          { id: 6, name: 'Tesla Lightning Orbiters', color: '#ffff44', desc: 'Electric orbs generating an electrified defensive perimeter.' },
+          { id: 7, name: 'Frost Ice Crystal Orbitals', color: '#9fe8ff', desc: 'Sharp icicles that freeze enemies on contact.' },
+          { id: 8, name: 'Toxic Chemical Slime Puddle', color: '#77ff33', desc: 'Corrosive acid trail dropped behind the hero while moving.' },
+          { id: 9, name: 'Explosive Magma Mines', color: '#ff4400', desc: 'Proximity mines that detonate into volcanic lava pools.' },
+          { id: 10, name: 'Shadow Clone Decoys', color: '#888888', desc: 'Spectral waterdrop clones that mimic your attacks.' }
+        ]
+      },
+      {
+        id: 'enemies', name: 'Enemy Monsters & Minions', icon: '👾',
+        desc: 'Swarm enemies, bruisers, spitters, and minion spawn animations.',
+        options: [
+          { id: 1, name: 'Biomechanical Cyber-Mutants', color: '#39ff14', desc: 'Genetically modified cyborg reptiles with exposed circuitry and laser eyes.' },
+          { id: 2, name: 'Deep Space Eldritch Horrors', color: '#b362ff', desc: 'Multi-eyed floating void beings with writhing tentacles and cosmic auras.' },
+          { id: 3, name: 'Shadow Syndicate Fed Agents', color: '#ffaa00', desc: 'Men in trenchcoats with fedoras, dark sunglasses and smoking automatic rifles.' },
+          { id: 4, name: 'Glitched Void Phantoms', color: '#00f0ff', desc: 'Spectral ghosts that fragment into binary glitch artifacts when damaged.' },
+          { id: 5, name: 'Alien Insectoid Hive Swarm', color: '#ff5500', desc: 'Chitinous acid-spitting beetles, winged mantis drones, and hive queens.' },
+          { id: 6, name: 'Hellfire Demonic Imps & Titans', color: '#ff0033', desc: 'Horned gargoyles bathed in magma flames and wielding spiked clubs.' },
+          { id: 7, name: 'Autonomous Military Drones', color: '#c8ccd4', desc: 'Hexacopter gunships, armored rover tanks, and robotic sentry turrets.' },
+          { id: 8, name: 'Toxic Slime Amalgams', color: '#77ff33', desc: 'Gelatinous ooze masses that divide into smaller bouncing blobs on death.' },
+          { id: 9, name: 'Undead Skeletal Necro-Cult', color: '#9933cc', desc: 'Robed cultists raising bone warriors from the earth with purple pyres.' },
+          { id: 10, name: 'Golden Solstice Guardians', color: '#ffd166', desc: 'Ancient stone statues clad in radiant gold armor and wielding solar lances.' }
+        ]
+      },
+      {
+        id: 'bosses', name: 'Stage Bosses & Giant Titans', icon: '👑',
+        desc: 'Giant map bosses, phase-change visual effects, and signature attack cues.',
+        options: [
+          { id: 1, name: 'Pharaoh All-Seeing Eye Titan', color: '#ffd166', desc: 'Floating golden pyramid apex with a laser-firing celestial eye.' },
+          { id: 2, name: 'Göbekli Shamanic Behemoth', color: '#ff9033', desc: 'Colossal stone effigy surrounded by floating rune pillars and firestorms.' },
+          { id: 3, name: 'Stonehenge Celestial Golem', color: '#4dffd4', desc: 'Megalithic stone giant channeling planetary alignments and starlight rays.' },
+          { id: 4, name: 'DUMB Tower Mech Overseer', color: '#ffd700', desc: 'Multi-armed gold & steel boardroom mech firing missile barrages.' },
+          { id: 5, name: 'Armold Cyber Titan Goliath', color: '#39ff14', desc: 'Massive cybernetic bodybuilder slamming hydraulic dumbbells onto the arena.' },
+          { id: 6, name: 'Bohemian Grove 40-Ft Owl Lord', color: '#ff3355', desc: 'Towering wooden owl god unleashing sonic screech waves and blood rain.' },
+          { id: 7, name: 'Abyssal Deep-Ocean Leviathan', color: '#0088cc', desc: 'Giant bioluminescent sea serpent summoning tidal whirlpools.' },
+          { id: 8, name: 'Void Singularity Core Dragon', color: '#9933ff', desc: 'Dimensional cosmic dragon that bends space-time with black hole breaths.' },
+          { id: 9, name: 'Crimson Hellfire Arch-Demon', color: '#ff0033', desc: 'Winged demon lord commanding rivers of boiling magma.' },
+          { id: 10, name: 'Solar Archangel of Solstice', color: '#ffffff', desc: 'Six-winged celestial being enveloped in blinding supernova coronas.' }
+        ]
+      },
+      {
+        id: 'map_giza', name: 'Map 1: Great Pyramid of Giza', icon: '🏛️',
+        desc: 'Desert dunes, hieroglyphic floor tiles, stone obelisks, and ancient desert skies.',
+        options: [
+          { id: 1, name: 'Ancient Golden Sands (Classic)', color: '#ffd166', desc: 'Warm desert dunes under a starry Egyptian night with glowing golden pyramid apex.' },
+          { id: 2, name: 'Night Starlight Mirage', color: '#4dc4ff', desc: 'Cool indigo sands lit by a full moon and floating starlight mirages.' },
+          { id: 3, name: 'Cyberpunk Neon Dunes', color: '#39ff14', desc: 'Black sand dunes laced with pulsing green laser grid coordinates.' },
+          { id: 4, name: 'Magma Scorched Wasteland', color: '#ff4400', desc: 'Cracked basalt ground with glowing lava fissures and volcanic ash.' },
+          { id: 5, name: 'Glacial Ice Tundra Pyramid', color: '#9fe8ff', desc: 'Frozen blue ice sheets and snow-covered stone blocks under aurora borealis.' },
+          { id: 6, name: 'Blood Sand Solar Eclipse', color: '#ff3355', desc: 'Deep crimson dunes under a blackened solar eclipse with red sky coronas.' },
+          { id: 7, name: 'Obsidian Monolith Necropolis', color: '#b362ff', desc: 'Polished mirror-black stone tiles reflecting swirling purple cosmic rifts.' },
+          { id: 8, name: 'Toxic Acid Dune Oasis', color: '#77ff33', desc: 'Radioactive green dunes surrounding bubbling bioluminescent pools.' },
+          { id: 9, name: 'Celestial Crystal Valley', color: '#ff66cc', desc: 'Rose quartz sand with giant towering amethyst crystals reflecting daylight.' },
+          { id: 10, name: 'Monochrome Film Noir Desert', color: '#ffffff', desc: 'High-contrast black & white sands with dramatic cinema lighting and fog.' }
+        ]
+      },
+      {
+        id: 'map_gobekli', name: 'Map 2: Göbekli Tepe Sanctuary', icon: '🗿',
+        desc: 'Megalithic T-pillars, animal reliefs, fire braziers, and mystic excavation rings.',
+        options: [
+          { id: 1, name: 'Ancient Carved Megaliths (Classic)', color: '#ffaa00', desc: 'Limestone T-pillars with relief carvings of foxes and snakes around warm bonfires.' },
+          { id: 2, name: 'Ember Night Braziers', color: '#ff5500', desc: 'Deep twilight excavation trenches lit by towering iron braziers casting long shadows.' },
+          { id: 3, name: 'Cyber Hologram Pillars', color: '#39ff14', desc: 'Ancient stone ruins reconstructed with neon green holographic laser projections.' },
+          { id: 4, name: 'Cosmic Stardust Sanctuary', color: '#b362ff', desc: 'Pillars inscribed with glowing purple celestial charts under a galaxy sky.' },
+          { id: 5, name: 'Blood Moon Cult Grounds', color: '#ff3355', desc: 'Weathered stone altars stained with crimson symbols under a giant red moon.' },
+          { id: 6, name: 'Lush Overgrown Jungle Ruins', color: '#4dffd4', desc: 'Megaliths wrapped in thick tropical vines, moss, and glowing lotus flowers.' },
+          { id: 7, name: 'Frozen Neolithic Circle', color: '#9fe8ff', desc: 'Snow-dusted stone pillars with hanging icicles and chilling fog.' },
+          { id: 8, name: 'Golden Solstice Temple', color: '#ffd166', desc: 'Polished sandstone and gold-leaf pillars reflecting brilliant solar light.' },
+          { id: 9, name: 'Dimensional Void Rift Grounds', color: '#9933ff', desc: 'Floating shattered pillar fragments hovering over a spatial warp void.' },
+          { id: 10, name: 'Steampunk Industrial Dig', color: '#c8ccd4', desc: 'Excavation site with copper pipes, steam winches, and brass scaffolding.' }
+        ]
+      },
+      {
+        id: 'map_stonehenge', name: 'Map 3: Stonehenge Solstice', icon: '🌌',
+        desc: 'Megalithic sarsen stones, celestial alignment rays, grass crop circles, and star skies.',
+        options: [
+          { id: 1, name: 'Sacred Solstice Dawn (Classic)', color: '#ffd166', desc: 'Megalithic stone trilithons illuminated by the rising midsummer sun beam.' },
+          { id: 2, name: 'Aurora Borealis Night', color: '#4dffd4', desc: 'Salisbury plain under dancing emerald and violet aurora curtains.' },
+          { id: 3, name: 'Neon Cyber Circuit Rings', color: '#39ff14', desc: 'Stone monoliths connected by glowing high-tech cyan fiber-optic cables.' },
+          { id: 4, name: 'Blood Eclipse Monoliths', color: '#ff3355', desc: 'Dark jagged stones under a blood moon surrounded by swirling red fog.' },
+          { id: 5, name: 'Mystic Willow Sacred Grove', color: '#77ff33', desc: 'Ancient stones enveloped by weeping willow trees and floating fae wisps.' },
+          { id: 6, name: 'Glacial Frost Monoliths', color: '#9fe8ff', desc: 'Crystalline ice stones refracting winter twilight starlight.' },
+          { id: 7, name: 'Radioactive Crop Circle Zone', color: '#00ff66', desc: 'Complex geometric crop circles glowing with alien bioluminescence.' },
+          { id: 8, name: 'Imperial Sun Gold Temple', color: '#ffd700', desc: 'Golden arches surrounded by polished white marble walkways.' },
+          { id: 9, name: 'Cosmic Warp Gateway', color: '#b362ff', desc: 'Stone portal acting as an open stargate to deep intergalactic space.' },
+          { id: 10, name: 'Clockwork Astrolabe Megaliths', color: '#d4af37', desc: 'Stones equipped with rotating brass planetary rings and gear mechanisms.' }
+        ]
+      },
+      {
+        id: 'map_dumb', name: 'Map 4: DUMB Tower Penthouse', icon: '🏙️',
+        desc: 'Art-Deco gold skyscraper penthouse, glass elevators, falling cash, and city skyline.',
+        options: [
+          { id: 1, name: 'Art-Deco Gold Glass (Classic)', color: '#ffd700', desc: 'Gilded brass moldings, black marble floors, and panoramic penthouse glass.' },
+          { id: 2, name: 'Cyberpunk Neon Megacity Sky', color: '#ff00aa', desc: 'Rain-soaked rooftop with neon billboards, holo ads & flying hovercars.' },
+          { id: 3, name: 'Dark Obsidian Executive Helipad', color: '#ff3146', desc: 'Matte black tarmac with red landing lights and heavy storm clouds.' },
+          { id: 4, name: 'Retro 80s Synthwave Terrace', color: '#00f0ff', desc: 'Grid floors, palm tree silhouettes, and a magenta sunset horizon.' },
+          { id: 5, name: 'Solstice Glass Solarium', color: '#ffd166', desc: 'Glass-domed rooftop garden bathed in brilliant warm sunshine.' },
+          { id: 6, name: 'Heavy Industrial Rooftop Rig', color: '#c8ccd4', desc: 'Steel catwalks, heavy HVAC units, and industrial crane scaffolding.' },
+          { id: 7, name: 'Blood Moon Penthouse Balcony', color: '#ff3355', desc: 'Gothic stone balustrades overlooking a burning city under a blood moon.' },
+          { id: 8, name: 'Bioluminescent Sky Garden', color: '#39ff14', desc: 'Exotic rooftop greenhouse with glowing plants and koi ponds.' },
+          { id: 9, name: 'Virtual Holodeck Penthouse', color: '#00e5ff', desc: 'Pure wireframe skyscraper room dissolving into digital voxels.' },
+          { id: 10, name: 'Frozen Alpine Observation Spire', color: '#bfe6ff', desc: 'Snowbound skyscraper peak above cloud inversions.' }
+        ]
+      },
+      {
+        id: 'map_armold', name: 'Map 5: Armold Cyber Gym', icon: '🏋️',
+        desc: 'Hydraulic barbell benches, dumbbell racks, neon motivation signs, and pasture.',
+        options: [
+          { id: 1, name: 'Heavy Hydraulic Chrome (Classic)', color: '#39ff14', desc: 'Brushed chrome barbell racks, neon green gym mats, and hydraulic pumps.' },
+          { id: 2, name: 'Neon Synthwave Iron Gym', color: '#ff007f', desc: 'Hot pink and cyan neon lights with retro fitness posters and mirrors.' },
+          { id: 3, name: 'Underground Fight Club Arena', color: '#ffaa00', desc: 'Concrete floors, chain-link cages, chalk dust, and dim hanging lamps.' },
+          { id: 4, name: 'Blood Moon Gladiator Pit', color: '#ff3355', desc: 'Spiked weight plates and iron chains bathed in crimson torches.' },
+          { id: 5, name: 'Golden Olympus Temple Gym', color: '#ffd700', desc: 'Solid gold dumbbells, white marble pillars, and laurel wreath banners.' },
+          { id: 6, name: 'Military Tactical Obstacle Bay', color: '#7ad96b', desc: 'Camouflage netting, ammo crate weights, and heavy climbing ropes.' },
+          { id: 7, name: 'Toxic Bio-Lab Strength Chamber', color: '#00ff66', desc: 'Fluid-filled mutagen vats, green laser scanners, and cyber implants.' },
+          { id: 8, name: 'Retro 16-Bit Pixel Iron House', color: '#ff9033', desc: 'Chunky arcade-style pixel gym equipment and nostalgic score counters.' },
+          { id: 9, name: 'Zero-G Orbital Fitness Module', color: '#5fd6ff', desc: 'Magnetic boots, floating weight discs, and space observation windows.' },
+          { id: 10, name: 'Cryo-Freeze Hypertrophy Lab', color: '#9fe8ff', desc: 'Sub-zero vapor vents, ice benches, and cryogenic workout pods.' }
+        ]
+      },
+      {
+        id: 'map_bohemian', name: 'Map 6: Bohemian Grove Owl', icon: '🦉',
+        desc: 'Giant 40-ft stone owl, redwood forest, campfire clearings, and night fog.',
+        options: [
+          { id: 1, name: '40-Ft Stone Owl Sanctuary (Classic)', color: '#ff3355', desc: 'Towering stone owl with glowing red eyes surrounded by ancient redwoods and bonfires.' },
+          { id: 2, name: 'Ember Campfire Woods', color: '#ff7700', desc: 'Dense dark pine forest with glowing campfire embers floating into the night canopy.' },
+          { id: 3, name: 'Cyberpunk Owl Effigy', color: '#39ff14', desc: 'Mechanical owl statue built from steel girders with green laser scanning eyes.' },
+          { id: 4, name: 'Blood Moon Occult Altar', color: '#ff0033', desc: 'Stone clearing surrounded by red candles and occult sigils under a dark eclipse.' },
+          { id: 5, name: 'Golden Solstice Forest Temple', color: '#ffd166', desc: 'Sunlight filtering through giant redwoods onto a golden owl statue.' },
+          { id: 6, name: 'Toxic Bioluminescent Swamp', color: '#77ff33', desc: 'Murky swamp water, glowing green mushrooms, and moss-covered wooden totems.' },
+          { id: 7, name: 'Glacial Winter Redwood Grove', color: '#9fe8ff', desc: 'Frozen redwood trees coated in snow with an owl carved from glacial ice.' },
+          { id: 8, name: 'Void Rift Dimensional Clearing', color: '#b362ff', desc: 'Floating tree roots and dark matter rifts swirling around the owl monument.' },
+          { id: 9, name: 'Steampunk Brass Owl Works', color: '#d4af37', desc: 'Brass clockwork owl with exposed ticking gears and steam release valves.' },
+          { id: 10, name: 'Spectral Ghost Tree Hollow', color: '#ffffff', desc: 'Ethereal translucent spirit trees and pale blue floating wisps.' }
+        ]
+      },
+      {
+        id: 'station_camp', name: 'Space Station Camp Architecture', icon: '🚀',
+        desc: 'Walkable camp station room modules, floor tiling, conduits, and ambient lighting.',
+        options: [
+          { id: 1, name: 'Clean Starship Titanium (Classic)', color: '#5fd6ff', desc: 'Sleek white and slate alloy floor panels with recessed blue LED strip lights.' },
+          { id: 2, name: 'Industrial Heavy Pipes & Grates', color: '#ffaa00', desc: 'Weathered steel grates, exposed copper steam pipes and warning tape.' },
+          { id: 3, name: 'Solstice Sacred Sanctuary Hall', color: '#ffd166', desc: 'White marble tiles with inlaid gold solar geometry and warm torchlight.' },
+          { id: 4, name: 'Retro Analog CRT Outpost', color: '#7ad96b', desc: 'Green monochrome console banks, magnetic tape reels and clunky switches.' },
+          { id: 5, name: 'Gothic Obsidian Cathedral', color: '#b362ff', desc: 'Dark ribbed gothic arches, stained glass cosmic panels and purple pyres.' },
+          { id: 6, name: 'Cyberpunk Neon Underbelly Bar', color: '#ff007f', desc: 'Dark club styling with magenta neon signage, bar counters and holographic drinks.' },
+          { id: 7, name: 'Alien Hydroponic Biodome', color: '#00ff66', desc: 'Lush alien foliage, bioluminescent mushroom clusters and glass soil domes.' },
+          { id: 8, name: 'Virtual Holodeck Grid Chamber', color: '#00e5ff', desc: 'Pure black room inscribed with glowing neon wireframe grid lines.' },
+          { id: 9, name: 'Arctic Cryo-Preservation Vault', color: '#bfe6ff', desc: 'Frost-covered titanium pods with condensing cold fog and cyan status screens.' },
+          { id: 10, name: 'Void Singularity Core Room', color: '#9933ff', desc: 'Suspended walkway over a swirling miniature black hole containment sphere.' }
+        ]
+      },
+      {
+        id: 'observation_vistas', name: 'Observation Bay Panoramic Vistas', icon: '🔭',
+        desc: 'Station bay observation windows, planetary horizons, quasars, and starfields.',
+        options: [
+          { id: 1, name: 'Earth Twilight Horizon', color: '#4dc4ff', desc: 'Blue atmospheric halo over planet Earth with city night lights.' },
+          { id: 2, name: 'Deep Quasar Nebula Void', color: '#b362ff', desc: 'Swirling purple galaxy spirals and interstellar star dust clouds.' },
+          { id: 3, name: 'Solstice Sun Solar Flare', color: '#ffd166', desc: 'Blazing golden star with coronal mass ejections and solar prominence arches.' },
+          { id: 4, name: 'Blood Moon Lunar Orbit', color: '#ff3355', desc: 'Ominous crimson moon casting red shadows across the space station hull.' },
+          { id: 5, name: 'Cyber Megacity Metropolis', color: '#39ff14', desc: 'High-orbit view over a neon-lit mega-city with glowing sky-traffic lanes.' },
+          { id: 6, name: 'Ringed Gas Giant Planet', color: '#ffaa00', desc: 'Massive striped gas giant with intricate crystalline ice rings.' },
+          { id: 7, name: 'Supernova Explosion Shockwave', color: '#ff00ff', desc: 'Bursting blue-pink stellar explosion expanding across deep space.' },
+          { id: 8, name: 'Alien Exoplanet Double-Sun', color: '#00ffaa', desc: 'Twin binary suns rising over an emerald alien ocean world.' },
+          { id: 9, name: 'Dense Asteroid Belt Swarm', color: '#888888', desc: 'Cluster of passing mineral-rich asteroids reflecting sunlight.' },
+          { id: 10, name: 'Hyperspace Jump Tunnel', color: '#00ffff', desc: 'Warp speed streaking stars and cyan dimensional light tunnels.' }
+        ]
+      },
+      {
+        id: 'forge_workshop', name: 'Blacksmith Forge & Blueprint Workbench', icon: '🔨',
+        desc: 'Anvils, blueprint racks, weapon tuning stations, and smelting crucibles.',
+        options: [
+          { id: 1, name: 'High-Tech Cyber Nanite Anvil', color: '#39ff14', desc: 'Laser-guided plasma forge fusing alloys with magnetic levitation.' },
+          { id: 2, name: 'Ancient Molten Lava Crucible', color: '#ff5500', desc: 'Stone forge channeling bubbling magma to cast blazing steel.' },
+          { id: 3, name: 'Steampunk Brass Workbench', color: '#d4af37', desc: 'Intricate brass gears, calipers, blueprints, and steam-powered hammers.' },
+          { id: 4, name: 'Arcane Starlight Enchanter Table', color: '#b362ff', desc: 'Floating spellbooks and hovering crystal shards infusing weapons with runes.' },
+          { id: 5, name: 'Solstice Solar Smelter', color: '#ffd166', desc: 'Solar-focusing mirrors concentrating pure sunlight onto gold ingots.' },
+          { id: 6, name: 'Military Armory Gunsmith Rig', color: '#c8ccd4', desc: 'Modular weapons racks, precision lathes, and ballistic diagnostic monitors.' },
+          { id: 7, name: 'Dark Bloodstone Forging Bench', color: '#ff3355', desc: 'Obsidian anvil quenched in dark elixirs with glowing crimson embers.' },
+          { id: 8, name: 'Holographic 3D Replicator Pod', color: '#00ffff', desc: 'Hard-light laser print bed fabricating weapon components from raw data.' },
+          { id: 9, name: 'Cryo-Forging Ice Anvil', color: '#9fe8ff', desc: 'Supercooled liquid nitrogen baths tempering absolute-zero crystal blades.' },
+          { id: 10, name: 'Deep Space Plasma Smelter', color: '#ff00aa', desc: 'Ionized plasma torches assembling heavy starship weaponry.' }
+        ]
+      },
+      {
+        id: 'skill_tree', name: 'Skill Tree & Talent Constellation', icon: '🌿',
+        desc: 'Skill tree interface, node connectors, unlock sparks, and talent matrix.',
+        options: [
+          { id: 1, name: 'Cyber Circuit Node Web (Classic)', color: '#4dffd4', desc: 'Glowing PCB circuit pathways connecting glowing data microchips.' },
+          { id: 2, name: 'Celestial Star Constellation', color: '#b362ff', desc: 'Star map linking glowing star nodes with golden astrological lines.' },
+          { id: 3, name: 'Ancient Stone Rune Tablet', color: '#ffd166', desc: 'Carved stone matrix where runes ignite with amber fire when unlocked.' },
+          { id: 4, name: 'Organic Neural DNA Helix', color: '#39ff14', desc: 'Bioluminescent neural synapses firing electrical impulses across branches.' },
+          { id: 5, name: 'Gothic Blood Vessel Matrix', color: '#ff3355', desc: 'Dark crimson veins pulsing with life energy across an obsidian plate.' },
+          { id: 6, name: 'Golden Solstice Astrolabe', color: '#ffd700', desc: 'Concentric brass orbital rings aligning celestial bodies on unlock.' },
+          { id: 7, name: 'Steampunk Clockwork Gear Web', color: '#ffaa00', desc: 'Interlocking brass and copper gears that turn when skills are mastered.' },
+          { id: 8, name: 'Holographic Hexagon Tech Grid', color: '#00e5ff', desc: 'Sleek futuristic honeycomb grid with scanning laser highlights.' },
+          { id: 9, name: 'Retro 8-Bit Tech Tree', color: '#ff9033', desc: 'Chunky arcade-style pixel nodes with chiptune level-up audio.' },
+          { id: 10, name: 'Minimalist Prism Line Web', color: '#ffffff', desc: 'Ultra-thin vector lines refracting rainbow spectrum light.' }
+        ]
+      },
+      {
+        id: 'the_well', name: 'Minigame 1: Clicker Monoliths & Buildings', icon: '🏛️',
+        desc: 'Central clicker monuments, harmonic pulse waves, tap fountains, and generator icons.',
+        options: [
+          { id: 1, name: 'Illuminati Gold Pyramid (Classic)', color: '#ffd166', desc: '13-layer stone pyramid topped with a floating radiant golden eye capstone.' },
+          { id: 2, name: 'Göbekli Ancient Fire Totem', color: '#ff9033', desc: 'Carved T-pillar totem flaring with sacred fire embers on every tap.' },
+          { id: 3, name: 'Stonehenge Cosmic Solstice Altar', color: '#4dffd4', desc: 'Central megalith summoning pillars of light and celestial chimes.' },
+          { id: 4, name: 'DUMB Tower Golden Penthouse Spire', color: '#ffd700', desc: 'Art-Deco gold spire dropping raining cash bills and coins on rapid clicks.' },
+          { id: 5, name: 'Armold Cyber Barbell Hydraulic Bench', color: '#39ff14', desc: 'Heavy chrome weights that clank and pulse neon shockwaves when pumped.' },
+          { id: 6, name: 'Bohemian Grove 40-Ft Stone Owl', color: '#ff3355', desc: 'Ominous owl effigy whose eyes flash blood-red with deep sub-bass roars.' },
+          { id: 7, name: 'Celestial Sacred Water Fountain', color: '#5fd6ff', desc: 'Cascading tiered crystal fountain spraying glowing hydro droplets.' },
+          { id: 8, name: 'Deep Core Geothermal Magma Vent', color: '#ff4400', desc: 'Cracked volcanic stone eruption vent shooting sparks and lava jets.' },
+          { id: 9, name: 'Quantum Energy Monolith Obelisk', color: '#00ffff', desc: 'Floating black glass obelisk emitting concentric cyber shockwave rings.' },
+          { id: 10, name: 'Chrono Clockwork Astrolabe Tower', color: '#d4af37', desc: 'Tower of spinning brass gears that ticks faster with rapid click combos.' }
+        ]
+      },
+      {
+        id: 'slot_machine', name: 'Minigame 2: Slot Machine Wheels & Marquee', icon: '🎰',
+        desc: 'Lucky Drop slot reels, jackpot animation effects, coin drops, and lever design.',
+        options: [
+          { id: 1, name: 'Vegas Golden Grand Casino (Classic)', color: '#ffd700', desc: 'Polished brass and gold housing with glowing marquee bulb chase lights.' },
+          { id: 2, name: 'Cyberpunk Neon Glitch Spinner', color: '#39ff14', desc: 'Holographic spinning data drums with digital matrix glitch rewards.' },
+          { id: 3, name: 'Ancient Egyptian Pharaoh Wheel', color: '#ffd166', desc: 'Carved sandstone machine with rotating scarabs, ankhs & golden eyes.' },
+          { id: 4, name: 'Deep Void Cosmic Star Dial', color: '#b362ff', desc: 'Spinning astrological rings that align planets to trigger cosmic payouts.' },
+          { id: 5, name: 'Steampunk Brass Cogwork Rig', color: '#ff9033', desc: 'Chunky interlocking brass gears, steam release valves and analog dials.' },
+          { id: 6, name: '80s Retro Arcade Fruit Deluxe', color: '#ff3366', desc: 'Pixel-art cherries, 777s and bar symbols with chiptune jackpot jingles.' },
+          { id: 7, name: 'Blood Moon Occult Sigil Spinner', color: '#ff3355', desc: 'Carved bone wheels inscribed with blood runes that ignite on match.' },
+          { id: 8, name: 'Space Mining Drill Extractor', color: '#c8ccd4', desc: 'Heavy pneumatic drill rig that strikes mineral deposits on reel stops.' },
+          { id: 9, name: 'Quantum Holographic Roulette', color: '#00ffff', desc: 'Floating 3D energy ring projecting spinning particle symbols in mid-air.' },
+          { id: 10, name: 'Deep Sea Treasure Diver Chest', color: '#00aaff', desc: 'Submerged pressure-sealed vault that unlocks spinning nautical relics.' }
+        ]
+      },
+      {
+        id: 'star_raid', name: 'Minigame 3: Star Raid Battleships & Fleets', icon: '🛸',
+        desc: 'Space shooter spacecraft models, warp trails, laser turrets, and nebula sectors.',
+        options: [
+          { id: 1, name: 'Hyper-Speed Cyan Interceptor', color: '#5fd6ff', desc: 'Aerodynamic needle-nosed fighter with twin plasma thruster flares.' },
+          { id: 2, name: 'Heavy Titanium Dreadnought', color: '#c8ccd4', desc: 'Massive armored capital ship bristling with railguns and missile pods.' },
+          { id: 3, name: 'Stealth Shadow Void Raider', color: '#b362ff', desc: 'Pitch-black angular stealth ship that cloaks into cosmic starfields.' },
+          { id: 4, name: 'Solar Sail Solstice Frigate', color: '#ffd166', desc: 'Gilded vessel propelled by massive shimmering golden solar light sails.' },
+          { id: 5, name: 'Cybernetic Swarm Carrier', color: '#39ff14', desc: 'Hexagonal mothership deploying clouds of autonomous attack drones.' },
+          { id: 6, name: 'Alien Biomass Living Cruiser', color: '#ff3355', desc: 'Organic pulsating ship firing bio-plasma spikes and acid pods.' },
+          { id: 7, name: 'Imperial Royal Gold Flagship', color: '#ffd700', desc: 'Ornate flagship with cathedral towers, gold hull armor and laser lances.' },
+          { id: 8, name: 'Retro Arcade Vector Wing', color: '#ff9033', desc: 'Chunky 80s arcade space fighter with bright neon twin thrusters.' },
+          { id: 9, name: 'Particle Arc Plasma Corvette', color: '#00ffff', desc: 'Dual-hull vessel charging high-voltage particle arc beam cannons.' },
+          { id: 10, name: 'Void Warp Destroyer', color: '#9933ff', desc: 'Dimensional warpship that blinks forward through hyperspace jump-tears.' }
+        ]
+      },
+      {
+        id: 'tcg_cards', name: 'Minigame 4: TCG Card Battler & Frames', icon: '🃏',
+        desc: 'Card battler frame art, foil holographics, rarity borders, and battle boards.',
+        options: [
+          { id: 1, name: 'Cyber Hologram Foil Cards', color: '#4dffd4', desc: 'Translucent cyan acrylic cards with dynamic rainbow holographic reflection.' },
+          { id: 2, name: 'Cosmic Tarot Arcana Tablets', color: '#b362ff', desc: 'Ornate gold-trimmed tarot cards depicting celestial constellations & gods.' },
+          { id: 3, name: 'Minimalist Glassmorphism Deck', color: '#ffffff', desc: 'Ultra-clean frosted glass with sleek modern typography and colored gems.' },
+          { id: 4, name: 'Heavy Titanium Mech Plaques', color: '#ffd166', desc: 'Riveted steel armor plating cards with laser-etched blueprint stats.' },
+          { id: 5, name: 'Ancient Monolith Carved Tablets', color: '#7ad96b', desc: 'Heavy stone slabs with glowing chiseled runes and weathered edges.' },
+          { id: 6, name: 'Blood Moon Occult Grimoire Folio', color: '#ff3355', desc: 'Dark parchment pages with glowing blood seals and torn demonic edges.' },
+          { id: 7, name: 'Pixel-Art Retro 16-Bit Cards', color: '#ffaa00', desc: 'Nostalgic game boy style pixel cards with colorful character sprites.' },
+          { id: 8, name: 'Royal Guild Crested Frames', color: '#ffd700', desc: 'Velvet-backed shields with golden filigree, crest emblems and rubies.' },
+          { id: 9, name: 'Prismatic Rainbow Ultra-Rare', color: '#ff00ea', desc: 'Full-art rainbow foil cards that shimmer across the entire color spectrum.' },
+          { id: 10, name: 'Military Tactical Blueprint Cards', color: '#0099ff', desc: 'Cyan blueprint schematic cards with grid coordinates and technical specs.' }
+        ]
+      },
+      {
+        id: 'prospector', name: 'Minigame 5: Prospector / Lootmine', icon: '⛏️',
+        desc: 'Mining cart tracks, ore drill rigs, underground cavern aesthetics, and loot nodes.',
+        options: [
+          { id: 1, name: 'Deep Mine Wooden Track & Cart', color: '#ffaa00', desc: 'Classic wooden mine shafts, kerosene lanterns and iron ore carts.' },
+          { id: 2, name: 'Sci-Fi Laser Mining Excavator', color: '#39ff14', desc: 'Automated laser drills melting through alien rock with particle sparks.' },
+          { id: 3, name: 'Volcanic Magma Core Drill', color: '#ff3300', desc: 'Heat-shielded drills extracting obsidian geodes from boiling lava rivers.' },
+          { id: 4, name: 'Glowing Crystal Cavern Quarry', color: '#b362ff', desc: 'Underground cave filled with towering bioluminescent amethyst crystals.' },
+          { id: 5, name: 'Orbital Asteroid Harvester', color: '#5fd6ff', desc: 'Zero-gravity space mining rig grappling and crushing passing meteors.' },
+          { id: 6, name: 'Ancient Catacomb Treasure Dig', color: '#ffd166', desc: 'Dusty stone tombs with golden sarcophagi and urns buried in rubble.' },
+          { id: 7, name: 'Cyberpunk Industrial Scrapyard', color: '#ff00aa', desc: 'Magnetic crane sorting through heaps of neon cybernetics and circuit boards.' },
+          { id: 8, name: 'Deep Sea Abyssal Dredger', color: '#0088cc', desc: 'Submarine mining drone suctioning mineral nodules from the ocean floor.' },
+          { id: 9, name: 'Radioactive Chemical Refinery', color: '#77ff33', desc: 'Industrial centrifuge separating glowing green uranium sludge.' },
+          { id: 10, name: 'Dark Void Singularity Siphon', color: '#9933ff', desc: 'Energy funnel drawing dark matter particles directly from a spatial rift.' }
+        ]
+      },
+      {
+        id: 'combat_hud', name: 'Combat UI HUD, Health Bars & Meters', icon: '📊',
+        desc: 'Player health bars, stamina meters, ability skill hotbars, and telemetry displays.',
+        options: [
+          { id: 1, name: 'Cyberpunk Holographic Glass (Classic)', color: '#5fd6ff', desc: 'Translucent cyan glassmorphism panels with live digital telemetry.' },
+          { id: 2, name: 'Retro Amber CRT Terminal', color: '#ffaa00', desc: 'Vintage monospace phosphor display with segmented bars and scanlines.' },
+          { id: 3, name: 'Dark Obsidian Minimalist', color: '#ff3146', desc: 'Ultra-clean matte black bezels with razor-sharp neon indicator strips.' },
+          { id: 4, name: 'Heavy Sci-Fi Titanium Mech', color: '#ffd166', desc: 'Riveted steel industrial dashboard with caution tape and hydraulic meters.' },
+          { id: 5, name: 'Occult Arcane Blood-Rune', color: '#ff3355', desc: 'Gothic wood & brass frame flanked by lit wax candles and arcane vials.' },
+          { id: 6, name: 'Clean Flat Modern Swiss-UI', color: '#ffffff', desc: 'Modern Swiss-style high-contrast typography with clean solid progress bars.' },
+          { id: 7, name: 'Neon Synthwave 80s Wireframe', color: '#ff007f', desc: 'Vibrant hot pink and electric violet grid lines with chrome bevels.' },
+          { id: 8, name: 'Ancient Astrolabe Brass & Gold', color: '#d4af37', desc: 'Intricate clockwork dials, compass needles and celestial orbital rings.' },
+          { id: 9, name: 'Pip-Boy Monochromatic Green', color: '#33ff33', desc: 'Vintage military green vector display with cathode-ray blooming.' },
+          { id: 10, name: 'Frosted Aurora Glassmorphism', color: '#88e0ff', desc: 'Soft blurred frosted glass with dynamic aurora borealis gradient fills.' }
+        ]
+      }
+    ];
+
+    // ── State Management ──
+    const STORAGE_KEY = 'waterdrop_master_theme_manifest';
+    let choices = loadChoices();
+    let currentStepIndex = 0; // 0..24 for categories, 25 for review step
+
+    function loadChoices() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) return JSON.parse(raw);
+      } catch (e) {}
+      const def = {};
+      CATEGORIES.forEach(c => { def[c.id] = 1; });
+      return def;
+    }
+
+    function saveChoices() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(choices));
+      } catch (e) {}
+      renderStepper();
+    }
+
+    // ── Stepper Navigation ──
+    function renderStepper() {
+      const nav = document.getElementById('stepperNav');
+      nav.innerHTML = '';
+
+      CATEGORIES.forEach((cat, idx) => {
+        const item = document.createElement('div');
+        const isCur = idx === currentStepIndex;
+        const isDone = choices[cat.id] != null;
+        item.className = `step-item ${isCur ? 'active' : ''} ${isDone ? 'completed' : ''}`;
+        item.innerHTML = `<span>${idx + 1}.</span> <span>${cat.icon} ${cat.name.split(' ')[0]}</span>`;
+        item.onclick = () => {
+          currentStepIndex = idx;
+          renderCurrentScreen();
+        };
+        nav.appendChild(item);
+      });
+
+      // Review step item
+      const revItem = document.createElement('div');
+      revItem.className = `step-item ${currentStepIndex === 25 ? 'active' : ''}`;
+      revItem.innerHTML = `<span>26.</span> <span>🚀 REVIEW & SEND</span>`;
+      revItem.onclick = () => goToReviewStep();
+      nav.appendChild(revItem);
+    }
+
+    function renderCurrentScreen() {
+      renderStepper();
+      const main = document.getElementById('mainWorkspace');
+
+      if (currentStepIndex === 25) {
+        renderReviewScreen(main);
+        document.getElementById('footerStepIndicator').textContent = 'STEP 26: FINAL REVIEW & SUBMIT TO AGENT';
+        document.getElementById('btnNext').textContent = '🚀 SUBMIT & SAVE DESIGN';
+        document.getElementById('btnNext').onclick = () => submitManifest();
+        return;
+      }
+
+      document.getElementById('btnNext').textContent = 'NEXT STEP ▸';
+      document.getElementById('btnNext').onclick = () => nextStep();
+
+      const cat = CATEGORIES[currentStepIndex];
+      document.getElementById('progressBadge').textContent = `STEP ${currentStepIndex + 1} OF 25`;
+      document.getElementById('footerStepIndicator').textContent = `STEP ${currentStepIndex + 1}: ${cat.name.toUpperCase()}`;
+
+      main.innerHTML = `
+        <div class="live-sim-banner">
+          <div class="live-sim-top">
+            <div class="live-sim-info">
+              <h2>${cat.icon} STEP ${currentStepIndex + 1}: ${cat.name.toUpperCase()}</h2>
+              <p>${cat.desc} — Pick 1 of the 10 options below to customize your game's visual design.</p>
+            </div>
+            <div class="live-action-bar">
+              <span style="font-family:'VT323',monospace; font-size:14px; color:#ffd166; margin-right:4px;">🎬 LIVE MOTION ACTIONS:</span>
+              <button class="action-btn ${activeAction === 'idle' ? 'active' : ''}" onclick="triggerAction('idle')">▶️ IDLE</button>
+              <button class="action-btn ${activeAction === 'run' ? 'active' : ''}" onclick="triggerAction('run')">🏃 SPRINT</button>
+              <button class="action-btn ${activeAction === 'slash' ? 'active' : ''}" onclick="triggerAction('slash')">🗡️ KATANA SLASH</button>
+              <button class="action-btn ${activeAction === 'finisher' ? 'active' : ''}" onclick="triggerAction('finisher')">💥 FINISHER</button>
+              <button class="action-btn ${activeAction === 'bow' ? 'active' : ''}" onclick="triggerAction('bow')">🏹 BOW SHOOT</button>
+              <button class="action-btn ${activeAction === 'scythe' ? 'active' : ''}" onclick="triggerAction('scythe')">🌪️ SCYTHE SPIN</button>
+              <button class="action-btn ${activeAction === 'rage' ? 'active' : ''}" onclick="triggerAction('rage')">⚡ RAGE AURA</button>
+              <button class="action-btn ${activeAction === 'chest' ? 'active' : ''}" onclick="triggerAction('chest')">📦 OPEN CHEST</button>
+              <button class="action-btn ${activeAction === 'slots' ? 'active' : ''}" onclick="triggerAction('slots')">🎰 SPIN SLOTS</button>
+            </div>
+          </div>
+          <div class="preview-sandbox" id="sandboxPreview" title="Interactive live preview of your active game theme! Click anywhere to attack!">
+            <canvas id="liveCanvas" width="900" height="140" style="width:100%;height:100%;"></canvas>
+          </div>
+        </div>
+
+        <div class="section-header">
+          <div class="section-title">CHOOSE 1 OF 10 STYLES (CLICK TO ACTIVATE):</div>
+        </div>
+
+        <div class="options-grid" id="stepOptionsGrid"></div>
+      `;
+
+      const grid = document.getElementById('stepOptionsGrid');
+      const currentPick = choices[cat.id] || 1;
+
+      cat.options.forEach(opt => {
+        const isSel = currentPick === opt.id;
+        const card = document.createElement('div');
+        card.className = `opt-card ${isSel ? 'selected' : ''}`;
+        card.style.setProperty('--card-color', opt.color);
+
+        card.onclick = () => {
+          choices[cat.id] = opt.id;
+          saveChoices();
+          renderCurrentScreen();
+        };
+
+        card.innerHTML = `
+          <div class="opt-card-thumb">
+            <span class="opt-badge-num">OPTION #${opt.id}</span>
+            <span class="opt-active-tag">ACTIVE ✓</span>
+            <canvas id="thumb_cvs_${opt.id}" width="240" height="100" style="width:100%;height:100%;"></canvas>
+          </div>
+          <div class="opt-card-body">
+            <div class="opt-name">
+              <span style="color:${opt.color}">${opt.name}</span>
+            </div>
+            <div class="opt-desc">${opt.desc}</div>
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-top:6px;">
+              <div class="opt-palette">
+                <div class="palette-dot" style="background:${opt.color};"></div>
+                <div class="palette-dot" style="background:${shadeColor(opt.color, -30)};"></div>
+                <div class="palette-dot" style="background:${shadeColor(opt.color, 40)};"></div>
+              </div>
+              <span style="font-family:'VT323',monospace; font-size:12.5px; color:#ffd166;">CLICK TO PICK</span>
+            </div>
+          </div>
+        `;
+        grid.appendChild(card);
+
+        setTimeout(() => drawThumb(opt.id, cat.id, opt), 10);
+      });
+
+      drawLiveSandbox();
+    }
+
+    function renderReviewScreen(container) {
+      document.getElementById('progressBadge').textContent = 'STEP 26: REVIEW';
+
+      let cardsHtml = '';
+      CATEGORIES.forEach((cat, i) => {
+        const optId = choices[cat.id] || 1;
+        const optObj = cat.options.find(o => o.id === optId) || cat.options[0];
+        cardsHtml += `
+          <div class="review-item" onclick="currentStepIndex = ${i}; renderCurrentScreen();" style="cursor:pointer;" title="Click to change style">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span style="font-size:20px;">${cat.icon}</span>
+              <div>
+                <div style="font-size:10.5px; color:#887a9c; text-transform:uppercase;">${cat.name}</div>
+                <div style="font-size:13px; font-weight:bold; color:${optObj.color};">#${optId} ${optObj.name}</div>
+              </div>
+            </div>
+            <span style="font-family:'VT323',monospace; font-size:14px; color:#ffd166;">EDIT ✎</span>
+          </div>
+        `;
+      });
+
+      container.innerHTML = `
+        <div style="background:#130926; border:2px solid var(--border-highlight); border-radius:12px; padding:20px; display:flex; flex-direction:column; gap:16px;">
+          <div style="display:flex; align-items:center; justify-content:space-between;">
+            <div>
+              <h2 style="font-family:'VT323',monospace; font-size:26px; color:var(--accent-gold);">
+                🚀 STEP 26: COMPLETE 25-SYSTEM DESIGN BLUEPRINT REVIEW
+              </h2>
+              <p style="font-size:12.5px; color:var(--text-dim); margin-top:3px;">
+                You have chosen your exact visual styling for every single one of the 25 game systems. Click below to submit and save!
+              </p>
+            </div>
+            <button class="btn btn-gold" style="font-size:17px; padding:8px 22px;" onclick="submitManifest()">
+              🚀 SAVE & SUBMIT TO AGENT
+            </button>
+          </div>
+
+          <div class="review-grid">${cardsHtml}</div>
+        </div>
+      `;
+    }
+
+    function prevStep() {
+      if (currentStepIndex > 0) {
+        currentStepIndex--;
+        renderCurrentScreen();
+      }
+    }
+
+    function nextStep() {
+      if (currentStepIndex < 25) {
+        currentStepIndex++;
+        renderCurrentScreen();
+      } else {
+        submitManifest();
+      }
+    }
+
+    function goToReviewStep() {
+      currentStepIndex = 25;
+      renderCurrentScreen();
+    }
+
+    function applyPreset(presetKey) {
+      if (presetKey === 'cyber') {
+        CATEGORIES.forEach(c => { choices[c.id] = 2; });
+        choices.hero_skins = 3; choices.map_giza = 3; choices.observation_vistas = 5;
+      } else if (presetKey === 'solstice') {
+        CATEGORIES.forEach(c => { choices[c.id] = 5; });
+        choices.hero_skins = 4; choices.weapons = 4; choices.observation_vistas = 3;
+      } else if (presetKey === 'blood') {
+        CATEGORIES.forEach(c => { choices[c.id] = 4; });
+        choices.hero_skins = 5; choices.weapons = 5; choices.observation_vistas = 4;
+      }
+      saveChoices();
+      renderCurrentScreen();
+    }
+
+    // ── Save & Submit To Agent API Endpoint ──
+    async function submitManifest() {
+      const manifest = {
+        title: "Waterdrop Survivor — Master Theme & Design Manifest (25 Systems)",
+        timestamp: new Date().toISOString(),
+        totalCategories: CATEGORIES.length,
+        selectedStyles: {}
+      };
+
+      CATEGORIES.forEach(cat => {
+        const optId = choices[cat.id] || 1;
+        const optObj = cat.options.find(o => o.id === optId) || cat.options[0];
+        manifest.selectedStyles[cat.id] = {
+          category: cat.name,
+          chosenOptionId: optId,
+          chosenStyleName: optObj.name,
+          colorAccent: optObj.color,
+          description: optObj.desc
+        };
+      });
+
+      // Send to local Python Server endpoint if running
+      try {
+        const res = await fetch('/api/save-theme', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(manifest)
+        });
+        if (res.ok) {
+          alert('🎉 ALL 25 CHOICES SAVED TO WORKSPACE (selected_master_theme.json)!\nAntigravity has received your choices and can now build the entire game to this exact visual standard!');
+          return;
+        }
+      } catch (e) {}
+
+      // Fallback: Download file directly
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(manifest, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", "selected_master_theme.json");
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      alert('🎉 THEME MANIFEST DOWNLOADED AS selected_master_theme.json!\nSave it into your project folder so Antigravity can read your exact choices!');
+    }
+
+    function shadeColor(color, percent) {
+      let R = parseInt(color.substring(1,3),16);
+      let G = parseInt(color.substring(3,5),16);
+      let B = parseInt(color.substring(5,7),16);
+      R = parseInt(R * (100 + percent) / 100);
+      G = parseInt(G * (100 + percent) / 100);
+      B = parseInt(B * (100 + percent) / 100);
+      R = (R<255)?R:255;  G = (G<255)?G:255;  B = (B<255)?B:255;
+      R = Math.max(0, R); G = Math.max(0, G); B = Math.max(0, B);
+      const RR = ((R.toString(16).length==1)?"0"+R.toString(16):R.toString(16));
+      const GG = ((G.toString(16).length==1)?"0"+G.toString(16):G.toString(16));
+      const BB = ((B.toString(16).length==1)?"0"+B.toString(16):B.toString(16));
+      return "#"+RR+GG+BB;
+    }
+
+    // ── Thumb Canvas Visuals ──
+    function drawThumb(optId, catId, opt) {
+      const cvs = document.getElementById(`thumb_cvs_${optId}`);
+      if (!cvs) return;
+      const ctx = cvs.getContext('2d');
+      const w = cvs.width, h = cvs.height;
+      ctx.clearRect(0, 0, w, h);
+
+      const bgGrad = ctx.createRadialGradient(w/2, h/2, 10, w/2, h/2, w/2);
+      bgGrad.addColorStop(0, '#160d2e');
+      bgGrad.addColorStop(1, '#05020c');
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, w, h);
+
+      const aura = ctx.createRadialGradient(w/2, h/2, 0, w/2, h/2, 40);
+      aura.addColorStop(0, opt.color + '66');
+      aura.addColorStop(1, 'transparent');
+      ctx.fillStyle = aura;
+      ctx.fillRect(0, 0, w, h);
+
+      ctx.save();
+      ctx.translate(w/2, h/2);
+      const col = opt.color;
+
+      if (catId === 'hero_skins') {
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        ctx.moveTo(0, -22);
+        ctx.bezierCurveTo(18, 0, 18, 22, 0, 22);
+        ctx.bezierCurveTo(-18, 22, -18, 0, 0, -22);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(-4, -4, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (catId === 'xp_drops' || catId === 'gems') {
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        ctx.moveTo(0, -20);
+        ctx.lineTo(16, 0);
+        ctx.lineTo(0, 20);
+        ctx.lineTo(-16, 0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+      } else if (catId === 'chests') {
+        ctx.fillStyle = '#1c102a';
+        ctx.strokeStyle = col;
+        ctx.lineWidth = 2;
+        ctx.fillRect(-22, -12, 44, 26);
+        ctx.strokeRect(-22, -12, 44, 26);
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        ctx.arc(0, 1, 4, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (catId === 'combat_hud') {
+        ctx.fillStyle = '#0b0617';
+        ctx.fillRect(-45, -12, 90, 10);
+        ctx.fillStyle = col;
+        ctx.fillRect(-43, -10, 65, 6);
+      } else {
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        ctx.arc(0, 0, 16, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    }
+
+    // ── Live Interactive Motion & Animation Clip Engine ──
+    let activeAction = 'idle';
+    let actionTimer = 0;
+    let animFrame = 0;
+    let particles = [];
+    let damageNumbers = [];
+
+    function triggerAction(actionName) {
+      activeAction = actionName;
+      actionTimer = 0;
+
+      // Spawn burst particles depending on action
+      const w = 320, h = 140;
+      const hx = w * 0.45, hy = h * 0.60;
+
+      if (actionName === 'slash') {
+        for (let i = 0; i < 16; i++) {
+          particles.push({
+            x: hx + 20, y: hy, vx: (Math.random() - 0.2) * 5, vy: (Math.random() - 0.5) * 4,
+            life: 1.0, color: '#5fd6ff', size: 3 + Math.random() * 3
+          });
+        }
+        damageNumbers.push({ x: hx + 40, y: hy - 20, text: 'CRIT 1,480!', color: '#ffd166', life: 1.0 });
+      } else if (actionName === 'finisher') {
+        for (let i = 0; i < 28; i++) {
+          particles.push({
+            x: hx + 30, y: hy + 10, vx: (Math.random() - 0.5) * 7, vy: (Math.random() - 0.7) * 6,
+            life: 1.2, color: '#ffd166', size: 4 + Math.random() * 4
+          });
+        }
+        damageNumbers.push({ x: hx + 50, y: hy - 35, text: '★ 8,920 OBLIVION ★', color: '#ff3355', life: 1.2 });
+      } else if (actionName === 'scythe') {
+        for (let i = 0; i < 24; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          particles.push({
+            x: hx + Math.cos(angle) * 30, y: hy + Math.sin(angle) * 20,
+            vx: Math.cos(angle) * 4, vy: Math.sin(angle) * 3,
+            life: 1.0, color: '#b362ff', size: 3 + Math.random() * 3
+          });
+        }
+      } else if (actionName === 'chest') {
+        for (let i = 0; i < 30; i++) {
+          particles.push({
+            x: hx + 30, y: hy - 10, vx: (Math.random() - 0.5) * 6, vy: -Math.random() * 6,
+            life: 1.5, color: i % 2 === 0 ? '#ffd700' : '#4dffd4', size: 3 + Math.random() * 4
+          });
+        }
+        damageNumbers.push({ x: hx + 30, y: hy - 40, text: '+500 GEMS & LEGENDARY RELIC!', color: '#ffd700', life: 1.5 });
+      } else if (actionName === 'slots') {
+        damageNumbers.push({ x: hx + 10, y: hy - 30, text: '🎰 7 - 7 - 7 JACKPOT! 🎰', color: '#39ff14', life: 1.5 });
+      }
+
+      renderCurrentScreen();
+    }
+
+    function drawLiveSandbox() {
+      const cvs = document.getElementById('liveCanvas');
+      if (!cvs) return;
+      const ctx = cvs.getContext('2d');
+      const w = cvs.width, h = cvs.height;
+      ctx.clearRect(0, 0, w, h);
+
+      animFrame += 0.04;
+      actionTimer += 0.04;
+
+      // Draw Chosen Environment Ground
+      const mapChoice = choices.map_giza || 1;
+      const mapCol = CATEGORIES.find(c => c.id === 'map_giza')?.options.find(o => o.id === mapChoice)?.color || '#ffd166';
+      
+      const groundGrad = ctx.createLinearGradient(0, 0, 0, h);
+      groundGrad.addColorStop(0, '#090414');
+      groundGrad.addColorStop(0.7, '#13082a');
+      groundGrad.addColorStop(1, '#05020a');
+      ctx.fillStyle = groundGrad;
+      ctx.fillRect(0, 0, w, h);
+
+      // Grid Lines
+      ctx.strokeStyle = mapCol + '22';
+      ctx.lineWidth = 1;
+      for (let x = 0; x < w; x += 30) {
+        ctx.beginPath();
+        ctx.moveTo(x, h * 0.65);
+        ctx.lineTo(x - 20, h);
+        ctx.stroke();
+      }
+      ctx.beginPath();
+      ctx.moveTo(0, h * 0.68);
+      ctx.lineTo(w, h * 0.68);
+      ctx.stroke();
+
+      // Hero Position & Animation State
+      const heroChoice = choices.hero_skins || 1;
+      const heroCol = CATEGORIES.find(c => c.id === 'hero_skins')?.options.find(o => o.id === heroChoice)?.color || '#5fd6ff';
+      const hx = w * 0.40;
+      let hy = h * 0.58;
+
+      if (activeAction === 'run') {
+        hy += Math.sin(animFrame * 12) * 5;
+      } else if (activeAction === 'idle') {
+        hy += Math.sin(animFrame * 3) * 2;
+      } else if (activeAction === 'rage') {
+        hy += (Math.random() - 0.5) * 3;
+      }
+
+      // Rage Aura
+      if (activeAction === 'rage' || choices.hero_skins === 5) {
+        const aura = ctx.createRadialGradient(hx, hy, 5, hx, hy, 35);
+        aura.addColorStop(0, '#ff335588');
+        aura.addColorStop(1, 'transparent');
+        ctx.fillStyle = aura;
+        ctx.beginPath();
+        ctx.arc(hx, hy, 35, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Draw Hero Droplet Sprite
+      ctx.save();
+      ctx.translate(hx, hy);
+      ctx.fillStyle = heroCol;
+      ctx.beginPath();
+      ctx.moveTo(0, -18);
+      ctx.bezierCurveTo(15, 0, 15, 18, 0, 18);
+      ctx.bezierCurveTo(-15, 18, -15, 0, 0, -18);
+      ctx.fill();
+      // Specular Gleam
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(-4, -4, 3, 0, Math.PI * 2);
+      ctx.fill();
+      // Eyes
+      ctx.fillStyle = '#06030c';
+      ctx.beginPath();
+      ctx.arc(-4, 3, 2, 0, Math.PI * 2);
+      ctx.arc(4, 3, 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Draw Weapons & Attack Action Effects
+      const wpnChoice = choices.weapons || 1;
+      const wpnCol = CATEGORIES.find(c => c.id === 'weapons')?.options.find(o => o.id === wpnChoice)?.color || '#ffd166';
+
+      if (activeAction === 'slash') {
+        ctx.strokeStyle = wpnCol;
+        ctx.lineWidth = 4.0;
+        ctx.beginPath();
+        const slashAngle = Math.sin(actionTimer * 10) * 1.2;
+        ctx.arc(hx + 18, hy - 4, 26, slashAngle - 0.8, slashAngle + 0.8);
+        ctx.stroke();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      } else if (activeAction === 'finisher') {
+        ctx.strokeStyle = '#ffd700';
+        ctx.lineWidth = 6.0;
+        ctx.beginPath();
+        ctx.arc(hx + 28, hy + 5, 34, -Math.PI * 0.6, Math.PI * 0.6);
+        ctx.stroke();
+        ctx.strokeStyle = '#ff3355';
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+      } else if (activeAction === 'scythe') {
+        ctx.strokeStyle = '#b362ff';
+        ctx.lineWidth = 4.5;
+        ctx.beginPath();
+        ctx.arc(hx, hy, 38, animFrame * 15, animFrame * 15 + Math.PI * 1.4);
+        ctx.stroke();
+      } else if (activeAction === 'bow') {
+        // Arrow beam projectile
+        const arrX = (hx + 20 + (actionTimer * 200) % 180);
+        ctx.fillStyle = '#ffd166';
+        ctx.fillRect(arrX, hy - 2, 20, 4);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(arrX + 16, hy - 3, 6, 6);
+      } else if (activeAction === 'chest') {
+        // Draw open chest box
+        ctx.fillStyle = '#221238';
+        ctx.strokeStyle = '#ffd700';
+        ctx.lineWidth = 2;
+        ctx.fillRect(hx + 30, hy - 5, 36, 24);
+        ctx.strokeRect(hx + 30, hy - 5, 36, 24);
+      }
+
+      // Draw Orbiting Particles & Droplets
+      const xpChoice = choices.xp_drops || 1;
+      const xpCol = CATEGORIES.find(c => c.id === 'xp_drops')?.options.find(o => o.id === xpChoice)?.color || '#4dc4ff';
+      for (let i = 0; i < 4; i++) {
+        const xpx = w * 0.76 + Math.sin(animFrame * 2 + i * 1.5) * 18;
+        const xpy = h * 0.60 + Math.cos(animFrame * 2 + i * 1.5) * 12;
+        ctx.fillStyle = xpCol;
+        ctx.beginPath();
+        ctx.arc(xpx, xpy, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(xpx - 1, xpy - 1, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Update & Draw Action Particles
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life -= 0.03;
+        if (p.life <= 0) {
+          particles.splice(i, 1);
+          continue;
+        }
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = p.life;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1.0;
+      }
+
+      // Update & Draw Floating Numbers / Banners
+      for (let i = damageNumbers.length - 1; i >= 0; i--) {
+        const d = damageNumbers[i];
+        d.y -= 0.8;
+        d.life -= 0.02;
+        if (d.life <= 0) {
+          damageNumbers.splice(i, 1);
+          continue;
+        }
+        ctx.font = 'bold 13px "VT323", monospace';
+        ctx.fillStyle = d.color;
+        ctx.globalAlpha = d.life;
+        ctx.fillText(d.text, d.x, d.y);
+        ctx.globalAlpha = 1.0;
+      }
+
+      // Draw Selected UI HUD Bar
+      const uiChoice = choices.combat_hud || 1;
+      const uiCol = CATEGORIES.find(c => c.id === 'combat_hud')?.options.find(o => o.id === uiChoice)?.color || '#4dffd4';
+      ctx.fillStyle = '#000000bb';
+      ctx.fillRect(8, 8, 110, 14);
+      ctx.strokeStyle = uiCol;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(8, 8, 110, 14);
+      ctx.fillStyle = uiCol;
+      ctx.fillRect(10, 10, 75, 10);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '10px monospace';
+      ctx.fillText('HP 75/100', 16, 18);
+    }
+
+    setInterval(drawLiveSandbox, 33);
+
+    // ── Init ──
+    renderCurrentScreen();
+  </script>
+</body>
+</html>
