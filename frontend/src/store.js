@@ -193,6 +193,10 @@ export const DEFAULT_SAVE = {
   // back to the pistol rather than handing the engine an id WEAPONS has no
   // entry for (snapshot() reads WEAPONS[id].icon every frame and would throw).
   startWeapon: 'hydropistol',
+  // The real katana is earned, not owned: set by data_ext2.js's grantKatana
+  // the first time the hull goes up. Read by isStarterUnlocked /
+  // resolveStartWeapon, so this flag is what makes the sword carryable.
+  katanaUnlocked: false,
   milestoneBar: 0,
   achClaimed: {},      // { achievementId: true }
   // Milestone toasts that already fired. `null` on a loaded save means

@@ -3,6 +3,7 @@ import { StationRoom as Room, STATIONS } from '../game/stationRoom';
 import { BUILDINGS, buildingLevel, buildingCost, isStationRepaired, isModuleAvailable, repairStation, tryBuyBuilding } from '../game/base';
 import { totalBuildingLevels, campNewlyUnlocked, storyBeat } from '../game/campaign';
 import { getActiveAidaNode, applyAidaChoice } from '../game/aidaDialogue';
+import { grantKatana } from '../game/data_ext2';
 import { Audio } from '../game/audio';
 import { pushToast } from '../game/toastBus';
 import GameIcon from './GameIcon';
@@ -45,13 +46,33 @@ export default function StationRoom({ save, setSave, onOpen, onUnlock, onClose, 
         pushToast({ tone: 'default', icon: 'ui_lock', title: bought.title, text: bought.text });
         return;
       }
-      setSave(bought.save);
+      // SEALING THE HULL PAYS THE KATANA.
+      //
+      // Timmy: "you earn a new weapon after you enter camp and buy first
+      // building — then give reward katana". The first module is the trigger.
+      // It lands as its own UNLOCKED banner, queued BEHIND the menu unlocks
+      // this purchase also cracks open, so the sword gets a moment of its own
+      // instead of being one line in a toast — and it is already equipped
+      // (`startWeapon`), because a reward you have to go and find is not one.
+      const hullFirst = st.module === 'hull' && (bought.save.base || {}).hull === 1;
+      const granted = hullFirst ? grantKatana(bought.save) : bought.save;
+      setSave(granted);
+      // Queued FIRST, before the menu banners this same purchase opens: the
+      // sword is the headline, and three "new menu" beats before it would
+      // bury the one thing the player is going to notice for the rest of the
+      // run. Camp.jsx shows them one at a time, so the order here is the
+      // order they are seen.
+      if (hullFirst && onUnlock) {
+        onUnlock([{
+          type: 'weapon', id: 'steelKatana', icon: 'katanaBlade',
+          name: 'KATANA', sub: 'NEW WEAPON — EQUIPPED FOR YOUR NEXT RUN',
+        }]);
+      }
       const newly = campNewlyUnlocked(before, before + 1);
       if (newly.length && onUnlock) onUnlock(newly);
       if (roomRef.current && roomRef.current.cheer) roomRef.current.cheer(1.6);
       if (Audio.stationBuild) Audio.stationBuild();
       else if (Audio.claimPing) Audio.claimPing();
-      const hullFirst = st.module === 'hull' && (bought.save.base || {}).hull === 1;
       const hangarFirst = st.module === 'hangar' && (bought.save.base || {}).hangar === 1;
       pushToast({
         tone: 'legendary',
@@ -59,12 +80,12 @@ export default function StationRoom({ save, setSave, onOpen, onUnlock, onClose, 
         title: hangarFirst
           ? 'HANGAR ONLINE — SHIP AND MAPS OPEN'
           : hullFirst
-            ? 'HULL SEALED'
+            ? 'HULL SEALED — KATANA EARNED'
             : `${bought.title} ONLINE`,
         text: hangarFirst
           ? 'ENDLESS and MAPS are on the rail. CONTINUE STORY is the next planet.'
           : hullFirst
-            ? 'The hall holds air. Walk the next hole, or go gather if the stores are empty.'
+            ? 'The hall holds air, and there is a proper blade in your hands now. Next run opens with it.'
             : bought.text,
         key: `station:${st.module}:${(bought.save.base || {})[st.module] || 1}`,
         once: true,

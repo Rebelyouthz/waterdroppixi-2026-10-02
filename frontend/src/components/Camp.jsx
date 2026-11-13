@@ -723,7 +723,10 @@ export default function Camp({ save, setSave, onBack, onStart, onMission, onStor
         )}
         {unlockShown && (() => {
           const shown = typeof unlockShown === 'string' ? { type: 'tab', id: unlockShown } : unlockShown;
-          const meta = shown.type === 'move'
+          // 'move' (a skill that grants a verb) and 'weapon' (the katana)
+          // carry their own icon/name/sub — they are not camp tabs, so there
+          // is no CAMP_TAB_META row to look up. Everything else is a menu.
+          const meta = (shown.type === 'move' || shown.type === 'weapon')
             ? shown
             : { type: 'tab', id: shown.id, ...(CAMP_TAB_META[shown.id] || {}) };
           const bannerId = shown.id || 'unlock';

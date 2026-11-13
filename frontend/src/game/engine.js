@@ -4,6 +4,7 @@ import { applyAttachments } from './attachments';
 import { Audio } from './audio';
 import { PixiRenderer } from './pixiRenderer';
 import { tickRibCombo, pushRibHit, ribStyle, wantsAttack, bumpHoldString, tickHoldString, applyHoldString } from './meleeCombo';
+import { readBeat, advanceBeat } from './katanaCombo';
 
 const TAU = Math.PI * 2;
 // ── Which engine field holds each active skill's "still running" timer ──
@@ -2504,13 +2505,25 @@ export class Game {
     let fr = s.fireRate * rs.fireRateMult;
     if (pf.meleeSpeed) fr *= 1 + (rs.meleeSpeedAmt || 0.10);
     const holding = wantsAttack(this.input);
-    tickHoldString(p, holding, dt);
+    // The katana is not the rib, so it does not share the rib's hold counter:
+    // its rhythm comes from its own three patterns (game/katanaCombo.js).
+    const isKatana = s._wid === 'steelKatana';
+    if (!isKatana) tickHoldString(p, holding, dt);
     if (!holding) return;
     if (p.katanaCD > 0) return;
-    bumpHoldString(p);
-    const seq = pushRibHit(p, !!this.input.heavy, pf);
-    let form = ribStyle(seq, pf);
-    form = applyHoldString(p, form, this.run.comboCount);
+    let form;
+    if (isKatana) {
+      // quick, quick, LONG / quick, LONG, quick / 1-2-3-THE FOOOUR, cycling.
+      // No talent nodes gate these: the blade was the reward, the string is
+      // part of it.
+      form = readBeat(p).beat;
+      advanceBeat(p);
+    } else {
+      bumpHoldString(p);
+      const seq = pushRibHit(p, !!this.input.heavy, pf);
+      form = ribStyle(seq, pf);
+      form = applyHoldString(p, form, this.run.comboCount);
+    }
     p.katanaCD = (1 / fr) * form.cd;
 
     const visReach = (s.area || 96) * rs.areaMult;
@@ -2617,7 +2630,11 @@ export class Game {
     else if (comboTier >= 2) idx = 6;  // 180° Cyclone Arc
     else if (comboTier >= 1) idx = 4;  // Rising Diagonal Uppercut
     else idx = (this._katanaStyle = ((this._katanaStyle || 0) + 1) % Game.KATANA_STYLES.length);
-    if (form && form.key === 'LLL') idx = 7;
+    // A beat can name its own cut (game/katanaCombo.js), which is what makes
+    // the katana's strings read as three different rhythms rather than one
+    // swing replayed at three speeds.
+    if (form && form.style != null) idx = form.style;
+    else if (form && form.key === 'LLL') idx = 7;
     else if (form && form.key === 'LLH') idx = 4;
     else if (form && form.key === 'H') idx = 2;
     this._katanaStyle = idx;

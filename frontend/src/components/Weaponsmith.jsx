@@ -155,6 +155,10 @@ export default function Weaponsmith({ save, setSave, onClose, initialSub }) {
   const blueprintWeapons = Object.keys(STARTER_WEAPONS).filter(k => k !== 'hydropistol');
   const isUnlockedStarter = (id) => {
     const d = STARTER_WEAPONS[id];
+    // `requires` is the earned-weapon gate (the katana's camp unlock). Without
+    // this line the shelf would offer a sword the player has not been given
+    // yet, and picking it would silently resolve back to the pistol.
+    if (d.requires) return !!save[d.requires];
     return !d.blueprintCost || crafted[id];
   };
   const weaponKind = (id) => {
@@ -183,11 +187,14 @@ export default function Weaponsmith({ save, setSave, onClose, initialSub }) {
     },
     {
       key: 'manual', label: '✥ MANUAL — you aim these', hint: 'Crafted with blueprint shards.',
-      ids: blueprintWeapons.filter(id => !isUnlockedStarter(id) && weaponKind(id) === 'manual'),
+      // `requires`-gated starters (the katana) are earned in the camp, not
+      // forged from shards: they have no blueprintCost to charge against, so
+      // leaving them in this list would make CRAFT subtract NaN.
+      ids: blueprintWeapons.filter(id => !STARTER_WEAPONS[id].requires && !isUnlockedStarter(id) && weaponKind(id) === 'manual'),
     },
     {
       key: 'auto', label: '✧ AUTO — these fire themselves', hint: 'Crafted with blueprint shards.',
-      ids: blueprintWeapons.filter(id => !isUnlockedStarter(id) && weaponKind(id) === 'auto'),
+      ids: blueprintWeapons.filter(id => !STARTER_WEAPONS[id].requires && !isUnlockedStarter(id) && weaponKind(id) === 'auto'),
     },
   ].filter(g => g.ids.length > 0);
 

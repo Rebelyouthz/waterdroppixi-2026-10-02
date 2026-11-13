@@ -80,7 +80,7 @@ export const STORY_QUESTS = [
     id: 's_hull', icon: 'ui_base', go: 'base',
     title: 'Seal the hull',
     goal: 'Patch The Hull so the station holds air',
-    why: 'Skills, talents and meta stay dusty until the first bolt. If you cannot pay, CONTINUE STORY is a gather run.',
+    why: 'Skills, talents and meta stay dusty until the first bolt — and the module pays you a real katana. If you cannot pay, CONTINUE STORY is a gather run.',
     check: (s) => buildingLevel(s, 'hull') >= 1,
     rwd: { gold: 400, gearParts: 10 },
   },
@@ -108,19 +108,19 @@ export const STORY_QUESTS = [
     check: (s) => (s.bestLevel || 0) >= 5,
     rwd: { gold: 500, sp: 1 },
   },
-  // Placed after 'grow teeth' and before the first node: late enough that the
-  // player has felt how the pistol handles, early enough that being made to
-  // drop it for a run is still a lesson rather than an interruption. The
-  // katana is unlocked from the start (STARTER_WEAPONS), so this asks the
-  // player to CHOOSE it rather than granting anything.
+  // Placed after 'grow teeth' and before the first node: by now the hull is
+  // up, which means the katana has been paid out (data_ext2.js's grantKatana)
+  // and is already the weapon the next run opens with. So this step is not
+  // "pick a worse weapon and suffer" any more — it is the run that teaches
+  // the strings, and it lands before the first node where a blade that
+  // reaches actually matters.
   {
-    // Points at the blueprint shelf specifically, not at the smith's front
-    // door — that is where the START WEAPONS selector lives, and this quest is
-    // the reason a player first needs it.
-    id: 's_katana', icon: 'katana', go: 'smithBlueprints',
-    title: 'Put the gun down',
-    goal: 'Finish one run carrying the Snapped Rib',
-    why: 'Shooting is not the only answer, and the rib is the only thing you own that cuts a body clean in half. Weaponsmith → BLUEPRINTS → CARRY THIS. If you hate it, never again.',
+    // Points at the blade shelf rather than the smith's front door: that is
+    // where the carried weapon is shown and why this step exists.
+    id: 's_katana', icon: 'steelKatana', go: 'smithBlueprints',
+    title: 'Draw the blade',
+    goal: 'Finish one run carrying the Katana',
+    why: 'Quick, quick, long — the sword swings in three rhythms and reaches further than anything you started with. If it is not in your hands, Weaponsmith → BLUEPRINTS → CARRY THIS.',
     check: (s) => (s.katanaRuns || 0) >= 1,
     rwd: { gold: 600, gearParts: 16 },
   },

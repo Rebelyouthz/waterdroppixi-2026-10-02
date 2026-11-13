@@ -91,6 +91,53 @@ export const WEAPONS = {
     ],
   },
 
+  // THE KATANA — the real blade, earned in the camp.
+  //
+  // The id is `steelKatana`, not `katana`: the starter keeps `katana` (77
+  // references ride on it, including the save field `katanaRuns`), and the
+  // starter is a torn ship rib. This is the sword that rib was standing in
+  // for — balance, a guard, a length of edge — handed over the moment the
+  // hull goes up (see data_ext2.js's grantKatana).
+  //
+  // It is not "the rib with bigger numbers". Its swings run on their own
+  // rhythm system (game/katanaCombo.js): three strings that cycle — two
+  // quick cuts into a long committed one, a quick cut into a long one into a
+  // quick one, and a four-beat string that ends in a full 360. That is why
+  // its fireRate reads slower than its actual cadence: the fast beats scale
+  // down from it and the long beats scale up.
+  steelKatana: {
+    id: 'steelKatana',
+    name: 'Katana',
+    icon: 'katanaBlade',
+    type: 'manual',
+    behaviour: 'melee',
+    // Only offered as a level-up card / in a pool once the hull has paid it
+    // out. Without this it would turn up in the first run's card choices as
+    // a weapon nobody has heard of yet.
+    requireUnlock: true,
+    desc: 'A balanced blade with a real edge. Longer reach, three rhythms, and it cuts clean.',
+    base: {
+      damage: 104,        // rib: 86. The blade finds the seam the rib could not.
+      fireRate: 2.6,      // the base beat — katanaCombo scales it per swing
+      area: 118,          // rib: 88. This is the "longer" the player asked for.
+      knockback: 36,      // rib: 52 — a cut pulls through, it does not shove
+      crit: 0.24,         // rib: 0.09 — balance is what lets an edge find bone
+      color: '#eaf6ff',
+      sound: 'katana',
+    },
+    levelUps: [
+      { stat: 'damage', mult: 1.18 },
+      { stat: 'fireRate', mult: 1.10 },
+      { stat: 'area', mult: 1.12 },
+      { stat: 'crit', add: 0.06 },
+      { stat: 'damage', mult: 1.22 },
+      { stat: 'fireRate', mult: 1.10 },
+      { stat: 'area', mult: 1.12 },
+      { stat: 'damage', mult: 1.24 },
+      { stat: 'crit', add: 0.06 },
+    ],
+  },
+
   hydropistol: {
     id: 'hydropistol',
     name: 'Hydro Pistol',

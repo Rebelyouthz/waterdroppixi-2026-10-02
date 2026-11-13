@@ -706,7 +706,8 @@ export function PartsInventory({ save, setSave, onClose }) {
   const equipped = save.equippedParts || {}; // { weaponId: { slot: partId } }
   const [wid, setWid] = useState(Object.keys(STARTER_WEAPONS)[0]);
   const cw = save.craftedWeapons || { hydropistol: true };
-  const weaponList = Object.keys(STARTER_WEAPONS).filter(k => k === 'hydropistol' || cw[k]);
+  const weaponList = Object.keys(STARTER_WEAPONS).filter(k => k === 'hydropistol' || cw[k]
+    || (STARTER_WEAPONS[k].requires && save[STARTER_WEAPONS[k].requires]));
   const equipPart = (part) => {
     const cur = { ...(equipped[wid] || {}) };
     cur[part.slot] = part.id;

@@ -441,7 +441,10 @@ export default function GameScreen({ save, setSave, onExit, onRunEnd, mission, p
             // NOT as a bare `ownedWeapons` id list, which is what this first
             // reached for and would have made the whole quest permanently
             // uncompletable with no error anywhere.
-            if ((r.weapons || []).some(w => w && w.id === 'katana')) {
+            // Both blades count: the Snapped Rib (id `katana`, the starter)
+            // and the earned Katana (id `steelKatana`). The quest is about
+            // fighting with a blade, not about which one is in the scabbard.
+            if ((r.weapons || []).some(w => w && /katana$/i.test(w.id || ''))) {
               next.katanaRuns = (cur.katanaRuns || 0) + 1;
             }
             if (r.noHit) next.noHitRuns = (cur.noHitRuns || 0) + 1;

@@ -329,6 +329,11 @@ function beamLock(u) {
 // default by behaviour instead of being silent — see shootFallback below.
 const WID_RECIPE = {
   hydropistol: pistolCrack, hydropistol_evo: pistolCrack,
+  // Melee. Both blades were missing here, and 'melee' was missing from the
+  // fallback table below, so a sword swing fell through to `pistolCrack` —
+  // the one weapon in the game with no edge made a gunshot noise. The katana
+  // gets the same recipe at its own pitch (the id hashes into the wobble).
+  katana: bladeSlash, steelKatana: bladeSlash,
   desertEagle: revolverBoom, twinRevolvers: revolverBoom,
   bow: boltTwang,
   daggers: bladeSlash, daggers_evo: shotgunBlast,
@@ -351,6 +356,7 @@ const BEHAVIOUR_FALLBACK = {
   projectile: pistolCrack, shotgun: shotgunBlast, aoe: pulseWhump,
   beam: beamLock, meteor: meteorWhistleBoom, chain: lightningCrack,
   orbit: crystalPing, drone: droneBlip,
+  melee: bladeSlash,
 };
 
 const rawAudio = {

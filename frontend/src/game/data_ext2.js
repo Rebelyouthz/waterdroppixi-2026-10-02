@@ -16,6 +16,17 @@ export const STARTER_WEAPONS = {
     blueprint: null,
     desc: 'Not a blade. A torn piece of the station, sharp where it broke.',
   },
+  // The real sword, gated on the camp. `requires` names the save flag that
+  // opens it, so it is NOT on the shelf at character creation — it appears in
+  // the Weaponsmith's START list the moment `grantKatana` sets the flag when
+  // the hull goes up. Its definition lives in WEAPONS (data.js) like the
+  // pistol's and the rib's; this entry only puts it on the shelf.
+  steelKatana: {
+    id: 'steelKatana', name: 'Katana', icon: 'katanaBlade',
+    blueprint: null,
+    requires: 'katanaUnlocked',
+    desc: 'A balanced blade with a real edge. Longer reach, three rhythms.',
+  },
   twinSMG: {
     id: 'twinSMG', name: 'Twin SMG', icon: 'revolvers',
     blueprintCost: 5,
@@ -67,12 +78,36 @@ for (const k of Object.keys(STARTER_WEAPONS)) {
 }
 
 // A starter is available to carry when it costs no shards (the pistol and the
-// katana) or when its blueprint has been forged.
+// rib), when its blueprint has been forged, or — for the katana — when the
+// camp has actually paid it out (`requires` names the save flag).
 export function isStarterUnlocked(save, id) {
   const d = STARTER_WEAPONS[id];
   if (!d) return false;
+  if (d.requires) return !!(save && save[d.requires]);
   if (!d.blueprintCost) return true;
   return !!(save && save.craftedWeapons && save.craftedWeapons[id]);
+}
+
+// THE KATANA PAYOUT — one function, called when the hull is sealed.
+//
+// Timmy: "you earn a new weapon after you enter camp and buy first building,
+// then give reward katana". So the first module is the trigger, not a quest
+// claim: the sword is in his hands the moment the station holds air. It also
+// EQUIPS it, because a reward you have to go and find in a menu is not a
+// reward — `startWeapon` is what the next run opens with.
+//
+// Idempotent: the hull is max level 1, but the room and any future console
+// can both call this on the same purchase, and a save must never be charged
+// the sword twice.
+export function grantKatana(save, { equip = true } = {}) {
+  if (!save) return save;
+  if (save.katanaUnlocked) return save;
+  return {
+    ...save,
+    katanaUnlocked: true,
+    unlockedWeapons: [...new Set([...(save.unlockedWeapons || []), 'steelKatana'])],
+    ...(equip ? { startWeapon: 'steelKatana' } : {}),
+  };
 }
 
 // Which weapon a run opens with. ONE definition, shared by the Weaponsmith's
@@ -1017,8 +1052,14 @@ export const MAP_STAGES = [
       // a clear can ALWAYS afford the cheapest base building (The Well,
       // 600g) on its own, no chest RNG required — that purchase is what
       // fires the camp's first unlock batch (Meta/Skilltree/Talents).
-      { id: 'pond_1', name: 'First Drops',  diff: 0, duration: 250, spawnMult: 0.45, enemyMix: ['slime','sludgeling'], rwd: { gold: 700 }, unlockGoal: 'orbit_find', forceBaseline: true, startWeapons: ['katana'], bossId: 'sludgeWarden' },
-      { id: 'pond_2', name: 'Ripples',      diff: 0, duration: 420, spawnMult: 0.55, enemyMix: ['briner','bogHusk'], rwd: { gold: 900 }, unlockGoal: 'pond_1', forceBaseline: true, startWeapons: ['katana'], bossId: 'theDredger' },
+      // No forced `startWeapons` on these two any more: they used to pin the
+      // run to the Snapped Rib (id `katana`) because that was all a fresh
+      // save had. The hull now pays out the real katana BEFORE this pair, so
+      // pinning would throw the earned weapon away on the very next node —
+      // `forceBaseline` still strips every meta upgrade, which is what these
+      // nodes are actually for. The start weapon resolves from the save.
+      { id: 'pond_1', name: 'First Drops',  diff: 0, duration: 250, spawnMult: 0.45, enemyMix: ['slime','sludgeling'], rwd: { gold: 700 }, unlockGoal: 'orbit_find', forceBaseline: true, bossId: 'sludgeWarden' },
+      { id: 'pond_2', name: 'Ripples',      diff: 0, duration: 420, spawnMult: 0.55, enemyMix: ['briner','bogHusk'], rwd: { gold: 900 }, unlockGoal: 'pond_1', forceBaseline: true, bossId: 'theDredger' },
       { id: 'pond_3', name: 'The Overflow', diff: 1, duration: 250, spawnMult: 0.85, enemyMix: ['slime','bat'],   rwd: { gold: 420, sp: 1 },   unlockGoal: 'pond_2' },
     ],
   },

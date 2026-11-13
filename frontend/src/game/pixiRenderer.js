@@ -143,6 +143,58 @@ const WEAPON_MODELS = {
       [26.0, -1.0, 1.6, 1.2, '#241810', 0.75],
     ],
   },
+  // THE KATANA — the sword the rib was a stand-in for.
+  //
+  // Same `kind`, so it gets the swipe pose and the blood that runs down a
+  // blade (heroDraw's katana branch). Everything else is drawn to read as a
+  // real sword at a glance, because it sits beside the rib in a run and the
+  // two must never look like the same object with a new name: a wrapped
+  // tsuka with a pommel, an actual tsuba, a habaki, and a long edge that
+  // curves instead of breaking off. It is also 14px longer than the rib's
+  // tip, which is what makes the reach upgrade visible in the hands.
+  steelKatana: {
+    kind: 'katana',
+    accent: '#eaf6ff', muzzle: 58,
+    parts: [
+      // Tsuka — wrapped grip. Alternating dark wrap over a lighter core on
+      // both faces, so it reads as cord and not as a painted stick.
+      [-15.5, -2.2, 15.0, 4.4, '#141922'],
+      [-14.4, -2.7, 1.4, 5.4, '#2d3541'],
+      [-11.6, -2.7, 1.4, 5.4, '#2d3541'],
+      [-8.8, -2.7, 1.4, 5.4, '#2d3541'],
+      [-6.0, -2.7, 1.4, 5.4, '#2d3541'],
+      [-3.2, -2.7, 1.4, 5.4, '#2d3541'],
+      // Kashira — the pommel cap.
+      [-17.6, -2.5, 2.6, 5.0, '#8a96a2'],
+      [-17.6, -2.5, 1.0, 5.0, '#c8d4de'],
+      // Tsuba — the guard. The one part a snapped rib cannot have, and the
+      // clearest silhouette cue that this is a made sword.
+      [-1.7, -5.8, 2.8, 11.6, '#586472'],
+      [-1.2, -6.6, 1.8, 1.8, '#a4b0bc'],
+      [-1.2, 4.8, 1.8, 1.8, '#a4b0bc'],
+      // Habaki — the collar where the blade leaves the guard.
+      [1.2, -2.7, 2.8, 5.4, '#c8d4de'],
+      // Blade — five steps, each one lower, so the edge curves rather than
+      // sitting dead straight. Steel bright enough to read over fire and gore.
+      [3.8, -2.1, 11, 3.0, '#aebccd'],
+      [14.4, -2.7, 11, 3.0, '#b8c6d6'],
+      [25.0, -3.4, 11, 2.9, '#becdde'],
+      [35.6, -4.2, 11, 2.8, '#c4d2e2'],
+      [46.2, -5.1, 8, 2.6, '#ccdaea'],
+      // Kissaki — the point.
+      [53.8, -5.7, 4.4, 2.0, '#e2edf8'],
+      [56.8, -6.0, 2.4, 1.2, '#ffffff'],
+      // Hamon edge — the bright line along the cutting side, the thing that
+      // catches light as the blade turns.
+      [4.4, 0.4, 12, 1.1, '#f4fcff', 0.90],
+      [15.4, -0.2, 12, 1.1, '#f4fcff', 0.92],
+      [26.4, -0.9, 12, 1.1, '#f4fcff', 0.94],
+      [37.4, -1.7, 11, 1.0, '#ffffff', 0.95],
+      [48.0, -2.6, 8, 0.9, '#ffffff', 0.96],
+      // Spine shadow, so the flat of the blade has a top and a bottom.
+      [4.4, -2.1, 44, 0.9, '#7c8896', 0.55],
+    ],
+  },
   hydropistol: {
     accent: '#6cb4ff', muzzle: 30, slide: [5, -5, 10, 2.8], slideColor: '#3a4658',
     parts: [

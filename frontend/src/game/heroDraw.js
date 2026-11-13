@@ -63,10 +63,14 @@ export function drawHeldWeapon(gf, model, gx, gy, ang, rl, p, game) {
   for (const [lx, ly, lw, lh, col, alpha] of model.parts) box(lx, ly, lw, lh, col, alpha);
 
   if (model.kind === 'katana' && game && game._bladeBlood > 0.03) {
+    // The run of blood follows the MODEL's own length (the rib's tip and the
+    // katana's are 18px apart), so a longer blade does not get a stripe of
+    // gore that stops two thirds of the way down it.
     const wet = Math.min(1, game._bladeBlood);
-    box(5.0, -1.25, 30 * (0.35 + wet * 0.65), 2.2, '#b51d28', 0.22 + wet * 0.5);
-    box(7.5, 0.35, 26 * wet, 1.15, '#6e0c12', 0.30 + wet * 0.45);
-    if (wet > 0.4) box(34.5, 0.5, 2.6, 1.8 + wet * 2.4, '#8a1018', 0.55 + wet * 0.3);
+    const run = (model.muzzle || 40) - 6;
+    box(5.0, -1.25, run * (0.35 + wet * 0.65), 2.2, '#b51d28', 0.22 + wet * 0.5);
+    box(7.5, 0.35, run * 0.85 * wet, 1.15, '#6e0c12', 0.30 + wet * 0.45);
+    if (wet > 0.4) box(4 + run - 5, 0.5, 2.6, 1.8 + wet * 2.4, '#8a1018', 0.55 + wet * 0.3);
   }
 
   if (model.kind === 'bow') {

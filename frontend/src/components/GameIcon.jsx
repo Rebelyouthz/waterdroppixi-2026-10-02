@@ -843,6 +843,22 @@ const GLYPHS = {
     <path d="M6.4 23.6l3.2 2.8M8 22.2l3 2.6" stroke={STEEL_HI} strokeWidth="0.85" opacity="0.75" />
     <path d="M12.2 20.8l2.6 1.4-0.8 1.8-2.8-1.2z" fill="#4a545c" />
   </>),
+  // THE KATANA — the earned sword, and it must not be mistakable for the
+  // snapped rib above at 32px. Read differs on three counts: the blade CURVES
+  // (the rib's is a straight shard), there is a tsuba across it, and the grip
+  // is wrapped rather than a broken shaft. Those are the same three cues the
+  // in-hand model uses, so the card art and the thing in his hands agree.
+  katanaBlade: (u) => (<>
+    <path d="M29.4 2.6c1.6 1 2 2.2 1.4 3.6L12.6 24.2l-4.4-3.2L27.6 2.8z" fill={`url(#${u}-live)`} stroke={DARK} strokeWidth="1.05" strokeLinejoin="round" />
+    <path d="M29.4 2.6c1.6 1 2 2.2 1.4 3.6l-9.4 10.2" fill="none" stroke="#ffffff" strokeWidth="0.85" opacity="0.85" />
+    {/* Tsuba — the guard. */}
+    <path d="M5.2 21.6l6 4.4-1.5 2-6-4.4z" fill={STEEL_LO} stroke={DARK} strokeWidth="0.9" />
+    <path d="M6.4 20.4l3.4 2.5-6.2 8.4-3-2.2z" fill={DARK} stroke="#000" strokeWidth="0.6" />
+    {/* Wrapped tsuka with a pommel cap. */}
+    <path d="M4.6 25.6l3 2.2M3.2 27.4l3 2.2" stroke={STEEL_HI} strokeWidth="0.9" opacity="0.8" />
+    <path d="M1.4 28.6l1.8-2.4 2.4 1.8-1.8 2.4z" fill={STEEL_HI} stroke={DARK} strokeWidth="0.7" />
+    <circle cx="26.4" cy="8.6" r="6" fill={`url(#${u}-glow)`} opacity="0.7" />
+  </>),
   pistol: (u) => (<>
     <path d="M3 11h16l3 1.5v4H12l-1.4 4H8.6l-1-4H3z" fill={`url(#${u}-body)`} stroke={DARK} strokeWidth="1.2" strokeLinejoin="round" />
     <rect x="5" y="12.4" width="7" height="1.8" rx="0.9" fill={DARK} opacity="0.75" />
@@ -2071,6 +2087,7 @@ export const ICONS = {
   iceLance:       ['frost',     '#9fe0ff'],
   meteorRain:     ['cosmicRain',    '#ff7a1a'],
   katana:         ['katana',    '#dff4ff'],
+  steelKatana:    ['katanaBlade', '#eaf6ff'],
   hydropistol:    ['pistol',    '#6cb4ff'],
   // The four blueprint starters. They had no ICONS entry at all, so every one
   // of them fell through to the pistol glyph — the Weaponsmith's blueprint
