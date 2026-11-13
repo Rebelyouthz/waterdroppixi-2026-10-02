@@ -19,7 +19,7 @@ import { isRescued } from '../game/companions';
 import { DIFF_INDEX } from '../game/difficulty';
 import { resolvedDifficultyMods } from '../game/campaign';
 import { BUILDINGS } from '../game/base';
-import HUD from './Hud';
+import HUD from './HUD';
 import LevelUpModal from './LevelUpModal';
 import GameOver from './GameOverScreen';
 import MobileControls from './MobileControls';

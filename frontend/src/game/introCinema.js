@@ -70,7 +70,6 @@ const BEATS = [
   // runs FIRST and hands off to the lake it has just described.
   { id: 'comic', dur: 14.6 },
   { id: 'lake', dur: 7.0 },
-  { id: 'conspiracy', dur: 8.0 },
   { id: 'space', dur: 11.0 },
   { id: 'fight', dur: 16.0 },
 ];
@@ -130,7 +129,6 @@ export class IntroCinema {
     // Built after sceneLake so the comic page sits ON TOP of it in the
     // display list; the runner then shows exactly one of them per beat.
     this._buildComic();
-    this._buildConspiracy();
     this._buildSpace();
     this._buildFight();
     this._buildGrade();

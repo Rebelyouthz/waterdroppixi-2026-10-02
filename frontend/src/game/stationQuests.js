@@ -134,7 +134,14 @@ export function claimStationQuest(save, questId) {
   // Award rewards
   const rwd = q.reward || {};
   if (rwd.gold) s.gold = (s.gold || 0) + rwd.gold;
-  if (rwd.scrap) s.scrap = (s.scrap || 0) + rwd.scrap;
+  // Scrap is Star Raid's currency and lives at `starRaid.scrap` — a top-level
+  // `save.scrap` was written here and read by nobody, so every station reward
+  // paid it into a field no screen ever shows.
+  if (rwd.scrap) {
+    const sr = { ...(s.starRaid || {}) };
+    sr.scrap = (sr.scrap || 0) + rwd.scrap;
+    s.starRaid = sr;
+  }
   if (rwd.gems) s.gems = (s.gems || 0) + rwd.gems;
   if (rwd.gearParts) s.gearParts = (s.gearParts || 0) + rwd.gearParts;
   
